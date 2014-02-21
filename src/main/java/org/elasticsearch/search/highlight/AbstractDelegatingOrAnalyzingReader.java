@@ -41,10 +41,10 @@ import java.util.*;
 
 /**
  * This reader is a pile of hacks designed to allow on the fly re-analyzing for
- * documents for highlighters that need extra data.  Right now it only works with
- * the FVH.
+ * documents for highlighters that need extra data.  It has to be extended to
+ * be useful but should work for the FHV and Postings highlighter.
  */
-public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
+public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicReader {
     private final SearchContext searchContext;
     private final FetchSubPhase.HitContext hitContext;
     private final boolean forceSource;
@@ -62,7 +62,7 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
      * @param forceSource when loading the field values should we force a load from source?
      * @param termSetSource optional souce of terms to analyze.  If null then all terms will be analyzed which has more overhead.
      */
-    public DelegatingOrAnalyzingReader(SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource,
+    public AbstractDelegatingOrAnalyzingReader(SearchContext searchContext, FetchSubPhase.HitContext hitContext, boolean forceSource,
             TermSetSource termSetSource) {
         // Delegate to a low level reader containing the document.
         super(hitContext.reader());
@@ -77,17 +77,6 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
      */
     public List<Object> getValues(FieldMapper<?> mapper) throws IOException {
         return getValues(mapper, false);
-    }
-
-    @Override
-    public Fields getTermVectors(int docId) throws IOException {
-        // If we can push this call until we have the field so we an make an educated guess
-        // (using the mapper) as to whether there might be term vectors for the field.
-        Fields real = super.getTermVectors(docId);
-        if (real == null) {
-            return new AnalyzingFields();
-        }
-        return new DelegatingOrAnalyzingFields(real);
     }
 
     /**
@@ -151,7 +140,7 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
     /**
      * Really hacky Fields implementation only really safe for the FHV.
      */
-    private class AnalyzingFields extends Fields {
+    protected class AnalyzingFields extends Fields {
         @Override
         public Terms terms(String field) throws IOException {
             return analyzeField(field);
@@ -173,7 +162,7 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
      * exist, otherwise reanalyzes the field on the fly.  Less hacky then
      * AnalyzingFields but still not safe.
      */
-    private class DelegatingOrAnalyzingFields extends FilterFields {
+    protected class DelegatingOrAnalyzingFields extends FilterFields {
         public DelegatingOrAnalyzingFields(Fields in) {
             super(in);
         }
@@ -183,7 +172,7 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
             // This call is very low cost even if there aren't term vectors in
             // the field.
             Terms real = super.terms(field);
-            if (real == null) {
+            if (real == null || !(real.hasOffsets() && real.hasPositions())) {
                 return analyzeField(field);
             }
             return real;
@@ -377,6 +366,9 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
             this.terms = terms;
         }
 
+        /**
+         * The FVH expects to iterate over all the terms.
+         */
         @Override
         public BytesRef next() throws IOException {
             current++;
@@ -390,6 +382,15 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
         @Override
         public BytesRef term() throws IOException {
             return ref;
+        }
+
+        /**
+         * The Postings highlighter expects to be able to seek to the term.
+         */
+        @Override
+        public boolean seekExact(BytesRef text) throws IOException {
+            current = terms.terms.find(text);
+            return current >= 0;
         }
 
         @Override
@@ -418,17 +419,17 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
         }
 
         @Override
-        public int docFreq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public long totalTermFreq() throws IOException {
             throw new UnsupportedOperationException();
         }
 
         @Override
         public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int docFreq() throws IOException {
             throw new UnsupportedOperationException();
         }
     }
@@ -481,18 +482,27 @@ public class DelegatingOrAnalyzingReader extends FilterAtomicReader {
             return 0;
         }
 
-        @Override
-        public BytesRef getPayload() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-        
+        /**
+         * The Postings highlighter advances to get the doc it is looking for but we only have one so
+         * we just tell it we're already there.
+         */
         @Override
         public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
+           return target;
+        }
+
+        /**
+         * The Postings highlighter tries to check if we're already on the doc that it is looking for.
+         * Since advance is free we just tell it we're on doc 0 and it'll advance or not.  Either way
+         * we don't care because advance is a noop.
+         */
+        @Override
+        public int docID() {
+            return 0;
         }
         
         @Override
-        public int docID() {
+        public BytesRef getPayload() throws IOException {
             throw new UnsupportedOperationException();
         }
     }

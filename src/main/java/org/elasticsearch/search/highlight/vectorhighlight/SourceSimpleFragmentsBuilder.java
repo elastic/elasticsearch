@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.highlight.vectorhighlight;
 
-import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader;
+import org.elasticsearch.search.highlight.AbstractDelegatingOrAnalyzingReader;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
@@ -45,7 +45,7 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
-        List<Object> values = ((DelegatingOrAnalyzingReader)reader).getValues(mapper);
+        List<Object> values = ((AbstractDelegatingOrAnalyzingReader)reader).getValues(mapper);
         if (values.isEmpty()) {
             return EMPTY_FIELDS;
         }

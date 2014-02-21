@@ -19,10 +19,13 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoringRewrite;
+import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
 import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
@@ -31,12 +34,12 @@ import org.apache.lucene.search.postingshighlight.WholeBreakIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -57,9 +60,6 @@ public class PostingsHighlighter implements Highlighter {
 
         FieldMapper<?> fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
-        if (fieldMapper.fieldType().indexOptions() != FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-            throw new ElasticsearchIllegalArgumentException("the field [" + field.field() + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
-        }
 
         SearchContext context = highlighterContext.context;
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
@@ -105,8 +105,10 @@ public class PostingsHighlighter implements Highlighter {
 
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
             int values = mergeValues ? 1 : textsToHighlight.size();
+            IndexReader reader = new DelegatingOrAnalyzingReaderForPostingsHighlighter(context, hitContext, field.forceSource(), null);
             for (int i = 0; i < values; i++) {
-                Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms, hitContext.searcher(), hitContext.docId(), numberOfFragments);
+                Snippet[] fieldSnippets = highlighter.highlightDoc(fieldMapper.names().indexName(), mapperHighlighterEntry.filteredQueryTerms,
+                        reader, hitContext.docId(), numberOfFragments);
                 if (fieldSnippets != null) {
                     for (Snippet fieldSnippet : fieldSnippets) {
                         if (Strings.hasText(fieldSnippet.getText())) {
@@ -263,6 +265,18 @@ public class PostingsHighlighter implements Highlighter {
         private MapperHighlighterEntry(CustomPassageFormatter passageFormatter, BytesRef[] filteredQueryTerms) {
             this.passageFormatter = passageFormatter;
             this.filteredQueryTerms = filteredQueryTerms;
+        }
+    }
+    
+    private static class DelegatingOrAnalyzingReaderForPostingsHighlighter extends AbstractDelegatingOrAnalyzingReader {
+        public DelegatingOrAnalyzingReaderForPostingsHighlighter(SearchContext searchContext, HitContext hitContext, boolean forceSource,
+                TermSetSource termSetSource) {
+            super(searchContext, hitContext, forceSource, termSetSource);
+        }
+        
+        @Override
+        public Fields fields() throws IOException {
+            return new DelegatingOrAnalyzingFields(super.fields());
         }
     }
 }

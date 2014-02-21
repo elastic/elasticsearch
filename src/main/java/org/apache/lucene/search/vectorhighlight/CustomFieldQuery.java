@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader.TermSetSource;
+import org.elasticsearch.search.highlight.AbstractDelegatingOrAnalyzingReader.TermSetSource;
 
 import java.io.IOException;
 import java.lang.reflect.Field;

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.highlight.vectorhighlight;
 
-import org.elasticsearch.search.highlight.DelegatingOrAnalyzingReader;
+import org.elasticsearch.search.highlight.AbstractDelegatingOrAnalyzingReader;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
@@ -46,7 +46,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
-        List<Object> values = ((DelegatingOrAnalyzingReader)reader).getValues(mapper);
+        List<Object> values = ((AbstractDelegatingOrAnalyzingReader)reader).getValues(mapper);
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);

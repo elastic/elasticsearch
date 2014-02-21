@@ -19,6 +19,7 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.*;
@@ -29,11 +30,13 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.highlight.vectorhighlight.SimpleFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceScoreOrderFragmentsBuilder;
 import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
@@ -142,7 +145,7 @@ public class FastVectorHighlighter implements Highlighter {
             int numberOfFragments = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.numberOfFragments();
             int fragmentCharSize = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fragmentCharSize();
             // The reader we highlight against.
-            IndexReader reader = new DelegatingOrAnalyzingReader(context, hitContext, field.forceSource(), fieldQuery);
+            IndexReader reader = new DelegatingOrAnalyzingReaderForFVH(context, hitContext, field.forceSource(), fieldQuery);
             // Only send matched fields if they were requested to save time.
             if (field.matchedFields() != null && !field.matchedFields().isEmpty()) {
                 fragments = cache.fvh.getBestFragments(fieldQuery, reader, hitContext.docId(), mapper.names().indexName(), field.matchedFields(), fragmentCharSize,
@@ -175,17 +178,35 @@ public class FastVectorHighlighter implements Highlighter {
         }
     }
 
-    private class MapperHighlightEntry {
+    private static class MapperHighlightEntry {
         public FragListBuilder fragListBuilder;
         public FragmentsBuilder fragmentsBuilder;
 
         public org.apache.lucene.search.highlight.Highlighter highlighter;
     }
 
-    private class HighlighterEntry {
+    private static class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
         public CustomFieldQuery noFieldMatchFieldQuery;
         public CustomFieldQuery fieldMatchFieldQuery;
         public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
+    }
+    
+    private static class DelegatingOrAnalyzingReaderForFVH extends AbstractDelegatingOrAnalyzingReader {
+        public DelegatingOrAnalyzingReaderForFVH(SearchContext searchContext, HitContext hitContext, boolean forceSource,
+                TermSetSource termSetSource) {
+            super(searchContext, hitContext, forceSource, termSetSource);
+        }
+
+        @Override
+        public Fields getTermVectors(int docId) throws IOException {
+            // If we can push this call until we have the field so we an make an educated guess
+            // (using the mapper) as to whether there might be term vectors for the field.
+            Fields real = super.getTermVectors(docId);
+            if (real == null) {
+                return new AnalyzingFields();
+            }
+            return new DelegatingOrAnalyzingFields(real);
+        }
     }
 }

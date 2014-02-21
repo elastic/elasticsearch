@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -128,7 +129,11 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         super.readFrom(in);
         commands = AllocationCommands.readFrom(in);
         dryRun = in.readBoolean();
-        explain = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
+            explain = in.readBoolean();
+        } else {
+            explain = false;
+        }
         readTimeout(in);
     }
 
@@ -137,7 +142,9 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         super.writeTo(out);
         AllocationCommands.writeTo(commands, out);
         out.writeBoolean(dryRun);
-        out.writeBoolean(explain);
+        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
+            out.writeBoolean(explain);
+        }
         writeTimeout(out);
     }
 }

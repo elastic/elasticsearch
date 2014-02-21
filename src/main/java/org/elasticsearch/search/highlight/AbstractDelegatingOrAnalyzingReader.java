@@ -54,7 +54,6 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
     private final FetchSubPhase.HitContext hitContext;
     private final boolean forceSource;
     private final TermSetSource termSetSource;
-    private Map<String, List<Object>> valuesCache;
 
     /**
      * Build one.
@@ -77,7 +76,12 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
      * Load the field values.
      */
     public List<Object> getValues(FieldMapper<?> mapper) throws IOException {
-        return getValues(mapper, false);
+        if (mapper == null) {
+            // No mapper means the field doesn't exist so there isn't anything
+            // to fetch.
+            return Collections.emptyList();
+        }
+        return HighlightUtils.loadFieldValues(mapper, searchContext, hitContext, forceSource);
     }
 
     /**
@@ -87,7 +91,7 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
      */
     Terms analyzeField(String field) throws IOException {
         FieldMapper<?> mapper = getMapperForField(field);
-        List<Object> values = getValues(mapper, true);
+        List<Object> values = getValues(mapper);
         if (values.isEmpty()) {
             // No values means there can't be term vectors either.
             return null;
@@ -109,32 +113,6 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
 
     private FieldMapper<?> getMapperForField(String field) {
         return HighlightPhase.getMapperForField(field, searchContext, hitContext);
-    }
-
-    private List<Object> getValues(FieldMapper<?> mapper, boolean addToCache) throws IOException {
-        if (mapper == null) {
-            // No mapper means the field doesn't exist so there isn't anything
-            // to fetch.
-            return Collections.emptyList();
-        }
-        List<Object> values;
-        if (valuesCache != null) {
-            // Use the source path as the key so we don't have to load things
-            // with the same source twice.
-            values = valuesCache.get(mapper.names().sourcePath());
-            if (values != null) {
-                return values;
-            }
-        }
-        // Will never return null so caches well
-        values = HighlightUtils.loadFieldValues(mapper, searchContext, hitContext, forceSource);
-        if (addToCache) {
-            if (valuesCache == null) {
-                valuesCache = new HashMap<String, List<Object>>();
-            }
-            valuesCache.put(mapper.names().sourcePath(), values);
-        }
-        return values;
     }
 
     @Override

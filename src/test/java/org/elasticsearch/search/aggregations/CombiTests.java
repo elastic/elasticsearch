@@ -25,18 +25,21 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
  *
@@ -109,5 +112,35 @@ public class CombiTests extends ElasticsearchIntegrationTest {
             values.remove(bucket.getKeyAsNumber().intValue());
         }
         assertTrue(values.isEmpty());
+    }
+
+
+    /**
+     * Some top aggs (eg. date_/histogram) that are executed on unmapped fields, will generate an estimate count of buckets - zero.
+     * when the sub aggregator is then created, it will take this estimation into account. This used to cause
+     * and an ArrayIndexOutOfBoundsException...
+     */
+    @Test
+    public void subAggregationForTopAggregationOnUnmappedField() throws Exception {
+
+        prepareCreate("idx").addMapping("type", jsonBuilder()
+                .startObject()
+                .startObject("type").startObject("properties")
+                    .startObject("name").field("type", "string").endObject()
+                    .startObject("value").field("type", "integer").endObject()
+                .endObject().endObject()
+                .endObject()).execute().actionGet();
+
+        ensureSearchable("idx");
+
+        SearchResponse searchResponse = client().prepareSearch("idx")
+                .addAggregation(histogram("values").field("value1").interval(1)
+                        .subAggregation(terms("names").field("name")))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(0l));
+        Histogram values = searchResponse.getAggregations().get("values");
+        assertThat(values, notNullValue());
+        assertThat(values.getBuckets().isEmpty(), is(true));
     }
 }

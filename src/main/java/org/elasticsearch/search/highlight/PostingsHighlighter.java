@@ -83,27 +83,27 @@ public class PostingsHighlighter implements Highlighter {
         MapperHighlighterEntry mapperHighlighterEntry = highlighterEntry.mappers.get(fieldMapper);
 
         if (mapperHighlighterEntry == null) {
-            Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
-            CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.preTags()[0], field.postTags()[0], encoder);
-            BytesRef[] filteredQueryTerms = filterTerms(highlighterEntry.queryTerms, fieldMapper.names().indexName(), field.requireFieldMatch());
+            Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
+            CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
+            BytesRef[] filteredQueryTerms = filterTerms(highlighterEntry.queryTerms, fieldMapper.names().indexName(), field.fieldOptions().requireFieldMatch());
             mapperHighlighterEntry = new MapperHighlighterEntry(passageFormatter, filteredQueryTerms);
         }
 
         //we merge back multiple values into a single value using the paragraph separator, unless we have to highlight every single value separately (number_of_fragments=0).
-        boolean mergeValues = field.numberOfFragments() != 0;
+        boolean mergeValues = field.fieldOptions().numberOfFragments() != 0;
         List<Snippet> snippets = new ArrayList<Snippet>();
         int numberOfFragments;
 
         try {
             //we manually load the field values (from source if needed)
-            List<Object> textsToHighlight = HighlightUtils.loadFieldValues(fieldMapper, context, hitContext, field.forceSource());
-            CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(mapperHighlighterEntry.passageFormatter, textsToHighlight, mergeValues, Integer.MAX_VALUE-1, field.noMatchSize());
+            List<Object> textsToHighlight = HighlightUtils.loadFieldValues(field, fieldMapper, context, hitContext);
+            CustomPostingsHighlighter highlighter = new CustomPostingsHighlighter(mapperHighlighterEntry.passageFormatter, textsToHighlight, mergeValues, Integer.MAX_VALUE-1, field.fieldOptions().noMatchSize());
 
-             if (field.numberOfFragments() == 0) {
+             if (field.fieldOptions().numberOfFragments() == 0) {
                 highlighter.setBreakIterator(new WholeBreakIterator());
                 numberOfFragments = 1; //1 per value since we highlight per value
             } else {
-                numberOfFragments = field.numberOfFragments();
+                numberOfFragments = field.fieldOptions().numberOfFragments();
             }
 
             //we highlight every value separately calling the highlight method multiple times, only if we need to have back a snippet per value (whole value)
@@ -123,9 +123,9 @@ public class PostingsHighlighter implements Highlighter {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
 
-        snippets = filterSnippets(snippets, field.numberOfFragments());
+        snippets = filterSnippets(snippets, field.fieldOptions().numberOfFragments());
 
-        if (field.scoreOrdered()) {
+        if (field.fieldOptions().scoreOrdered()) {
             //let's sort the snippets by score if needed
             CollectionUtil.introSort(snippets, new Comparator<Snippet>() {
                 public int compare(Snippet o1, Snippet o2) {

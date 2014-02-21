@@ -68,7 +68,7 @@ public class FastVectorHighlighter implements Highlighter {
             throw new ElasticsearchIllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with term vector with position offsets to be used with fast vector highlighter");
         }
 
-        Encoder encoder = field.encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
+        Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
             hitContext.cache().put(CACHE_KEY, new HighlighterEntry());
@@ -77,16 +77,16 @@ public class FastVectorHighlighter implements Highlighter {
 
         try {
             FieldQuery fieldQuery;
-            if (field.requireFieldMatch()) {
+            if (field.fieldOptions().requireFieldMatch()) {
                 if (cache.fieldMatchFieldQuery == null) {
                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                    cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query.originalQuery(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                    cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query.originalQuery(), hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 }
                 fieldQuery = cache.fieldMatchFieldQuery;
             } else {
                 if (cache.noFieldMatchFieldQuery == null) {
                     // we use top level reader to rewrite the query against all readers, with use caching it across hits (and across readers...)
-                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query.originalQuery(), hitContext.topLevelReader(), true, field.requireFieldMatch());
+                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query.originalQuery(), hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
                 }
                 fieldQuery = cache.noFieldMatchFieldQuery;
             }
@@ -97,31 +97,31 @@ public class FastVectorHighlighter implements Highlighter {
                 BaseFragmentsBuilder fragmentsBuilder;
 
                 BoundaryScanner boundaryScanner = DEFAULT_BOUNDARY_SCANNER;
-                if (field.boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
-                    boundaryScanner = new SimpleBoundaryScanner(field.boundaryMaxScan(), field.boundaryChars());
+                if (field.fieldOptions().boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN || field.fieldOptions().boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
+                    boundaryScanner = new SimpleBoundaryScanner(field.fieldOptions().boundaryMaxScan(), field.fieldOptions().boundaryChars());
                 }
-
-                if (field.numberOfFragments() == 0) {
+                boolean forceSource = context.highlight().forceSource(field);
+                if (field.fieldOptions().numberOfFragments() == 0) {
                     fragListBuilder = new SingleFragListBuilder();
 
-                    if (!field.forceSource() && mapper.fieldType().stored()) {
-                        fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
+                    if (!forceSource && mapper.fieldType().stored()) {
+                        fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     } else {
-                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
+                        fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                     }
                 } else {
-                    fragListBuilder = field.fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fragmentOffset());
-                    if (field.scoreOrdered()) {
-                        if (!field.forceSource() && mapper.fieldType().stored()) {
-                            fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);
+                    fragListBuilder = field.fieldOptions().fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fieldOptions().fragmentOffset());
+                    if (field.fieldOptions().scoreOrdered()) {
+                        if (!forceSource && mapper.fieldType().stored()) {
+                            fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
+                            fragmentsBuilder = new SourceScoreOrderFragmentsBuilder(mapper, context, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     } else {
-                        if (!field.forceSource() && mapper.fieldType().stored()) {
-                            fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.preTags(), field.postTags(), boundaryScanner);
+                        if (!forceSource && mapper.fieldType().stored()) {
+                            fragmentsBuilder = new SimpleFragmentsBuilder(mapper, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         } else {
-                            fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
+                            fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.fieldOptions().preTags(), field.fieldOptions().postTags(), boundaryScanner);
                         }
                     }
                 }
@@ -135,37 +135,37 @@ public class FastVectorHighlighter implements Highlighter {
                     // fragment builders are used explicitly
                     cache.fvh = new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();
                 }
-                CustomFieldQuery.highlightFilters.set(field.highlightFilter());
+                CustomFieldQuery.highlightFilters.set(field.fieldOptions().highlightFilter());
                 cache.mappers.put(mapper, entry);
             }
-            cache.fvh.setPhraseLimit(field.phraseLimit());
+            cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());
 
             String[] fragments;
 
             // a HACK to make highlighter do highlighting, even though its using the single frag list builder
-            int numberOfFragments = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.numberOfFragments();
-            int fragmentCharSize = field.numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fragmentCharSize();
+            int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fieldOptions().numberOfFragments();
+            int fragmentCharSize = field.fieldOptions().numberOfFragments() == 0 ? Integer.MAX_VALUE : field.fieldOptions().fragmentCharSize();
             // we highlight against the low level reader and docId, because if we load source, we want to reuse it if possible
             // Only send matched fields if they were requested to save time.
-            if (field.matchedFields() != null && !field.matchedFields().isEmpty()) {
-                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.matchedFields(), fragmentCharSize,
-                        numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
+            if (field.fieldOptions().matchedFields() != null && !field.fieldOptions().matchedFields().isEmpty()) {
+                fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), field.fieldOptions().matchedFields(), fragmentCharSize,
+                        numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             } else {
                 fragments = cache.fvh.getBestFragments(fieldQuery, hitContext.reader(), hitContext.docId(), mapper.names().indexName(), fragmentCharSize,
-                        numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.preTags(), field.postTags(), encoder);
+                        numberOfFragments, entry.fragListBuilder, entry.fragmentsBuilder, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
             }
 
             if (fragments != null && fragments.length > 0) {
                 return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
             }
 
-            int noMatchSize = highlighterContext.field.noMatchSize();
+            int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
             if (noMatchSize > 0) {
                 // Essentially we just request that a fragment is built from 0 to noMatchSize using the normal fragmentsBuilder
                 FieldFragList fieldFragList = new SimpleFieldFragList(-1 /*ignored*/);
                 fieldFragList.add(0, noMatchSize, Collections.<WeightedPhraseInfo>emptyList());
                 fragments = entry.fragmentsBuilder.createFragments(hitContext.reader(), hitContext.docId(), mapper.names().indexName(),
-                        fieldFragList, 1, field.preTags(), field.postTags(), encoder);
+                        fieldFragList, 1, field.fieldOptions().preTags(), field.fieldOptions().postTags(), encoder);
                 if (fragments != null && fragments.length > 0) {
                     return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
                 }

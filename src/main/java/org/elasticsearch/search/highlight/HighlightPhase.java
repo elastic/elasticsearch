@@ -86,7 +86,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 fieldNamesToHighlight = ImmutableSet.of(field.field());
             }
 
-            if (field.forceSource()) {
+            if (context.highlight().forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
                 if (!sourceFieldMapper.enabled()) {
                     throw new ElasticsearchIllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight + " but type [" + hitContext.hit().type() + "] has disabled _source");
@@ -99,27 +99,28 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     continue;
                 }
 
-                if (field.highlighterType() == null) {
+                String highlighterType = field.fieldOptions().highlighterType();
+                if (highlighterType == null) {
                     boolean useFastVectorHighlighter = fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
                     if (useFastVectorHighlighter) {
-                        field.highlighterType("fvh");
+                        highlighterType = "fvh";
                     } else if (fieldMapper.fieldType().indexOptions() == FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                        field.highlighterType("postings");
+                        highlighterType = "postings";
                     } else {
-                        field.highlighterType("plain");
+                        highlighterType = "plain";
                     }
                 }
 
-                Highlighter highlighter = highlighters.get(field.highlighterType());
+                Highlighter highlighter = highlighters.get(highlighterType);
                 if (highlighter == null) {
-                    throw new ElasticsearchIllegalArgumentException("unknown highlighter type [" + field.highlighterType() + "] for the field [" + fieldName + "]");
+                    throw new ElasticsearchIllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + fieldName + "]");
                 }
 
                 HighlighterContext.HighlightQuery highlightQuery;
-                if (field.highlightQuery() == null) {
+                if (field.fieldOptions().highlightQuery() == null) {
                     highlightQuery = new HighlighterContext.HighlightQuery(context.parsedQuery().query(), context.query(), context.queryRewritten());
                 } else {
-                    highlightQuery = new HighlighterContext.HighlightQuery(field.highlightQuery(), field.highlightQuery(), false);
+                    highlightQuery = new HighlighterContext.HighlightQuery(field.fieldOptions().highlightQuery(), field.fieldOptions().highlightQuery(), false);
                 }
                 HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext, highlightQuery);
                 HighlightField highlightField = highlighter.highlight(highlighterContext);

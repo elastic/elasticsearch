@@ -20,8 +20,6 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -31,12 +29,18 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int numberOfReplicas() {
+        return between(0, 1);
+    }
 
     @Test
     public void getMappingsWhereThereAreNone() {
@@ -59,19 +63,12 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleGetFieldMappings() throws Exception {
 
-        Settings.Builder settings = ImmutableSettings.settingsBuilder()
-                .put("number_of_shards", randomIntBetween(1, 3), "number_of_replicas", randomIntBetween(0, 1));
-        
-        assertTrue(client().admin().indices().prepareCreate("indexa")
+        assertAcked(prepareCreate("indexa")
                 .addMapping("typeA", getMappingForType("typeA"))
-                .addMapping("typeB", getMappingForType("typeB"))
-                .setSettings(settings)
-                .get().isAcknowledged());
-        assertTrue(client().admin().indices().prepareCreate("indexb")
+                .addMapping("typeB", getMappingForType("typeB")));
+        assertAcked(client().admin().indices().prepareCreate("indexb")
                 .addMapping("typeA", getMappingForType("typeA"))
-                .addMapping("typeB", getMappingForType("typeB"))
-                .setSettings(settings)
-                .get().isAcknowledged());
+                .addMapping("typeB", getMappingForType("typeB")));
 
         ensureYellow();
 
@@ -137,8 +134,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
     @SuppressWarnings("unchecked")
     @Test
     public void simpleGetFieldMappingsWithDefaults() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type", getMappingForType("type")).get();
+        assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
 
         client().prepareIndex("test", "type", "1").setSource("num", 1).get();
         ensureYellow();

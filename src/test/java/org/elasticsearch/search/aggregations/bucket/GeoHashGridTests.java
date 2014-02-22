@@ -24,8 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -41,20 +39,15 @@ import java.util.Random;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-/**
- *
- */
 public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     private IndexRequestBuilder indexCity(String name, String latLon) throws Exception {
@@ -75,9 +68,8 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void init() throws Exception {
-        prepareCreate("idx")
-                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
-                .execute().actionGet();
+        assertAcked(prepareCreate("idx")
+                .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed"));
 
         createIndex("idx_unmapped");
 

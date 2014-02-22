@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.allocation;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
@@ -62,35 +65,42 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         createIndex("test1");
         createIndex("test2");
 
+        NumShards test1 = getNumShards("test1");
+        NumShards test2 = getNumShards("test2");
+        //no replicas will be allocated as both indices end up on a single node
+        final int totalPrimaries = test1.numPrimaries + test2.numPrimaries;
+
         ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> starting 1 node on a different rack");
-        String node3 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
+        final String node3 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
 
-        long start = System.currentTimeMillis();
-        ObjectIntOpenHashMap<String> counts;
         // On slow machines the initial relocation might be delayed
-        do {
-            Thread.sleep(100);
-            logger.info("--> waiting for no relocation");
-            health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
-            assertThat(health.isTimedOut(), equalTo(false));
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
 
-            logger.info("--> checking current state");
-            ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
-            //System.out.println(clusterState.routingTable().prettyPrint());
-            // verify that we have 10 shards on node3
-            counts = new ObjectIntOpenHashMap<String>();
-            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                logger.info("--> waiting for no relocation");
+                ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).get();
+                if (clusterHealth.isTimedOut()) {
+                    return false;
+                }
+
+                logger.info("--> checking current state");
+                ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+                // verify that we have all the primaries on node3
+                ObjectIntOpenHashMap<String> counts = new ObjectIntOpenHashMap<String>();
+                for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                    for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                        for (ShardRouting shardRouting : indexShardRoutingTable) {
+                            counts.addTo(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1);
+                        }
                     }
                 }
+                return counts.get(node3) == totalPrimaries;
             }
-        } while (counts.get(node3) != 10 && (System.currentTimeMillis() - start) < 10000);
-        assertThat(counts.get(node3), equalTo(10));
+        }, 10, TimeUnit.SECONDS), equalTo(true));
     }
     
     @Test

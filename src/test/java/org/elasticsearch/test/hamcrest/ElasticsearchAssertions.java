@@ -31,6 +31,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -186,6 +188,29 @@ public class ElasticsearchAssertions {
         assertThat("Expected at least one shard failure, got none",
                 searchResponse.getShardFailures().length, greaterThan(0));
         assertVersionSerializable(searchResponse);
+    }
+
+    public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
+        //when the number for shards is randomized and we expect failures
+        //we can either run into partial or total failures depending on the current number of shards
+        try {
+            SearchResponse searchResponse = searchRequestBuilder.get();
+            assertThat("Expected shard failures, got none", searchResponse.getShardFailures().length, greaterThan(0));
+            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                assertThat(shardSearchFailure.reason(), reasonMatcher);
+            }
+            assertVersionSerializable(searchResponse);
+        } catch(SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(restStatus));
+            assertThat(e.getMessage(), reasonMatcher);
+            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
+                assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                assertThat(shardSearchFailure.reason(), reasonMatcher);
+            }
+        } catch(Exception e) {
+            fail("SearchPhaseExecutionException expected but got " + e.getClass());
+        }
     }
 
     public static void assertNoFailures(BroadcastOperationResponse response) {

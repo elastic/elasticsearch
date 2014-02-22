@@ -26,11 +26,9 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -40,12 +38,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetTermVectorTests extends AbstractTermVectorTests {
-
-
 
     @Test
     public void testNoSuchDoc() throws Exception {
@@ -57,7 +55,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
         ensureYellow();
 
@@ -83,7 +81,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping));
 
         ensureYellow();
         // when indexing a field that simply has a question mark, the term
@@ -111,7 +109,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureYellow();
         // when indexing a field that simply has a question mark, the term
         // vectors will be null
@@ -139,8 +137,9 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
-                .setSettings(ImmutableSettings.settingsBuilder()
+        assertAcked(prepareCreate("test").addMapping("type1", mapping)
+                .setSettings(settingsBuilder()
+                        .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureYellow();
@@ -251,8 +250,8 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping)
-                .setSettings(ImmutableSettings.settingsBuilder()
+        assertAcked(prepareCreate("test").addMapping("type1", mapping)
+                .setSettings(settingsBuilder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
         ensureYellow();
@@ -355,8 +354,9 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     @Test
     public void testDuelESLucene() throws Exception {
         TestFieldSetting[] testFieldSettings = getFieldSettings();
-        createIndexBasedOnFieldSettings(testFieldSettings, -1);
-        TestDoc[] testDocs = generateTestDocs(5, testFieldSettings);
+        createIndexBasedOnFieldSettings("test", testFieldSettings);
+        //we generate as many docs as many shards we have
+        TestDoc[] testDocs = generateTestDocs(getNumShards("test").numPrimaries, testFieldSettings);
 
         DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
         TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
@@ -401,8 +401,10 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field").field("type", "string").field("term_vector", "with_positions_offsets_payloads")
                 .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_test.tokenizer", "whitespace")
+        assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
+                settingsBuilder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.payload_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_test.filter", "my_delimited_payload_filter")
                         .put("index.analysis.filter.my_delimited_payload_filter.delimiter", delimiter)
                         .put("index.analysis.filter.my_delimited_payload_filter.encoding", encodingString)

@@ -31,19 +31,23 @@ import org.junit.Test;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-/**
- */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@ClusterScope(scope = SUITE)
 public class StressSearchServiceReaperTest extends ElasticsearchIntegrationTest {
-
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         // very frequent checks
         return ImmutableSettings.builder().put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     @Slow
@@ -54,7 +58,7 @@ public class StressSearchServiceReaperTest extends ElasticsearchIntegrationTest 
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex("test", "type", "" + i).setSource("f", English.intToEnglish(i));
         }
-        prepareCreate("test").setSettings("number_of_shards", randomIntBetween(1,5), "number_of_replicas", randomIntBetween(0,1)).setSettings();
+        createIndex("test");
         indexRandom(true, builders);
         ensureYellow();
         final int iterations = atLeast(500);

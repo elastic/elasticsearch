@@ -49,6 +49,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
@@ -176,12 +177,12 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, between(cluster().size(), DEFAULT_MAX_NUM_SHARDS))
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+        ));
         ensureGreen();
-
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
 
@@ -207,16 +208,14 @@ public class AckTests extends ElasticsearchIntegrationTest {
             }
             assertThat(found, equalTo(true));
         }
-        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
-        waitForRelocation();
     }
 
     @Test
     public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().size(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
@@ -229,8 +228,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().size(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
@@ -262,8 +261,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().size(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 
         MoveAllocationCommand moveAllocationCommand = getAllocationCommand();
@@ -334,7 +333,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         for (Client client : clients()) {
             IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
-            assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.CLOSE));
+            assertThat(indexMetaData.getState(), equalTo(State.CLOSE));
         }
     }
 
@@ -358,7 +357,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
         for (Client client : clients()) {
             IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
-            assertThat(indexMetaData.getState(), equalTo(IndexMetaData.State.OPEN));
+            assertThat(indexMetaData.getState(), equalTo(State.OPEN));
         }
     }
 

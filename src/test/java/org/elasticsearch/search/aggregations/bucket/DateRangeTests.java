@@ -54,11 +54,8 @@ import static org.hamcrest.core.IsNull.nullValue;
 public class DateRangeTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {

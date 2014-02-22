@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
@@ -65,10 +66,12 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOmitNormsOnAll() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_all").field("omit_norms", true).endObject()
-                        .endObject().endObject()));
+                        .endObject().endObject())
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(3, DEFAULT_MAX_NUM_SHARDS)));
+        ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
@@ -80,7 +83,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertThat(hits[0].score(), allOf(equalTo(hits[1].getScore()), equalTo(hits[2].getScore())));
         wipeIndices("test");
 
-        assertAcked(client().admin().indices().prepareCreate("test"));
+        createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
@@ -104,7 +107,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1)));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
         client().prepareIndex("test", "type1", "3").setSource("field1", "value3").get();
@@ -137,7 +140,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void passQueryAsStringTest() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
@@ -147,20 +150,19 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexOptions() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,index_options=docs")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,index_options=docs"));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").get();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
         assertHitCount(searchResponse, 1l);
-        try {
-            client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
-        } catch (SearchPhaseExecutionException e) {
-            assertTrue("wrong exception message " + e.getMessage(), e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
-        }
+
+        assertFailures(client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)),
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick"));
     }
 
     @Test // see #3521
@@ -235,7 +237,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test // see #3521
     public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
                 client().prepareIndex("test", "type1", "2").setSource("foo", "bar")
         );
@@ -384,7 +386,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void queryStringAnalyzedWildcard() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
@@ -407,7 +409,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testLowercaseExpandedTerms() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
@@ -428,7 +430,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDateRangeInQueryString() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
+        ensureGreen();
 
         String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
         String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));
@@ -443,9 +446,10 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareSearch().setQuery(queryString("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
-            fail("D is an unsupported unit in date math");
-        } catch (Exception e) {
-            // expected
+            fail("expected SearchPhaseExecutionException (total failure)");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.getMessage(), containsString("unit [D] not supported for date math"));
         }
     }
 
@@ -460,7 +464,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void typeFilterTests(String index) throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
@@ -493,7 +497,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void idsFilterTests(String index) throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+        assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_id").field("index", index).endObject()
                         .endObject().endObject()));
@@ -543,7 +547,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void filterExistsMissingTests() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
 
         indexRandom(true,
                 client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
@@ -610,7 +614,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void passQueryOrFilterAsJSONStringTest() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
 
@@ -645,7 +649,8 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMatchQueryNumeric() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
+        ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("long", 1l, "double", 1.0d),
                 client().prepareIndex("test", "type1", "2").setSource("long", 2l, "double", 2.0d),
@@ -668,7 +673,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiMatchQuery() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
 
         indexRandom(true,
                 client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4", "field3", "value3"),
@@ -734,7 +739,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMatchQueryZeroTermsQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
@@ -758,7 +763,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     public void testMultiMatchQueryZeroTermsQuery() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").get();
@@ -784,7 +789,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiMatchQueryMinShouldMatch() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).get();
         client().prepareIndex("test", "type1", "2").setSource("field2", "value1").get();
         refresh();
@@ -830,7 +835,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testFuzzyQueryString() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
@@ -852,7 +857,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
         float boost = 10.0f;
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("important", "phrase match", "less_important", "nothing important"),
                 client().prepareIndex("test", "type1", "2").setSource("important", "nothing important", "less_important", "phrase match")
         );
@@ -874,7 +879,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSpecialRangeSyntaxInQueryString() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
         client().prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
@@ -1174,8 +1179,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNumericTermsAndRanges() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+        assertAcked(prepareCreate("test")
                 .addMapping("type1",
                         "num_byte", "type=byte", "num_short", "type=short",
                         "num_integer", "type=integer", "num_long", "type=long",
@@ -1276,8 +1280,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNumericRangeFilter_2826() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+        assertAcked(prepareCreate("test")
                 .addMapping("type1",
                         "num_byte", "type=byte", "num_short", "type=short",
                         "num_integer", "type=integer", "num_long", "type=long",
@@ -1324,8 +1327,9 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2926
     public void testMustNot() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 2, SETTING_NUMBER_OF_REPLICAS, 0));
+        assertAcked(prepareCreate("test")
+                //issue manifested only with shards>=2
+                .setSettings(SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),
@@ -1346,8 +1350,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2994
     public void testSimpleSpan() throws ElasticsearchException, IOException, ExecutionException, InterruptedException {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndex("test");
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar"),
@@ -1373,7 +1376,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSpanMultiTermQuery() throws ElasticsearchException, IOException {
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("description", "foo other anything bar", "count", 1).get();
@@ -1406,7 +1409,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleDFSQuery() throws ElasticsearchException, IOException {
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0)
+        assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()
                 .startObject()
                 .startObject("s")
@@ -1484,8 +1487,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMatchQueryWithSynonyms() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(indexSettings())
                 .put("index.analysis.analyzer.index.type", "custom")
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
                 .put("index.analysis.analyzer.index.filter", "lowercase")
@@ -1516,8 +1518,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMatchQueryWithStackedStems() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(indexSettings())
                 .put("index.analysis.analyzer.index.type", "custom")
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
                 .put("index.analysis.analyzer.index.filter", "lowercase")
@@ -1542,8 +1543,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testQueryStringWithSynonyms() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(indexSettings())
                 .put("index.analysis.analyzer.index.type", "custom")
                 .put("index.analysis.analyzer.index.tokenizer", "standard")
                 .put("index.analysis.analyzer.index.filter", "lowercase")
@@ -1694,9 +1694,9 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
     public void testIndicesQuerySkipParsing() throws Exception {
         createIndex("simple");
-        client().admin().indices().prepareCreate("related")
+        assertAcked(prepareCreate("related")
                 .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject()).get();
+                        .endObject().endObject().endObject()));
         ensureGreen();
 
         client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1").get();
@@ -1727,9 +1727,9 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
     public void testIndicesFilterSkipParsing() throws Exception {
         createIndex("simple");
-        client().admin().indices().prepareCreate("related")
+        assertAcked(prepareCreate("related")
                 .addMapping("child", jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent")
-                        .endObject().endObject().endObject()).get();
+                        .endObject().endObject().endObject()));
         ensureGreen();
 
         client().prepareIndex("simple", "lone").setId("1").setSource("text", "value1").get();
@@ -1961,7 +1961,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleQueryString() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "foo").get();
         client().prepareIndex("test", "type1", "2").setSource("body", "bar").get();
         client().prepareIndex("test", "type1", "3").setSource("body", "foo bar").get();
@@ -1997,7 +1997,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleQueryStringLowercasing() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();
         refresh();
 
@@ -2021,7 +2021,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testQueryStringLocale() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "bılly").get();
         refresh();
 
@@ -2042,7 +2042,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNestedFieldSimpleQueryString() throws IOException {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1)
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder()
                         .startObject()
                         .startObject("type1")
@@ -2082,7 +2082,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleQueryStringFlags() {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "foo").get();
         client().prepareIndex("test", "type1", "2").setSource("body", "bar").get();
         client().prepareIndex("test", "type1", "3").setSource("body", "foo bar").get();
@@ -2137,8 +2137,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleQueryStringLenient() {
-        assertAcked(client().admin().indices().prepareCreate("test1").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
-        assertAcked(client().admin().indices().prepareCreate("test2").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        createIndex("test1", "test2");
         client().prepareIndex("test1", "type1", "1").setSource("field", "foo").get();
         client().prepareIndex("test2", "type1", "10").setSource("field", 5).get();
         refresh();
@@ -2156,8 +2155,9 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRangeFilterNoCacheWithNow() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0)
+        assertAcked(prepareCreate("test")
+                //no replicas to make sure we always hit the very same shard and verify the caching behaviour
+                .setSettings(ImmutableSettings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .addMapping("type1", "date", "type=date,format=YYYY-mm-dd"));
         ensureGreen();
 
@@ -2235,7 +2235,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSearchEmptyDoc() {
-        prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}").get();
+        assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}"));
         client().prepareIndex("test", "type1", "1").setSource("{}").get();
         refresh();
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
@@ -2244,8 +2244,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test  // see #5120
     public void testNGramCopyField() {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(indexSettings())
                 .put("index.analysis.analyzer.my_ngram_analyzer.type", "custom")
                 .put("index.analysis.analyzer.my_ngram_analyzer.tokenizer", "my_ngram_tokenizer")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.type", "nGram")

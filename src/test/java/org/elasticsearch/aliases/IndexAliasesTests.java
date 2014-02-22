@@ -33,8 +33,6 @@ import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -550,16 +548,13 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndicesGetAliases() throws Exception {
-        Settings indexSettings = ImmutableSettings.settingsBuilder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .build();
+
         logger.info("--> creating indices [foobar, test, test123, foobarbaz, bazbar]");
-        assertAcked(prepareCreate("foobar").setSettings(indexSettings));
-        assertAcked(prepareCreate("test").setSettings(indexSettings));
-        assertAcked(prepareCreate("test123").setSettings(indexSettings));
-        assertAcked(prepareCreate("foobarbaz").setSettings(indexSettings));
-        assertAcked(prepareCreate("bazbar").setSettings(indexSettings));
+        createIndex("foobar");
+        createIndex("test");
+        createIndex("test123");
+        createIndex("foobarbaz");
+        createIndex("bazbar");
 
         ensureGreen();
 

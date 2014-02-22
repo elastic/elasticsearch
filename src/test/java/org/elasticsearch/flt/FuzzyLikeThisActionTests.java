@@ -24,9 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisFieldQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyLikeThisQuery;
@@ -39,13 +36,15 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class FuzzyLikeThisActionTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected int numberOfReplicas() {
+        return between(0, 1);
+    }
+
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
     public void testNumericField() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, between(1, 5))
-                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
                 .addMapping("type", "int_value", "type=integer"));
         ensureGreen();
         client().prepareIndex("test", "type", "1")

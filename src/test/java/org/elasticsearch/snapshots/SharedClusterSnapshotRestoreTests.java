@@ -53,8 +53,6 @@ import java.io.File;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-/**
- */
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Override
@@ -153,6 +151,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> create index with foo type");
         assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put("refresh_interval", 10)));
 
+        NumShards numShards = getNumShards("test-idx");
+
         assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("foo").setSource("baz", "type=string"));
         ensureGreen();
 
@@ -163,7 +163,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("--> delete the index and recreate it with bar type");
         wipeIndices("test-idx");
-        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put("refresh_interval", 5)));
+        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries).put("refresh_interval", 5)));
         assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("bar").setSource("baz", "type=string"));
         ensureGreen();
 

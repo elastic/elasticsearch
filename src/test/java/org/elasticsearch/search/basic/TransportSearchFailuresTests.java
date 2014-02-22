@@ -50,25 +50,27 @@ public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        prepareCreate("test", 1, settingsBuilder().put("index.number_of_shards", 3)
+        prepareCreate("test", 1, settingsBuilder().put(indexSettings())
                     .put("index.number_of_replicas", 2)
                     .put("routing.hash.type", "simple")).execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        ensureYellow();
+
+        NumShards test = getNumShards("test");
 
         for (int i = 0; i < 100; i++) {
             index(client(), Integer.toString(i), "test", i);
         }
         RefreshResponse refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.getTotalShards(), equalTo(9));
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(3));
+        assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.numPrimaries));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
-                assertThat(searchResponse.getTotalShards(), equalTo(3));
+                assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-                assertThat(searchResponse.getFailedShards(), equalTo(3));
+                assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
                 fail("search should fail");
             } catch (ElasticsearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
@@ -81,23 +83,23 @@ public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest("test")
-                .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(6)).actionGet();
+                .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(test.numPrimaries * 2)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(clusterHealth.getActiveShards(), equalTo(6));
+        assertThat(clusterHealth.getActiveShards(), equalTo(test.numPrimaries * 2));
 
         refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.getTotalShards(), equalTo(9));
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(6));
+        assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.numPrimaries * 2));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
-                assertThat(searchResponse.getTotalShards(), equalTo(3));
+                assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-                assertThat(searchResponse.getFailedShards(), equalTo(3));
+                assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
                 fail("search should fail");
             } catch (ElasticsearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));

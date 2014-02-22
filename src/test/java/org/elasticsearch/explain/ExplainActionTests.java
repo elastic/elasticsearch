@@ -201,7 +201,6 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
         assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
-
     @Test
     public void testExplainWithAlias() throws Exception {
         client().admin().indices().prepareCreate("test")
@@ -223,7 +222,7 @@ public class ExplainActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void explainDateRangeInQueryString() {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
+        createIndex("test");
 
         String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));
         String aMonthFromNow = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).plusMonths(1));

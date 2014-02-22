@@ -19,14 +19,10 @@
 
 package org.elasticsearch.indices.warmer;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
-import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
@@ -38,6 +34,7 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -54,20 +51,14 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
         cluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> putting two templates");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
-                .execute().actionGet();
+        createIndex("test");
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        ensureYellow();
 
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_1")
-                .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
-                .execute().actionGet();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
-        putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_2")
-                .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2")))
-                .execute().actionGet();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_1")
+                .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1"))));
+        assertAcked(client().admin().indices().preparePutWarmer("warmer_2")
+                .setSearchRequest(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value2"))));
 
         logger.info("--> put template with warmer");
         client().admin().indices().preparePutTemplate("template_1")
@@ -105,8 +96,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
             }
         });
 
-        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         logger.info("--> verify warmers are recovered");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -144,8 +134,7 @@ public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest
             }
         });
 
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         logger.info("--> verify warmers are recovered");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();

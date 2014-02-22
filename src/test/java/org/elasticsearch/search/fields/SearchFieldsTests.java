@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
@@ -44,6 +43,7 @@ import java.util.Map;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -51,14 +51,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SearchFieldsTests extends ElasticsearchIntegrationTest {
-
-    @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", 1) // why just one?
-                .put("index.number_of_replicas", 0)
-                .build();
-    }
 
     @Test
     public void testStoredFields() throws Exception {
@@ -358,10 +350,9 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .get();
 
-        SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type1").addField("field1").get();
-        assertThat(searchResponse.getShardFailures().length, equalTo(1));
-        assertThat(searchResponse.getShardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(searchResponse.getShardFailures()[0].reason(), containsString("field [field1] isn't a leaf field"));
+        assertFailures(client().prepareSearch("my-index").setTypes("my-type1").addField("field1"),
+                RestStatus.BAD_REQUEST,
+                containsString("field [field1] isn't a leaf field"));
     }
 
     @Test

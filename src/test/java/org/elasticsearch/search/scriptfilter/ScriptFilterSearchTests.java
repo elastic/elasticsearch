@@ -22,43 +22,38 @@ package org.elasticsearch.search.scriptfilter;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
-    private final static Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-    
+
     @Test
     public void testCustomScriptBoost() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(DEFAULT_SETTINGS).execute().actionGet();
+        createIndex("test");
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
         client().prepareIndex("test", "type1", "2")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
                 .execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
         client().prepareIndex("test", "type1", "3")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
                 .execute().actionGet();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        refresh();
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
@@ -108,14 +103,17 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCustomScriptCache() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(DEFAULT_SETTINGS).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(
+            ImmutableSettings.settingsBuilder()
+                //needs to run without replicas to validate caching behaviour and make sure we always hit the very shame shard
+                .put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)));
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("test", "1").field("num", 1.0f).endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("test", "2").field("num", 2.0f).endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
         client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("test", "3").field("num", 3.0f).endObject()).execute().actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        flushAndRefresh();
 
         String script = "org.elasticsearch.search.scriptfilter.ScriptFilterSearchTests.incrementScriptCounter() > 0";
 

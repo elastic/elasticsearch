@@ -27,20 +27,39 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.BytesStream;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest {
 
-    
+    @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return ImmutableSettings.builder()
+                .put(super.indexSettings())
+                .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
+                .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")
+                .build();
+    }
 
     @Test
     public void testSimpleTermVectors() throws ElasticsearchException, IOException {
@@ -53,12 +72,7 @@ public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest
                         .endObject()
                 .endObject()
                 .endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder()
-                    .put("index.number_of_shards", 1)
-                    .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
-                    .put("index.number_of_replicas", 0)
-                    .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
+        assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();
         int numDocs = 15;
         for (int i = 0; i < numDocs; i++) {
@@ -242,9 +256,8 @@ public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest
         }
         assertThat(iterator.next(), Matchers.nullValue());
 
-        XContentBuilder xBuilder = new XContentFactory().jsonBuilder();
-
-        response.toXContent(xBuilder, null);
+        XContentBuilder xBuilder = XContentFactory.jsonBuilder();
+        response.toXContent(xBuilder, ToXContent.EMPTY_PARAMS);
         BytesStream bytesStream = xBuilder.bytesStream();
         String utf8 = bytesStream.bytes().toUtf8();
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""

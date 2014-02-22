@@ -49,11 +49,8 @@ public class GlobalTests extends ElasticsearchIntegrationTest {
     int numDocs;
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     @Before

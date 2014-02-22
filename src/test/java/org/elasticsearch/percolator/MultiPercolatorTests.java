@@ -19,9 +19,10 @@
 package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.percolate.*;
+import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
+import org.elasticsearch.action.percolate.MultiPercolateResponse;
+import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -115,14 +116,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testExistingDocsOnly() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 1)
-                                .build())
-                .execute().actionGet();
-        ensureGreen();
+        createIndex("test");
 
         int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
@@ -192,14 +186,10 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testWithDocsOnly() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 1)
-                                .build())
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
+
+        NumShards test = getNumShards("test");
 
         int numQueries = randomIntBetween(50, 100);
         logger.info("--> register a queries");
@@ -240,7 +230,7 @@ public class MultiPercolatorTests extends ElasticsearchIntegrationTest {
         for (MultiPercolateResponse.Item item : response) {
             assertThat(item.isFailure(), equalTo(false));
             assertThat(item.getResponse().getSuccessfulShards(), equalTo(0));
-            assertThat(item.getResponse().getShardFailures().length, equalTo(2));
+            assertThat(item.getResponse().getShardFailures().length, equalTo(test.numPrimaries));
             for (ShardOperationFailedException shardFailure : item.getResponse().getShardFailures()) {
                 assertThat(shardFailure.reason(), containsString("Failed to derive xcontent from"));
                 assertThat(shardFailure.status().getStatus(), equalTo(500));

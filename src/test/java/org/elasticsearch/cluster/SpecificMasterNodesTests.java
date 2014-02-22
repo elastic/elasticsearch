@@ -67,9 +67,9 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> start master node");
-        final String nextMasterEligableNodeName = cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
-        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
-        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligableNodeName));
+        final String nextMasterEligibleNodeName = cluster().startNode(settingsBuilder().put("node.data", false).put("node.master", true));
+        assertThat(cluster().nonMasterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligibleNodeName));
+        assertThat(cluster().masterClient().admin().cluster().prepareState().execute().actionGet().getState().nodes().masterNode().name(), equalTo(nextMasterEligibleNodeName));
     }
 
     @Test
@@ -111,7 +111,7 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
         logger.info("--> start data node / non master node");
         cluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false));
 
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings("number_of_shards", 1).get());
+        createIndex("test");
         assertAcked(client().admin().indices().preparePutMapping("test").setType("_default_").setSource("_timestamp", "enabled=true"));
 
         MappingMetaData defaultMapping = client().admin().cluster().prepareState().get().getState().getMetaData().getIndices().get("test").getMappings().get("_default_");

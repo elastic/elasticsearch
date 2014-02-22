@@ -48,6 +48,7 @@ import java.io.Reader;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTest {
@@ -180,21 +181,18 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
         }
     }
 
-    protected void createIndexBasedOnFieldSettings(TestFieldSetting[] fieldSettings, int number_of_shards) throws IOException {
-        wipeIndices("test");
+    protected void createIndexBasedOnFieldSettings(String index, TestFieldSetting[] fieldSettings) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("type1").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {
             field.addToMappings(mappingBuilder);
         }
+        mappingBuilder.endObject().endObject().endObject();
         ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
+                .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase");
-        if (number_of_shards > 0) {
-            settings.put("number_of_shards", number_of_shards);
-        }
-        mappingBuilder.endObject().endObject().endObject();
-        prepareCreate("test").addMapping("type1", mappingBuilder).setSettings(settings).get();
+        assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings));
 
         ensureYellow();
     }

@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
@@ -38,11 +36,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ValueCountTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     @Before

@@ -24,8 +24,6 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -42,8 +40,8 @@ public class SearchScanTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow 
     public void testNarrowingQuery() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", between(1,5))).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         Set<String> ids = Sets.newHashSet();
         Set<String> expectedIds = Sets.newHashSet();

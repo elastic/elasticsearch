@@ -31,13 +31,24 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
 public class CodecTests extends ElasticsearchIntegrationTest {
-    
+
+    @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
     @Test
     public void testFieldsWithCustomPostingsFormat() throws Exception {
         try {
@@ -46,14 +57,12 @@ public class CodecTests extends ElasticsearchIntegrationTest {
             // ignore
         }
 
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                         .field("postings_format", "test1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .put("index.codec.postings_format.test1.type", "pulsing")
-                ).execute().actionGet();
+                        .put(indexSettings())
+                        .put("index.codec.postings_format.test1.type", "pulsing")));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
@@ -75,12 +84,10 @@ public class CodecTests extends ElasticsearchIntegrationTest {
             // ignore
         }
 
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .put("index.codec", "SimpleText")
-                ).execute().actionGet();
+                        .put(indexSettings())
+                        .put("index.codec", "SimpleText")));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
@@ -102,14 +109,14 @@ public class CodecTests extends ElasticsearchIntegrationTest {
             // ignore
         }
 
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
             .addMapping("test", jsonBuilder().startObject().startObject("test")
                     .startObject("_version").field("doc_values_format", "disk").endObject()
                     .startObject("properties").startObject("field").field("type", "long").field("doc_values_format", "dvf").endObject().endObject()
                     .endObject().endObject())
             .setSettings(ImmutableSettings.settingsBuilder()
-                    .put("index.codec.doc_values_format.dvf.type", "disk")
-                    .build());
+                    .put(indexSettings())
+                    .put("index.codec.doc_values_format.dvf.type", "disk")));
 
         for (int i = 10; i >= 0; --i) {
             client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", randomLong()).setRefresh(i == 0 || rarely()).execute().actionGet();

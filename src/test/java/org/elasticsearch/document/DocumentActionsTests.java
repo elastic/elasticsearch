@@ -20,7 +20,6 @@
 package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -66,6 +65,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testIndexActions() throws Exception {
         createIndex();
+        NumShards numShards = getNumShards(getConcreteIndexName());
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
@@ -75,7 +75,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = refresh();
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         logger.info("--> index exists?");
         assertThat(indexExists(getConcreteIndexName()), equalTo(true));
@@ -85,12 +85,12 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         logger.info("Clearing cache");
         ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true).idCache(true)).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
-        assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         logger.info("Optimizing");
         waitForRelocation(ClusterHealthStatus.GREEN);
         OptimizeResponse optimizeResponse = optimize();
-        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
         GetResponse getResult;
 
@@ -141,7 +141,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
         logger.info("Flushing");
         FlushResponse flushResult = client().admin().indices().prepareFlush("test").execute().actionGet();
-        assertThat(flushResult.getSuccessfulShards(), equalTo(10));
+        assertThat(flushResult.getSuccessfulShards(), equalTo(numShards.totalNumShards));
         assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
@@ -165,7 +165,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             CountResponse countResponse = client().prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             countResponse = client().prepareCount("test")
@@ -173,14 +173,14 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
                     .setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD)
                     .get();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             countResponse = client().prepareCount("test")
                     .setQuery(termQuery("_type", "type1"))
                     .setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
@@ -188,19 +188,19 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
             assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(0));
-            assertThat(countResponse.getFailedShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(numShards.numPrimaries));
 
             // count with no query is a match all one
             countResponse = client().prepareCount("test").execute().actionGet();
             assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length, equalTo(0));
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
         logger.info("Delete by query");
         DeleteByQueryResponse queryResponse = client().prepareDeleteByQuery().setIndices("test").setQuery(termQuery("name", "test2")).execute().actionGet();
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getSuccessfulShards(), equalTo(5));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getSuccessfulShards(), equalTo(numShards.numPrimaries));
         assertThat(queryResponse.getIndex(getConcreteIndexName()).getFailedShards(), equalTo(0));
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
 
@@ -218,11 +218,9 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testBulk() throws Exception {
         createIndex();
+        NumShards numShards = getNumShards(getConcreteIndexName());
         logger.info("-> running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
@@ -267,7 +265,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         waitForRelocation(ClusterHealthStatus.GREEN);
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
         assertNoFailures(refreshResponse);
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
 
 
         for (int i = 0; i < 5; i++) {

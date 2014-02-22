@@ -62,11 +62,8 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     private static final String MULTI_VALUED_FIELD_NAME = "d_values";
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     @Before

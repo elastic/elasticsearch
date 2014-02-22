@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -54,20 +55,24 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numNodes = 1)
 public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int numberOfShards() {
+        return 1;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return builder().put("gateway.type", "local").build();
+    }
 
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
-        Settings settings = settingsBuilder()
-                .put(super.indexSettings())
-                .put("gateway.type", "local")
-                .build();
-        cluster().startNode(settings);
-        client().admin().indices().prepareCreate("test").setSettings(
-                settingsBuilder().put("index.number_of_shards", 1).put()
-        ).execute().actionGet();
+
+        createIndex("test");
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -107,13 +112,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testRestartNodePercolator2() throws Exception {
-        Settings settings = settingsBuilder()
-                .put(super.indexSettings())
-                .put("gateway.type", "local")
-                .build();
-        cluster().startNode(settings);
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+
+        createIndex("test");
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -188,16 +188,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
-        Settings settings = settingsBuilder()
-                .put(super.indexSettings())
-                .put("gateway.type", "local")
-                .build();
-        logger.info("--> Starting 2 nodes");
-        cluster().startNode(settings);
-        cluster().startNode(settings);
-
-        client().admin().indices().prepareDelete("_all").execute().actionGet();
-        ensureGreen();
+        cluster().ensureAtLeastNumNodes(2);
+        cluster().ensureAtMostNumNodes(2);
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
@@ -264,10 +256,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         cluster().ensureAtMostNumNodes(2);
         logger.info("--> Adding 3th node");
         cluster().startNode(settingsBuilder().put("node.stay", true));
-
-        client().admin().indices().prepareDelete("_all").execute().actionGet();
         ensureGreen();
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put("index.number_of_shards", 2)

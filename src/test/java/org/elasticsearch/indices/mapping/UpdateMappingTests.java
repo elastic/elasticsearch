@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -50,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -61,7 +61,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
     public void dynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.settingsBuilder()
+                        settingsBuilder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
@@ -124,7 +124,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
     public void updateMappingWithoutType() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.settingsBuilder()
+                        settingsBuilder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
@@ -146,7 +146,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
     public void updateMappingWithoutTypeMultiObjects() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.settingsBuilder()
+                        settingsBuilder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
@@ -168,7 +168,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.settingsBuilder()
+                        settingsBuilder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
@@ -200,7 +200,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.settingsBuilder()
+                        settingsBuilder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
@@ -224,7 +224,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.settingsBuilder()
+                        settingsBuilder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
                 ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
@@ -406,11 +406,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void updateMappingConcurrently() throws Throwable {
-        // Test that we can concurrently update different indexes and types.
-        int shardNo = Math.max(5, cluster().size());
-
-        prepareCreate("test1").setSettings("index.number_of_shards", shardNo).execute().actionGet();
-        prepareCreate("test2").setSettings("index.number_of_shards", shardNo).execute().actionGet();
+        createIndex("test1", "test2");
 
         // This is important. The test assumes all nodes are aware of all indices. Due to initializing shard throttling
         // not all shards are allocated with the initial create index. Wait for it..

@@ -22,7 +22,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -51,12 +50,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleConcurrentPercolator() throws Exception {
-        client().admin().indices().prepareCreate("index").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .build()
-        ).execute().actionGet();
+        createIndex("index");
         ensureGreen();
 
         final BytesReference onlyField1 = XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -147,12 +141,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testConcurrentAddingAndPercolating() throws Exception {
-        client().admin().indices().prepareCreate("index").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 2)
-                        .put("index.number_of_replicas", 1)
-                        .build()
-        ).execute().actionGet();
+        createIndex("index");
         ensureGreen();
         final int numIndexThreads = 3;
         final int numPercolateThreads = 6;
@@ -296,12 +285,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testConcurrentAddingAndRemovingWhilePercolating() throws Exception {
-        client().admin().indices().prepareCreate("index").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 2)
-                        .put("index.number_of_replicas", 1)
-                        .build()
-        ).execute().actionGet();
+        createIndex("index");
         ensureGreen();
         final int numIndexThreads = 3;
         final int numberPercolateOperation = 100;

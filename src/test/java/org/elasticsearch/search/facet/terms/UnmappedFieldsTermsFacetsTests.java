@@ -20,9 +20,6 @@ package org.elasticsearch.search.facet.terms;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -32,6 +29,7 @@ import java.util.ArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -40,25 +38,13 @@ import static org.hamcrest.Matchers.is;
  */
 public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", numberOfShards())
-                .put("index.number_of_replicas", 0)
-                .build();
-    }
-
-    protected int numberOfShards() {
-        return 5;
-    }
-
     /**
      * Tests the terms facet when faceting on unmapped field
      */
     @Test
     public void testUnmappedField() throws Exception {
         createIndex("idx");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("idx", "type", "" + i).setSource(jsonBuilder().startObject()
@@ -156,8 +142,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
      */
     @Test
     public void testPartiallyUnmappedField() throws ElasticsearchException, IOException {
-        client().admin().indices().prepareCreate("mapped_idx")
-                .setSettings(indexSettings())
+        assertAcked(prepareCreate("mapped_idx")
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("partially_mapped_byte").field("type", "byte").endObject()
                         .startObject("partially_mapped_short").field("type", "short").endObject()
@@ -165,12 +150,11 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
                         .startObject("partially_mapped_long").field("type", "long").endObject()
                         .startObject("partially_mapped_float").field("type", "float").endObject()
                         .startObject("partially_mapped_double").field("type", "double").endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                        .endObject().endObject().endObject()));
+        ensureGreen();
 
         createIndex("unmapped_idx");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("mapped_idx", "type", "" + i).setSource(jsonBuilder().startObject()
@@ -284,8 +268,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
 
     @Test
     public void testMappedYetMissingField() throws IOException {
-        client().admin().indices().prepareCreate("idx")
-                .setSettings(indexSettings())
+        assertAcked(prepareCreate("idx")
                 .addMapping("type", jsonBuilder().startObject()
                         .field("type").startObject()
                         .field("properties").startObject()
@@ -293,9 +276,8 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
                         .field("long").startObject().field("type", "long").endObject()
                         .field("double").startObject().field("type", "double").endObject()
                         .endObject()
-                        .endObject())
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                        .endObject()));
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("idx", "type", "" + i).setSource(jsonBuilder().startObject()
@@ -338,7 +320,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
     @Test
     public void testMultiFields() throws Exception {
         createIndex("idx");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("idx", "type", "" + i).setSource(jsonBuilder().startObject()

@@ -50,7 +50,6 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("gateway.type", "local")
-                .put("index.number_of_shards", 1)
                 .build();
 
         logger.info("--> start first node");
@@ -76,16 +75,16 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(state.metaData().indices().containsKey("test"), equalTo(false));
 
         createIndex("test");
+        NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         // make sure that all shards recovered before trying to flush
-        assertThat(client().admin().cluster().prepareHealth("test").setWaitForActiveShards(2).execute().actionGet().getActiveShards(), equalTo(2));
+        assertThat(client().admin().cluster().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().getActiveShards(), equalTo(numShards.totalNumShards));
         // flush for simpler debugging
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flushAndRefresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
@@ -151,10 +150,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
@@ -208,12 +204,13 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(state.nodes().size(), equalTo(4));
 
         createIndex("test");
+        NumShards numShards = getNumShards("test");
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         // make sure that all shards recovered before trying to flush
-        assertThat(client().admin().cluster().prepareHealth("test").setWaitForActiveShards(10).execute().actionGet().isTimedOut(), equalTo(false));
+        assertThat(client().admin().cluster().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().isTimedOut(), equalTo(false));
         // flush for simpler debugging
         client().admin().indices().prepareFlush().execute().actionGet();
 
@@ -235,7 +232,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                     success &= state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Checking for NO_MASTER_BLOCL on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK));
+                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK));
                     }
                 }
                 return success;

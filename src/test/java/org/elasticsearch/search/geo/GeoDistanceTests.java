@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -38,9 +36,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Arrays;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -54,12 +50,13 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleDistanceTests() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
                 .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
@@ -206,16 +203,13 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDistanceSortingMVFields() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
                 .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject().string();
-
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .addMapping("type1", mapping)
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", xContentBuilder));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("names", "New York")
@@ -325,29 +319,21 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1157.0d, 10d));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(0d, 10d));
 
-        try {
-            client().prepareSearch("test").setQuery(matchAllQuery())
-                    .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("sum"))
-                    .execute().actionGet();
-            fail("Expected error");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
-        }
+        assertFailures(client().prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("sum")),
+                RestStatus.BAD_REQUEST,
+                containsString("sort_mode [sum] isn't supported for sorting by geo distance"));
     }
 
     @Test
     // Regression bug: https://github.com/elasticsearch/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
                 .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject().string();
-
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .addMapping("type1", mapping)
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("names", "Times Square", "Tribeca")
@@ -363,7 +349,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 .field("names", "Wall Street", "Soho")
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         // Order: Asc
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
@@ -394,18 +380,18 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         double target_lat = 32.81;
         double target_long = -117.21;
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .startObject("location").field("lat", source_lat).field("lon", source_long).endObject()
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse1 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistance(" + target_lat + "," + target_long + ")").execute().actionGet();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
@@ -438,30 +424,27 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse8 = client().prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distanceInMiles(" + target_lat + "," + target_long + ")").execute().actionGet();
         Double resultDistance8 = searchResponse8.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance8, closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
-
     }
 
     @Test
     public void testDistanceSortingNestedFields() throws Exception {
-                String mapping = XContentFactory.jsonBuilder().startObject().startObject("company")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
                 .startObject("branches")
-                    .field("type", "nested")
-                    .startObject("properties")
-                        .startObject("name").field("type", "string").endObject()
-                        .startObject("location").field("type", "geo_point").field("lat_lon", true)
-                        .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject()
-                    .endObject()
+                .field("type", "nested")
+                .startObject("properties")
+                .startObject("name").field("type", "string").endObject()
+                .startObject("location").field("type", "geo_point").field("lat_lon", true)
+                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject()
                 .endObject()
                 .endObject()
-                .endObject().endObject().string();
+                .endObject()
+                .endObject().endObject();
 
-        client().admin().indices().prepareCreate("companies")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .addMapping("company", mapping)
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth("companies").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertAcked(prepareCreate("companies").addMapping("company", xContentBuilder));
+        ensureGreen();
+
         indexRandom(true, client().prepareIndex("companies", "company", "1").setSource(jsonBuilder().startObject()
                 .field("name", "company 1")
                 .startArray("branches")
@@ -598,14 +581,10 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
 
-        try {
-            client().prepareSearch("companies").setQuery(matchAllQuery())
-                    .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).sortMode("sum"))
-                    .execute().actionGet();
-            fail("Expected error");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
-        }
+        assertFailures(client().prepareSearch("companies").setQuery(matchAllQuery())
+                    .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).sortMode("sum")),
+                RestStatus.BAD_REQUEST,
+                containsString("sort_mode [sum] isn't supported for sorting by geo distance"));
     }
     
     /**
@@ -637,12 +616,10 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
                 .startObject()
                     .field("pin", GeoHashUtils.encode(lat, lon))
                 .endObject();
-        
-        ensureYellow();
-        
-        client().admin().indices().prepareCreate("locations").addMapping("location", mapping).execute().actionGet();
+
+        assertAcked(prepareCreate("locations").addMapping("location", mapping));
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).execute().actionGet();
-        client().admin().indices().prepareRefresh("locations").execute().actionGet();
+        refresh();
         client().prepareGet("locations", "location", "1").execute().actionGet();
 
         SearchResponse result = client().prepareSearch("locations")

@@ -22,10 +22,10 @@ package org.elasticsearch.search.scan;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Test;
 
 import java.util.Set;
 
@@ -36,12 +36,13 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchScanScrollingTests extends ElasticsearchIntegrationTest {
 
+    @Test
     public void testRandomized() throws Exception {
-        testScroll(between(1, 4), atLeast(100), between(1, 300), getRandom().nextBoolean(), getRandom().nextBoolean());
+        testScroll(atLeast(100), between(1, 300), getRandom().nextBoolean(), getRandom().nextBoolean());
     }
 
-    private void testScroll(int numberOfShards, long numberOfDocs, int size, boolean unbalanced, boolean trackScores) throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).get();
+    private void testScroll(long numberOfDocs, int size, boolean unbalanced, boolean trackScores) throws Exception {
+        createIndex("test");
         ensureGreen();
 
         Set<String> ids = Sets.newHashSet();

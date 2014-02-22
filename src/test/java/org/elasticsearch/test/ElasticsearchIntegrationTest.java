@@ -299,7 +299,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     .setTemplate("*")
                     .setOrder(0)
                     .setSettings(setRandomNormsLoading(setRandomMerge(getRandom(), ImmutableSettings.builder())
-                            .put(INDEX_SEED_SETTING, randomLong())))
+                            .put(INDEX_SEED_SETTING, randomLong()))
+                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS)))
                     .execute().actionGet();
         }
     }
@@ -350,13 +351,43 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return cluster();
     }
 
+    protected static final int DEFAULT_MIN_NUM_SHARDS = 1;
+    protected static final int DEFAULT_MAX_NUM_SHARDS = 10;
+
+    protected int minimumNumberOfShards() {
+        return DEFAULT_MIN_NUM_SHARDS;
+    }
+
+    protected int maximumNumberOfShards() {
+        return DEFAULT_MAX_NUM_SHARDS;
+    }
+
+    protected int numberOfShards() {
+        return between(minimumNumberOfShards(), maximumNumberOfShards());
+    }
+
+    protected int numberOfReplicas() {
+        //number of replicas won't be set through index settings, default will be used
+        return -1;
+    }
+
     /**
      * Returns a settings object used in {@link #createIndex(String...)} and {@link #prepareCreate(String)} and friends.
      * This method can be overwritten by subclasses to set defaults for the indices that are created by the test.
-     * By default it returns an empty settings object.
+     * By default it returns a settings object that sets a random number of shards. Number of shards and replicas
+     * can be controlled through specific methods.
      */
     public Settings indexSettings() {
-        return ImmutableSettings.EMPTY;
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        int numberOfShards = numberOfShards();
+        if (numberOfShards > 0) {
+            builder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+        }
+        int numberOfReplicas = numberOfReplicas();
+        if (numberOfReplicas >= 0) {
+            builder.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        }
+        return builder.build();
     }
 
     /**
@@ -492,10 +523,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * rules based on <code>index.routing.allocation.exclude._name</code>.
      * </p>
      */
-    public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, ImmutableSettings.Builder builder) {
+    public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, ImmutableSettings.Builder settingsBuilder) {
         cluster().ensureAtLeastNumNodes(numNodes);
-        Settings settings = indexSettings();
-        builder.put(settings);
+
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(indexSettings()).put(settingsBuilder.build());
+
         if (numNodes > 0) {
             getExcludeSettings(index, numNodes, builder);
         }
@@ -1031,4 +1063,23 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return randomFrom(Arrays.asList("paged_bytes", "fst", "doc_values"));
     }
 
+    protected NumShards getNumShards(String index) {
+        MetaData metaData = client().admin().cluster().prepareState().get().getState().metaData();
+        assertThat(metaData.hasIndex(index), equalTo(true));
+        int numShards = Integer.valueOf(metaData.index(index).settings().get(IndexMetaData.SETTING_NUMBER_OF_SHARDS));
+        int numReplicas = Integer.valueOf(metaData.index(index).settings().get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS));
+        return new NumShards(numShards, numReplicas);
+    }
+
+    protected static class NumShards {
+        public final int numPrimaries;
+        public final int numReplicas;
+        public final int totalNumShards;
+
+        private NumShards(int numPrimaries, int numReplicas) {
+            this.numPrimaries = numPrimaries;
+            this.numReplicas = numReplicas;
+            this.totalNumShards = numPrimaries * (numReplicas + 1);
+        }
+    }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -46,22 +47,34 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
     protected Settings nodeSettings(int nodeOrdinal) {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        return ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
+        return ImmutableSettings.builder()
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, 0)
+                //make sure that enough concurrent reroutes can happen at the same time
+                //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .build();
+    }
+
+    @Override
+    protected int minimumNumberOfShards() {
+        return cluster().size();
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
     }
 
     @Test
     public void testClusterUpdateSettingsAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
-                        .put("number_of_replicas", 0)).get();
+        createIndex("test");
         ensureGreen();
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
         for (NodeInfo nodeInfo : nodesInfo) {
             if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodesInfo.getAt(0).getNode().id();
+                excludedNodeId = nodeInfo.getNode().id();
                 break;
             }
         }
@@ -80,25 +93,20 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         if (clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
                             //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
+                            //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
                         }
                     }
                 }
             }
         }
-
-        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
-        waitForRelocation();
-
-        //removes the allocation exclude settings
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
     }
 
     @Test
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", atLeast(cluster().size()))
+                        .put("number_of_shards", between(cluster().size(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 
@@ -106,7 +114,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
         String excludedNodeId = null;
         for (NodeInfo nodeInfo : nodesInfo) {
             if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodesInfo.getAt(0).getNode().id();
+                excludedNodeId = nodeInfo.getNode().id();
                 break;
             }
         }
@@ -116,12 +124,6 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
                 .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
         assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
-
-        //let's wait for the relocation to be completed, otherwise there can be issues with after test checks (mock directory wrapper etc.)
-        waitForRelocation();
-
-        //removes the allocation exclude settings
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", "")).get();
     }
 
     private static ClusterState getLocalClusterState(Client client) {

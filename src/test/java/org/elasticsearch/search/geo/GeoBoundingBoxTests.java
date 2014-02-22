@@ -20,16 +20,16 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoBoundingBoxFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,16 +40,11 @@ public class GeoBoundingBoxTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleBoundingBoxTest() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
@@ -115,16 +110,11 @@ public class GeoBoundingBoxTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void limitsBoundingBoxTest() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(settingsBuilder().put("index.number_of_shards", "1")).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .startObject("location").field("lat", 40).field("lon", -20).endObject()
@@ -166,7 +156,7 @@ public class GeoBoundingBoxTests extends ElasticsearchIntegrationTest {
                 .startObject("location").field("lat", -10).field("lon", 170).endObject()
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(), geoBoundingBoxFilter("location").topLeft(41, -11).bottomRight(40, 9)))
@@ -223,16 +213,11 @@ public class GeoBoundingBoxTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void limit2BoundingBoxTest() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(settingsBuilder().put("index.number_of_shards", "1")).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("userid", 880)

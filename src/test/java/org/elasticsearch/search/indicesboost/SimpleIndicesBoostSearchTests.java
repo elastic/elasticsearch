@@ -21,17 +21,14 @@ package org.elasticsearch.search.indicesboost;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -39,14 +36,9 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SimpleIndicesBoostSearchTests extends ElasticsearchIntegrationTest {
 
-    private static final Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
-
     @Test
     public void testIndicesBoost() throws Exception {
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
+        assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
 
         try {
             client().prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();
@@ -55,13 +47,13 @@ public class SimpleIndicesBoostSearchTests extends ElasticsearchIntegrationTest 
             // ignore, no indices
         }
 
-        client().admin().indices().create(createIndexRequest("test1").settings(DEFAULT_SETTINGS)).actionGet();
-        client().admin().indices().create(createIndexRequest("test2").settings(DEFAULT_SETTINGS)).actionGet();
+        createIndex("test1", "test2");
+        ensureGreen();
         client().index(indexRequest("test1").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
         client().index(indexRequest("test2").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
-        client().admin().indices().refresh(refreshRequest()).actionGet();
+        refresh();
 
         float indexBoost = 1.1f;
 

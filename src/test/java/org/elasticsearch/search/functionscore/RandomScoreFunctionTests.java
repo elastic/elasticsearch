@@ -42,11 +42,10 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
     public void consistentHitsWithSameSeed() throws Exception {
         final int replicas = between(0, 2); // needed for green status!
         cluster().ensureAtLeastNumNodes(replicas + 1);
-        assertAcked(client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .setSettings(
-                        ImmutableSettings.builder().put("index.number_of_shards", between(2, 5))
-                                .put("index.number_of_replicas", replicas)
-                                .build()));
+                        ImmutableSettings.builder().put(indexSettings())
+                                .put("index.number_of_replicas", replicas)));
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = atLeast(100);
         for (int i = 0; i < docCount; i++) {
@@ -86,7 +85,7 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
     public void distribution() throws Exception {
         int count = 10000;
 
-        prepareCreate("test").execute().actionGet();
+        assertAcked(prepareCreate("test"));
         ensureGreen();
 
         for (int i = 0; i < count; i++) {
@@ -148,7 +147,6 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         }
 
         System.out.println("mean: " + sum / (double) count);
-
     }
 
 }

@@ -27,8 +27,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
@@ -46,6 +46,7 @@ import java.util.Set;
 
 import static org.elasticsearch.action.search.SearchType.*;
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -60,24 +61,40 @@ import static org.hamcrest.Matchers.*;
  */
 public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
     private Set<String> prepareData() throws Exception {
+        return prepareData(-1);
+    }
+
+    private Set<String> prepareData(int numShards) throws Exception {
         Set<String> fullExpectedIds = Sets.newHashSet();
+
+        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+                .put(indexSettings())
+                .put("routing.hash.type", "simple");
+
+        if (numShards > 0) {
+            settingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numShards);
+        }
+
         client().admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("index.number_of_shards", 3)
-                        .put("index.number_of_replicas", 0)
-                        .put("routing.hash.type", "simple")))
+                .settings(settingsBuilder))
                 .actionGet();
 
         ensureGreen();
         for (int i = 0; i < 100; i++) {
-            index(client(), Integer.toString(i), "test", i);
+            index(Integer.toString(i), "test", i);
             fullExpectedIds.add(Integer.toString(i));
         }
-        client().admin().indices().refresh(refreshRequest("test")).actionGet();
+        refresh();
         return fullExpectedIds;
     }
 
-    private void index(Client client, String id, String nameValue, int age) throws IOException {
+    private void index(String id, String nameValue, int age) throws IOException {
         client().index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
@@ -242,7 +259,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testQueryAndFetch() throws Exception {
-        prepareData();
+        prepareData(3);
 
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
@@ -281,7 +298,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDfsQueryAndFetch() throws Exception {
-        prepareData();
+        prepareData(3);
 
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
@@ -341,12 +358,14 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
     public void testFailedSearchWithWrongQuery() throws Exception {
         prepareData();
 
+        NumShards test = getNumShards("test");
+
         logger.info("Start Testing failed search with wrong query");
         try {
             SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
-            assertThat(searchResponse.getTotalShards(), equalTo(3));
+            assertThat(searchResponse.getTotalShards(), equalTo(test.numPrimaries));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
-            assertThat(searchResponse.getFailedShards(), equalTo(3));
+            assertThat(searchResponse.getFailedShards(), equalTo(test.numPrimaries));
             fail("search should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
@@ -359,14 +378,16 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
     public void testFailedSearchWithWrongFrom() throws Exception {
         prepareData();
 
+        NumShards test = getNumShards("test");
+
         logger.info("Start Testing failed search with wrong from");
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(1000).size(20).explain(true);
         SearchResponse response = client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
         assertThat(response.getHits().hits().length, equalTo(0));
-        assertThat(response.getTotalShards(), equalTo(3));
-        assertThat(response.getSuccessfulShards(), equalTo(3));
+        assertThat(response.getTotalShards(), equalTo(test.numPrimaries));
+        assertThat(response.getSuccessfulShards(), equalTo(test.numPrimaries));
         assertThat(response.getFailedShards(), equalTo(0));
 
         response = client().search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();

@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 
@@ -33,13 +31,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  */
 public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest {
-    
+
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     protected long minValue, maxValue, minValues, maxValues;

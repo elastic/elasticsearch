@@ -32,18 +32,20 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
     @Test
     public void testRegexpFilter() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
-                .put("index.number_of_shards", between(1,5))
-                .put("index.number_of_replicas", 0));
+        CreateIndexRequestBuilder builder = prepareCreate("test");
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                     .startObject("name")
@@ -82,7 +84,6 @@ public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTes
         assertThat(notFilteredFacet.getEntries().size(), Matchers.equalTo(2));
         assertThat(notFilteredFacet.getEntries().get(0).getTerm().string(), Matchers.isOneOf("bacon", "bastards"));
         assertThat(notFilteredFacet.getEntries().get(1).getTerm().string(), Matchers.isOneOf("bacon", "bastards"));
-        
     }
 
 }

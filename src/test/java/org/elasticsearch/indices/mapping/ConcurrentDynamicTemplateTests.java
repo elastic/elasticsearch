@@ -22,7 +22,6 @@ package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -33,12 +32,18 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
 public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest {
 
     private final String mappingType = "test-mapping";
+
+    @Override
+    protected int numberOfReplicas() {
+        return between(0, 1);
+    }
 
     @Test // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
@@ -53,12 +58,8 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
         int iters = atLeast(5);
         for (int i = 0; i < iters; i++) {
             wipeIndices("test");
-            client().admin().indices().prepareCreate("test")
-                    .setSettings(
-                            ImmutableSettings.settingsBuilder()
-                                    .put("number_of_shards", between(1, 5))
-                                    .put("number_of_replicas", between(0, 1)).build())
-                    .addMapping(mappingType, mapping).execute().actionGet();
+            assertAcked(prepareCreate("test")
+                    .addMapping(mappingType, mapping));
             ensureYellow();
             int numDocs = atLeast(10);
             final CountDownLatch latch = new CountDownLatch(numDocs);

@@ -51,7 +51,6 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put("index.number_of_shards", 1)
                 .build();
 
         TimeValue timeout = TimeValue.timeValueMillis(200);

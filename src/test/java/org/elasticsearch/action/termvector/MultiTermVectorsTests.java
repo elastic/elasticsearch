@@ -30,8 +30,9 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
     @Test
     public void testDuelESLucene() throws Exception {
         AbstractTermVectorTests.TestFieldSetting[] testFieldSettings = getFieldSettings();
-        createIndexBasedOnFieldSettings(testFieldSettings, -1);
-        AbstractTermVectorTests.TestDoc[] testDocs = generateTestDocs(5, testFieldSettings);
+        createIndexBasedOnFieldSettings("test", testFieldSettings);
+        //we generate as many docs as many shards we have
+        TestDoc[] testDocs = generateTestDocs(getNumShards("test").numPrimaries, testFieldSettings);
 
         DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
         AbstractTermVectorTests.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
@@ -62,6 +63,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorTests {
 
     }
 
+    @Test
     public void testMissingIndexThrowsMissingIndex() throws Exception {
         TermVectorRequestBuilder requestBuilder = client().prepareTermVector("testX", "typeX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = new MultiTermVectorsRequestBuilder(client());

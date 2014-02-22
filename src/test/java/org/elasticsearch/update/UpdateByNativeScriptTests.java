@@ -51,8 +51,8 @@ public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {
-        prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build()).get();
-        ensureGreen();
+        createIndex("test");
+        ensureYellow();
 
         index("test", "type", "1", "text", "value");
 

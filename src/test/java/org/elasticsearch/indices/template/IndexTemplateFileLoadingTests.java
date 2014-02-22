@@ -37,12 +37,8 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 @ClusterScope(scope=Scope.TEST, numNodes=1)
 public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest {
-
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -67,6 +63,12 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
         }
 
         return settingsBuilder.build();
+    }
+
+    @Override
+    protected int numberOfShards() {
+        //number of shards won't be set through index settings, the one from the index templates needs to be used
+        return -1;
     }
 
     @Test

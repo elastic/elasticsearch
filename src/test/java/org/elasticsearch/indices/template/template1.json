@@ -1,5 +1,6 @@
 {
     "template" : "foo*",
+    "order" : 10,
     "settings" : {
         "number_of_shards": 10,
         "number_of_replicas": 0

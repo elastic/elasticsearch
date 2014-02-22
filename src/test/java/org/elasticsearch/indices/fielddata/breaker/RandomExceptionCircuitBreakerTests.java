@@ -38,7 +38,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -61,7 +60,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 .clear().setBreaker(true).execute().actionGet().getNodes()) {
             assertThat("Breaker is not set to 0", node.getBreaker().getEstimated(), equalTo(0L));
         }
-        final int numShards = between(1, 5);
+
         final int numReplicas = randomIntBetween(0, 1);
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
@@ -107,7 +106,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
         }
 
         ImmutableSettings.Builder settings = settingsBuilder()
-                .put("index.number_of_shards", numShards)
+                .put(indexSettings())
                 .put("index.number_of_replicas", numReplicas)
                 .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)

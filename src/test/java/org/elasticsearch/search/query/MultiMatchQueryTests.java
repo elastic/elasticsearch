@@ -52,6 +52,7 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
     @Before
     public void init() throws Exception {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.analysis.analyzer.perfect_match.type", "custom")

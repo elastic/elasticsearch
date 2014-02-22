@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -40,6 +39,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexLookupTests extends ElasticsearchIntegrationTest {
@@ -129,18 +130,18 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
                 .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
+        assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
                         .put("index.analysis.filter.delimited_int.delimiter", "|")
                         .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")
-                        .put("index.number_of_replicas", 0).put("index.number_of_shards", randomIntBetween(1, 6))));
+                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("int_payload_field", "a|1 b|2 b|3 c|4 d "), client()
                 .prepareIndex("test", "type1", "2").setSource("int_payload_field", "b|1 b|2 c|3 d|4 a "),
                 client().prepareIndex("test", "type1", "3").setSource("int_payload_field", "b|1 c|2 d|3 a|4 b "));
         ensureGreen();
-
     }
 
     @Test
@@ -191,7 +192,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     private void checkOnlyFunctionScore(String scoreScript, Map<String, Object> expectedScore, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test")
                 .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript))).execute().actionGet();
-        ElasticsearchAssertions.assertHitCount(sr, numExpectedDocs);
+        assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             assertThat("for doc " + hit.getId(), ((Float) expectedScore.get(hit.getId())).doubleValue(),
                     Matchers.closeTo(hit.score(), 1.e-4));
@@ -380,7 +381,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     private void checkArrayValsInEachDoc(String script, HashMap<String, List<Object>> expectedArray, int expectedHitSize) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
-        ElasticsearchAssertions.assertHitCount(sr, expectedHitSize);
+        assertHitCount(sr, expectedHitSize);
         int nullCounter = 0;
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("tvtest").getValues().get(0);
@@ -401,8 +402,10 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                 .field("index_options", "offsets").field("term_vector", "no").field("analyzer", "payload_string").endObject()
                 .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
                 .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
-        ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
-                ImmutableSettings.settingsBuilder().put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
+        assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put(indexSettings())
+                        .put("index.analysis.analyzer.payload_float.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")
                         .put("index.analysis.filter.delimited_float.delimiter", "|")
                         .put("index.analysis.filter.delimited_float.encoding", "float")
@@ -416,7 +419,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
                         .put("index.analysis.filter.delimited_int.delimiter", "|")
                         .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter").put("index.number_of_replicas", 0)
+                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")
                         .put("index.number_of_shards", 1)));
         ensureYellow();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("float_payload_field", "a|1 b|2 a|3 b "), client()
@@ -586,7 +589,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         SearchResponse sr = client().prepareSearch("test")
                 .setQuery(QueryBuilders.functionScoreQuery(ScoreFunctionBuilders.scriptFunction(scoreScript)))
                 .addScriptField("tvtest", fieldScript).execute().actionGet();
-        ElasticsearchAssertions.assertHitCount(sr, numExpectedDocs);
+        assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("tvtest").getValues().get(0);
             Object expectedResult = expectedFieldVals.get(hit.getId());
@@ -599,7 +602,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     private void checkValueInEachDoc(String script, Map<String, Object> expectedResults, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
-        ElasticsearchAssertions.assertHitCount(sr, numExpectedDocs);
+        assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("tvtest").getValues().get(0);
             Object expectedResult = expectedResults.get(hit.getId());
@@ -610,11 +613,11 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     private void checkValueInEachDoc(int value, String script, int numExpectedDocs) {
         SearchResponse sr = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).addScriptField("tvtest", script)
                 .execute().actionGet();
-        ElasticsearchAssertions.assertHitCount(sr, numExpectedDocs);
+        assertHitCount(sr, numExpectedDocs);
         for (SearchHit hit : sr.getHits().getHits()) {
             Object result = hit.getFields().get("tvtest").getValues().get(0);
             if (result instanceof Integer) {
-                assertThat(((Integer) result).intValue(), equalTo(value));
+                assertThat((Integer)result, equalTo(value));
             } else if (result instanceof Long) {
                 assertThat(((Long) result).intValue(), equalTo(value));
             } else {

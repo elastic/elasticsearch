@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -42,6 +40,7 @@ import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -54,11 +53,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", randomBoolean() ? 1 : randomIntBetween(2, 10))
-                .put("index.number_of_replicas", randomIntBetween(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
@@ -79,10 +75,8 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void init() throws Exception {
-        prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested", "ip", "type=ip", "location", "type=geo_point")
-                .setSettings(indexSettings())
-                .execute().actionGet();
+        assertAcked(prepareCreate("idx")
+                .addMapping("type", "nested", "type=nested", "ip", "type=ip", "location", "type=geo_point"));
 
         indexRandom(true,
                 indexDoc("2014-01-01", 1),

@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Random;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -189,7 +190,9 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSegmentsStats() {
-        prepareCreate("test1", 2).setSettings("index.number_of_shards", 5, "index.number_of_replicas", 1).get();
+        assertAcked(prepareCreate("test1", 2));
+
+        NumShards test1 = getNumShards("test1");
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
@@ -203,7 +206,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
-        assertThat(stats.getTotal().getSegments().getCount(), equalTo(10l));
+        assertThat(stats.getTotal().getSegments().getCount(), equalTo((long)test1.totalNumShards));
         assumeTrue(org.elasticsearch.Version.CURRENT.luceneVersion != Version.LUCENE_46);
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0l));
     }

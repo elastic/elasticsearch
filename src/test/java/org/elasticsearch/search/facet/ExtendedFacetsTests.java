@@ -23,8 +23,6 @@ import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,21 +42,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", numberOfShards())
-                .put("index.number_of_replicas", 0)
-                .build();
-    }
-
     protected int numberOfShards() {
         return 1;
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
     }
 
     protected int numDocs() {
         return 2500;
     }
-
 
     @Test
     @Slow

@@ -1,5 +1,6 @@
 {
     "template" : "foo*",
+    "order" : 10,
     "settings" : {
         "index" : {
             "number_of_shards": 10,

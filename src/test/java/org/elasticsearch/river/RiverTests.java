@@ -143,6 +143,7 @@ public class RiverTests extends ElasticsearchIntegrationTest {
         IndexResponse indexResponse = client().prepareIndex(RiverIndexName.Conf.DEFAULT_INDEX_NAME, riverName, "_meta")
                 .setSource("type", DummyRiverModule.class.getCanonicalName()).get();
         assertTrue(indexResponse.isCreated());
+        ensureGreen();
     }
 
     private void checkRiverIsStarted(final String riverName) throws InterruptedException {

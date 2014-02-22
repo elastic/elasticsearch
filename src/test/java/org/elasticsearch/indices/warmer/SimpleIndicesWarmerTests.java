@@ -46,18 +46,14 @@ import org.junit.Test;
 
 import java.util.Locale;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-/**
- */
 public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
-
 
     @Test
     public void simpleWarmerTests() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("warmer_1")
@@ -127,9 +123,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                         "}")
                 .execute().actionGet();
 
-        client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -143,11 +137,8 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void createIndexWarmer() {
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .setSource("{\n" +
-                        "    \"settings\" : {\n" +
-                        "        \"index.number_of_shards\" : 1\n" +
-                        "    },\n" +
                         "    \"warmers\" : {\n" +
                         "        \"warmer_1\" : {\n" +
                         "            \"types\" : [],\n" +
@@ -158,8 +149,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
                         "            }\n" +
                         "        }\n" +
                         "    }\n" +
-                        "}")
-                .execute().actionGet();
+                        "}"));
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
@@ -208,9 +198,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
     @Test // issue 3246
     public void ensureThatIndexWarmersCanBeChangedOnRuntime() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1, "index.number_of_replicas", 0))
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")
@@ -233,9 +221,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void gettingAllWarmersUsingAllAndWildcardsShouldWork() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1, "index.number_of_replicas", 0))
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer")

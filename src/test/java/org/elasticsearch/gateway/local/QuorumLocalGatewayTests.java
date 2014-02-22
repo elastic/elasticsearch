@@ -40,9 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -50,28 +48,31 @@ import static org.hamcrest.Matchers.notNullValue;
 @ClusterScope(numNodes=0, scope=Scope.TEST)
 public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected int numberOfReplicas() {
+        return 2;
+    }
+
     @Test
     @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
         final String[] nodes = new String[3];
-        nodes[0] = cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        nodes[1] = cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        nodes[2] = cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        nodes[0] = cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        nodes[1] = cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        nodes[2] = cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+
+        createIndex("test");
+        ensureGreen();
+        NumShards test = getNumShards("test");
 
         logger.info("--> indexing...");
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         //We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
-        client().admin().indices().prepareFlush().get();
+        flush();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
-        assertNoFailures(client().admin().indices().prepareRefresh().execute().get());
-
-        logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        refresh();
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
@@ -93,7 +94,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         if (randomBoolean()) {
             Thread.sleep(between(1, 400)); // wait a bit and give is a chance to try to allocate
         }
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("1")).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("1")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.RED));  // nothing allocated yet
         assertThat(awaitBusy(new Predicate<Object>() {
@@ -109,8 +110,8 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
         client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).get();
 
-        logger.info("--> running cluster_health (wait for the shards to startup), 2 shards since we only have 1 node");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(2)).actionGet();
+        logger.info("--> running cluster_health (wait for the shards to startup), primaries only since we only have 1 node");
+        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(test.numPrimaries)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -125,23 +126,21 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     public void testQuorumRecovery() throws Exception {
 
         logger.info("--> starting 3 nodes");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+
+        createIndex("test");
+        ensureGreen();
+        final NumShards test = getNumShards("test");
 
         logger.info("--> indexing...");
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         //We don't check for failures in the flush response: if we do we might get the following:
         // FlushNotAllowedEngineException[[test][1] recovery is in progress, flush [COMMIT_TRANSLOG] is not allowed]
-        client().admin().indices().prepareFlush().get();
+        flush();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).get();
-        assertNoFailures(client().admin().indices().prepareRefresh().get());
-
-        logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        refresh();
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
@@ -163,7 +162,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
                         @Override
                         public boolean apply(Object input) {
                             logger.info("--> running cluster_health (wait for the shards to startup)");
-                            ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
+                            ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
                             logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
                             return (!clusterHealth.isTimedOut()) && clusterHealth.getStatus() == ClusterHealthStatus.YELLOW;
                         }
@@ -180,10 +179,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         });
         logger.info("--> all nodes are started back, verifying we got the latest version");
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 3l);

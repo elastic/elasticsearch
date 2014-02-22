@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
+import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
@@ -148,6 +150,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimple2() throws Exception {
+
+        //TODO this test seems to have problems with more shards and/or 1 replica instead of 0
         client().admin().indices().prepareCreate("index").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
@@ -270,7 +274,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void percolateOnRecreatedIndex() throws Exception {
-        prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
@@ -284,7 +288,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         wipeIndices("test");
-        prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         client().prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
@@ -301,7 +305,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     // see #2814
     public void percolateCustomAnalyzer() throws Exception {
-        Builder builder = ImmutableSettings.builder();
+        Builder builder = builder();
         builder.put("index.analysis.analyzer.lwhitespacecomma.tokenizer", "whitespacecomma");
         builder.putArray("index.analysis.analyzer.lwhitespacecomma.filter", "lowercase");
         builder.put("index.analysis.tokenizer.whitespacecomma.type", "pattern");
@@ -313,10 +317,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .endObject().endObject();
 
-        client().admin().indices().prepareCreate("test")
-                .addMapping("doc", mapping)
-                .setSettings(builder.put("index.number_of_shards", 1))
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         logger.info("--> register a query");
@@ -342,7 +343,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void createIndexAndThenRegisterPercolator() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)));
+        createIndex("test");
         ensureGreen();
 
         logger.info("--> register a query");
@@ -391,7 +392,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void multiplePercolators() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         logger.info("--> register a query 1");
@@ -432,7 +433,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void dynamicAddingRemovingQueries() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         logger.info("--> register a query 1");
@@ -508,10 +509,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .startObject("_size").field("enabled", true).field("stored", "yes").endObject()
                 .endObject().endObject().string();
 
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("type1", mapping)
-                .execute().actionGet();
+        assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();
 
         logger.info("--> register a query");
@@ -554,8 +552,10 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 1l);
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 
+        NumShards numShards = getNumShards("test");
+
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
-        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(5l)); // We have 5 partitions
+        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l)); // One primary and replica
         assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
@@ -565,7 +565,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
         }
-        assertThat(percolateCount, equalTo(5l)); // We have 5 partitions
+        assertThat(percolateCount, equalTo((long) numShards.numPrimaries));
 
         logger.info("--> Second percolate request");
         response = client().preparePercolate()
@@ -577,7 +577,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
-        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
+        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries *2));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l));
         assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
@@ -587,7 +587,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         for (NodeStats nodeStats : nodesResponse) {
             percolateCount += nodeStats.getIndices().getPercolate().getCount();
         }
-        assertThat(percolateCount, equalTo(10l));
+        assertThat(percolateCount, equalTo((long) numShards.numPrimaries *2));
 
         // We might be faster than 1 ms, so run upto 1000 times until have spend 1ms or more on percolating
         boolean moreThanOneMs = false;
@@ -821,12 +821,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPercolateMultipleIndicesAndAliases() throws Exception {
-        client().admin().indices().prepareCreate("test1")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .execute().actionGet();
-        client().admin().indices().prepareCreate("test2")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .execute().actionGet();
+        createIndex("test1", "test2");
         ensureGreen();
 
         logger.info("--> registering queries");
@@ -1125,12 +1120,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPercolateScoreAndSorting() throws Exception {
-        client().admin().indices().prepareCreate("my-index")
-                .setSettings(ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 3)
-                        .put("index.number_of_replicas", 1)
-                        .build())
-                .execute().actionGet();
+        createIndex("my-index");
         ensureGreen();
 
         // Add a dummy doc, that shouldn't never interfere with percolate operations.
@@ -1217,7 +1207,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPercolateSortingWithNoSize() throws Exception {
-        client().admin().indices().prepareCreate("my-index").execute().actionGet();
+        createIndex("my-index");
         ensureGreen();
 
         client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
@@ -1246,12 +1236,11 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), scriptFunction("doc['level'].value")))
                 .execute().actionGet();
         assertThat(response.getCount(), equalTo(0l));
-        assertThat(response.getSuccessfulShards(), equalTo(3));
-        assertThat(response.getShardFailures().length, equalTo(2));
-        assertThat(response.getShardFailures()[0].status().getStatus(), equalTo(400));
-        assertThat(response.getShardFailures()[0].reason(), containsString("Can't sort if size isn't specified"));
-        assertThat(response.getShardFailures()[1].status().getStatus(), equalTo(400));
-        assertThat(response.getShardFailures()[1].reason(), containsString("Can't sort if size isn't specified"));
+        assertThat(response.getShardFailures().length, greaterThan(0));
+        for (ShardOperationFailedException failure : response.getShardFailures()) {
+            assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(failure.reason(), containsString("Can't sort if size isn't specified"));
+        }
     }
 
     @Test
@@ -1276,7 +1265,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .addSort(SortBuilders.fieldSort("level"))
                 .get();
 
-        assertThat(response.getShardFailures().length, equalTo(5));
+        assertThat(response.getShardFailures().length, equalTo(getNumShards("my-index").numPrimaries));
         assertThat(response.getShardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(response.getShardFailures()[0].reason(), containsString("Only _score desc is supported"));
     }
@@ -1298,7 +1287,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPercolateNotEmptyIndexButNoRefresh() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .setSettings(settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
         ensureGreen();
 
@@ -1318,9 +1307,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPercolatorWithHighlighting() throws Exception {
         Client client = client();
-        client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
-                .execute().actionGet();
+        createIndex("test");
         ensureGreen();
 
         if (randomBoolean()) {

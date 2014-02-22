@@ -22,7 +22,9 @@ import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -31,6 +33,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 public class SimpleMgetTests extends ElasticsearchIntegrationTest {
@@ -142,15 +145,17 @@ public class SimpleMgetTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatRoutingPerDocumentIsSupported() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                .put(indexSettings())
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS))));
         ensureYellow();
 
-        client().prepareIndex("test", "test", "1").setRefresh(true).setRouting("bar")
+        client().prepareIndex("test", "test", "1").setRefresh(true).setRouting("2")
                 .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
                 .execute().actionGet();
 
         MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "test", "1").routing("bar"))
+                .add(new MultiGetRequest.Item("test", "test", "1").routing("2"))
                 .add(new MultiGetRequest.Item("test", "test", "1"))
                 .execute().actionGet();
 

@@ -42,6 +42,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -53,11 +54,8 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class NestedTests extends ElasticsearchIntegrationTest {
 
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
+    protected int numberOfReplicas() {
+        return between(0, 1);
     }
 
     int numParents;
@@ -66,10 +64,9 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     @Before
     public void init() throws Exception {
 
-        prepareCreate("idx")
-                .addMapping("type", "nested", "type=nested")
-                .setSettings(indexSettings())
-                .execute().actionGet();
+        assertAcked(prepareCreate("idx")
+                .addMapping("type", "nested", "type=nested"));
+
         List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
 
         numParents = randomIntBetween(3, 10);

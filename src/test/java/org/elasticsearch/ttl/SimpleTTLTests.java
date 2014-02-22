@@ -21,7 +21,6 @@ package org.elasticsearch.ttl;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -30,19 +29,24 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope=Scope.TEST)
+@ClusterScope(scope=Scope.SUITE)
 public class SimpleTTLTests extends ElasticsearchIntegrationTest {
 
     static private final long PURGE_INTERVAL = 200;
-    
+
+    @Override
+    protected int numberOfShards() {
+        return 2;
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("indices.ttl.interval", PURGE_INTERVAL)
-                .put("index.number_of_shards", 2) // 2 shards to test TTL purge with routing properly
                 .put("cluster.routing.operation.use_type", false) // make sure we control the shard computation
                 .put("cluster.routing.operation.hash.type", "djb")
                 .build();
@@ -50,8 +54,7 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleTTL() throws Exception {
-
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type1")
@@ -65,9 +68,8 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
                         .startObject("_ttl").field("enabled", true).field("store", "yes").field("default", "1d").endObject()
                         .endObject()
-                        .endObject())
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                        .endObject()));
+        ensureGreen();
 
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");

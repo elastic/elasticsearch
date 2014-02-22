@@ -20,7 +20,6 @@
 package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -29,7 +28,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,20 +42,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-/**
- */
 public class BulkTests extends ElasticsearchIntegrationTest {
-
 
     @Test
     public void testBulkUpdate_simple() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource("field", 1))
@@ -181,13 +171,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test
     public void testBulkUpdate_malformedScripts() throws Exception {
 
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource("field", 1))
@@ -222,13 +207,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBulkUpdate_largerVolume() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 1)
-                ).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         int numDocs = 2000;
         BulkRequestBuilder builder = client().prepareBulk();
@@ -361,18 +341,14 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test
     public void testBulkIndexingWhileInitializing() throws Exception {
 
-        int shards = 1 + randomInt(10);
         int replica = randomInt(2);
 
         cluster().ensureAtLeastNumNodes(1 + replica);
 
-
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.settingsBuilder()
-                                .put("index.number_of_shards", shards)
-                                .put("index.number_of_replicas", replica)
-                ).execute().actionGet();
+        assertAcked(prepareCreate("test").setSettings(
+                ImmutableSettings.builder()
+                        .put(indexSettings())
+                        .put("index.number_of_replicas", replica)));
 
         int numDocs = 5000;
         int bulk = 50;
@@ -403,7 +379,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .addMapping("parent", "{\"parent\":{}}")
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         BulkRequestBuilder builder = client().prepareBulk();
 
@@ -437,11 +413,10 @@ public class BulkTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testBulkUpdateUpsertWithParent() throws Exception {
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping("parent", "{\"parent\":{}}")
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}")
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
+        ensureGreen();
 
         BulkRequestBuilder builder = client().prepareBulk();
 
@@ -465,7 +440,6 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery()))
                 .get();
 
-        assertNoFailures(searchResponse);
         assertSearchHits(searchResponse, "child1");
     }
 
@@ -520,8 +494,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
             .endObject();
-        CreateIndexResponse createIndexResponse = prepareCreate("test").addMapping("type", builder).get();
-        assertAcked(createIndexResponse);
+        assertAcked(prepareCreate("test").addMapping("type", builder));
 
         String brokenBuildRequestData = "{\"index\": {\"_id\": \"1\"}}\n" +
                 "{\"name\": \"Malformed}\n" +
@@ -546,8 +519,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
             .endObject();
-        CreateIndexResponse createIndexResponse = prepareCreate("test").addMapping("type", builder).get();
-        assertAcked(createIndexResponse);
+        assertAcked(prepareCreate("test").addMapping("type", builder));
         ensureYellow("test");
 
         String brokenBuildRequestData = "{\"index\": {} }\n" +
@@ -573,8 +545,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
             .endObject();
-        CreateIndexResponse createIndexResponse = prepareCreate("test").addMapping("type", builder).get();
-        assertAcked(createIndexResponse);
+        assertAcked(prepareCreate("test").addMapping("type", builder));
         ensureYellow("test");
 
         String brokenBuildRequestData = "{\"index\": {} }\n" +

@@ -46,6 +46,8 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
     public void testBroadcastOperations() throws IOException {
         prepareCreate("test", 1).execute().actionGet(5000);
 
+        NumShards numShards = getNumShards("test");
+
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
@@ -65,8 +67,8 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
                     .setQuery(termQuery("_type", "type1"))
                     .setOperationThreading(BroadcastOperationThreading.NO_THREADS).get();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getTotalShards(), equalTo(5));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
@@ -75,8 +77,8 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
                     .setQuery(termQuery("_type", "type1"))
                     .setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getTotalShards(), equalTo(5));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
@@ -85,8 +87,8 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
                     .setQuery(termQuery("_type", "type1"))
                     .setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getTotalShards(), equalTo(5));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
@@ -95,9 +97,9 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
             CountResponse countResponse = client().count(countRequest("test").source("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
-            assertThat(countResponse.getTotalShards(), equalTo(5));
+            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(0));
-            assertThat(countResponse.getFailedShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(numShards.numPrimaries));
             for (ShardOperationFailedException exp : countResponse.getShardFailures()) {
                 assertThat(exp.reason(), containsString("QueryParsingException"));
             }

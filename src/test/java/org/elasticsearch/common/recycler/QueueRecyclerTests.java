@@ -22,8 +22,8 @@ package org.elasticsearch.common.recycler;
 public class QueueRecyclerTests extends AbstractRecyclerTests {
 
     @Override
-    protected Recycler<byte[]> newRecycler() {
-        return Recyclers.concurrentDeque(RECYCLER_C, randomIntBetween(5, 10));
+    protected Recycler<byte[]> newRecycler(int limit) {
+        return Recyclers.concurrentDeque(RECYCLER_C, limit);
     }
 
 }

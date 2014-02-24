@@ -22,8 +22,16 @@ package org.elasticsearch.common.recycler;
 public class NoneRecyclerTests extends AbstractRecyclerTests {
 
     @Override
-    protected Recycler<byte[]> newRecycler() {
+    protected Recycler<byte[]> newRecycler(int limit) {
         return Recyclers.none(RECYCLER_C);
+    }
+
+    protected void assertRecycled(byte[] data) {
+        // will never match
+    }
+
+    protected void assertDead(byte[] data) {
+        // will never match
     }
 
 }

@@ -22,8 +22,8 @@ package org.elasticsearch.common.recycler;
 public class SoftThreadLocalRecyclerTests extends AbstractRecyclerTests {
 
     @Override
-    protected Recycler<byte[]> newRecycler() {
-        return Recyclers.threadLocal(Recyclers.softFactory(Recyclers.dequeFactory(RECYCLER_C, 10)));
+    protected Recycler<byte[]> newRecycler(int limit) {
+        return Recyclers.threadLocal(Recyclers.softFactory(Recyclers.dequeFactory(RECYCLER_C, limit)));
     }
 
 }

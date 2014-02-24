@@ -24,6 +24,7 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -71,135 +72,140 @@ public class CacheRecycler extends AbstractComponent {
         int smartSize = settings.getAsInt("smart_size", 1024);
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
 
-        hashMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectObjectOpenHashMap>() {
+        hashMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<ObjectObjectOpenHashMap>() {
             @Override
             public ObjectObjectOpenHashMap newInstance(int sizing) {
                 return new ObjectObjectOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(ObjectObjectOpenHashMap value) {
+            public void recycle(ObjectObjectOpenHashMap value) {
                 value.clear();
             }
         });
-        hashSet = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectOpenHashSet>() {
+        hashSet = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<ObjectOpenHashSet>() {
             @Override
             public ObjectOpenHashSet newInstance(int sizing) {
                 return new ObjectOpenHashSet(size(sizing), 0.5f);
             }
 
             @Override
-            public void clear(ObjectOpenHashSet value) {
+            public void recycle(ObjectOpenHashSet value) {
                 value.clear();
             }
         });
-        doubleObjectMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<DoubleObjectOpenHashMap>() {
+        doubleObjectMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<DoubleObjectOpenHashMap>() {
             @Override
             public DoubleObjectOpenHashMap newInstance(int sizing) {
                 return new DoubleObjectOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(DoubleObjectOpenHashMap value) {
+            public void recycle(DoubleObjectOpenHashMap value) {
                 value.clear();
             }
         });
-        longObjectMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<LongObjectOpenHashMap>() {
+        longObjectMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<LongObjectOpenHashMap>() {
             @Override
             public LongObjectOpenHashMap newInstance(int sizing) {
                 return new LongObjectOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(LongObjectOpenHashMap value) {
+            public void recycle(LongObjectOpenHashMap value) {
                 value.clear();
             }
         });
-        longLongMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<LongLongOpenHashMap>() {
+        longLongMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<LongLongOpenHashMap>() {
             @Override
             public LongLongOpenHashMap newInstance(int sizing) {
                 return new LongLongOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(LongLongOpenHashMap value) {
+            public void recycle(LongLongOpenHashMap value) {
                 value.clear();
             }
         });
-        intIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<IntIntOpenHashMap>() {
+        intIntMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<IntIntOpenHashMap>() {
             @Override
             public IntIntOpenHashMap newInstance(int sizing) {
                 return new IntIntOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(IntIntOpenHashMap value) {
+            public void recycle(IntIntOpenHashMap value) {
                 value.clear();
             }
         });
-        floatIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<FloatIntOpenHashMap>() {
+        floatIntMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<FloatIntOpenHashMap>() {
             @Override
             public FloatIntOpenHashMap newInstance(int sizing) {
                 return new FloatIntOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(FloatIntOpenHashMap value) {
+            public void recycle(FloatIntOpenHashMap value) {
                 value.clear();
             }
         });
-        doubleIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<DoubleIntOpenHashMap>() {
+        doubleIntMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<DoubleIntOpenHashMap>() {
             @Override
             public DoubleIntOpenHashMap newInstance(int sizing) {
                 return new DoubleIntOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(DoubleIntOpenHashMap value) {
+            public void recycle(DoubleIntOpenHashMap value) {
                 value.clear();
             }
         });
-        longIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<LongIntOpenHashMap>() {
+        longIntMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<LongIntOpenHashMap>() {
             @Override
             public LongIntOpenHashMap newInstance(int sizing) {
                 return new LongIntOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(LongIntOpenHashMap value) {
+            public void recycle(LongIntOpenHashMap value) {
                 value.clear();
             }
+
+            @Override
+            public void destroy(LongIntOpenHashMap value) {
+                // drop instance for GC
+            }
         });
-        objectIntMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectIntOpenHashMap>() {
+        objectIntMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<ObjectIntOpenHashMap>() {
             @Override
             public ObjectIntOpenHashMap newInstance(int sizing) {
                 return new ObjectIntOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(ObjectIntOpenHashMap value) {
+            public void recycle(ObjectIntOpenHashMap value) {
                 value.clear();
             }
         });
-        intObjectMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<IntObjectOpenHashMap>() {
+        intObjectMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<IntObjectOpenHashMap>() {
             @Override
             public IntObjectOpenHashMap newInstance(int sizing) {
                 return new IntObjectOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(IntObjectOpenHashMap value) {
+            public void recycle(IntObjectOpenHashMap value) {
                 value.clear();
             }
         });
-        objectFloatMap = build(type, limit, smartSize, availableProcessors, new Recycler.C<ObjectFloatOpenHashMap>() {
+        objectFloatMap = build(type, limit, smartSize, availableProcessors, new AbstractRecyclerC<ObjectFloatOpenHashMap>() {
             @Override
             public ObjectFloatOpenHashMap newInstance(int sizing) {
                 return new ObjectFloatOpenHashMap(size(sizing));
             }
 
             @Override
-            public void clear(ObjectFloatOpenHashMap value) {
+            public void recycle(ObjectFloatOpenHashMap value) {
                 value.clear();
             }
         });

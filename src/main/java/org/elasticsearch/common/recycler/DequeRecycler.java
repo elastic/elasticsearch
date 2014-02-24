@@ -39,6 +39,11 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
 
     @Override
     public void close() {
+        // call destroy() for every cached object
+        for (T t : deque) {
+            c.destroy(t);
+        }
+        // finally get rid of all references
         deque.clear();
     }
 
@@ -57,7 +62,9 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
     }
 
     /** Called after a release. */
-    protected void afterRelease(boolean recycled) {}
+    protected void afterRelease(boolean recycled) {
+        // nothing to do
+    }
 
     private class DV implements Recycler.V<T> {
 
@@ -86,8 +93,11 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
             }
             final boolean recycle = beforeRelease();
             if (recycle) {
-                c.clear(value);
+                c.recycle(value);
                 deque.addFirst(value);
+            }
+            else {
+                c.destroy(value);
             }
             value = null;
             afterRelease(recycle);

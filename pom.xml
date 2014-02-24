@@ -26,7 +26,7 @@
         <repository>
             <id>lucene</id>
             <name>lucene staging</name>
-            <url>http://people.apache.org/~simonw/staging_area/lucene-solr-4.7.0-RC2-rev1569857/lucene/maven</url>
+            <url>http://people.apache.org/~simonw/staging_area/lucene-solr-4.7.0-RC4-rev1570806/lucene/maven</url>
         </repository>
     </repositories>
     <parent>

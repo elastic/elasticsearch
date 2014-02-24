@@ -59,7 +59,6 @@ import java.util.regex.Pattern;
 import static com.carrotsearch.randomizedtesting.SeedUtils.parseSeedChain;
 import static com.carrotsearch.randomizedtesting.StandaloneRandomizedContext.*;
 import static com.carrotsearch.randomizedtesting.SysGlobals.*;
-import static org.elasticsearch.test.TestCluster.SHARED_CLUSTER_SEED;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.rest.junit.DescriptionHelper.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -184,8 +183,8 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
 
         List<InetSocketAddress> addresses = Lists.newArrayList();
         if (runMode == RunMode.TEST_CLUSTER) {
-            this.testCluster = new TestCluster(SHARED_CLUSTER_SEED, 1, 3,
-                    clusterName("REST-tests", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+            this.testCluster = new TestCluster(initialSeed, 1, 3,
+                    clusterName("REST-tests", ElasticsearchTestCase.CHILD_VM_ID, initialSeed));
             this.testCluster.beforeTest(runnerRandomness.getRandom(), 0.0f);
             for (HttpServerTransport httpServerTransport : testCluster.getInstances(HttpServerTransport.class)) {
                 addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
@@ -353,7 +352,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             return "elasticsearch REST Tests - not run";
         }
         if (runMode == RunMode.TEST_CLUSTER) {
-            return String.format(Locale.ROOT, "elasticsearch REST Tests - test cluster %s", SeedUtils.formatSeed(SHARED_CLUSTER_SEED));
+            return String.format(Locale.ROOT, "elasticsearch REST Tests - test cluster");
         }
         if (runMode == RunMode.EXTERNAL_CLUSTER) {
             return String.format(Locale.ROOT, "elasticsearch REST Tests - external cluster %s", System.getProperty(REST_TESTS_MODE));

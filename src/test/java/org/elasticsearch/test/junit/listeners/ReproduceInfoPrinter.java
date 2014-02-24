@@ -20,12 +20,10 @@ package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
-import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.junit.internal.AssumptionViolatedException;
@@ -34,8 +32,6 @@ import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
-import static org.elasticsearch.test.TestCluster.SHARED_CLUSTER_SEED;
-import static org.elasticsearch.test.TestCluster.TESTS_CLUSTER_SEED;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -66,11 +62,7 @@ public class ReproduceInfoPrinter extends RunListener {
         final StringBuilder b = new StringBuilder();
         b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
         b.append("REPRODUCE WITH  : mvn test");
-        ReproduceErrorMessageBuilder builder = reproduceErrorMessageBuilder(b).appendAllOpts(failure.getDescription());
-
-        if (mustAppendClusterSeed(failure)) {
-            appendClusterSeed(builder);
-        }
+        reproduceErrorMessageBuilder(b).appendAllOpts(failure.getDescription());
 
         b.append("\n");
         b.append("Throwable:\n");
@@ -79,14 +71,6 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         logger.error(b.toString());
-    }
-
-    protected boolean mustAppendClusterSeed(Failure failure) {
-        return ElasticsearchIntegrationTest.class.isAssignableFrom(failure.getDescription().getTestClass());
-    }
-
-    protected void appendClusterSeed(ReproduceErrorMessageBuilder builder) {
-        builder.appendOpt(TESTS_CLUSTER_SEED, SeedUtils.formatSeed(SHARED_CLUSTER_SEED));
     }
 
     protected ReproduceErrorMessageBuilder reproduceErrorMessageBuilder(StringBuilder b) {

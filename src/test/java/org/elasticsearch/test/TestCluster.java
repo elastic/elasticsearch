@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -91,17 +90,11 @@ public final class TestCluster implements Iterable<Client> {
     private final ESLogger logger = Loggers.getLogger(getClass());
 
     /**
-     * The random seed for the shared  test cluster used in the current JVM.
-     */
-    public static final long SHARED_CLUSTER_SEED = clusterSeed();
-
-    /**
-     * Key used to set the shared cluster random seed via the commandline -D{@value #TESTS_CLUSTER_SEED}
-     */
-    public static final String TESTS_CLUSTER_SEED = "tests.cluster_seed";
-
-    /**
-     * Key used to set the shared cluster random seed via the commandline -D{@value #TESTS_CLUSTER_SEED}
+     * A boolean value to enable or disable mock modules. This is useful to test the
+     * system without asserting modules that to make sure they don't hide any bugs in
+     * production.
+     * 
+     * @see ElasticsearchIntegrationTest
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
@@ -117,14 +110,6 @@ public final class TestCluster implements Iterable<Client> {
     static final int DEFAULT_MIN_NUM_NODES = 2;
 
     static final int DEFAULT_MAX_NUM_NODES = 6;
-
-    private static long clusterSeed() {
-        String property = System.getProperty(TESTS_CLUSTER_SEED);
-        if (!Strings.hasLength(property)) {
-            return System.nanoTime();
-        }
-        return SeedUtils.parseSeed(property);
-    }
 
     /* sorted map to make traverse order reproducible */
     private final TreeMap<String, NodeAndClient> nodes = newTreeMap();

@@ -20,60 +20,103 @@
 package org.elasticsearch.common.recycler;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
 
-    protected static final Recycler.C<byte[]> RECYCLER_C = new Recycler.C<byte[]>() {
+    // marker states for data
+    protected static final byte FRESH = 1;
+    protected static final byte RECYCLED = 2;
+    protected static final byte DEAD = 42;
+
+    protected static final Recycler.C<byte[]> RECYCLER_C = new AbstractRecyclerC<byte[]>() {
 
         @Override
         public byte[] newInstance(int sizing) {
-            return new byte[10];
+            byte[] value = new byte[10];
+            // "fresh" is intentionally not 0 to ensure we covered this code path
+            Arrays.fill(value, FRESH);
+            return value;
         }
 
         @Override
-        public void clear(byte[] value) {
-            Arrays.fill(value, (byte) 0);
+        public void recycle(byte[] value) {
+            Arrays.fill(value, RECYCLED);
+        }
+
+        @Override
+        public void destroy(byte[] value) {
+            // we cannot really free the internals of a byte[], so mark it for verification
+            Arrays.fill(value, DEAD);
         }
 
     };
 
-    protected abstract Recycler<byte[]> newRecycler();
+    protected void assertFresh(byte[] data) {
+        assertNotNull(data);
+        for (int i = 0; i < data.length; ++i) {
+            assertEquals(FRESH, data[i]);
+        }
+    }
+
+    protected void assertRecycled(byte[] data) {
+        assertNotNull(data);
+        for (int i = 0; i < data.length; ++i) {
+            assertEquals(RECYCLED, data[i]);
+        }
+    }
+
+    protected void assertDead(byte[] data) {
+        assertNotNull(data);
+        for (int i = 0; i < data.length; ++i) {
+            assertEquals(DEAD, data[i]);
+        }
+    }
+
+    protected abstract Recycler<byte[]> newRecycler(int limit);
+
+    protected int limit = randomIntBetween(5, 10);
 
     public void testReuse() {
-        Recycler<byte[]> r = newRecycler();
+        Recycler<byte[]> r = newRecycler(limit);
         Recycler.V<byte[]> o = r.obtain();
         assertFalse(o.isRecycled());
         final byte[] b1 = o.v();
+        assertFresh(b1);
         o.release();
+        assertRecycled(b1);
         o = r.obtain();
         final byte[] b2 = o.v();
         if (o.isRecycled()) {
+            assertRecycled(b2);
             assertSame(b1, b2);
         } else {
+            assertFresh(b2);
             assertNotSame(b1, b2);
         }
         o.release();
         r.close();
     }
 
-    public void testClear() {
-        Recycler<byte[]> r = newRecycler();
+    public void testRecycle() {
+        Recycler<byte[]> r = newRecycler(limit);
         Recycler.V<byte[]> o = r.obtain();
+        assertFresh(o.v());
         getRandom().nextBytes(o.v());
         o.release();
         o = r.obtain();
-        for (int i = 0; i < o.v().length; ++i) {
-            assertEquals(0, o.v()[i]);
-        }
+        assertRecycled(o.v());
         o.release();
         r.close();
     }
 
     public void testDoubleRelease() {
-        final Recycler<byte[]> r = newRecycler();
+        final Recycler<byte[]> r = newRecycler(limit);
         final Recycler.V<byte[]> v1 = r.obtain();
         v1.release();
         try {
@@ -87,6 +130,52 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         final Recycler.V<byte[]> v3 = r.obtain();
         assertNotSame(v2.v(), v3.v());
         r.close();
+    }
+
+    public void testDestroyWhenOverCapacity() {
+        Recycler<byte[]> r = newRecycler(limit);
+
+        // get & keep reference to new/recycled data
+        Recycler.V<byte[]> o = r.obtain();
+        byte[] data = o.v();
+        assertFresh(data);
+
+        // now exhaust the recycler
+        List<V<byte[]>> vals = new ArrayList<V<byte[]>>(limit);
+        for (int i = 0; i < limit ; ++i) {
+            vals.add(r.obtain());
+        }
+        // Recycler size increases on release, not on obtain!
+        for (V<byte[]> v: vals) {
+            v.release();
+        }
+
+        // release first ref, verify for destruction
+        o.release();
+        assertDead(data);
+
+        // close the rest
+        r.close();
+    }
+
+    public void testClose() {
+        Recycler<byte[]> r = newRecycler(limit);
+
+        // get & keep reference to pooled data
+        Recycler.V<byte[]> o = r.obtain();
+        byte[] data = o.v();
+        assertFresh(data);
+
+        // randomize & return to pool
+        getRandom().nextBytes(data);
+        o.release();
+
+        // verify that recycle() ran
+        assertRecycled(data);
+
+        // closing the recycler should mark recycled instances via destroy()
+        r.close();
+        assertDead(data);
     }
 
 }

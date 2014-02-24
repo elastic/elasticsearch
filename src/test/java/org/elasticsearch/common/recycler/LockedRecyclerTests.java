@@ -22,8 +22,8 @@ package org.elasticsearch.common.recycler;
 public class LockedRecyclerTests extends AbstractRecyclerTests {
 
     @Override
-    protected Recycler<byte[]> newRecycler() {
-        return Recyclers.locked(Recyclers.deque(RECYCLER_C, randomIntBetween(5, 10)));
+    protected Recycler<byte[]> newRecycler(int limit) {
+        return Recyclers.locked(Recyclers.deque(RECYCLER_C, limit));
     }
 
 }

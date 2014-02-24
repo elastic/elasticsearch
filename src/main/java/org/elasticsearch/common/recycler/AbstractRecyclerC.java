@@ -19,11 +19,14 @@
 
 package org.elasticsearch.common.recycler;
 
-public class ThreadLocalRecyclerTests extends AbstractRecyclerTests {
+public abstract class AbstractRecyclerC<T> implements Recycler.C<T> {
 
-    @Override
-    protected Recycler<byte[]> newRecycler(int limit) {
-        return Recyclers.threadLocal(Recyclers.dequeFactory(RECYCLER_C, limit));
+    public abstract T newInstance(int sizing);
+
+    public abstract void recycle(T value);
+
+    public void destroy(T value) {
+        // by default we simply drop the object for GC.
     }
 
 }

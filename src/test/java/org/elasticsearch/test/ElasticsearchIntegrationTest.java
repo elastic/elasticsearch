@@ -19,6 +19,8 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Joiner;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -64,6 +66,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 import java.io.IOException;
@@ -76,7 +79,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.TestCluster.SHARED_CLUSTER_SEED;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -133,7 +135,6 @@ import static org.hamcrest.Matchers.equalTo;
  * This class supports the following system properties (passed with -Dkey=value to the application)
  * <ul>
  * <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
- * <li>-D{@value TestCluster#TESTS_CLUSTER_SEED} - a random seed used to initialize the clusters random context.
  * <li>-D{@value TestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
  * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
  * <li>-D{@value #INDEX_SEED_SETTING} - a random seed used to initialize the index random context.
@@ -143,8 +144,7 @@ import static org.hamcrest.Matchers.equalTo;
 @Ignore
 @AbstractRandomizedTest.IntegrationTests
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
-
-    private static final TestCluster GLOBAL_CLUSTER = new TestCluster(SHARED_CLUSTER_SEED, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, SHARED_CLUSTER_SEED));
+    private static TestCluster GLOBAL_CLUSTER;
 
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
@@ -169,6 +169,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<Class<?>, TestCluster>();
 
+    @BeforeClass
+    public final static void beforeClass() throws Exception {
+        // Initialize lazily. No need for volatiles/ CASs since each JVM runs at most one test
+        // suite at any given moment.
+        if (GLOBAL_CLUSTER == null) {
+            long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
+            GLOBAL_CLUSTER = new TestCluster(masterSeed, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed));
+        }
+    }
+    
     @Before
     public final void before() throws IOException {
         assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;

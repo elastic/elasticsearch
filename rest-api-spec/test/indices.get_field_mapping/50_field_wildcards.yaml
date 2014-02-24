@@ -22,6 +22,9 @@ setup:
                         i_t3:
                           type:   string
                           index_name: t3
+  - do:
+        cluster.health:
+            wait_for_status: yellow
 
 ---
 "Get field mapping with * for fields":

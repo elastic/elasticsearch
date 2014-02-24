@@ -53,8 +53,8 @@ public class GetFieldMappingsRequestBuilder extends ActionRequestBuilder<GetFiel
         return this;
     }
 
-    public GetFieldMappingsRequestBuilder setIndicesOptions(IgnoreIndices indicesOptions) {
-        request.indicesOptions(indicesOptions);
+    public GetFieldMappingsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request.ignoreIndices(ignoreIndices);
         return this;
     }
 

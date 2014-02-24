@@ -67,15 +67,16 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             @Override
             public void onResponse(GetFieldMappingsResponse response) {
                 try {
+                    ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
-                    ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
                     RestStatus status = OK;
                     if (mappingsByIndex.isEmpty() && fields.length > 0) {
                         status = NOT_FOUND;
+                    } else {
+                        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     }
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
                 } catch (Throwable e) {

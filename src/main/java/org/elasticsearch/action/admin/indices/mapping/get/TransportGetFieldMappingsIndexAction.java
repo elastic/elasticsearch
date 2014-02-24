@@ -1,11 +1,11 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -23,7 +23,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.single.custom.TransportSingleCustomOperationAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -85,7 +86,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     }
 
     @Override
-    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, int shardId) throws ElasticsearchException {
+    protected GetFieldMappingsResponse shardOperation(final GetFieldMappingsIndexRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
@@ -101,7 +102,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
 
             });
             if (typeIntersection.isEmpty()) {
-                throw new TypeMissingException(new Index(request.index()), request.types());
+                throw new TypeMissingException(new Index(request.index()), Arrays.toString(request.types()));
             }
         }
 
@@ -114,7 +115,13 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             }
         }
 
-        return new GetFieldMappingsResponse(ImmutableMap.of(request.index(), typeMappings.immutableMap()));
+        ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> indexMappings;
+        if (typeMappings.isEmpty()) {
+            indexMappings = ImmutableMap.of();
+        } else {
+            indexMappings = ImmutableMap.of(request.index(), typeMappings.immutableMap());
+        }
+        return new GetFieldMappingsResponse(indexMappings);
     }
 
     @Override
@@ -179,7 +186,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
         }
     };
 
-    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticsearchException {
+    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticSearchException {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<String, FieldMappingMetaData>();
         ImmutableList<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : request.fields()) {
@@ -224,8 +231,6 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
                 FieldMapper fieldMapper = documentMapper.mappers().smartNameFieldMapper(field);
                 if (fieldMapper != null) {
                     addFieldMapper(field, fieldMapper, fieldMappings, request.includeDefaults());
-                } else if (request.probablySingleFieldRequest()) {
-                    fieldMappings.put(field, FieldMappingMetaData.NULL);
                 }
             }
         }
@@ -243,7 +248,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             builder.endObject();
             fieldMappings.put(field, new FieldMappingMetaData(fieldMapper.names().fullName(), builder.bytes()));
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to serialize XContent of field [" + field + "]", e);
+            throw new ElasticSearchException("failed to serialize XContent of field [" + field + "]", e);
         }
     }
 

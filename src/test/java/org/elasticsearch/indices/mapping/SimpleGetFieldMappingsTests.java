@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.mapping;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,8 +43,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
         createIndex("index");
         ensureYellow();
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().get();
-        assertThat(response.mappings().size(), equalTo(1));
-        assertThat(response.mappings().get("index").size(), equalTo(0));
+        assertThat(response.mappings().size(), equalTo(0));
 
         assertThat(response.fieldMappings("index", "type", "field"), Matchers.nullValue());
     }
@@ -143,14 +140,7 @@ public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
                 .addMapping("type", getMappingForType("type")).get();
 
         client().prepareIndex("test", "type", "1").setSource("num", 1).get();
-
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(@Nullable java.lang.Object input) {
-                GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().setFields("num").get();
-                return response.fieldMappings("test", "type", "num") != null;
-            }
-        });
+        ensureYellow();
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings().setFields("num", "field1", "subfield").includeDefaults(true).get();
 

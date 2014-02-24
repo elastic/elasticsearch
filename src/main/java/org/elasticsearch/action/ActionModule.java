@@ -48,6 +48,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistAction;
 import org.elasticsearch.action.admin.indices.alias.exists.TransportAliasesExistAction;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.TransportIndicesGetAliasesAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;

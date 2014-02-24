@@ -42,19 +42,10 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IgnoreIndices indicesOptions = IgnoreIndices.DEFAULT;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.MISSING;
 
     public GetFieldMappingsRequest() {
 
-    }
-
-    public GetFieldMappingsRequest(GetFieldMappingsRequest other) {
-        this.local = other.local;
-        this.includeDefaults = other.includeDefaults;
-        this.indices = other.indices;
-        this.types = other.types;
-        this.indicesOptions = other.indicesOptions;
-        this.fields = other.fields;
     }
 
     /**
@@ -80,8 +71,8 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return this;
     }
 
-    public GetFieldMappingsRequest indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
+    public GetFieldMappingsRequest ignoreIndices(IgnoreIndices indicesOptions) {
+        this.ignoreIndices = indicesOptions;
         return this;
     }
 
@@ -93,8 +84,8 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return types;
     }
 
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
+    public IgnoreIndices indicesOptions() {
+        return ignoreIndices;
     }
 
     /** @param fields a list of fields to retrieve the mapping for */
@@ -129,7 +120,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
-        out.writeByte(indicesOptions.id());
+        out.writeByte(ignoreIndices.id());
         out.writeBoolean(local);
         out.writeStringArray(fields);
         out.writeBoolean(includeDefaults);
@@ -142,7 +133,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         TimeValue.readTimeValue(in);
         indices = in.readStringArray();
         types = in.readStringArray();
-        indicesOptions = IgnoreIndices.fromId(in.readByte());
+        ignoreIndices = IgnoreIndices.fromId(in.readByte());
         local = in.readBoolean();
         fields = in.readStringArray();
         includeDefaults = in.readBoolean();

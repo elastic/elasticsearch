@@ -113,7 +113,7 @@ doc score using `doc.score`.
 [float]
 === Computing scores based on terms in scripts
 
-see <<modules-advanced-scripting, advanced scripting documentation>> 
+see <<modules-advanced-scripting, advanced scripting documentation>>
 
 [float]
 === Document Fields
@@ -152,10 +152,13 @@ has several values within the corpus.
 
 |`doc['field_name'].lons` |The longitudes of a geo point type.
 
-|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in miles)
+|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in meters)
 of this geo point field from the provided lat/lon.
 
 |`doc['field_name'].arcDistance(lat, lon)` |The `arc` distance (in
+meters) of this geo point field from the provided lat/lon.
+
+|`doc['field_name'].arcDistanceInMiles(lat, lon)` |The `arc` distance (in
 miles) of this geo point field from the provided lat/lon.
 
 |`doc['field_name'].distanceInKm(lat, lon)` |The `plane` distance (in

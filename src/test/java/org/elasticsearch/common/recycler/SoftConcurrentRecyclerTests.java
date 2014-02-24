@@ -22,8 +22,8 @@ package org.elasticsearch.common.recycler;
 public class SoftConcurrentRecyclerTests extends AbstractRecyclerTests {
 
     @Override
-    protected Recycler<byte[]> newRecycler() {
-        return Recyclers.concurrent(Recyclers.softFactory(Recyclers.dequeFactory(RECYCLER_C, randomIntBetween(5, 10))), randomIntBetween(1, 5));
+    protected Recycler<byte[]> newRecycler(int limit) {
+        return Recyclers.concurrent(Recyclers.softFactory(Recyclers.dequeFactory(RECYCLER_C, limit)), randomIntBetween(1, 5));
     }
 
 }

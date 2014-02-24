@@ -104,6 +104,7 @@ public enum Recyclers {
 
             @Override
             public void close() {
+                recyclers.get().close();
                 recyclers.close();
             }
 

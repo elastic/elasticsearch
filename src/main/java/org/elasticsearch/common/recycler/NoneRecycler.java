@@ -36,7 +36,7 @@ public class NoneRecycler<T> extends AbstractRecycler<T> {
 
     @Override
     public void close() {
-
+        // no-op
     }
 
     public static class NV<T> implements Recycler.V<T> {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.benchmark.common.recycler;
 
+import org.elasticsearch.common.recycler.AbstractRecyclerC;
+
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -75,7 +77,7 @@ public class RecyclerBenchmark {
 
     public static void main(String[] args) throws InterruptedException {
         final int limit = 100;
-        final Recycler.C<Object> c = new Recycler.C<Object>() {
+        final Recycler.C<Object> c = new AbstractRecyclerC<Object>() {
 
             @Override
             public Object newInstance(int sizing) {
@@ -83,7 +85,9 @@ public class RecyclerBenchmark {
             }
 
             @Override
-            public void clear(Object value) {}
+            public void recycle(Object value) {
+                // do nothing
+            }
         };
 
         final ImmutableMap<String, Recycler<Object>> recyclers = ImmutableMap.<String, Recycler<Object>>builder()

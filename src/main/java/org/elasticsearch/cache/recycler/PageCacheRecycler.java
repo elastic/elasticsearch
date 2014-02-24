@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cache.recycler;
 
+import org.elasticsearch.common.recycler.AbstractRecyclerC;
+
 import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -107,45 +109,53 @@ public class PageCacheRecycler extends AbstractComponent {
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + doublesWeight + objectsWeight;
 
-        bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<byte[]>() {
+        bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
             public byte[] newInstance(int sizing) {
                 return new byte[BigArrays.BYTE_PAGE_SIZE];
             }
             @Override
-            public void clear(byte[] value) {}
+            public void recycle(byte[] value) {
+                // nothing to do
+            }
         });
-        intPage = build(type, maxCount(limit, BigArrays.INT_PAGE_SIZE, intsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<int[]>() {
+        intPage = build(type, maxCount(limit, BigArrays.INT_PAGE_SIZE, intsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<int[]>() {
             @Override
             public int[] newInstance(int sizing) {
                 return new int[BigArrays.INT_PAGE_SIZE];
             }
             @Override
-            public void clear(int[] value) {}
+            public void recycle(int[] value) {
+                // nothing to do
+            }
         });
-        longPage = build(type, maxCount(limit, BigArrays.LONG_PAGE_SIZE, longsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<long[]>() {
+        longPage = build(type, maxCount(limit, BigArrays.LONG_PAGE_SIZE, longsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<long[]>() {
             @Override
             public long[] newInstance(int sizing) {
                 return new long[BigArrays.LONG_PAGE_SIZE];
             }
             @Override
-            public void clear(long[] value) {}
+            public void recycle(long[] value) {
+                // nothing to do               
+            }
         });
-        doublePage = build(type, maxCount(limit, BigArrays.DOUBLE_PAGE_SIZE, doublesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<double[]>() {
+        doublePage = build(type, maxCount(limit, BigArrays.DOUBLE_PAGE_SIZE, doublesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<double[]>() {
             @Override
             public double[] newInstance(int sizing) {
                 return new double[BigArrays.DOUBLE_PAGE_SIZE];
             }
             @Override
-            public void clear(double[] value) {}
+            public void recycle(double[] value) {
+                // nothing to do
+            }
         });
-        objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new Recycler.C<Object[]>() {
+        objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
             public Object[] newInstance(int sizing) {
                 return new Object[BigArrays.OBJECT_PAGE_SIZE];
             }
             @Override
-            public void clear(Object[] value) {
+            public void recycle(Object[] value) {
                 Arrays.fill(value, null); // we need to remove the strong refs on the objects stored in the array
             }
         });

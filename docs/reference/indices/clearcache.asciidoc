@@ -29,3 +29,6 @@ $ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_cache/clear'
 
 $ curl -XPOST 'http://localhost:9200/_cache/clear'
 --------------------------------------------------
+
+NOTE: The `filter` cache is not cleared immediately but is scheduled to be
+cleared within 60 seconds.

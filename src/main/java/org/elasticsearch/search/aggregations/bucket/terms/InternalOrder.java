@@ -212,8 +212,11 @@ class InternalOrder extends Terms.Order {
                         double v2 = ((MetricsAggregator.MultiValue) aggregator).metric(valueName, ((InternalTerms.Bucket) o2).bucketOrd);
                         // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                         // the bottom
-                        if (v1 == Double.NaN) {
-                            return asc ? 1 : -1;
+                        if (Double.isNaN(v1)) {
+                            return Double.isNaN(v2) ? 0 : 1;
+                        }
+                        if (Double.isNaN(v2)) {
+                            return -1;
                         }
                         return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
                     }
@@ -227,8 +230,11 @@ class InternalOrder extends Terms.Order {
                     double v2 = ((MetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o2).bucketOrd);
                     // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                     // the bottom
-                    if (v1 == Double.NaN) {
-                        return asc ? 1 : -1;
+                    if (Double.isNaN(v1)) {
+                        return Double.isNaN(v2) ? 0 : 1;
+                    }
+                    if (Double.isNaN(v2)) {
+                        return -1;
                     }
                     return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
                 }

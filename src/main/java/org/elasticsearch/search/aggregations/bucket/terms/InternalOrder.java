@@ -213,7 +213,7 @@ class InternalOrder extends Terms.Order {
                         // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                         // the bottom
                         if (Double.isNaN(v1)) {
-                            return 1;
+                            return Double.isNaN(v2) ? 0 : 1;
                         }
                         if (Double.isNaN(v2)) {
                             return -1;
@@ -231,7 +231,7 @@ class InternalOrder extends Terms.Order {
                     // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                     // the bottom
                     if (Double.isNaN(v1)) {
-                        return 1;
+                        return Double.isNaN(v2) ? 0 : 1;
                     }
                     if (Double.isNaN(v2)) {
                         return -1;

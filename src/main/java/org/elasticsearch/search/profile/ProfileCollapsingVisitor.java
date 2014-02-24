@@ -1,10 +1,11 @@
 package org.elasticsearch.search.profile;
 
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.profile.ProfileFilter;
 import org.elasticsearch.common.lucene.search.profile.ProfileQuery;
 import org.elasticsearch.common.lucene.search.profile.Visitor;
@@ -25,11 +26,6 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
 
     public ArrayList<Profile> visit(BooleanQuery booleanQuery) {
 
-        Profile p = new Profile();
-        p.setClassName(booleanQuery.getClass().getSimpleName());
-        p.setDetails(booleanQuery.toString());
-
-        long time = 0;
         ArrayList<Profile> profiles = new ArrayList<Profile>();
 
         for (BooleanClause clause : booleanQuery.clauses()) {
@@ -67,6 +63,56 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
         }
 
        return profiles;
+    }
+
+    public ArrayList<Profile> visit(XConstantScoreQuery query) {
+        ArrayList<Profile> profiles = apply(query.getFilter());
+
+        return profiles;
+    }
+
+    public ArrayList<Profile> visit(XBooleanFilter filter) {
+        ArrayList<Profile> profiles = new ArrayList<Profile>();
+
+        for (FilterClause clause : filter.clauses()) {
+            ArrayList<Profile> tProfiles = apply(clause.getFilter());
+            if (tProfiles != null && tProfiles.size() > 0) {
+                profiles.addAll(tProfiles);
+            }
+        }
+
+        return profiles;
+
+    }
+
+    public ArrayList<Profile> visit(AndFilter filter) {
+        ArrayList<Profile> profiles = new ArrayList<Profile>();
+
+        for (Filter clause : filter.filters()) {
+            ArrayList<Profile> tProfiles = apply(clause);
+            if (tProfiles != null && tProfiles.size() > 0) {
+                profiles.addAll(tProfiles);
+            }
+        }
+
+        return profiles;
+    }
+
+    public ArrayList<Profile> visit(OrFilter filter) {
+        ArrayList<Profile> profiles = new ArrayList<Profile>();
+
+        for (Filter clause : filter.filters()) {
+            ArrayList<Profile> tProfiles = apply(clause);
+            if (tProfiles != null && tProfiles.size() > 0) {
+                profiles.addAll(tProfiles);
+            }
+        }
+
+        return profiles;
+    }
+
+    public ArrayList<Profile> visit(NotFilter filter) {
+        return apply(filter);
     }
 
     public ArrayList<Profile> visit(Query query) {

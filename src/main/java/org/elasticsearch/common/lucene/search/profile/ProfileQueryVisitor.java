@@ -1,12 +1,15 @@
 package org.elasticsearch.common.lucene.search.profile;
 
 
-import org.apache.lucene.queryparser.surround.query.AndQuery;
+import org.apache.lucene.queries.BooleanFilter;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
+import org.elasticsearch.common.lucene.search.*;
+
+import java.util.ArrayList;
 
 /**
  * This class walks a query and wraps all applicable queries in ProfileQuery queries
@@ -36,6 +39,43 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
         XFilteredQuery newQuery = new XFilteredQuery(pQuery, pFilter);
         return new ProfileQuery(newQuery);
+    }
+
+    public ProfileQuery visit(XConstantScoreQuery query) {
+        ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
+
+        return new ProfileQuery(new XConstantScoreQuery(pFilter));
+    }
+
+    public ProfileFilter visit(XBooleanFilter boolFilter) {
+        XBooleanFilter newFilter = new XBooleanFilter();
+
+        for (FilterClause clause : boolFilter.clauses()) {
+            ProfileFilter pFilter = (ProfileFilter) apply(clause.getFilter());
+            newFilter.add(pFilter, clause.getOccur());
+        }
+
+        return new ProfileFilter(newFilter);
+    }
+
+    public ProfileFilter visit(AndFilter filter) {
+        ArrayList<ProfileFilter> pFilters = new ArrayList<ProfileFilter>(filter.filters().size());
+        for (Filter f : filter.filters()) {
+            pFilters.add((ProfileFilter)apply(f));
+        }
+        return new ProfileFilter(new AndFilter(pFilters));
+    }
+
+    public ProfileFilter visit(OrFilter filter) {
+        ArrayList<ProfileFilter> pFilters = new ArrayList<ProfileFilter>(filter.filters().size());
+        for (Filter f : filter.filters()) {
+            pFilters.add((ProfileFilter)apply(f));
+        }
+        return new ProfileFilter(new OrFilter(pFilters));
+    }
+
+    public ProfileFilter visit(NotFilter filter) {
+        return new ProfileFilter((ProfileFilter)apply(filter));
     }
 
     public ProfileQuery visit(Query query) {

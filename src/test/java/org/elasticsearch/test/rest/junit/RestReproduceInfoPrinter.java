@@ -25,8 +25,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
+import org.elasticsearch.test.rest.junit.RestTestSuiteRunner.RunMode;
 import org.junit.runner.Description;
-import org.junit.runner.notification.Failure;
 
 import java.util.Arrays;
 
@@ -41,11 +41,6 @@ import static org.elasticsearch.test.rest.junit.RestTestSuiteRunner.*;
 class RestReproduceInfoPrinter extends ReproduceInfoPrinter {
 
     protected static final ESLogger logger = Loggers.getLogger(RestReproduceInfoPrinter.class);
-
-    @Override
-    protected boolean mustAppendClusterSeed(Failure failure) {
-        return isTestCluster();
-    }
 
     private static boolean isTestCluster() {
         return runMode() == RunMode.TEST_CLUSTER;

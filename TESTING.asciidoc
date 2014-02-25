@@ -115,19 +115,18 @@ mvn test -Dtests.slow=[true]       - slow tests (@Slow)
 
 === Load balancing and caches.
 
-Run sequentially (one slave JVM). By default, the tests run with 3
-concurrent JVMs.
+By default, the tests run sequentially on a single forked JVM. 
 
-----------------------------
-mvn test -Dtests.jvms=1 test
-----------------------------
-
-Run with more slave JVMs than the default. Don't count hypercores for
-CPU-intense tests. Make sure there is enough RAM to handle child JVMs.
+To run with more forked JVMs than the default use:
 
 ----------------------------
 mvn test -Dtests.jvms=8 test
 ----------------------------
+
+Don't count hypercores for CPU-intense tests and leave some slack
+for JVM-internal threads (like the garbage collector). Make sure there is 
+enough RAM to handle child JVMs.
+
 
 === Miscellaneous.
 
@@ -143,7 +142,8 @@ Run more verbose output (slave JVM parameters, etc.).
 mvn test -verbose test
 ----------------------
 
-Change the default suite timeout to 5 seconds.
+Change the default suite timeout to 5 seconds for all
+tests (note the exclamation mark).
 
 ---------------------------------------
 mvn test -Dtests.timeoutSuite=5000! ...

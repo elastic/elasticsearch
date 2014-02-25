@@ -119,7 +119,13 @@ public class AggregatorFactories {
 
                 @Override
                 public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-                    return aggregators.get(owningBucketOrdinal).buildAggregation(0);
+                    // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
+                    // the filter matches no document in the highest buckets of the first terms agg
+                    if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
+                        return first.buildEmptyAggregation();
+                    } else {
+                        return aggregators.get(owningBucketOrdinal).buildAggregation(0);
+                    }
                 }
 
                 @Override

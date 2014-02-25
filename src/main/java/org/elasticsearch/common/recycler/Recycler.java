@@ -22,6 +22,8 @@ package org.elasticsearch.common.recycler;
 import org.elasticsearch.common.lease.Releasable;
 
 /**
+ * A recycled object, note, implementations should support calling obtain and then recycle
+ * on different threads.
  */
 public interface Recycler<T> {
 

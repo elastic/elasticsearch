@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import com.google.common.primitives.Longs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -212,13 +213,7 @@ class InternalOrder extends Terms.Order {
                         double v2 = ((MetricsAggregator.MultiValue) aggregator).metric(valueName, ((InternalTerms.Bucket) o2).bucketOrd);
                         // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                         // the bottom
-                        if (Double.isNaN(v1)) {
-                            return Double.isNaN(v2) ? 0 : 1;
-                        }
-                        if (Double.isNaN(v2)) {
-                            return -1;
-                        }
-                        return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
+                        return Comparators.compareDiscardNaN(v1, v2, asc);
                     }
                 };
             }
@@ -230,13 +225,7 @@ class InternalOrder extends Terms.Order {
                     double v2 = ((MetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o2).bucketOrd);
                     // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                     // the bottom
-                    if (Double.isNaN(v1)) {
-                        return Double.isNaN(v2) ? 0 : 1;
-                    }
-                    if (Double.isNaN(v2)) {
-                        return -1;
-                    }
-                    return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
+                    return Comparators.compareDiscardNaN(v1, v2, asc);
                 }
             };
         }

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.highlight;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
@@ -30,6 +28,9 @@ import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+
+import java.io.IOException;
+import java.util.Map;
 
 public final class CustomQueryScorer extends QueryScorer {
 
@@ -86,6 +87,8 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof XFilteredQuery) {
                 query = ((XFilteredQuery) query).getQuery();
                 extract(query, terms);
+            } else if (query instanceof BlendedTermQuery) {
+                extractWeightedTerms(terms, query);
             }
         }
 

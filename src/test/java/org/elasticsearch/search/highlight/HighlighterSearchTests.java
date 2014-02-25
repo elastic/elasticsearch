@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.highlight;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.util.LuceneTestCase.Slow;
@@ -54,6 +55,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -2065,14 +2067,13 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 0, "field2", 0, equalTo("The quick brown <field2>fox</field2> jumps over the lazy dog."));
         assertHighlight(searchResponse, 0, "field2", 1, equalTo("The lazy red <field2>fox</field2> jumps over the quick dog."));
         assertHighlight(searchResponse, 0, "field2", 2, 3, equalTo("The quick brown dog jumps over the lazy <field2>fox</field2>."));
-
         logger.info("--> highlighting and searching on field1 and field2 via multi_match query");
+        final MultiMatchQueryBuilder mmquery = multiMatchQuery("fox", "field1", "field2").type(RandomPicks.randomFrom(getRandom(), MultiMatchQueryBuilder.Type.values()));
         source = searchSource()
-                .query(multiMatchQuery("fox", "field1", "field2"))
-                .highlight(highlight()
-                        .field(new HighlightBuilder.Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>"))
-                        .field(new HighlightBuilder.Field("field2").requireFieldMatch(true).preTags("<field2>").postTags("</field2>")));
-
+            .query(mmquery)
+            .highlight(highlight().highlightQuery(randomBoolean() ? mmquery : null)
+                    .field(new HighlightBuilder.Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>"))
+                    .field(new HighlightBuilder.Field("field2").requireFieldMatch(true).preTags("<field2>").postTags("</field2>")));
         searchResponse = client().search(searchRequest("test").source(source)).actionGet();
         assertHitCount(searchResponse, 1l);
 
@@ -2083,6 +2084,39 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(searchResponse, 0, "field2", 0, equalTo("The quick brown <field2>fox</field2> jumps over the lazy dog."));
         assertHighlight(searchResponse, 0, "field2", 1, equalTo("The lazy red <field2>fox</field2> jumps over the quick dog."));
         assertHighlight(searchResponse, 0, "field2", 2, 3, equalTo("The quick brown dog jumps over the lazy <field2>fox</field2>."));
+    }
+
+    @Test
+    public void testMultiMatchQueryHighlight() throws IOException {
+        String[] highlighterTypes = new String[] {"fvh", "plain", "postings"};
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_all").field("store", "yes").field("index_options", "offsets").endObject()
+                .startObject("properties")
+                .startObject("field1").field("type", "string").field("index_options", "offsets").field("term_vector", "with_positions_offsets").endObject()
+                .startObject("field2").field("type", "string").field("index_options", "offsets").field("term_vector", "with_positions_offsets").endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping));
+        ensureGreen();
+        client().prepareIndex("test", "type1")
+                .setSource("field1", "The quick brown fox jumps over",
+                        "field2", "The quick brown fox jumps over").get();
+        refresh();
+        final int iters = atLeast(20);
+        for (int i = 0; i < iters; i++) {
+            MultiMatchQueryBuilder.Type matchQueryType = rarely() ? null : RandomPicks.randomFrom(getRandom(), MultiMatchQueryBuilder.Type.values());
+            final MultiMatchQueryBuilder multiMatchQueryBuilder = multiMatchQuery("the quick brown fox", "field1", "field2").type(matchQueryType);
+            String type = rarely() ? null : RandomPicks.randomFrom(getRandom(),highlighterTypes);
+            SearchSourceBuilder source = searchSource()
+                    .query(multiMatchQueryBuilder)
+                    .highlight(highlight().highlightQuery(randomBoolean() ? multiMatchQueryBuilder : null).highlighterType(type)
+                            .field(new Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>")));
+            logger.info("Running multi-match type: [" + matchQueryType + "] highlight with type: [" + type + "]");
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHitCount(searchResponse, 1l);
+            assertHighlight(searchResponse, 0, "field1", 0, anyOf(equalTo("<field1>The quick brown fox</field1> jumps over"),
+                    equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over")));
+        }
     }
 
     @Test
@@ -2680,7 +2714,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 queryString("\"highlight words together\"").field("field1^100").autoGeneratePhraseQueries(true));
     }
 
-    private <P extends QueryBuilder & BoostableQueryBuilder> void
+    private <P extends QueryBuilder & BoostableQueryBuilder<?>> void
             phraseBoostTestCaseForClauses(String highlighterType, float boost, QueryBuilder terms, P phrase) {
         Matcher<String> highlightedMatcher = Matchers.<String>either(containsString("<em>highlight words together</em>")).or(
                 containsString("<em>highlight</em> <em>words</em> <em>together</em>"));

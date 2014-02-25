@@ -21,12 +21,11 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -91,7 +90,10 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
         } else if (sourceQuery instanceof MultiPhraseQuery) {
             MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
-            convertMultiPhraseQuery(0, new int[q.getTermArrays().size()] , q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
+            convertMultiPhraseQuery(0, new int[q.getTermArrays().size()], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
+        } else if (sourceQuery instanceof BlendedTermQuery) {
+            final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
+            flatten(blendedTermQuery.rewrite(reader), reader, flatQueries);
         } else {
             super.flatten(sourceQuery, reader, flatQueries);
         }

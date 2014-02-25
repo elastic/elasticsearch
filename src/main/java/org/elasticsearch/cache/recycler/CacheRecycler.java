@@ -278,18 +278,6 @@ public class CacheRecycler extends AbstractComponent {
     }
 
     public static enum Type {
-        SOFT_THREAD_LOCAL {
-            @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
-                return threadLocal(softFactory(dequeFactory(c, limit)));
-            }
-        },
-        THREAD_LOCAL {
-            @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {
-                return threadLocal(dequeFactory(c, limit));
-            }
-        },
         QUEUE {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit, int availableProcessors) {

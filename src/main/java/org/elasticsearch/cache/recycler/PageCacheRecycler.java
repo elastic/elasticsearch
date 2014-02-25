@@ -19,12 +19,11 @@
 
 package org.elasticsearch.cache.recycler;
 
-import org.elasticsearch.common.recycler.AbstractRecyclerC;
-
 import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -209,18 +208,6 @@ public class PageCacheRecycler extends AbstractComponent {
     }
 
     public static enum Type {
-        SOFT_THREAD_LOCAL {
-            @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
-                return threadLocal(softFactory(dequeFactory(c, limit / estimatedThreadPoolSize)));
-            }
-        },
-        THREAD_LOCAL {
-            @Override
-            <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {
-                return threadLocal(dequeFactory(c, limit / estimatedThreadPoolSize));
-            }
-        },
         QUEUE {
             @Override
             <T> Recycler<T> build(Recycler.C<T> c, int limit, int estimatedThreadPoolSize, int availableProcessors) {

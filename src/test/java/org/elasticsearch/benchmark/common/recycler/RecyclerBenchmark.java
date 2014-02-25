@@ -19,9 +19,8 @@
 
 package org.elasticsearch.benchmark.common.recycler;
 
-import org.elasticsearch.common.recycler.AbstractRecyclerC;
-
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.recycler.AbstractRecyclerC;
 import org.elasticsearch.common.recycler.Recycler;
 
 import java.util.Map;
@@ -93,8 +92,6 @@ public class RecyclerBenchmark {
         final ImmutableMap<String, Recycler<Object>> recyclers = ImmutableMap.<String, Recycler<Object>>builder()
                 .put("none", none(c))
                 .put("concurrent-queue", concurrentDeque(c, limit))
-                .put("thread-local", threadLocal(dequeFactory(c, limit)))
-                .put("soft-thread-local", threadLocal(softFactory(dequeFactory(c, limit))))
                 .put("locked", locked(deque(c, limit)))
                 .put("concurrent", concurrent(dequeFactory(c, limit), Runtime.getRuntime().availableProcessors()))
                 .put("soft-concurrent", concurrent(softFactory(dequeFactory(c, limit)), Runtime.getRuntime().availableProcessors())).build();

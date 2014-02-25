@@ -37,6 +37,8 @@ public class Profile implements Streamable, ToXContent {
     // Aggregate time for this Profile.  Includes timing of children components
     private long time;
 
+    private long totalTime;
+
     public Profile(ProfileQuery pQuery) {
         this.components = new ArrayList<Profile>();
         components.add(Profile.collapse(pQuery));
@@ -76,6 +78,12 @@ public class Profile implements Streamable, ToXContent {
     public void setTime(long time) {
         this.time = time;
     }
+
+    public long totalTime() {
+        return totalTime;
+    }
+
+    public void setTotalTime(long time) { this.totalTime = time; }
 
     /**
      * Merge another Profile with this one.  The combined results are merged
@@ -122,6 +130,7 @@ public class Profile implements Streamable, ToXContent {
         if (profiles.size() == 0) {
             // TODO ???
         } else if (profiles.size() == 1) {
+            profiles.get(0).setTotalTime(profiles.get(0).time());
             return profiles.get(0);
         }
 
@@ -129,6 +138,8 @@ public class Profile implements Streamable, ToXContent {
         for (Profile profile : profiles) {
             p.merge(profile);
         }
+
+        p.setTotalTime(p.time());
 
         return p;
     }
@@ -139,11 +150,13 @@ public class Profile implements Streamable, ToXContent {
         builder.startObject();
         builder.field("type", className);
         builder.field("time", time);
+        builder.field("relative", String.format("%.5g%%", ((float) time / (float)totalTime)*100f));
         builder.field("lucene", details);
 
         if (components != null && components.size() > 0) {
             builder.startArray("components");
             for (Profile component : components) {
+                component.setTotalTime(totalTime);
                 component.toXContent(builder, params);
             }
             builder.endArray();

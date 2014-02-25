@@ -168,11 +168,33 @@ public class Profile implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        // @TODO implement
+        className = in.readString();
+        time = in.readLong();
+        totalTime = in.readLong();
+        details = in.readString();
+
+        int componentSize = in.readInt();
+        components = new ArrayList<Profile>(componentSize);
+        for (int i = 0; i < componentSize; ++i) {
+            Profile p = new Profile();
+            p.readFrom(in);
+            components.add(p);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // @TODO implement
+        out.writeString(className);
+        out.writeLong(time);
+        out.writeLong(totalTime);
+        out.writeString(details);
+        out.writeInt(components.size());
+
+        if (components != null && components.size() > 0) {
+            for (Profile component : components) {
+                component.writeTo(out);
+            }
+        }
+
     }
 }

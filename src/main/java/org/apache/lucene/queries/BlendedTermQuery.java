@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * BlendedTermQuery can be used to unify term statistics across
@@ -186,6 +187,13 @@ public abstract class BlendedTermQuery extends Query {
     public String toString(String field) {
         return "blended(terms: " + Arrays.toString(terms) + ")";
 
+    }
+
+    @Override
+    public void extractTerms(Set<Term> terms) {
+        for (Term term : this.terms) {
+            terms.add(term);
+        }
     }
 
     private volatile Term[] equalTerms = null;

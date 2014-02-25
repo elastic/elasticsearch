@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
@@ -99,7 +100,7 @@ public interface MultiBucketsAggregation extends Aggregation {
             public int compare(B b1, B b2) {
                 double v1 = value(b1);
                 double v2 = value(b2);
-                return asc ? Double.compare(v1, v2) : Double.compare(v2, v1);
+                return Comparators.compareDiscardNaN(v1, v2, asc);
             }
 
             private double value(B bucket) {

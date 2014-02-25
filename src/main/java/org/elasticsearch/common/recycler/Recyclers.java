@@ -21,7 +21,6 @@ package org.elasticsearch.common.recycler;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import com.google.common.collect.Queues;
-import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
@@ -30,22 +29,30 @@ import java.lang.ref.SoftReference;
 public enum Recyclers {
     ;
 
-    /** Return a {@link Recycler} that never recycles entries. */
+    /**
+     * Return a {@link Recycler} that never recycles entries.
+     */
     public static <T> Recycler<T> none(Recycler.C<T> c) {
         return new NoneRecycler<T>(c);
     }
 
-    /** Return a concurrent recycler based on a deque. */
+    /**
+     * Return a concurrent recycler based on a deque.
+     */
     public static <T> Recycler<T> concurrentDeque(Recycler.C<T> c, int limit) {
         return new ConcurrentDequeRecycler<T>(c, limit);
     }
 
-    /** Return a recycler based on a deque. */
+    /**
+     * Return a recycler based on a deque.
+     */
     public static <T> Recycler<T> deque(Recycler.C<T> c, int limit) {
         return new DequeRecycler<T>(c, Queues.<T>newArrayDeque(), limit);
     }
 
-    /** Return a recycler based on a deque. */
+    /**
+     * Return a recycler based on a deque.
+     */
     public static <T> Recycler.Factory<T> dequeFactory(final Recycler.C<T> c, final int limit) {
         return new Recycler.Factory<T>() {
             @Override
@@ -55,8 +62,10 @@ public enum Recyclers {
         };
     }
 
-    /** Wrap two recyclers and forward to calls to <code>smallObjectRecycler</code> when <code>size &lt; minSize</code> and to
-     *  <code>defaultRecycler</code> otherwise. */
+    /**
+     * Wrap two recyclers and forward to calls to <code>smallObjectRecycler</code> when <code>size &lt; minSize</code> and to
+     * <code>defaultRecycler</code> otherwise.
+     */
     public static <T> Recycler<T> sizing(final Recycler<T> defaultRecycler, final Recycler<T> smallObjectRecycler, final int minSize) {
         return new FilterRecycler<T>() {
 
@@ -82,36 +91,9 @@ public enum Recyclers {
         };
     }
 
-    /** Create a thread-local recycler, where each thread will have its own instance, create through the provided factory. */
-    public static <T> Recycler<T> threadLocal(final Recycler.Factory<T> factory) {
-        return new FilterRecycler<T>() {
-
-            private final CloseableThreadLocal<Recycler<T>> recyclers;
-
-            {
-                recyclers = new CloseableThreadLocal<Recycler<T>>() {
-                    @Override
-                    protected Recycler<T> initialValue() {
-                        return factory.build();
-                    }
-                };
-            }
-
-            @Override
-            protected Recycler<T> getDelegate() {
-                return recyclers.get();
-            }
-
-            @Override
-            public void close() {
-                recyclers.get().close();
-                recyclers.close();
-            }
-
-        };
-    }
-
-    /** Create a recycler that is wrapped inside a soft reference, so that it cannot cause {@link OutOfMemoryError}s. */
+    /**
+     * Create a recycler that is wrapped inside a soft reference, so that it cannot cause {@link OutOfMemoryError}s.
+     */
     public static <T> Recycler<T> soft(final Recycler.Factory<T> factory) {
         return new FilterRecycler<T>() {
 
@@ -134,8 +116,11 @@ public enum Recyclers {
         };
     }
 
-    /** Create a recycler that wraps data in a SoftReference.
-     *  @see #soft(org.elasticsearch.common.recycler.Recycler.Factory) */
+    /**
+     * Create a recycler that wraps data in a SoftReference.
+     *
+     * @see #soft(org.elasticsearch.common.recycler.Recycler.Factory)
+     */
     public static <T> Recycler.Factory<T> softFactory(final Recycler.Factory<T> factory) {
         return new Recycler.Factory<T>() {
             @Override
@@ -145,8 +130,10 @@ public enum Recyclers {
         };
     }
 
-    /** Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#release()} are protected by
-     *  a lock. */
+    /**
+     * Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#release()} are protected by
+     * a lock.
+     */
     public static <T> Recycler<T> locked(final Recycler<T> recycler) {
         return new FilterRecycler<T>() {
 
@@ -202,7 +189,9 @@ public enum Recyclers {
         };
     }
 
-    /** Create a concurrent implementation that can support concurrent access from <code>concurrencyLevel</code> threads with little contention. */
+    /**
+     * Create a concurrent implementation that can support concurrent access from <code>concurrencyLevel</code> threads with little contention.
+     */
     public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory, final int concurrencyLevel) {
         if (concurrencyLevel < 1) {
             throw new ElasticsearchIllegalArgumentException("concurrencyLevel must be >= 1");
@@ -213,6 +202,7 @@ public enum Recyclers {
         return new FilterRecycler<T>() {
 
             private final Recycler<T>[] recyclers;
+
             {
                 @SuppressWarnings("unchecked")
                 final Recycler<T>[] recyclers = new Recycler[concurrencyLevel];

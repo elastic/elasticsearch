@@ -31,7 +31,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalSettingsPerparerTests extends ElasticsearchTestCase {
+public class InternalSettingsPreparerTests extends ElasticsearchTestCase {
     @Before
     public void setupSystemProperties() {
         System.setProperty("es.node.zone", "foo");

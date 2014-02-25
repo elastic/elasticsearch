@@ -47,6 +47,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.RepositoryName;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
@@ -500,6 +501,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     } else {
                         inputStream = inputStreamIndexInput;
                     }
+                    inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
                     blobContainer.writeBlob(fileInfo.partName(i), inputStream, size, new ImmutableBlobContainer.WriterListener() {
                         @Override
                         public void onCompleted() {
@@ -554,6 +556,33 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             return false;
         }
 
+        private class AbortableInputStream extends FilterInputStream {
+            private final String fileName;
+
+            public AbortableInputStream(InputStream delegate, String fileName) {
+                super(delegate);
+                this.fileName = fileName;
+            }
+
+            @Override
+            public int read() throws IOException {
+                checkAborted();
+                return in.read();
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                checkAborted();
+                return in.read(b, off, len);
+            }
+
+            private void checkAborted() {
+                if (snapshotStatus.aborted()) {
+                    logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
+                    throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                }
+            }
+        }
     }
 
     /**

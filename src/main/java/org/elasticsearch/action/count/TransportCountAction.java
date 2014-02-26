@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -70,14 +71,18 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     private final PageCacheRecycler pageCacheRecycler;
 
+    private final BigArrays bigArrays;
+
     @Inject
     public TransportCountAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
+                                IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler,
+                                PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
+        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -168,7 +173,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                         .filteringAliases(request.filteringAliases())
                         .nowInMillis(request.nowInMillis()),
                 shardTarget, indexShard.acquireSearcher("count"), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler);
+                scriptService, cacheRecycler, pageCacheRecycler, bigArrays);
         SearchContext.setCurrent(context);
 
         try {

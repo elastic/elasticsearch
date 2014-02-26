@@ -35,7 +35,7 @@ public enum Releasables {
         throw new RuntimeException(t);
     }
 
-    private static void release(Iterable<Releasable> releasables, boolean ignoreException) {
+    private static void release(Iterable<? extends Releasable> releasables, boolean ignoreException) {
         Throwable th = null;
         for (Releasable releasable : releasables) {
             if (releasable != null) {
@@ -54,7 +54,7 @@ public enum Releasables {
     }
 
     /** Release the provided {@link Releasable}s. */
-    public static void release(Iterable<Releasable> releasables) {
+    public static void release(Iterable<? extends Releasable> releasables) {
         release(releasables, false);
     }
 

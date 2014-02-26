@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.sum;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -48,7 +47,7 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            sums = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), true);
+            sums = bigArrays.newDoubleArray(initialSize, true);
         }
     }
 
@@ -64,7 +63,7 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        sums = BigArrays.grow(sums, owningBucketOrdinal + 1);
+        sums = bigArrays.grow(sums, owningBucketOrdinal + 1);
 
         final int valuesCount = values.setDocument(doc);
         double sum = 0;

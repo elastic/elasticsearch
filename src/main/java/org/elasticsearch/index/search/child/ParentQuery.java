@@ -33,12 +33,12 @@ import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -154,13 +154,15 @@ public class ParentQuery extends Query {
         private FloatArray scores;
         private final ParentChildIndexFieldData indexFieldData;
         private final String parentType;
+        private final BigArrays bigArrays;
 
         private Scorer scorer;
         private BytesValues values;
 
         ParentIdAndScoreCollector(SearchContext searchContext, ParentChildIndexFieldData indexFieldData, String parentType) {
-            this.parentIds = new BytesRefHash(512, searchContext.pageCacheRecycler());
-            this.scores = BigArrays.newFloatArray(512, searchContext.pageCacheRecycler(), false);
+            this.bigArrays = searchContext.bigArrays();
+            this.parentIds = new BytesRefHash(512, bigArrays);
+            this.scores = bigArrays.newFloatArray(512, false);
             this.indexFieldData = indexFieldData;
             this.parentType = parentType;
         }
@@ -172,7 +174,7 @@ public class ParentQuery extends Query {
                 values.setDocument(doc);
                 long index = parentIds.add(values.nextValue(), values.currentValueHash());
                 if (index >= 0) {
-                    scores = BigArrays.grow(scores, index + 1);
+                    scores = bigArrays.grow(scores, index + 1);
                     scores.set(index, scorer.score());
                 }
             }
@@ -242,10 +244,11 @@ public class ParentQuery extends Query {
 
             Ordinals.Docs ordinals = bytesValues.ordinals();
             final int maxOrd = (int) ordinals.getMaxOrd();
+            final BigArrays bigArrays = searchContext.bigArrays();
             if (parentIdsIndexCache == null) {
-                parentIdsIndexCache = BigArrays.newLongArray(BigArrays.overSize(maxOrd), searchContext.pageCacheRecycler(), false);
+                parentIdsIndexCache = bigArrays.newLongArray(BigArrays.overSize(maxOrd), false);
             } else if (parentIdsIndexCache.size() < maxOrd) {
-                parentIdsIndexCache = BigArrays.grow(parentIdsIndexCache, maxOrd);
+                parentIdsIndexCache = bigArrays.grow(parentIdsIndexCache, maxOrd);
             }
             parentIdsIndexCache.fill(0, maxOrd, -1L);
             if (seenOrdinalsCache == null || seenOrdinalsCache.length() < maxOrd) {
@@ -258,7 +261,7 @@ public class ParentQuery extends Query {
 
         @Override
         public boolean release() throws ElasticsearchException {
-            Releasables.release(parentIds, scores);
+            Releasables.release(parentIds, scores, parentIdsIndexCache);
             return true;
         }
     }

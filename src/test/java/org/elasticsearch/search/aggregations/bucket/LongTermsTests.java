@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -667,6 +668,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
 
+        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -685,6 +687,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedField_OrderedByNonMetricsSubAggregation() throws Exception {
 
+        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -704,6 +707,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
 
+        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -724,6 +728,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
 
+        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")

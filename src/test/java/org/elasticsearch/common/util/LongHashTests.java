@@ -39,7 +39,7 @@ public class LongHashTests extends ElasticsearchTestCase {
         final long[] idToValue = new long[values.length];
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
-        final LongHash longHash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randomCacheRecycler());
+        final LongHash longHash = new LongHash(randomIntBetween(0, 100), maxLoadFactor, BigArraysTests.randombigArrays());
         final int iters = randomInt(1000000);
         for (int i = 0; i < iters; ++i) {
             final Long value = randomFrom(values);

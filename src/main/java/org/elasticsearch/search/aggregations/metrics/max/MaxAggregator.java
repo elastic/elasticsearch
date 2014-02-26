@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.max;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -48,7 +47,7 @@ public class MaxAggregator extends MetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            maxes = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), false);
+            maxes = bigArrays.newDoubleArray(initialSize, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         }
     }
@@ -67,7 +66,7 @@ public class MaxAggregator extends MetricsAggregator.SingleValue {
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
         if (owningBucketOrdinal >= maxes.size()) {
             long from = maxes.size();
-            maxes = BigArrays.grow(maxes, owningBucketOrdinal + 1);
+            maxes = bigArrays.grow(maxes, owningBucketOrdinal + 1);
             maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
         }
 

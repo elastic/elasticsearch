@@ -253,6 +253,21 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testCommonTermsQueryOnAllField() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "message", "type=string", "comment", "type=string,boost=5.0")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("message", "test message", "comment", "whatever"),
+                client().prepareIndex("test", "type1", "2").setSource("message", "hello world", "comment", "test comment"));
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTerms("_all", "test")).get();
+        assertHitCount(searchResponse, 2l);
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("1"));
+        assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
+    }
+
+    @Test
     public void testCommonTermsQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=whitespace")

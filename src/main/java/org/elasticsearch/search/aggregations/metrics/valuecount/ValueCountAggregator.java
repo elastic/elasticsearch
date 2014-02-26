@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.valuecount;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -53,7 +52,7 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
         if (valuesSource != null) {
             // expectedBucketsCount == 0 means it's a top level bucket
             final long initialSize = expectedBucketsCount < 2 ? 1 : expectedBucketsCount;
-            counts = BigArrays.newLongArray(initialSize, context.pageCacheRecycler(), true);
+            counts = bigArrays.newLongArray(initialSize, true);
         }
     }
 
@@ -69,7 +68,7 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        counts = BigArrays.grow(counts, owningBucketOrdinal + 1);
+        counts = bigArrays.grow(counts, owningBucketOrdinal + 1);
         counts.increment(owningBucketOrdinal, values.setDocument(doc));
     }
 

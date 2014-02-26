@@ -26,6 +26,7 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -181,6 +182,8 @@ public abstract class SearchContext implements Releasable {
     public abstract CacheRecycler cacheRecycler();
 
     public abstract PageCacheRecycler pageCacheRecycler();
+
+    public abstract BigArrays bigArrays();
 
     public abstract FilterCache filterCache();
 

@@ -33,6 +33,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
@@ -123,6 +124,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     @After
     public void ensureAllPagesReleased() {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    @After
+    public void ensureAllArraysReleased() {
+        MockBigArrays.ensureAllArraysAreReleased();
     }
 
     public static void ensureAllFilesClosed() throws IOException {

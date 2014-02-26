@@ -53,6 +53,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     private final IndexFieldData.WithOrdinals indexFieldData;
 
     final CacheRecycler cacheRecycler;
+    final BigArrays bigArrays;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
     private final int shardSize;
@@ -88,6 +89,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
 
         this.cacheRecycler = context.cacheRecycler();
+        this.bigArrays = context.bigArrays();
 
         this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
@@ -147,6 +149,10 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 list[i] = (InternalStringTermsFacet.TermEntry) ordered.pop();
             }
 
+            for (ReaderAggregator aggregator : aggregators) {
+                aggregator.release();
+            }
+
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
@@ -181,6 +187,10 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                 ordered.add(entry);
             }
+        }
+
+        for (ReaderAggregator aggregator : aggregators) {
+            aggregator.release();
         }
 
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
@@ -227,6 +237,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 // if we have values for this one, add it
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
+                } else {
+                    current.release();
                 }
                 current = null;
             }
@@ -235,7 +247,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static final class ReaderAggregator {
+    public final class ReaderAggregator {
 
         private final long maxOrd;
 
@@ -249,7 +261,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         public ReaderAggregator(BytesValues.WithOrdinals values, int ordinalsCacheLimit, CacheRecycler cacheRecycler) {
             this.values = values;
             this.maxOrd = values.ordinals().getMaxOrd();
-            this.counts = BigArrays.newIntArray(maxOrd);
+            this.counts = bigArrays.newIntArray(maxOrd);
         }
 
         final void onOrdinal(int docId, long ordinal) {
@@ -273,6 +285,11 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         public BytesRef copyCurrent() {
             return values.copyShared();
         }
+
+        public void release() {
+            counts.release();
+        }
+
     }
 
     public static class AggregatorPriorityQueue extends PriorityQueue<ReaderAggregator> {

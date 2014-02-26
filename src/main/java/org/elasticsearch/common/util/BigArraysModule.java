@@ -19,22 +19,32 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
+import com.google.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.settings.Settings;
 
-abstract class AbstractArray implements Releasable {
+import static org.elasticsearch.common.inject.Modules.createModule;
 
-    public final boolean clearOnResize;
-    private boolean released = false;
+/**
+ */
+public class BigArraysModule extends AbstractModule implements SpawnModules {
 
-    AbstractArray(boolean clearOnResize) {
-        this.clearOnResize = clearOnResize;
+    public static final String IMPL = "common.util.big_arrays_impl";
+
+    private final Settings settings;
+
+    public BigArraysModule(Settings settings) {
+        this.settings = settings;
     }
 
     @Override
-    public boolean release() {
-        assert !released : "double release";
-        released = true;
-        return true; // nothing to release by default
+    protected void configure() {
     }
 
+    @Override
+    public Iterable<? extends Module> spawnModules() {
+        return ImmutableList.of(createModule(settings.getAsClass(IMPL, DefaultBigArraysModule.class), settings));
+    }
 }

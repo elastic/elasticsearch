@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -92,6 +93,8 @@ public class DefaultSearchContext extends SearchContext {
     private final CacheRecycler cacheRecycler;
 
     private final PageCacheRecycler pageCacheRecycler;
+
+    private final BigArrays bigArrays;
 
     private final IndexShard indexShard;
 
@@ -175,7 +178,8 @@ public class DefaultSearchContext extends SearchContext {
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
-                         ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
+                         ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
+                         BigArrays bigArrays) {
         this.id = id;
         this.request = request;
         this.searchType = request.searchType();
@@ -184,6 +188,7 @@ public class DefaultSearchContext extends SearchContext {
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
+        this.bigArrays = bigArrays;
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
@@ -445,6 +450,10 @@ public class DefaultSearchContext extends SearchContext {
 
     public PageCacheRecycler pageCacheRecycler() {
         return pageCacheRecycler;
+    }
+
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 
     public FilterCache filterCache() {

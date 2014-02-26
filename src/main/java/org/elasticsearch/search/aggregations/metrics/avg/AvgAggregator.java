@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -50,8 +49,8 @@ public class AvgAggregator extends MetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            counts = BigArrays.newLongArray(initialSize, context.pageCacheRecycler(), true);
-            sums = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), true);
+            counts = bigArrays.newLongArray(initialSize, true);
+            sums = bigArrays.newDoubleArray(initialSize, true);
         }
     }
 
@@ -67,8 +66,8 @@ public class AvgAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        counts = BigArrays.grow(counts, owningBucketOrdinal + 1);
-        sums = BigArrays.grow(sums, owningBucketOrdinal + 1);
+        counts = bigArrays.grow(counts, owningBucketOrdinal + 1);
+        sums = bigArrays.grow(sums, owningBucketOrdinal + 1);
 
         final int valueCount = values.setDocument(doc);
         counts.increment(owningBucketOrdinal, valueCount);

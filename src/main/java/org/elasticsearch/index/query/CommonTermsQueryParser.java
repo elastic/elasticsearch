@@ -166,19 +166,6 @@ public class CommonTermsQueryParser implements QueryParser {
         if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
-        commonsQuery.setBoost(boost);
-        Query query = parseQueryString(commonsQuery, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
-        if (queryName != null) {
-            parseContext.addNamedQuery(queryName, query);
-        }
-        return query;
-    }
-
-
-    private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String fieldName, QueryParseContext parseContext,
-            String queryAnalyzer, String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
-
         FieldMapper<?> mapper = null;
         String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -207,6 +194,18 @@ public class CommonTermsQueryParser implements QueryParser {
             }
         }
 
+        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords, mapper);
+        commonsQuery.setBoost(boost);
+        Query query = parseQueryString(commonsQuery, value.toString(), field, parseContext, analyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, smartNameFieldMappers);
+        if (queryName != null) {
+            parseContext.addNamedQuery(queryName, query);
+        }
+        return query;
+    }
+
+
+    private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String field, QueryParseContext parseContext,
+            Analyzer analyzer, String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch, MapperService.SmartNameFieldMappers smartNameFieldMappers) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
         TokenStream source = analyzer.tokenStream(field, queryString.toString());
         int count = 0;

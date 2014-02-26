@@ -235,7 +235,7 @@ public class MatchQuery {
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
             if (commonTermsCutoff != null) {
-                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, positionCount == 1);
+                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, positionCount == 1, mapper);
                 for (int i = 0; i < numTokens; i++) {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;

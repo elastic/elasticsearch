@@ -38,6 +38,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @TestLogging("org.elasticsearch.indices.fielddata.breaker:TRACE,org.elasticsearch.index.fielddata:TRACE,org.elasticsearch.common.breaker:TRACE")
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         final int numShards = between(1, 5);
         final int numReplicas = randomIntBetween(0, 1);

@@ -193,7 +193,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
                 return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
                         "trying to allocate a primary shard " + shardId + ", which is disabled"));
             }
-            throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + "], which is disabled");
+            throw new ElasticsearchIllegalArgumentException("[allocate] trying to allocate a primary shard " + shardId + ", which is disabled");
         }
 
         RoutingNode routingNode = allocation.routingNodes().node(discoNode.id());
@@ -201,13 +201,13 @@ public class AllocateAllocationCommand implements AllocationCommand {
             if (!discoNode.dataNode()) {
                 if (explain) {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
-                            "Allocation can only be done on data nodes, not " + node));
+                            "Allocation can only be done on data nodes, not [" + node + "]"));
                 }
                 throw new ElasticsearchIllegalArgumentException("Allocation can only be done on data nodes, not [" + node + "]");
             } else {
                 if (explain) {
                     return new RerouteExplanation(this, allocation.decision(Decision.NO, "allocate_allocation_command",
-                            "Could not find " + node + " among the routing nodes"));
+                            "Could not find [" + node + "] among the routing nodes"));
                 }
                 throw new ElasticsearchIllegalStateException("Could not find [" + node + "] among the routing nodes");
             }

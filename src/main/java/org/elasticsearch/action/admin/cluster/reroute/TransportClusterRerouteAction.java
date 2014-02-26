@@ -90,7 +90,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
             @Override
             public void onAckTimeout() {
-                listener.onResponse(new ClusterRerouteResponse(false, state, new RoutingExplanations()));
+                listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
             }
 
             @Override

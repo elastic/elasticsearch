@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -141,6 +142,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void onNonNestedField() throws Exception {
+        MockBigArrays.discardNextCheck();
         try {
             client().prepareSearch("idx")
                     .addAggregation(nested("nested").path("value")

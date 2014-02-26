@@ -94,7 +94,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     private final IntArray getHashes() {
         if (hashes == null) {
             long numberOfValues = termOrdToBytesOffset.size();
-            IntArray hashes = BigArrays.newIntArray(numberOfValues);
+            IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(numberOfValues);
             BytesRef scratch = new BytesRef();
             for (long i = 0; i < numberOfValues; i++) {
                 bytes.fill(scratch, termOrdToBytesOffset.get(i));

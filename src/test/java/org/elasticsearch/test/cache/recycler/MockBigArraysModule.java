@@ -17,24 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.test.cache.recycler;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.util.BigArrays;
 
-abstract class AbstractArray implements Releasable {
-
-    public final boolean clearOnResize;
-    private boolean released = false;
-
-    AbstractArray(boolean clearOnResize) {
-        this.clearOnResize = clearOnResize;
-    }
+public class MockBigArraysModule extends AbstractModule {
 
     @Override
-    public boolean release() {
-        assert !released : "double release";
-        released = true;
-        return true; // nothing to release by default
+    protected void configure() {
+        bind(BigArrays.class).to(MockBigArrays.class).asEagerSingleton();
     }
 
 }

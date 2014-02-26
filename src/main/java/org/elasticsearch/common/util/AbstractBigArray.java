@@ -32,6 +32,7 @@ import java.util.Arrays;
 /** Common implementation for array lists that slice data into fixed-size blocks. */
 abstract class AbstractBigArray extends AbstractArray {
 
+    private final PageCacheRecycler recycler;
     private Recycler.V<?>[] cache;
 
     private final int pageShift;
@@ -39,7 +40,8 @@ abstract class AbstractBigArray extends AbstractArray {
     protected long size;
 
     protected AbstractBigArray(int pageSize, PageCacheRecycler recycler, boolean clearOnResize) {
-        super(recycler, clearOnResize);
+        super(clearOnResize);
+        this.recycler = recycler;
         Preconditions.checkArgument(pageSize >= 128, "pageSize must be >= 128");
         Preconditions.checkArgument((pageSize & (pageSize - 1)) == 0, "pageSize must be a power of two");
         this.pageShift = Integer.numberOfTrailingZeros(pageSize);

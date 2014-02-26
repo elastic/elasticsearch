@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasables;
 
 /**
@@ -38,16 +37,17 @@ public final class BytesRefHash extends AbstractHash {
     private final BytesRef spare;
 
     // Constructor with configurable capacity and default maximum load factor.
-    public BytesRefHash(long capacity, PageCacheRecycler recycler) {
-        this(capacity, DEFAULT_MAX_LOAD_FACTOR, recycler);
+    public BytesRefHash(long capacity, BigArrays bigArrays) {
+        this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
     //Constructor with configurable capacity and load factor.
-    public BytesRefHash(long capacity, float maxLoadFactor, PageCacheRecycler recycler) {
-        super(capacity, maxLoadFactor, recycler);
-        startOffsets = BigArrays.newLongArray(capacity + 1, recycler, false);
-        bytes = BigArrays.newByteArray(capacity * 3, recycler, false);
-        hashes = BigArrays.newIntArray(capacity, recycler, false);
+    public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+        super(capacity, maxLoadFactor, bigArrays);
+        startOffsets = bigArrays.newLongArray(capacity + 1, false);
+        startOffsets.set(0, 0);
+        bytes = bigArrays.newByteArray(capacity * 3, false);
+        hashes = bigArrays.newIntArray(capacity, false);
         spare = new BytesRef();
     }
 
@@ -106,11 +106,11 @@ public final class BytesRefHash extends AbstractHash {
     private void append(long id, BytesRef key, int code) {
         assert size == id;
         final long startOffset = startOffsets.get(size);
-        bytes = BigArrays.grow(bytes, startOffset + key.length);
+        bytes = bigArrays.grow(bytes, startOffset + key.length);
         bytes.set(startOffset, key.bytes, key.offset, key.length);
-        startOffsets = BigArrays.grow(startOffsets, size + 2);
+        startOffsets = bigArrays.grow(startOffsets, size + 2);
         startOffsets.set(size + 1, startOffset + key.length);
-        hashes = BigArrays.grow(hashes, id + 1);
+        hashes = bigArrays.grow(hashes, id + 1);
         hashes.set(id, code);
     }
 

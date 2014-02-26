@@ -19,22 +19,21 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
-abstract class AbstractArray implements Releasable {
+/**
+ */
+public class DefaultBigArraysModule extends AbstractModule {
 
-    public final boolean clearOnResize;
-    private boolean released = false;
+    private final Settings settings;
 
-    AbstractArray(boolean clearOnResize) {
-        this.clearOnResize = clearOnResize;
+    public DefaultBigArraysModule(Settings settings) {
+        this.settings = settings;
     }
 
     @Override
-    public boolean release() {
-        assert !released : "double release";
-        released = true;
-        return true; // nothing to release by default
+    protected void configure() {
+        bind(BigArrays.class).asEagerSingleton();
     }
-
 }

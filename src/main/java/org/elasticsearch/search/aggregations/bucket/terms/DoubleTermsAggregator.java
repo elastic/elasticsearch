@@ -54,7 +54,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.minDocCount = minDocCount;
-        bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
+        bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
 
     @Override

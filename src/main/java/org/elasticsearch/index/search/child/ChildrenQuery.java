@@ -27,7 +27,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -35,16 +34,12 @@ import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FloatArray;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.*;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -431,7 +426,7 @@ public class ChildrenQuery extends Query {
         final BytesRefHash parentIds;
         protected final String parentType;
         private final ParentChildIndexFieldData indexFieldData;
-        private final PageCacheRecycler pageCacheRecycler;
+        protected final BigArrays bigArrays;
 
         protected FloatArray scores;
 
@@ -446,9 +441,9 @@ public class ChildrenQuery extends Query {
         private ParentIdAndScoreCollector(ParentChildIndexFieldData indexFieldData, String parentType, SearchContext searchContext) {
             this.parentType = parentType;
             this.indexFieldData = indexFieldData;
-            this.pageCacheRecycler = searchContext.pageCacheRecycler();
-            this.parentIds = new BytesRefHash(512, pageCacheRecycler);
-            this.scores = BigArrays.newFloatArray(512, pageCacheRecycler, false);
+            this.bigArrays = searchContext.bigArrays();
+            this.parentIds = new BytesRefHash(512, bigArrays);
+            this.scores = bigArrays.newFloatArray(512, false);
         }
 
 
@@ -465,7 +460,7 @@ public class ChildrenQuery extends Query {
                         parentIdx = -parentIdx - 1;
                         doScore(parentIdx);
                     } else {
-                        scores = BigArrays.grow(scores, parentIdx + 1);
+                        scores = bigArrays.grow(scores, parentIdx + 1);
                         scores.set(parentIdx, scorer.score());
                     }
                     parentIdsIndex.set(ord, parentIdx);
@@ -485,9 +480,9 @@ public class ChildrenQuery extends Query {
                 ordinals = values.ordinals();
                 final long maxOrd = ordinals.getMaxOrd();
                 if (parentIdsIndex == null) {
-                    parentIdsIndex = BigArrays.newLongArray(BigArrays.overSize(maxOrd), pageCacheRecycler, false);
+                    parentIdsIndex = bigArrays.newLongArray(BigArrays.overSize(maxOrd), false);
                 } else if (parentIdsIndex.size() < maxOrd) {
-                    parentIdsIndex = BigArrays.grow(parentIdsIndex, maxOrd);
+                    parentIdsIndex = bigArrays.grow(parentIdsIndex, maxOrd);
                 }
                 parentIdsIndex.fill(0, maxOrd, -1L);
             }
@@ -534,7 +529,7 @@ public class ChildrenQuery extends Query {
 
         AvgCollector(ParentChildIndexFieldData indexFieldData, String childType, SearchContext searchContext) {
             super(indexFieldData, childType, searchContext);
-            this.occurrences = BigArrays.newIntArray(512, searchContext.pageCacheRecycler(), false);
+            this.occurrences = bigArrays.newIntArray(512, false);
         }
 
         @Override
@@ -551,9 +546,9 @@ public class ChildrenQuery extends Query {
                         scores.increment(parentIdx, scorer.score());
                         occurrences.increment(parentIdx, 1);
                     } else {
-                        scores = BigArrays.grow(scores, parentIdx + 1);
+                        scores = bigArrays.grow(scores, parentIdx + 1);
                         scores.set(parentIdx, scorer.score());
-                        occurrences = BigArrays.grow(occurrences, parentIdx + 1);
+                        occurrences = bigArrays.grow(occurrences, parentIdx + 1);
                         occurrences.set(parentIdx, 1);
                     }
                     parentIdsIndex.set(ord, parentIdx);

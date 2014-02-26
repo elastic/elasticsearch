@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.metrics.min;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -48,7 +47,7 @@ public class MinAggregator extends MetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final long initialSize = estimatedBucketsCount < 2 ? 1 : estimatedBucketsCount;
-            mins = BigArrays.newDoubleArray(initialSize, context.pageCacheRecycler(), false);
+            mins = bigArrays.newDoubleArray(initialSize, false);
             mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         }
     }
@@ -71,7 +70,7 @@ public class MinAggregator extends MetricsAggregator.SingleValue {
 
         if (owningBucketOrdinal >= mins.size()) {
             long from = mins.size();
-            mins = BigArrays.grow(mins, owningBucketOrdinal + 1);
+            mins = bigArrays.grow(mins, owningBucketOrdinal + 1);
             mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
         }
 

@@ -116,12 +116,8 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                             builder.startArray(Fields.FAILURES);
                             for (ShardOperationFailedException shardFailure : failures) {
                                 builder.startObject();
-                                if (shardFailure.index() != null) {
-                                    builder.field(Fields.INDEX, shardFailure.index());
-                                }
-                                if (shardFailure.shardId() != -1) {
-                                    builder.field(Fields.SHARD, shardFailure.shardId());
-                                }
+                                builder.field(Fields.INDEX, shardFailure.index());
+                                builder.field(Fields.SHARD, shardFailure.shardId());
                                 builder.field(Fields.REASON, shardFailure.reason());
                                 builder.endObject();
                             }

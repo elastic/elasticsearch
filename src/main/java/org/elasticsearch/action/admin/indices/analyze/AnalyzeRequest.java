@@ -107,7 +107,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     public AnalyzeRequest tokenFilters(String... tokenFilters) {
-        if (tokenFilters == null) throw new ElasticsearchIllegalArgumentException("token filters must not be null");
+        if (tokenFilters == null) {
+            throw new ElasticsearchIllegalArgumentException("token filters must not be null");
+        }
         this.tokenFilters = tokenFilters;
         return this;
     }
@@ -117,7 +119,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     public AnalyzeRequest charFilters(String... charFilters) {
-        if (charFilters == null) throw new ElasticsearchIllegalArgumentException("char filters must not be null");
+        if (charFilters == null) {
+            throw new ElasticsearchIllegalArgumentException("char filters must not be null");
+        }
         this.charFilters = charFilters;
         return this;
     }
@@ -140,12 +144,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         ActionRequestValidationException validationException = super.validate();
         if (text == null) {
             validationException = addValidationError("text is missing", validationException);
-        }
-        if (tokenFilters == null) {
-            validationException = addValidationError("tokenFilters is null", validationException);
-        }
-        if (charFilters == null) {
-            validationException = addValidationError("charFilters is null", validationException);
         }
         return validationException;
     }
@@ -171,9 +169,9 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         out.writeString(text);
         out.writeOptionalString(analyzer);
         out.writeOptionalString(tokenizer);
-        out.writeStringArrayNullable(tokenFilters);
+        out.writeStringArray(tokenFilters);
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeStringArrayNullable(charFilters);
+            out.writeStringArray(charFilters);
         }
         out.writeOptionalString(field);
     }

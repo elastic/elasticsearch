@@ -383,7 +383,7 @@ parameter to just one of them:
                 "query":      "Will Smith",
                 "type":       "cross_fields",
                 "fields":     [ "first", "last" ],
-                "minimum_should_match": 50% <1>
+                "minimum_should_match": "50%" <1>
               }
             },
             {

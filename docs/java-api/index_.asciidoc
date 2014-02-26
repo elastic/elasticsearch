@@ -37,7 +37,7 @@ dates regarding to the
 String json = "{" +
         "\"user\":\"kimchy\"," +
         "\"postDate\":\"2013-01-30\"," +
-        "\"message\":\"trying out Elasticsearch\"," +
+        "\"message\":\"trying out Elasticsearch\"" +
     "}";
 --------------------------------------------------
 
@@ -152,7 +152,7 @@ don't have to give an ID:
 String json = "{" +
         "\"user\":\"kimchy\"," +
         "\"postDate\":\"2013-01-30\"," +
-        "\"message\":\"trying out Elasticsearch\"," +
+        "\"message\":\"trying out Elasticsearch\"" +
     "}";
 
 IndexResponse response = client.prepareIndex("twitter", "tweet")

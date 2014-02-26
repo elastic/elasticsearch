@@ -43,6 +43,8 @@ import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
 
+import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
+
 /**
  *
  */
@@ -315,10 +317,7 @@ public class PluginsService extends AbstractComponent {
 
     private List<Tuple<PluginInfo,Plugin>> loadPlugins() {
         File pluginsFile = environment.pluginsFile();
-        if (!pluginsFile.exists()) {
-            return Collections.emptyList();
-        }
-        if (!pluginsFile.isDirectory()) {
+        if (!isAccessibleDirectory(pluginsFile, logger)) {
             return Collections.emptyList();
         }
 
@@ -333,7 +332,7 @@ public class PluginsService extends AbstractComponent {
 
         if (pluginsFiles != null) {
             for (File pluginRoot : pluginsFiles) {
-                if (pluginRoot.isDirectory()) {
+                if (isAccessibleDirectory(pluginRoot, logger)) {
                     try {
                         logger.trace("--- adding plugin [" + pluginRoot.getAbsolutePath() + "]");
                         // check isolation
@@ -345,8 +344,7 @@ public class PluginsService extends AbstractComponent {
                             logger.trace("--- creating isolated space for plugin [" + pluginRoot.getAbsolutePath() + "]");
                             PluginClassLoader pcl = new PluginClassLoader(PluginUtils.convertFileToUrl(pluginClassPath), esClassLoader);
                             pluginData.addAll(loadPlugin(pluginClassPath, pluginProperties, pcl, true));
-                        }
-                        else {
+                        } else {
                             if (!discoveredAddUrl) {
                                 discoveredAddUrl = true;
                                 Class<?> esClassLoaderClass = esClassLoader.getClass();
@@ -397,12 +395,15 @@ public class PluginsService extends AbstractComponent {
                 is = pluginUrl.openStream();
                 pluginProps.load(is);
                 String pluginClassName = pluginProps.getProperty("plugin");
+                if (pluginClassName == null) {
+                    throw new IllegalArgumentException("No plugin class specified");
+                }
                 String pluginVersion = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
                 Plugin plugin = PluginUtils.loadPlugin(pluginClassName, settings, classLoader);
 
                 // Is it a site plugin as well? Does it have also an embedded _site structure
                 File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
-                boolean isSite = siteFile.exists() && siteFile.isDirectory();
+                boolean isSite = isAccessibleDirectory(siteFile, logger);
                 if (logger.isTraceEnabled()) {
                     logger.trace("found a jvm plugin [{}], [{}]{}",
                             plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
@@ -441,7 +442,7 @@ public class PluginsService extends AbstractComponent {
         for (File pluginFile : pluginsFile.listFiles()) {
             if (!loadedJvmPlugins.contains(pluginFile.getName())) {
                 File sitePluginDir = new File(pluginFile, "_site");
-                if (sitePluginDir.exists()) {
+                if (isAccessibleDirectory(sitePluginDir, logger)) {
                     // We have a _site plugin. Let's try to get more information on it
                     String name = pluginFile.getName();
                     String version = PluginInfo.VERSION_NOT_AVAILABLE;
@@ -491,6 +492,6 @@ public class PluginsService extends AbstractComponent {
         }
 
         File sitePluginDir = new File(pluginsFile, name + "/_site");
-        return sitePluginDir.exists();
+        return isAccessibleDirectory(sitePluginDir, logger);
     }
 }

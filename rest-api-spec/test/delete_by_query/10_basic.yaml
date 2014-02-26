@@ -40,24 +40,3 @@
         index: test_1
 
   - match:  { count:     2  }
-
----
-"Delete by query failures":
-  - do:
-      index:
-          index:  test_1
-          type:   test
-          id:     1
-          body:   { foo: bar }
-
-  - do:
-      catch: request
-      delete_by_query:
-        index:  test_1
-        body:
-          query:
-            does_not_exist:
-              foo: bar
-
-  - length: { _indices.test_1._shards.failures: 5 }
-

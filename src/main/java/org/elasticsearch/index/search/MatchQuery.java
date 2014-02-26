@@ -209,7 +209,7 @@ public class MatchQuery {
                 if (commonTermsCutoff == null) {
                     query = builder.createBooleanQuery(field, value.toString(), occur);
                 } else {
-                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff);
+                    query = builder.createCommonTermsQuery(field, value.toString(), occur, occur, commonTermsCutoff, mapper);
                 }
                 break;
             case PHRASE:
@@ -276,11 +276,11 @@ public class MatchQuery {
             return query;
         }
 
-        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
+        public Query createCommonTermsQuery(String field, String queryText, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, FieldMapper<?> mapper) {
             Query booleanQuery = createBooleanQuery(field, queryText, Occur.SHOULD);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled());
+                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, ((BooleanQuery)booleanQuery).isCoordDisabled(), mapper);
                 for (BooleanClause clause : bq.clauses()) {
                     if (!(clause.getQuery() instanceof TermQuery)) {
                         return booleanQuery;

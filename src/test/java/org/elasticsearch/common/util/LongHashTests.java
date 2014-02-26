@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongLongMap;
 import com.carrotsearch.hppc.LongLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.LongLongCursor;
 import org.elasticsearch.common.util.BigArraysTests;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.util.Iterator;

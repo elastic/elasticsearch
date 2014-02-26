@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.*;
 
 /**
  *  Specialized hash table implementation similar to Lucene's BytesRefHash that maps

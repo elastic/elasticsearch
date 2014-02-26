@@ -341,8 +341,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.1</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.7</source>
+                    <target>1.7</target>
                     <fork>true</fork>
                     <maxmem>512m</maxmem>
                     <!-- REMOVE WHEN UPGRADE:
@@ -1008,7 +1008,7 @@
                     <execution>
                         <id>check-forbidden-apis</id>
                         <configuration>
-                            <targetVersion>1.6</targetVersion>
+                            <targetVersion>1.7</targetVersion>
                             <!-- disallow undocumented classes like sun.misc.Unsafe: -->
                             <internalRuntimeForbidden>true</internalRuntimeForbidden>
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
@@ -1047,7 +1047,7 @@
                     <execution>
                         <id>check-forbidden-test-apis</id>
                         <configuration>
-                            <targetVersion>1.6</targetVersion>
+                            <targetVersion>1.7</targetVersion>
                             <!-- disallow undocumented classes like sun.misc.Unsafe: -->
                             <internalRuntimeForbidden>true</internalRuntimeForbidden>
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
@@ -1240,16 +1240,14 @@
                   <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
                 </excludes>
               </configuration>
-              <!--  We can't run by default since the package is broken with java 1.6
-                   see https://github.com/mycila/license-maven-plugin/issues/35
-                   <executions>
-                   <execution>
-                   <goals>
-                   <goal>check</goal>
-                   </goals>
-                   </execution>
-                   </executions>
-              -->
+                <executions>
+                    <execution>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
           </plugins>
         </build>

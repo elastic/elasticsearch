@@ -40,7 +40,7 @@ from http.client import HTTPConnection
  '--publish' option is set the actual release is done. The script takes over almost all
  steps necessary for a release from a high level point of view it does the following things:
 
-  - run prerequisit checks ie. check for Java 1.6 being presend or S3 credentials available as env variables
+  - run prerequisit checks ie. check for Java 1.7 being presend or S3 credentials available as env variables
   - detect the version to release from the specified branch (--branch) or the current branch
   - creates a release branch & updates pom.xml and Version.java to point to a release version rather than a snapshot
   - builds the artifacts and runs smoke-tests on the build zip & tar.gz files
@@ -87,12 +87,12 @@ try:
 except KeyError:
   raise RuntimeError("""
   Please set JAVA_HOME in the env before running release tool
-  On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.6*'`""")
+  On OSX use: export JAVA_HOME=`/usr/libexec/java_home -v '1.7*'`""")
 
 try:
-  JAVA_HOME = env['JAVA6_HOME']
+  JAVA_HOME = env['JAVA7_HOME']
 except KeyError:
-  pass #no JAVA6_HOME - we rely on JAVA_HOME
+  pass #no JAVA7_HOME - we rely on JAVA_HOME
 
 
 try:
@@ -114,8 +114,8 @@ def verify_java_version(version):
   if s.find(' version "%s.' % version) == -1:
     raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
 
-# Verifies the java version. We guarantee that we run with Java 1.6
-# If 1.6 is not available fail the build!
+# Verifies the java version. We guarantee that we run with Java 1.7
+# If 1.7 is not available fail the build!
 def verify_mvn_java_version(version, mvn):
   s = os.popen('%s; %s --version 2>&1' % (java_exe(), mvn)).read()
   if s.find('Java version: %s' % version) == -1:
@@ -133,8 +133,8 @@ def get_tag_hash(tag):
 def get_current_branch():
   return os.popen('git rev-parse --abbrev-ref HEAD  2>&1').read().strip()
 
-verify_java_version('1.6') # we require to build with 1.6
-verify_mvn_java_version('1.6', MVN)
+verify_java_version('1.7') # we require to build with 1.7
+verify_mvn_java_version('1.7', MVN)
 
 # Utility that returns the name of the release branch for a given version
 def release_branch(version):

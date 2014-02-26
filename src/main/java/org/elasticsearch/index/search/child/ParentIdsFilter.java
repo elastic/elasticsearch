@@ -30,7 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHash;
 
 import java.io.IOException;
 

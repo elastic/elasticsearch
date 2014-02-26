@@ -88,6 +88,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .setDryRun(true)
                 .execute().actionGet().getState();
@@ -100,6 +101,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
@@ -115,6 +117,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> move shard 1 primary from node1 to node2");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_2))
                 .execute().actionGet().getState();
 
@@ -168,6 +171,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
@@ -201,6 +205,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
         logger.info("--> explicitly allocate primary");
         state = client().admin().cluster().prepareReroute()
+                .setExplain(randomBoolean())
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), node_1, true))
                 .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));

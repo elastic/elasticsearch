@@ -34,12 +34,12 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -89,7 +89,7 @@ public class ChildrenConstantScoreQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        BytesRefHash parentIds = new BytesRefHash(512, searchContext.pageCacheRecycler());
+        BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
         ParentIdCollector collector = new ParentIdCollector(parentType, parentChildIndexFieldData, parentIds);
         final Query childQuery;
         if (rewrittenChildQuery == null) {
@@ -104,6 +104,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         long remaining = parentIds.size();
         if (remaining == 0) {
+            Releasables.release(parentIds);
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 

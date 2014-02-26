@@ -85,7 +85,7 @@ abstract class SortedSetDVAtomicFieldData {
             synchronized (this) {
                 if (hashes == null) {
                     final long valueCount = values.getValueCount();
-                    final IntArray hashes = BigArrays.newIntArray(1L + valueCount);
+                    final IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(1L + valueCount);
                     BytesRef scratch = new BytesRef(16);
                     hashes.set(0, scratch.hashCode());
                     for (long i = 0; i < valueCount; ++i) {

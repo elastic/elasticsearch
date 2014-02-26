@@ -34,6 +34,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -93,6 +94,7 @@ public class PercolateContext extends SearchContext {
     private final IndexShard indexShard;
     private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
+    private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
     private String[] types;
@@ -115,7 +117,7 @@ public class PercolateContext extends SearchContext {
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
-                            ScriptService scriptService) {
+                            BigArrays bigArrays, ScriptService scriptService) {
         this.request = request;
         this.indexShard = indexShard;
         this.indexService = indexService;
@@ -125,6 +127,7 @@ public class PercolateContext extends SearchContext {
         this.types = new String[]{request.documentType()};
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
+        this.bigArrays = bigArrays;
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
@@ -475,6 +478,11 @@ public class PercolateContext extends SearchContext {
     @Override
     public PageCacheRecycler pageCacheRecycler() {
         return pageCacheRecycler;
+    }
+
+    @Override
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 
     @Override

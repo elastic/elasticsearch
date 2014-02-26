@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasables;
 
 /**
@@ -35,14 +34,14 @@ public final class LongHash extends AbstractHash {
     private LongArray keys;
 
     // Constructor with configurable capacity and default maximum load factor.
-    public LongHash(long capacity, PageCacheRecycler recycler) {
-        this(capacity, DEFAULT_MAX_LOAD_FACTOR, recycler);
+    public LongHash(long capacity, BigArrays bigArrays) {
+        this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
     //Constructor with configurable capacity and load factor.
-    public LongHash(long capacity, float maxLoadFactor, PageCacheRecycler recycler) {
-        super(capacity, maxLoadFactor, recycler);
-        keys = BigArrays.newLongArray(capacity(), recycler, false);
+    public LongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+        super(capacity, maxLoadFactor, bigArrays);
+        keys = bigArrays.newLongArray(capacity(), false);
     }
 
     private static long hash(long value) {
@@ -116,7 +115,7 @@ public final class LongHash extends AbstractHash {
 
     @Override
     protected void resizeKeys(long capacity) {
-        keys = BigArrays.resize(keys, capacity);
+        keys = bigArrays.resize(keys, capacity);
     }
 
     @Override

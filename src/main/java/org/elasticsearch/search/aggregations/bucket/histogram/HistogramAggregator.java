@@ -72,7 +72,7 @@ public class HistogramAggregator extends BucketsAggregator {
         this.minDocCount = minDocCount;
         this.histogramFactory = histogramFactory;
 
-        bucketOrds = new LongHash(initialCapacity, aggregationContext.pageCacheRecycler());
+        bucketOrds = new LongHash(initialCapacity, aggregationContext.bigArrays());
     }
 
     @Override

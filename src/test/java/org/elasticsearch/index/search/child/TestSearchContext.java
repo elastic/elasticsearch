@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -66,6 +67,7 @@ public class TestSearchContext extends SearchContext {
 
     final CacheRecycler cacheRecycler;
     final PageCacheRecycler pageCacheRecycler;
+    final BigArrays bigArrays;
     final IndexService indexService;
     final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
@@ -73,9 +75,10 @@ public class TestSearchContext extends SearchContext {
     ContextIndexSearcher searcher;
     int size;
 
-    public TestSearchContext(CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
+    public TestSearchContext(CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
+        this.bigArrays = bigArrays;
         this.indexService = indexService;
         this.filterCache = filterCache;
         this.indexFieldDataService = indexFieldDataService;
@@ -84,6 +87,7 @@ public class TestSearchContext extends SearchContext {
     public TestSearchContext() {
         this.cacheRecycler = null;
         this.pageCacheRecycler = null;
+        this.bigArrays = null;
         this.indexService = null;
         this.filterCache = null;
         this.indexFieldDataService = null;
@@ -317,6 +321,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public PageCacheRecycler pageCacheRecycler() {
         return pageCacheRecycler;
+    }
+
+    @Override
+    public BigArrays bigArrays() {
+        return bigArrays;
     }
 
     @Override

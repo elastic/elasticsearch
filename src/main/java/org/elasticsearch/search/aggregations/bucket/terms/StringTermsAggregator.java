@@ -68,7 +68,7 @@ public class StringTermsAggregator extends BucketsAggregator {
         this.shardSize = shardSize;
         this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
-        bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.pageCacheRecycler());
+        bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
 
     @Override
@@ -278,7 +278,7 @@ public class StringTermsAggregator extends BucketsAggregator {
                 if (ordinalToBucket != null) {
                     ordinalToBucket.release();
                 }
-                ordinalToBucket = BigArrays.newLongArray(BigArrays.overSize(maxOrd), context().pageCacheRecycler(), false);
+                ordinalToBucket = context().bigArrays().newLongArray(BigArrays.overSize(maxOrd), false);
             }
             ordinalToBucket.fill(0, maxOrd, -1L);
         }

@@ -51,6 +51,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoveryService;
@@ -151,6 +152,7 @@ public final class InternalNode implements Node {
         modules.add(new Version.Module(version));
         modules.add(new CacheRecyclerModule(settings));
         modules.add(new PageCacheRecyclerModule(settings));
+        modules.add(new BigArraysModule(settings));
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));

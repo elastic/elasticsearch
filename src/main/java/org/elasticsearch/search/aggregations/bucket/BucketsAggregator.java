@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -44,7 +43,7 @@ public abstract class BucketsAggregator extends Aggregator {
     public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
                              long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
-        docCounts = BigArrays.newLongArray(estimatedBucketsCount, context.pageCacheRecycler(), true);
+        docCounts = bigArrays.newLongArray(estimatedBucketsCount, true);
         List<Aggregator> collectables = new ArrayList<Aggregator>(subAggregators.length);
         for (int i = 0; i < subAggregators.length; i++) {
             if (subAggregators[i].shouldCollect()) {
@@ -58,7 +57,7 @@ public abstract class BucketsAggregator extends Aggregator {
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
     protected final void collectBucket(int doc, long bucketOrd) throws IOException {
-        docCounts = BigArrays.grow(docCounts, bucketOrd + 1);
+        docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, 1);
         for (int i = 0; i < collectableSugAggregators.length; i++) {
             collectableSugAggregators[i].collect(doc, bucketOrd);
@@ -78,7 +77,7 @@ public abstract class BucketsAggregator extends Aggregator {
      * Utility method to increment the doc counts of the given bucket (identified by the bucket ordinal)
      */
     protected final void incrementBucketDocCount(int inc, long bucketOrd) throws IOException {
-        docCounts = BigArrays.grow(docCounts, bucketOrd + 1);
+        docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, inc);
     }
 

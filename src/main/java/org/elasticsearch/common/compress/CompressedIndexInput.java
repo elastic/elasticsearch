@@ -59,7 +59,7 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
         in.seek(metaDataPosition);
         this.totalUncompressedLength = in.readVLong();
         int size = in.readVInt();
-        offsets = BigArrays.newLongArray(size);
+        offsets = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(size);
         for (int i = 0; i < size; i++) {
             offsets.set(i, in.readVLong());
         }

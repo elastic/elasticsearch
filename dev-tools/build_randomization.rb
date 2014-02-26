@@ -40,8 +40,9 @@ class JDKSelector
 
   # do ranomize selection from a given array
   def select_one(selection_array = nil)
-    selection_array ||= @jdk_list
+    selection_array = filter_java_6(selection_array || @jdk_list)
     selection_array[rand(selection_array.size)]
+
     get_random_one(selection_array)
   end
 end
@@ -50,15 +51,16 @@ def get_random_one(data_array)
   data_array[rand(data_array.size)]
 end
 
+def filter_java_6(files)
+  files.select{ |i| File.basename(i).split(/[^0-9]/)[-1].to_i > 6 }
+end
+
 # given a jdk directory selection, generate relevant environment variables
 def get_env_matrix(data_array)
   
   #refactoring target
   es_test_jvm_option1 = get_random_one(['-server']) #only server for now get_random_one(['-client', '-server'])
-  greater_than_six = File.basename([*data_array].first).split(/[^0-9]/)[-1].to_i > 6
-  es_test_jvm_option2 = greater_than_six ? get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC',
-                                        '-XX:+UseG1GC']) :
-                        get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC'])
+  es_test_jvm_option2 = get_random_one(['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC', '-XX:+UseG1GC'])
 
   es_test_jvm_option3 = get_random_one(['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'])
   es_node_mode =  get_random_one(['local', 'network'])

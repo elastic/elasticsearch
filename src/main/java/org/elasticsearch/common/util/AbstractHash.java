@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.google.common.base.Preconditions;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
@@ -34,14 +33,16 @@ abstract class AbstractHash implements Releasable {
     // collisions may result into worse lookup performance.
     static final float DEFAULT_MAX_LOAD_FACTOR = 0.6f;
 
+    final BigArrays bigArrays;
     final float maxLoadFactor;
     long size, maxSize;
     LongArray ids;
     long mask;
 
-    AbstractHash(long capacity, float maxLoadFactor, PageCacheRecycler recycler) {
+    AbstractHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         Preconditions.checkArgument(capacity >= 0, "capacity must be >= 0");
         Preconditions.checkArgument(maxLoadFactor > 0 && maxLoadFactor < 1, "maxLoadFactor must be > 0 and < 1");
+        this.bigArrays = bigArrays;
         this.maxLoadFactor = maxLoadFactor;
         long buckets = 1L + (long) (capacity / maxLoadFactor);
         buckets = Math.max(1, Long.highestOneBit(buckets - 1) << 1); // next power of two
@@ -49,7 +50,7 @@ abstract class AbstractHash implements Releasable {
         maxSize = (long) (buckets * maxLoadFactor);
         assert maxSize >= capacity;
         size = 0;
-        ids = BigArrays.newLongArray(buckets, recycler, true);
+        ids = bigArrays.newLongArray(buckets, true);
         mask = buckets - 1;
     }
 
@@ -102,7 +103,7 @@ abstract class AbstractHash implements Releasable {
         final long newBuckets = buckets << 1;
         assert newBuckets == Long.highestOneBit(newBuckets) : newBuckets; // power of 2
         resizeKeys(newBuckets);
-        ids = BigArrays.resize(ids, newBuckets);
+        ids = bigArrays.resize(ids, newBuckets);
         mask = newBuckets - 1;
         // First let's remap in-place: most data will be put in its final position directly
         for (long i = 0; i < buckets; ++i) {

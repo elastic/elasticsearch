@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Uid;
@@ -66,15 +67,19 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final PageCacheRecycler pageCacheRecycler;
 
+    private final BigArrays bigArrays;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler) {
+                                  ScriptService scriptService, CacheRecycler cacheRecycler,
+                                  PageCacheRecycler pageCacheRecycler, BigArrays bigArrays) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
+        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -118,7 +123,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                         .filteringAliases(request.filteringAlias())
                         .nowInMillis(request.nowInMillis),
                 null, result.searcher(), indexService, indexShard,
-                scriptService, cacheRecycler, pageCacheRecycler
+                scriptService, cacheRecycler, pageCacheRecycler,
+                bigArrays
         );
         SearchContext.setCurrent(context);
 

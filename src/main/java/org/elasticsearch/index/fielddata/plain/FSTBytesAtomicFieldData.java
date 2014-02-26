@@ -95,7 +95,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         if (needsHashes) {
             if (hashes == null) {
                 BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
-                IntArray hashes = BigArrays.newIntArray(ordinals.getMaxOrd());
+                IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(ordinals.getMaxOrd());
                 // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
                 // empty strings twice. ie. them merge fails for long output.
                 hashes.set(0, new BytesRef().hashCode());

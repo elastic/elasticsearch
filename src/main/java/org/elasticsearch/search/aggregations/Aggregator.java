@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,6 +51,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
     protected final String name;
     protected final Aggregator parent;
     protected final AggregationContext context;
+    protected final BigArrays bigArrays;
     protected final int depth;
     protected final long estimatedBucketCount;
 
@@ -72,6 +74,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
         this.parent = parent;
         this.estimatedBucketCount = estimatedBucketsCount;
         this.context = context;
+        this.bigArrays = context.bigArrays();
         this.depth = parent == null ? 0 : 1 + parent.depth();
         this.bucketAggregationMode = bucketAggregationMode;
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";

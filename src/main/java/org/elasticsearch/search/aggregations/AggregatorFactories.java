@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -77,7 +80,7 @@ public class AggregatorFactories {
                     // The estimated count is just an estimation and we can't rely on how it's estimated (that is, an
                     // estimation of 0 should not imply that we'll end up without any buckets)
                     long arraySize = estimatedBucketsCount > 0 ?  estimatedBucketsCount : 1;
-                    aggregators = BigArrays.newObjectArray(arraySize , context.pageCacheRecycler());
+                    aggregators = bigArrays.newObjectArray(arraySize);
                     aggregators.set(0, first);
                     for (long i = 1; i < arraySize; ++i) {
                         aggregators.set(i, createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount));
@@ -101,7 +104,7 @@ public class AggregatorFactories {
 
                 @Override
                 public void collect(int doc, long owningBucketOrdinal) throws IOException {
-                    aggregators = BigArrays.grow(aggregators, owningBucketOrdinal + 1);
+                    aggregators = bigArrays.grow(aggregators, owningBucketOrdinal + 1);
                     Aggregator aggregator = aggregators.get(owningBucketOrdinal);
                     if (aggregator == null) {
                         aggregator = createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount);
@@ -126,7 +129,29 @@ public class AggregatorFactories {
 
                 @Override
                 public void doRelease() {
-                    Releasables.release(aggregators);
+                    final Iterable<Aggregator> aggregatorsIter = new Iterable<Aggregator>() {
+
+                        @Override
+                        public Iterator<Aggregator> iterator() {
+                            return new UnmodifiableIterator<Aggregator>() {
+
+                                long i = 0;
+
+                                @Override
+                                public boolean hasNext() {
+                                    return i < aggregators.size();
+                                }
+
+                                @Override
+                                public Aggregator next() {
+                                    return aggregators.get(i++);
+                                }
+
+                            };
+                        }
+
+                    };
+                    Releasables.release(Iterables.concat(aggregatorsIter, Collections.singleton(aggregators)));
                 }
             };
         }

@@ -27,6 +27,7 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -69,6 +70,10 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     public PageCacheRecycler pageCacheRecycler() {
         return searchContext.pageCacheRecycler();
+    }
+
+    public BigArrays bigArrays() {
+        return searchContext.bigArrays();
     }
 
     public AtomicReaderContext currentReader() {

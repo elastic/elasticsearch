@@ -530,8 +530,8 @@ public class ClusterState implements ToXContent {
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             DiscoveryNodes.Builder.writeTo(state.nodes(), out);
             ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
-            if (out.getVersion().before(Version.V_2_0_0)) {
-                // Versions before 2.0.0 are expecting AllocationExplanation
+            if (out.getVersion().before(Version.V_1_1_0)) {
+                // Versions before 1.1.0 are expecting AllocationExplanation
                 AllocationExplanation.EMPTY.writeTo(out);
             }
             out.writeVInt(state.customs().size());
@@ -548,8 +548,8 @@ public class ClusterState implements ToXContent {
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
-            if (in.getVersion().before(Version.V_2_0_0)) {
-                // Ignore the explanation read, since after 2.0.0 it's not part of the cluster state
+            if (in.getVersion().before(Version.V_1_1_0)) {
+                // Ignore the explanation read, since after 1.1.0 it's not part of the cluster state
                 AllocationExplanation.readAllocationExplanation(in);
             }
             int customSize = in.readVInt();

@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util._TestUtil;
-import org.elasticsearch.common.util.BigArraysTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

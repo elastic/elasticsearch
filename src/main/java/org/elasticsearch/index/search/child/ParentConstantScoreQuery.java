@@ -34,7 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;

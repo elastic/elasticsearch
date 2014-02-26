@@ -66,6 +66,6 @@ same scope name that will work against the child documents. For example:
 [float]
 ==== Memory Considerations
 
-With the current implementation, all `_id` values are loaded to memory
-(heap) in order to support fast lookups, so make sure there is enough
-memory for it.
+With the current implementation, all `_parent` field values and all `_id`
+field values of parent documents are loaded into memory (heap) via field data
+in order to support fast lookups, so make sure there is enough memory for it.

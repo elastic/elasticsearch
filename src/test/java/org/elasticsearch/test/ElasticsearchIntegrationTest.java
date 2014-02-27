@@ -251,11 +251,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .transientSettings().getAsMap().size(), equalTo(0));
 
             }
-            ensureEstimatedStats();
-            wipeIndices("_all"); // wipe after to make sure we fail in the test that
-            // didn't ack the delete
-            wipeTemplates();
-            wipeRepositories();
+            try {
+                ensureEstimatedStats();
+            } finally {
+                wipeIndices("_all"); // wipe after to make sure we fail in the test that
+                // didn't ack the delete
+                wipeTemplates();
+                wipeRepositories();
+            }
             ensureAllSearchersClosed();
             ensureAllFilesClosed();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
@@ -350,7 +353,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Breaker reset to 0 ", stats.getBreaker().getEstimated(), equalTo(0L));
+                assertThat("Breaker reset to 0 - cleared on [" + all.getSuccessfulShards() + "] shards total [" + all.getTotalShards() + "]",
+                        stats.getBreaker().getEstimated(), equalTo(0L));
             }
         }
     }

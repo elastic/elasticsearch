@@ -24,9 +24,12 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -45,6 +48,61 @@ public class NaNSortingTests extends ElasticsearchIntegrationTest {
                 .build();
     }
 
+    private enum SubAggregation {
+        AVG("avg") {
+            @Override
+            public MetricsAggregationBuilder<?> builder() {
+                return avg(name).field("numeric_field");
+            }
+            @Override
+            public double getValue(Aggregation aggregation) {
+                return ((Avg) aggregation).getValue();
+            }
+        },
+        VARIANCE("variance") {
+            @Override
+            public MetricsAggregationBuilder<?> builder() {
+                return extendedStats(name).field("numeric_field");
+            }
+            @Override
+            public String sortKey() {
+                return name + ".variance";
+            }
+            @Override
+            public double getValue(Aggregation aggregation) {
+                return ((ExtendedStats) aggregation).getVariance();
+            }
+        },
+        STD_DEVIATION("std_deviation"){
+            @Override
+            public MetricsAggregationBuilder<?> builder() {
+                return extendedStats(name).field("numeric_field");
+            }
+            @Override
+            public String sortKey() {
+                return name + ".std_deviation";
+            }
+            @Override
+            public double getValue(Aggregation aggregation) {
+                return ((ExtendedStats) aggregation).getStdDeviation();
+            }
+        };
+
+        SubAggregation(String name) {
+            this.name = name;
+        }
+
+        public String name;
+
+        public abstract MetricsAggregationBuilder<?> builder();
+
+        public String sortKey() {
+            return name;
+        }
+
+        public abstract double getValue(Aggregation aggregation);
+    }
+
     @Before
     public void init() throws Exception {
         createIndex("idx");
@@ -61,72 +119,65 @@ public class NaNSortingTests extends ElasticsearchIntegrationTest {
         ensureSearchable();
     }
 
-    private void assertCorrectlySorted(Terms terms, boolean asc) {
+    private void assertCorrectlySorted(Terms terms, boolean asc, SubAggregation agg) {
         assertThat(terms, notNullValue());
-        double previousAvg = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        double previousValue = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
         for (Terms.Bucket bucket : terms.getBuckets()) {
-            Avg avg = bucket.getAggregations().get("avg");
-            assertTrue(Comparators.compareDiscardNaN(previousAvg, avg.getValue(), asc) <= 0);
-            previousAvg = avg.getValue();
+            Aggregation sub = bucket.getAggregations().get(agg.name);
+            double value = agg.getValue(sub);
+            assertTrue(Comparators.compareDiscardNaN(previousValue, value, asc) <= 0);
+            previousValue = value;
         }
     }
 
-    private void assertCorrectlySorted(Histogram histo, boolean asc) {
+    private void assertCorrectlySorted(Histogram histo, boolean asc, SubAggregation agg) {
         assertThat(histo, notNullValue());
-        double previousAvg = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        double previousValue = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
         for (Histogram.Bucket bucket : histo.getBuckets()) {
-            Avg avg = bucket.getAggregations().get("avg");
-            assertTrue(Comparators.compareDiscardNaN(previousAvg, avg.getValue(), asc) <= 0);
-            previousAvg = avg.getValue();
+            Aggregation sub = bucket.getAggregations().get(agg.name);
+            double value = agg.getValue(sub);
+            assertTrue(Comparators.compareDiscardNaN(previousValue, value, asc) <= 0);
+            previousValue = value;
         }
+    }
+
+    public void testTerms(String fieldName) {
+        final boolean asc = randomBoolean();
+        SubAggregation agg = randomFrom(SubAggregation.values());
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(terms("terms").field(fieldName).subAggregation(agg.builder()).order(Terms.Order.aggregation(agg.sortKey(), asc)))
+                .execute().actionGet();
+
+        final Terms terms = response.getAggregations().get("terms");
+        assertCorrectlySorted(terms, asc, agg);
     }
 
     @Test
     public void stringTerms() {
-        final boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field("string_value").subAggregation(avg("avg").field("numeric_value")).order(Terms.Order.aggregation("avg", asc)))
-                .execute().actionGet();
-
-        final Terms terms = response.getAggregations().get("terms");
-        assertCorrectlySorted(terms, asc);
+        testTerms("string_value");
     }
 
     @Test
     public void longTerms() {
-        final boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field("long_value").subAggregation(avg("avg").field("numeric_value")).order(Terms.Order.aggregation("avg", asc)))
-                .execute().actionGet();
-
-        final Terms terms = response.getAggregations().get("terms");
-        assertCorrectlySorted(terms, asc);
+        testTerms("long_value");
     }
 
     @Test
     public void doubleTerms() {
-        final boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(terms("terms")
-                        .field("double_value").subAggregation(avg("avg").field("numeric_value")).order(Terms.Order.aggregation("avg", asc)))
-                .execute().actionGet();
-
-        final Terms terms = response.getAggregations().get("terms");
-        assertCorrectlySorted(terms, asc);
+        testTerms("double_value");
     }
 
     @Test
     public void longHistogram() {
         final boolean asc = randomBoolean();
+        SubAggregation agg = randomFrom(SubAggregation.values());
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo")
-                        .field("long_value").interval(randomIntBetween(1, 2)).subAggregation(avg("avg").field("numeric_value")).order(Histogram.Order.aggregation("avg", asc)))
+                        .field("long_value").interval(randomIntBetween(1, 2)).subAggregation(agg.builder()).order(Histogram.Order.aggregation(agg.sortKey(), asc)))
                 .execute().actionGet();
 
         final Histogram histo = response.getAggregations().get("histo");
-        assertCorrectlySorted(histo, asc);
+        assertCorrectlySorted(histo, asc, agg);
     }
 
 }

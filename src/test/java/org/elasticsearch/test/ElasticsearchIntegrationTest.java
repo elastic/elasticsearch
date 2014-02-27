@@ -251,16 +251,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .transientSettings().getAsMap().size(), equalTo(0));
 
             }
-            try {
-                ensureEstimatedStats();
-            } finally {
-                wipeIndices("_all"); // wipe after to make sure we fail in the test that
-                // didn't ack the delete
-                wipeTemplates();
-                wipeRepositories();
-            }
+            wipeIndices("_all"); // wipe after to make sure we fail in the test that didn't ack the delete
+            wipeTemplates();
+            wipeRepositories();
             ensureAllSearchersClosed();
             ensureAllFilesClosed();
+            ensureEstimatedStats();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -346,14 +342,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
-    public static void ensureEstimatedStats() {
+    /**
+     * Ensures that the breaker statistics are reset to 0 since we wiped all indices and that
+     * means all stats should be set to 0 otherwise something is wrong with the field data
+     * calculation.
+     */
+    private static void ensureEstimatedStats() {
         if (cluster().size() > 0) {
-            ClearIndicesCacheResponse all = client().admin().indices().prepareClearCache("_all").setFieldDataCache(true).execute().actionGet();
-            assertNoFailures(all);
             NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Breaker reset to 0 - cleared on [" + all.getSuccessfulShards() + "] shards total [" + all.getTotalShards() + "]",
+                assertThat("Breaker not reset to 0 on node: " + stats.getNode(),
                         stats.getBreaker().getEstimated(), equalTo(0L));
             }
         }

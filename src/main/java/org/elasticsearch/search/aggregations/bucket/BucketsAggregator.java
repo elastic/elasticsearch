@@ -84,7 +84,7 @@ public abstract class BucketsAggregator extends Aggregator {
     /**
      * Utility method to return the number of documents that fell in the given bucket (identified by the bucket ordinal)
      */
-    protected final long bucketDocCount(long bucketOrd) {
+    public final long bucketDocCount(long bucketOrd) {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value

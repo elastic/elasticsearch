@@ -77,7 +77,7 @@ abstract class AbstractHash implements Releasable {
     }
 
     /**
-     * Get the id associated with key at <code>0 &lte; index &lte; capacity()</code> or -1 if this slot is unused.
+     * Get the id associated with key at <code>0 &lt;= index &lt;= capacity()</code> or -1 if this slot is unused.
      */
     public long id(long index) {
         return ids.get(index) - 1;

@@ -73,10 +73,6 @@ class InternalOrder extends Histogram.Order {
             super(ID, key, asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<InternalHistogram.Bucket>(key, asc));
         }
 
-        Aggregation(String aggName, String valueName, boolean asc) {
-            super(ID, key(aggName, valueName), asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<InternalHistogram.Bucket>(aggName, valueName, asc));
-        }
-
         private static String key(String aggName, String valueName) {
             return (valueName == null) ? aggName : aggName + "." + valueName;
         }

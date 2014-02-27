@@ -27,13 +27,17 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A registry for all the aggregator parser, also servers as the main parser for the aggregations module
  */
 public class AggregatorParsers {
 
+    public static final Pattern VALID_AGG_NAME = Pattern.compile("[a-zA-Z0-9\\-_]+");
     private final ImmutableMap<String, Aggregator.Parser> parsers;
+
 
     /**
      * Constructs the AggregatorParsers out of all the given parsers
@@ -78,6 +82,8 @@ public class AggregatorParsers {
         XContentParser.Token token = null;
         String currentFieldName = null;
 
+        Matcher validAggMatcher = VALID_AGG_NAME.matcher("");
+
         AggregatorFactories.Builder factories = new AggregatorFactories.Builder();
 
         String aggregationName = null;
@@ -101,6 +107,9 @@ public class AggregatorParsers {
                             Aggregator.Parser aggregatorParser = parser(aggregatorType);
                             if (aggregatorParser == null) {
                                 throw new SearchParseException(context, "Could not find aggregator type [" + currentFieldName + "]");
+                            }
+                            if (!validAggMatcher.reset(aggregationName).matches()) {
+                                throw new SearchParseException(context, "Invalid aggregation name [" + aggregationName + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
                             }
                             factory = aggregatorParser.parse(aggregationName, parser, context);
                         }

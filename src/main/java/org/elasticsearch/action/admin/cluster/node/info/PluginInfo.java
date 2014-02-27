@@ -149,7 +149,11 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         } else {
             this.version = VERSION_NOT_AVAILABLE;
         }
-        this.isolation = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            this.isolation = in.readBoolean();
+        } else {
+            this.isolation = false;
+        }
     }
 
     @Override
@@ -161,7 +165,9 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
             out.writeString(version);
         }
-        out.writeBoolean(isolation);
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeBoolean(isolation);
+        }
     }
 
     @Override

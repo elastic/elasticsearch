@@ -41,7 +41,9 @@ import java.util.Properties;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+// NB: the tests uses System Properties to pass the information from different plugins (loaded in separate CLs) to the test.
+// hence the use of try/finally blocks to clean these up after the test has been executed as otherwise the test framework will trigger a failure
+@ClusterScope(scope = Scope.TEST, numNodes = 1)
 public class IsolatedPluginTests extends ElasticsearchIntegrationTest {
 
     private static final Settings SETTINGS;

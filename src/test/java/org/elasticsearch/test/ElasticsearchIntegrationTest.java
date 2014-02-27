@@ -30,7 +30,10 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -248,6 +251,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .transientSettings().getAsMap().size(), equalTo(0));
 
             }
+            ensureEstimatedStats();
             wipeIndices("_all"); // wipe after to make sure we fail in the test that
             // didn't ack the delete
             wipeTemplates();
@@ -337,6 +341,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public Settings indexSettings() {
         return ImmutableSettings.EMPTY;
+    }
+
+    public static void ensureEstimatedStats() {
+        if (cluster().size() > 0) {
+            ClearIndicesCacheResponse all = client().admin().indices().prepareClearCache("_all").setFieldDataCache(true).execute().actionGet();
+            assertNoFailures(all);
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).execute().actionGet();
+            for (NodeStats stats : nodeStats.getNodes()) {
+                assertThat("Breaker reset to 0 ", stats.getBreaker().getEstimated(), equalTo(0L));
+            }
+        }
     }
 
     /**

@@ -193,6 +193,13 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(response);
     }
 
+    public static void assertAllSuccessful(BroadcastOperationResponse response) {
+        assertNoFailures(response);
+        assertThat("Expected all shards successful but got successful [" + response.getSuccessfulShards() + "] total [" + response.getTotalShards() + "]",
+                response.getTotalShards(), equalTo(response.getSuccessfulShards()));
+        assertVersionSerializable(response);
+    }
+
     public static void assertSearchHit(SearchHit searchHit, Matcher<SearchHit> matcher) {
         assertThat(searchHit, matcher);
         assertVersionSerializable(searchHit);

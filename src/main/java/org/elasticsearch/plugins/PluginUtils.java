@@ -35,7 +35,9 @@ import java.util.Properties;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-abstract class PluginUtils {
+public final class PluginUtils {
+
+    private PluginUtils() {}
 
     @SuppressWarnings("unchecked")
     static Plugin loadPlugin(String className, Settings settings, ClassLoader classLoader) {

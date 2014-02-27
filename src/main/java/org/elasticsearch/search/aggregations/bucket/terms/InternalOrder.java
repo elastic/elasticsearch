@@ -19,14 +19,17 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import com.google.common.primitives.Longs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -104,14 +107,6 @@ class InternalOrder extends Terms.Order {
         return id;
     }
 
-    String key() {
-        return key;
-    }
-
-    boolean asc() {
-        return asc;
-    }
-
     @Override
     protected Comparator<Terms.Bucket> comparator(Aggregator aggregator) {
         return comparator;
@@ -126,39 +121,9 @@ class InternalOrder extends Terms.Order {
         if (!(order instanceof Aggregation)) {
             return order;
         }
-        String aggName = ((Aggregation) order).aggName();
-        Aggregator[] subAggregators = termsAggregator.subAggregators();
-        for (int i = 0; i < subAggregators.length; i++) {
-            Aggregator aggregator = subAggregators[i];
-            if (aggregator.name().equals(aggName)) {
-
-                // we can only apply order on metrics sub-aggregators
-                if (!(aggregator instanceof MetricsAggregator)) {
-                    throw new AggregationExecutionException("terms aggregation [" + termsAggregator.name() + "] is configured to order by sub-aggregation ["
-                            + aggName + "] which is is not a metrics aggregation. Terms aggregation order can only refer to metrics aggregations");
-                }
-
-                if (aggregator instanceof MetricsAggregator.MultiValue) {
-                    String valueName = ((Aggregation) order).metricName();
-                    if (valueName == null) {
-                        throw new AggregationExecutionException("terms aggregation [" + termsAggregator.name() + "] is configured with a sub-aggregation order ["
-                                + aggName + "] which is a multi-valued aggregation, yet no metric name was specified");
-                    }
-                    if (!((MetricsAggregator.MultiValue) aggregator).hasMetric(valueName)) {
-                        throw new AggregationExecutionException("terms aggregation [" + termsAggregator.name() + "] is configured with a sub-aggregation order ["
-                                + aggName + "] and value [" + valueName + "] yet the referred sub aggregator holds no metric that goes by this name");
-                    }
-                    return order;
-                }
-
-                // aggregator must be of a single value type
-                // todo we can also choose to be really strict and verify that the user didn't specify a value name and if so fail?
-                return order;
-            }
-        }
-
-        throw new AggregationExecutionException("terms aggregation [" + termsAggregator.name() + "] is configured with a sub-aggregation order ["
-                + aggName + "] but no sub aggregation with this name is configured");
+        OrderPath path = ((Aggregation) order).path();
+        path.validate(termsAggregator);
+        return order;
     }
 
     static class Aggregation extends InternalOrder {
@@ -169,22 +134,8 @@ class InternalOrder extends Terms.Order {
             super(ID, key, asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<Terms.Bucket>(key, asc));
         }
 
-        Aggregation(String aggName, String metricName, boolean asc) {
-            super(ID, key(aggName, metricName), asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<Terms.Bucket>(aggName, metricName, asc));
-        }
-
-        String aggName() {
-            int index = key.indexOf('.');
-            return index < 0 ? key : key.substring(0, index);
-        }
-
-        String metricName() {
-            int index = key.indexOf('.');
-            return index < 0 ? null : key.substring(index + 1, key.length());
-        }
-
-        private static String key(String aggName, String valueName) {
-            return (valueName == null) ? aggName : aggName + "." + valueName;
+        OrderPath path() {
+            return ((MultiBucketsAggregation.Bucket.SubAggregationComparator) comparator).path();
         }
 
         @Override
@@ -201,16 +152,32 @@ class InternalOrder extends Terms.Order {
             // sub aggregation values directly from the sub aggregators bypassing bucket creation. Note that the comparator
             // attached to the order will still be used in the reduce phase of the Aggregation.
 
-            final Aggregator aggregator = subAggregator(aggName(), termsAggregator);
-            assert aggregator != null && aggregator instanceof MetricsAggregator : "this should be picked up before the aggregation is executed";
-            if (aggregator instanceof MetricsAggregator.MultiValue) {
-                final String valueName = metricName();
-                assert valueName != null : "this should be picked up before the aggregation is executed";
+            OrderPath path = path();
+            final Aggregator aggregator = path.resolveAggregator(termsAggregator, false);
+            final String key = path.tokens[path.tokens.length - 1].key;
+
+            if (aggregator instanceof SingleBucketAggregator) {
+                assert key == null : "this should be picked up before the aggregation is executed - on validate";
                 return new Comparator<Terms.Bucket>() {
                     @Override
                     public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                        double v1 = ((MetricsAggregator.MultiValue) aggregator).metric(valueName, ((InternalTerms.Bucket) o1).bucketOrd);
-                        double v2 = ((MetricsAggregator.MultiValue) aggregator).metric(valueName, ((InternalTerms.Bucket) o2).bucketOrd);
+                        long v1 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o1).bucketOrd);
+                        long v2 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o2).bucketOrd);
+                        return asc ? Longs.compare(v1, v2) : Longs.compare(v2, v1);
+                    }
+                };
+            }
+
+            // with only support single-bucket aggregators
+            assert !(aggregator instanceof BucketsAggregator) : "this should be picked up before the aggregation is executed - on validate";
+
+            if (aggregator instanceof MetricsAggregator.MultiValue) {
+                assert key != null : "this should be picked up before the aggregation is executed - on validate";
+                return new Comparator<Terms.Bucket>() {
+                    @Override
+                    public int compare(Terms.Bucket o1, Terms.Bucket o2) {
+                        double v1 = ((MetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o1).bucketOrd);
+                        double v2 = ((MetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o2).bucketOrd);
                         // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                         // the bottom
                         return Comparators.compareDiscardNaN(v1, v2, asc);
@@ -218,6 +185,7 @@ class InternalOrder extends Terms.Order {
                 };
             }
 
+            // single-value metrics agg
             return new Comparator<Terms.Bucket>() {
                 @Override
                 public int compare(Terms.Bucket o1, Terms.Bucket o2) {
@@ -229,16 +197,6 @@ class InternalOrder extends Terms.Order {
                 }
             };
         }
-
-        private Aggregator subAggregator(String aggName, Aggregator termsAggregator) {
-            Aggregator[] subAggregators = termsAggregator.subAggregators();
-            for (int i = 0; i < subAggregators.length; i++) {
-                if (subAggregators[i].name().equals(aggName)) {
-                    return subAggregators[i];
-                }
-            }
-            return null;
-        }
     }
 
     public static class Streams {
@@ -247,11 +205,18 @@ class InternalOrder extends Terms.Order {
             out.writeByte(order.id());
             if (order instanceof Aggregation) {
                 out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).asc());
-                out.writeString(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).aggName());
-                boolean hasValueName = ((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).valueName() != null;
-                out.writeBoolean(hasValueName);
-                if (hasValueName) {
-                    out.writeString(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).valueName());
+                OrderPath path = ((Aggregation) order).path();
+                if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+                    out.writeString(path.toString());
+                } else {
+                    // prev versions only supported sorting on a single level -> a single token;
+                    OrderPath.Token token = path.lastToken();
+                    out.writeString(token.name);
+                    boolean hasValueName = token.key != null;
+                    out.writeBoolean(hasValueName);
+                    if (hasValueName) {
+                        out.writeString(token.key);
+                    }
                 }
             }
         }
@@ -266,8 +231,12 @@ class InternalOrder extends Terms.Order {
                 case 0:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    if (in.readBoolean()) {
-                        return new InternalOrder.Aggregation(key, in.readString(), asc);
+                    if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+                        return new InternalOrder.Aggregation(key, asc);
+                    }
+                    boolean hasValueNmae = in.readBoolean();
+                    if (hasValueNmae) {
+                        return new InternalOrder.Aggregation(key + "." + in.readString(), asc);
                     }
                     return new InternalOrder.Aggregation(key, asc);
                 default:

@@ -23,8 +23,10 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -37,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -455,6 +458,44 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
             assertThat(stats.getSum(), equalTo((double) s));
             assertThat(stats.getSum(), lessThanOrEqualTo(previousSum));
             previousSum = s;
+        }
+    }
+
+    @Test
+    public void singleValuedField_OrderedBySubAggregationDesc_DeepOrderPath() throws Exception {
+        boolean asc = randomBoolean();
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("filter>max", asc))
+                        .subAggregation(filter("filter").filter(matchAllFilter())
+                                .subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+
+        LongOpenHashSet visited = new LongOpenHashSet();
+        double prevMax = asc? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            long key = bucket.getKeyAsNumber().longValue();
+            assertTrue(visited.add(key));
+            int b = (int) (key / interval);
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
+            assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
+            Filter filter = bucket.getAggregations().get("filter");
+            assertThat(filter, notNullValue());
+            assertThat(bucket.getDocCount(), equalTo(filter.getDocCount()));
+            Max max = filter.getAggregations().get("max");
+            assertThat(max, Matchers.notNullValue());
+            assertThat(max.getValue(), asc ? greaterThanOrEqualTo(prevMax) : lessThanOrEqualTo(prevMax));
+            prevMax = max.getValue();
         }
     }
 

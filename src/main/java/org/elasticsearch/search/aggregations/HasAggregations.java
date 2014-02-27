@@ -17,24 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket;
-
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.HasAggregations;
+package org.elasticsearch.search.aggregations;
 
 /**
- * A single bucket aggregation
+ *
  */
-public interface SingleBucketAggregation extends Aggregation, HasAggregations {
+public interface HasAggregations {
 
-    /**
-     * @return  The number of documents in this bucket
-     */
-    long getDocCount();
-
-    /**
-     * @return  The sub-aggregations of this bucket
-     */
     Aggregations getAggregations();
+
 }

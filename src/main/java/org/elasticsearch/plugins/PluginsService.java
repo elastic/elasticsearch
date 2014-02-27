@@ -323,7 +323,7 @@ public class PluginsService extends AbstractComponent {
 
         List<Tuple<PluginInfo, Plugin>> pluginData = Lists.newArrayList();
 
-        Boolean defaultIsolation = settings.getAsBoolean("plugin.isolation", Boolean.TRUE);
+        boolean defaultIsolation = settings.getAsBoolean("plugins.isolation", Boolean.TRUE);
         ClassLoader esClassLoader = settings.getClassLoader();
         Method addURL = null;
         boolean discoveredAddUrl = false;
@@ -338,7 +338,7 @@ public class PluginsService extends AbstractComponent {
                         // check isolation
                         List<File> pluginClassPath = PluginUtils.pluginClassPathAsFiles(pluginRoot);
                         List<URL> pluginProperties = PluginUtils.lookupPluginProperties(pluginClassPath);
-                        boolean isolated = PluginUtils.lookupIsolation(pluginProperties, defaultIsolation.booleanValue());
+                        boolean isolated = PluginUtils.lookupIsolation(pluginProperties, defaultIsolation);
 
                         if (isolated) {
                             logger.trace("--- creating isolated space for plugin [" + pluginRoot.getAbsolutePath() + "]");

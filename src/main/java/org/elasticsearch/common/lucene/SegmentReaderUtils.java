@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.FilterAtomicReader;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 
@@ -31,6 +32,8 @@ public class SegmentReaderUtils {
     private static final Field FILTER_ATOMIC_READER_IN;
 
     static {
+        assert Version.LUCENE_47.onOrAfter(Lucene.VERSION) : "Lucene 4.8 has FilterAtomicReader.unwrap";
+
         Field in = null;
         try { // and another one bites the dust...
             in = FilterAtomicReader.class.getDeclaredField("in");

@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("org.elasticsearch.indices.fielddata.breaker:TRACE,org.elasticsearch.index.fielddata:TRACE,org.elasticsearch.common.breaker:TRACE")
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet().getNodes()) {

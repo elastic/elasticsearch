@@ -1,8 +1,8 @@
 eclipse.preferences.version=1
-# We target Java 1.6
-org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.6
-org.eclipse.jdt.core.compiler.compliance=1.6
-org.eclipse.jdt.core.compiler.source=1.6
+# We target Java 1.7
+org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.7
+org.eclipse.jdt.core.compiler.compliance=1.7
+org.eclipse.jdt.core.compiler.source=1.7
 # Lines should be splitted at 140 chars
 org.eclipse.jdt.core.formatter.lineSplit=140
 # Indentation is 4 spaces

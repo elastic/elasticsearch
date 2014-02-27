@@ -92,6 +92,22 @@ public class BigArraysTests extends ElasticsearchTestCase {
         array.release();
     }
 
+    public void testFloatArrayGrowth() {
+        final int totalLen = randomIntBetween(1, 1000000);
+        final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
+        FloatArray array = bigArrays.newFloatArray(startLen, randomBoolean());
+        float[] ref = new float[totalLen];
+        for (int i = 0; i < totalLen; ++i) {
+            ref[i] = randomFloat();
+            array = bigArrays.grow(array, i + 1);
+            array.set(i, ref[i]);
+        }
+        for (int i = 0; i < totalLen; ++i) {
+            assertEquals(ref[i], array.get(i), 0.001d);
+        }
+        array.release();
+    }
+
     public void testDoubleArrayGrowth() {
         final int totalLen = randomIntBetween(1, 1000000);
         final int startLen = randomIntBetween(1, randomBoolean() ? 1000 : totalLen);
@@ -126,6 +142,27 @@ public class BigArraysTests extends ElasticsearchTestCase {
             assertSame(ref[i], array.get(i));
         }
         array.release();
+    }
+
+    public void testFloatArrayFill() {
+        final int len = randomIntBetween(1, 100000);
+        final int fromIndex = randomIntBetween(0, len - 1);
+        final int toIndex = randomBoolean()
+            ? Math.min(fromIndex + randomInt(100), len) // single page
+            : randomIntBetween(fromIndex, len); // likely multiple pages
+        final FloatArray array2 = bigArrays.newFloatArray(len, randomBoolean());
+        final float[] array1 = new float[len];
+        for (int i = 0; i < len; ++i) {
+            array1[i] = randomFloat();
+            array2.set(i, array1[i]);
+        }
+        final float rand = randomFloat();
+        Arrays.fill(array1, fromIndex, toIndex, rand);
+        array2.fill(fromIndex, toIndex, rand);
+        for (int i = 0; i < len; ++i) {
+            assertEquals(array1[i], array2.get(i), 0.001d);
+        }
+        array2.release();
     }
 
     public void testDoubleArrayFill() {

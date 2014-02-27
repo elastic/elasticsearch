@@ -57,6 +57,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.index.service.StubIndexService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Description;
@@ -333,7 +334,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final Index index = new Index(indexName);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool());
-        final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
+        final BigArrays bigArrays = new MockBigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new DummyCircuitBreakerService());

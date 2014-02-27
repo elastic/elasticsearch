@@ -39,6 +39,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.Closeable;
@@ -124,6 +125,12 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     @After
     public void ensureAllPagesReleased() {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    @Before
+    public void resetArrayTracking() {
+        // useful if there are tests that use MockBigArrays but don't inherit from ElasticsearchTestCase
+        MockBigArrays.reset();
     }
 
     @After

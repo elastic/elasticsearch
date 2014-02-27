@@ -27,6 +27,8 @@ import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -149,9 +151,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 list[i] = (InternalStringTermsFacet.TermEntry) ordered.pop();
             }
 
-            for (ReaderAggregator aggregator : aggregators) {
-                aggregator.release();
-            }
+            Releasables.release(aggregators);
 
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
@@ -189,9 +189,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             }
         }
 
-        for (ReaderAggregator aggregator : aggregators) {
-            aggregator.release();
-        }
+        Releasables.release(aggregators);
 
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
@@ -238,7 +236,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
                 } else {
-                    current.release();
+                    Releasables.release(current);
                 }
                 current = null;
             }
@@ -247,7 +245,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
     }
 
-    public final class ReaderAggregator {
+    public final class ReaderAggregator implements Releasable {
 
         private final long maxOrd;
 
@@ -286,8 +284,10 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             return values.copyShared();
         }
 
-        public void release() {
-            counts.release();
+        @Override
+        public boolean release() {
+            Releasables.release(counts);
+            return true;
         }
 
     }

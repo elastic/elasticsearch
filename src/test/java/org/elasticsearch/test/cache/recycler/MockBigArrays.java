@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.*;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MockBigArrays extends BigArrays {
 
@@ -51,16 +52,16 @@ public class MockBigArrays extends BigArrays {
         DISCARD = true;
     }
 
+    public static void reset() {
+        ACQUIRED_ARRAYS.clear();
+    }
+
     public static void ensureAllArraysAreReleased() {
-        try {
-            if (DISCARD) {
-                DISCARD = false;
-            } else if (ACQUIRED_ARRAYS.size() > 0) {
-                final Object cause = ACQUIRED_ARRAYS.entrySet().iterator().next().getValue();
-                throw new RuntimeException(ACQUIRED_ARRAYS.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
-            }
-        } finally {
-            ACQUIRED_ARRAYS.clear();
+        if (DISCARD) {
+            DISCARD = false;
+        } else if (ACQUIRED_ARRAYS.size() > 0) {
+            final Object cause = ACQUIRED_ARRAYS.entrySet().iterator().next().getValue();
+            throw new RuntimeException(ACQUIRED_ARRAYS.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
         }
     }
 
@@ -91,10 +92,12 @@ public class MockBigArrays extends BigArrays {
     public ByteArray resize(ByteArray array, long size) {
         ByteArrayWrapper arr = (ByteArrayWrapper) array;
         final long originalSize = arr.size();
-        arr.in = super.resize(arr.in, size);
-        if (arr.in instanceof ByteArrayWrapper) {
-            ACQUIRED_ARRAYS.remove(arr);
-            arr = (ByteArrayWrapper) arr.in;
+        array = super.resize(arr.in, size);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof ByteArrayWrapper) {
+            arr = (ByteArrayWrapper) array;
+        } else {
+            arr = new ByteArrayWrapper(array, arr.clearOnResize);
         }
         if (!arr.clearOnResize) {
             arr.randomizeContent(originalSize, size);
@@ -115,10 +118,12 @@ public class MockBigArrays extends BigArrays {
     public IntArray resize(IntArray array, long size) {
         IntArrayWrapper arr = (IntArrayWrapper) array;
         final long originalSize = arr.size();
-        arr.in = super.resize(arr.in, size);
-        if (arr.in instanceof IntArrayWrapper) {
-            ACQUIRED_ARRAYS.remove(arr);
-            arr = (IntArrayWrapper) arr.in;
+        array = super.resize(arr.in, size);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof IntArrayWrapper) {
+            arr = (IntArrayWrapper) array;
+        } else {
+            arr = new IntArrayWrapper(array, arr.clearOnResize);
         }
         if (!arr.clearOnResize) {
             arr.randomizeContent(originalSize, size);
@@ -139,10 +144,38 @@ public class MockBigArrays extends BigArrays {
     public LongArray resize(LongArray array, long size) {
         LongArrayWrapper arr = (LongArrayWrapper) array;
         final long originalSize = arr.size();
-        arr.in = super.resize(arr.in, size);
-        if (arr.in instanceof LongArrayWrapper) {
-            ACQUIRED_ARRAYS.remove(arr);
-            arr = (LongArrayWrapper) arr.in;
+        array = super.resize(arr.in, size);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof LongArrayWrapper) {
+            arr = (LongArrayWrapper) array;
+        } else {
+            arr = new LongArrayWrapper(array, arr.clearOnResize);
+        }
+        if (!arr.clearOnResize) {
+            arr.randomizeContent(originalSize, size);
+        }
+        return arr;
+    }
+
+    @Override
+    public FloatArray newFloatArray(long size, boolean clearOnResize) {
+        final FloatArrayWrapper array = new FloatArrayWrapper(super.newFloatArray(size, clearOnResize), clearOnResize);
+        if (!clearOnResize) {
+            array.randomizeContent(0, size);
+        }
+        return array;
+    }
+
+    @Override
+    public FloatArray resize(FloatArray array, long size) {
+        FloatArrayWrapper arr = (FloatArrayWrapper) array;
+        final long originalSize = arr.size();
+        array = super.resize(arr.in, size);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof FloatArrayWrapper) {
+            arr = (FloatArrayWrapper) array;
+        } else {
+            arr = new FloatArrayWrapper(array, arr.clearOnResize);
         }
         if (!arr.clearOnResize) {
             arr.randomizeContent(originalSize, size);
@@ -163,10 +196,12 @@ public class MockBigArrays extends BigArrays {
     public DoubleArray resize(DoubleArray array, long size) {
         DoubleArrayWrapper arr = (DoubleArrayWrapper) array;
         final long originalSize = arr.size();
-        arr.in = super.resize(arr.in, size);
-        if (arr.in instanceof DoubleArrayWrapper) {
-            ACQUIRED_ARRAYS.remove(arr);
-            arr = (DoubleArrayWrapper) arr.in;
+        array = super.resize(arr.in, size);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof DoubleArrayWrapper) {
+            arr = (DoubleArrayWrapper) array;
+        } else {
+            arr = new DoubleArrayWrapper(array, arr.clearOnResize);
         }
         if (!arr.clearOnResize) {
             arr.randomizeContent(originalSize, size);
@@ -182,10 +217,12 @@ public class MockBigArrays extends BigArrays {
     @Override
     public <T> ObjectArray<T> resize(ObjectArray<T> array, long size) {
         ObjectArrayWrapper<T> arr = (ObjectArrayWrapper<T>) array;
-        arr.in = super.resize(arr.in, size);
-        if (arr.in instanceof ObjectArrayWrapper) {
-            ACQUIRED_ARRAYS.remove(arr);
-            arr = (ObjectArrayWrapper<T>) arr.in;
+        array = super.resize(arr.in, size);
+        ACQUIRED_ARRAYS.remove(arr);
+        if (array instanceof ObjectArrayWrapper) {
+            arr = (ObjectArrayWrapper<T>) array;
+        } else {
+            arr = new ObjectArrayWrapper<T>(array);
         }
         return arr;
     }
@@ -193,11 +230,12 @@ public class MockBigArrays extends BigArrays {
     private static abstract class AbstractArrayWrapper {
 
         boolean clearOnResize;
-        boolean released = false;
+        AtomicBoolean released;
 
         AbstractArrayWrapper(boolean clearOnResize) {
             ACQUIRED_ARRAYS.put(this, TRACK_ALLOCATIONS ? new RuntimeException() : Boolean.TRUE);
             this.clearOnResize = clearOnResize;
+            released = new AtomicBoolean(false);
         }
 
         protected abstract BigArray getDelegate();
@@ -209,10 +247,11 @@ public class MockBigArrays extends BigArrays {
         }
 
         public boolean release() {
-            assert !released;
+            if (!released.compareAndSet(false, true)) {
+                throw new IllegalStateException("Double release");
+            }
             ACQUIRED_ARRAYS.remove(this);
             randomizeContent(0, size());
-            released = true;
             return getDelegate().release();
         }
 
@@ -220,7 +259,7 @@ public class MockBigArrays extends BigArrays {
 
     private class ByteArrayWrapper extends AbstractArrayWrapper implements ByteArray {
 
-        private ByteArray in;
+        private final ByteArray in;
 
         ByteArrayWrapper(ByteArray in, boolean clearOnResize) {
             super(clearOnResize);
@@ -263,7 +302,7 @@ public class MockBigArrays extends BigArrays {
 
     private class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
 
-        private IntArray in;
+        private final IntArray in;
 
         IntArrayWrapper(IntArray in, boolean clearOnResize) {
             super(clearOnResize);
@@ -301,7 +340,7 @@ public class MockBigArrays extends BigArrays {
 
     private class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
-        private LongArray in;
+        private final LongArray in;
 
         LongArrayWrapper(LongArray in, boolean clearOnResize) {
             super(clearOnResize);
@@ -342,9 +381,52 @@ public class MockBigArrays extends BigArrays {
 
     }
 
+    private class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
+
+        private final FloatArray in;
+
+        FloatArrayWrapper(FloatArray in, boolean clearOnResize) {
+            super(clearOnResize);
+            this.in = in;
+        }
+
+        @Override
+        protected BigArray getDelegate() {
+            return in;
+        }
+
+        @Override
+        protected void randomizeContent(long from, long to) {
+            for (long i = from; i < to; ++i) {
+                set(i, (random.nextFloat() - 0.5f) * 1000);
+            }
+        }
+
+        @Override
+        public float get(long index) {
+            return in.get(index);
+        }
+
+        @Override
+        public float set(long index, float value) {
+            return in.set(index, value);
+        }
+
+        @Override
+        public float increment(long index, float inc) {
+            return in.increment(index, inc);
+        }
+
+        @Override
+        public void fill(long fromIndex, long toIndex, float value) {
+            in.fill(fromIndex, toIndex, value);
+        }
+
+    }
+
     private class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
 
-        private DoubleArray in;
+        private final DoubleArray in;
 
         DoubleArrayWrapper(DoubleArray in, boolean clearOnResize) {
             super(clearOnResize);
@@ -387,7 +469,7 @@ public class MockBigArrays extends BigArrays {
 
     private class ObjectArrayWrapper<T> extends AbstractArrayWrapper implements ObjectArray<T> {
 
-        private ObjectArray<T> in;
+        private final ObjectArray<T> in;
 
         ObjectArrayWrapper(ObjectArray<T> in) {
             super(false);

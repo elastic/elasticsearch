@@ -30,6 +30,7 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -674,19 +675,10 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public void clearReleasables() {
         if (clearables != null) {
-            Throwable th = null;
-            for (Releasable releasable : clearables) {
-                try {
-                    releasable.release();
-                } catch (Throwable t) {
-                    if (th == null) {
-                        th = t;
-                    }
-                }
-            }
-            clearables.clear();
-            if (th != null) {
-                throw new RuntimeException(th);
+            try {
+                Releasables.release(clearables);
+            } finally {
+                clearables.clear();
             }
         }
     }

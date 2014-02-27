@@ -136,9 +136,9 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
             } finally {
                 for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
                     cursor.value.builder.close();
-                    if (success) {
-                        estimator.afterLoad(null, data.getMemorySizeInBytes());
-                    }
+                }
+                if (success) {
+                    estimator.afterLoad(null, data.getMemorySizeInBytes());
                 }
             }
         }

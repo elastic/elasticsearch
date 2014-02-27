@@ -46,6 +46,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -55,6 +56,10 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
 
     @Test
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
+        for (NodeStats node : client().admin().cluster().prepareNodesStats()
+                .clear().setBreaker(true).execute().actionGet().getNodes()) {
+            assertThat("Breaker is not set to 0", node.getBreaker().getEstimated(), equalTo(0L));
+        }
         final int numShards = between(1, 5);
         final int numReplicas = randomIntBetween(0, 1);
         String mapping = XContentFactory.jsonBuilder()
@@ -172,7 +177,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 // successfully set back to zero. If there is a bug in the circuit
                 // breaker adjustment code, it should show up here by the breaker
                 // estimate being either positive or negative.
-                client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet();
+                assertAllSuccessful(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
                 NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
@@ -181,6 +186,8 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
             }
         }
     }
+
+
 
     public static final String EXCEPTION_TOP_LEVEL_RATIO_KEY = "index.engine.exception.ratio.top";
     public static final String EXCEPTION_LOW_LEVEL_RATIO_KEY = "index.engine.exception.ratio.low";

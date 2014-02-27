@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.HasAggregations;
+import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.util.Collection;
 
@@ -38,7 +38,7 @@ public interface MultiBucketsAggregation extends Aggregation {
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    public interface Bucket {
+    public interface Bucket extends HasAggregations {
 
         /**
          * @return  The key associated with the bucket as a string
@@ -62,65 +62,27 @@ public interface MultiBucketsAggregation extends Aggregation {
 
         static class SubAggregationComparator<B extends Bucket> implements java.util.Comparator<B> {
 
-            private final String aggName;
-            private final String valueName;
+            private final OrderPath path;
             private final boolean asc;
 
             public SubAggregationComparator(String expression, boolean asc) {
                 this.asc = asc;
-                int i = expression.indexOf('.');
-                if (i < 0) {
-                    this.aggName = expression;
-                    this.valueName = null;
-                } else {
-                    this.aggName = expression.substring(0, i);
-                    this.valueName = expression.substring(i+1);
-                }
-            }
-
-            public SubAggregationComparator(String aggName, String valueName, boolean asc) {
-                this.aggName = aggName;
-                this.valueName = valueName;
-                this.asc = asc;
+                this.path = OrderPath.parse(expression);
             }
 
             public boolean asc() {
                 return asc;
             }
 
-            public String aggName() {
-                return aggName;
-            }
-
-            public String valueName() {
-                return valueName;
+            public OrderPath path() {
+                return path;
             }
 
             @Override
             public int compare(B b1, B b2) {
-                double v1 = value(b1);
-                double v2 = value(b2);
+                double v1 = path.resolveValue(b1);
+                double v2 = path.resolveValue(b2);
                 return Comparators.compareDiscardNaN(v1, v2, asc);
-            }
-
-            private double value(B bucket) {
-                MetricsAggregation aggregation = bucket.getAggregations().get(aggName);
-                if (aggregation == null) {
-                    throw new ElasticsearchIllegalArgumentException("Unknown aggregation named [" + aggName + "]");
-                }
-                if (aggregation instanceof MetricsAggregation.SingleValue) {
-                    //TODO should we throw an exception if the value name is specified?
-                    return ((MetricsAggregation.SingleValue) aggregation).value();
-                }
-                if (aggregation instanceof MetricsAggregation.MultiValue) {
-                    if (valueName == null) {
-                        throw new ElasticsearchIllegalArgumentException("Cannot sort on multi valued aggregation [" + aggName + "]. A value name is required");
-                    }
-                    return ((MetricsAggregation.MultiValue) aggregation).value(valueName);
-                }
-
-                throw new ElasticsearchIllegalArgumentException("A mal attempt to sort terms by aggregation [" + aggregation.getName() +
-                        "]. Terms can only be ordered by either standard order or direct calc aggregators of the terms");
             }
         }
     }

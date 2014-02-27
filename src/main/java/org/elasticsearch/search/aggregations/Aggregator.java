@@ -28,7 +28,9 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public abstract class Aggregator implements Releasable, ReaderContextAware {
 
@@ -58,6 +60,8 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
     protected final BucketAggregationMode bucketAggregationMode;
     protected final AggregatorFactories factories;
     protected final Aggregator[] subAggregators;
+
+    private Map<String, Aggregator> subAggregatorbyName;
 
     /**
      * Constructs a new Aggregator.
@@ -111,6 +115,16 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
 
     public Aggregator[] subAggregators() {
         return subAggregators;
+    }
+
+    public Aggregator subAggregator(String aggName) {
+        if (subAggregatorbyName == null) {
+            subAggregatorbyName = new HashMap<String, Aggregator>(subAggregators.length);
+            for (int i = 0; i < subAggregators.length; i++) {
+                subAggregatorbyName.put(subAggregators[i].name, subAggregators[i]);
+            }
+        }
+        return subAggregatorbyName.get(aggName);
     }
 
     /**

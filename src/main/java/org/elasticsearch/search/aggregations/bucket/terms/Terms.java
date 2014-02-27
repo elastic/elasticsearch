@@ -95,11 +95,11 @@ public interface Terms extends MultiBucketsAggregation {
         /**
          * Creates a bucket ordering strategy which sorts buckets based on a single-valued calc get
          *
-         * @param   aggregationName the name of the get
+         * @param   path the name of the get
          * @param   asc             The direction of the order (ascending or descending)
          */
-        public static Order aggregation(String aggregationName, boolean asc) {
-            return new InternalOrder.Aggregation(aggregationName, null, asc);
+        public static Order aggregation(String path, boolean asc) {
+            return new InternalOrder.Aggregation(path, asc);
         }
 
         /**
@@ -110,7 +110,7 @@ public interface Terms extends MultiBucketsAggregation {
          * @param   asc             The direction of the order (ascending or descending)
          */
         public static Order aggregation(String aggregationName, String metricName, boolean asc) {
-            return new InternalOrder.Aggregation(aggregationName, metricName, asc);
+            return new InternalOrder.Aggregation(aggregationName + "." + metricName, asc);
         }
 
         /**

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import com.google.common.primitives.Longs;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Collection;
@@ -110,11 +109,11 @@ public interface Histogram extends MultiBucketsAggregation {
         /**
          * Creates a bucket ordering strategy that sorts buckets based on a single-valued calc sug-aggregation
          *
-         * @param aggregationName the name of the aggregation
+         * @param path the name of the aggregation
          * @param asc             The direction of the order (ascending or descending)
          */
-        public static Order aggregation(String aggregationName, boolean asc) {
-            return new InternalOrder.Aggregation(aggregationName, null, asc);
+        public static Order aggregation(String path, boolean asc) {
+            return new InternalOrder.Aggregation(path, asc);
         }
 
         /**
@@ -125,7 +124,7 @@ public interface Histogram extends MultiBucketsAggregation {
          * @param asc             The direction of the order (ascending or descending)
          */
         public static Order aggregation(String aggregationName, String valueName, boolean asc) {
-            return new InternalOrder.Aggregation(aggregationName, valueName, asc);
+            return new InternalOrder.Aggregation(aggregationName + "." + valueName, asc);
         }
 
         /**

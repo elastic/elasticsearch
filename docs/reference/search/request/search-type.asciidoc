@@ -139,8 +139,8 @@ field) or faceting.
 
 Besides consuming the scroll search until no hits has been returned a scroll
 search can also be aborted by deleting the `scroll_id`. This can be done via
-the clear scroll api. When the the `scroll_id` has been deleted also all the
-resources to keep the view open will cleaned open. Example usage:
+the clear scroll api. When the `scroll_id` has been deleted all the
+resources to keep the view open will be released. Example usage:
 
 [source,js]
 --------------------------------------------------

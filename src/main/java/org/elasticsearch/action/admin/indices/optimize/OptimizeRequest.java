@@ -46,12 +46,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
+        public static final boolean FORCE = false;
     }
 
     private boolean waitForMerge = Defaults.WAIT_FOR_MERGE;
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    private boolean force = Defaults.FORCE;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -127,6 +129,22 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      */
     public OptimizeRequest flush(boolean flush) {
         this.flush = flush;
+        return this;
+    }
+
+    /**
+     * Should the merge be forced even if there is a single segment with no deletions in the shard.
+     * Defaults to <tt>false</tt>.
+     */
+    public boolean force() {
+        return force;
+    }
+
+    /**
+     * See #force().
+     */
+    public OptimizeRequest force(boolean force) {
+        this.force = force;
         return this;
     }
 

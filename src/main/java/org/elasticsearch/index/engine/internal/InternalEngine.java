@@ -968,10 +968,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         if (optimize.flush()) {
             flush(new Flush().force(true).waitIfOngoing(true));
         }
+        final IndexUpgraderMergePolicy mergePolicy = (IndexUpgraderMergePolicy) indexWriter.getConfig().getMergePolicy();
         if (optimizeMutex.compareAndSet(false, true)) {
             rwl.readLock().lock();
             try {
                 ensureOpen();
+                mergePolicy.setForce(optimize.force());
                 if (optimize.onlyExpungeDeletes()) {
                     indexWriter.forceMergeDeletes(false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -991,6 +993,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             } catch (Throwable e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
+                mergePolicy.setForce(false);
                 rwl.readLock().unlock();
                 optimizeMutex.set(false);
             }
@@ -1638,4 +1641,5 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return ongoingRecoveries;
         }
     }
+
 }

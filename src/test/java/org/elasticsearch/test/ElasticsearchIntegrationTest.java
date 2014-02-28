@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -672,7 +671,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     protected OptimizeResponse optimize() {
         waitForRelocation();
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().execute().actionGet();
+        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setForce(randomBoolean()).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }

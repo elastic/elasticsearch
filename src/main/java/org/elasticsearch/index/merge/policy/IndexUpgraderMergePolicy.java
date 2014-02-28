@@ -20,6 +20,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -53,6 +54,7 @@ import java.util.Map;
 public final class IndexUpgraderMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
+    private boolean force;
 
     /** @param delegate the merge policy to wrap */
     public IndexUpgraderMergePolicy(MergePolicy delegate) {
@@ -194,6 +196,19 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge)
         throws IOException {
+      if (force) {
+          List<SegmentCommitInfo> segments = Lists.newArrayList();
+          for (SegmentCommitInfo info : segmentInfos) {
+              if (segmentsToMerge.containsKey(info)) {
+                  segments.add(info);
+              }
+          }
+          if (!segments.isEmpty()) {
+              MergeSpecification spec = new IndexUpgraderMergeSpecification();
+              spec.add(new OneMerge(segments));
+              return spec;
+          }
+      }
       return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge));
     }
 
@@ -222,6 +237,14 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
     @Override
     public void setIndexWriter(IndexWriter writer) {
       delegate.setIndexWriter(writer);
+    }
+
+    /**
+     * When <code>force</code> is true, running a force merge will cause a merge even if there
+     * is a single segment in the directory.
+     */
+    public void setForce(boolean force) {
+        this.force = force;
     }
 
     @Override

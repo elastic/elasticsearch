@@ -7,8 +7,11 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.*;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 
 /**
@@ -72,6 +75,23 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
             pFilters.add((ProfileFilter)apply(f));
         }
         return new ProfileFilter(new OrFilter(pFilters));
+    }
+
+    public ProfileQuery visit(ToParentBlockJoinQuery query) throws NoSuchFieldException, IllegalAccessException {
+        Field origChildQueryField = query.getClass().getDeclaredField("origChildQuery");
+        origChildQueryField.setAccessible(true);
+
+        Field parentsFilterField = query.getClass().getDeclaredField("parentsFilter");
+        parentsFilterField.setAccessible(true);
+
+        Field scoreModeField = query.getClass().getDeclaredField("scoreMode");
+        scoreModeField.setAccessible(true);
+
+        ProfileQuery innerQuery = (ProfileQuery) apply(origChildQueryField.get(query));
+        ProfileFilter parentsFilter = (ProfileFilter) apply(parentsFilterField.get(query));
+        ScoreMode scoreMode = (ScoreMode) scoreModeField.get(query);
+
+        return new ProfileQuery(new ToParentBlockJoinQuery(innerQuery, parentsFilter, scoreMode));
     }
 
     public ProfileFilter visit(NotFilter filter) {

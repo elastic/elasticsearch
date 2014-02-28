@@ -5,12 +5,14 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.profile.ProfileFilter;
 import org.elasticsearch.common.lucene.search.profile.ProfileQuery;
 import org.elasticsearch.common.lucene.search.profile.Visitor;
 import sun.net.www.content.text.plain;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 
 
@@ -107,6 +109,21 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
                 profiles.addAll(tProfiles);
             }
         }
+
+        return profiles;
+    }
+
+    public ArrayList<Profile> visit(ToParentBlockJoinQuery query) throws NoSuchFieldException, IllegalAccessException {
+        ArrayList<Profile> profiles = new ArrayList<Profile>();
+
+        Field origChildQueryField = query.getClass().getDeclaredField("origChildQuery");
+        origChildQueryField.setAccessible(true);
+
+        Field parentsFilterField = query.getClass().getDeclaredField("parentsFilter");
+        parentsFilterField.setAccessible(true);
+
+        profiles.addAll(apply(origChildQueryField.get(query)));
+        profiles.addAll(apply(parentsFilterField.get(query)));
 
         return profiles;
     }

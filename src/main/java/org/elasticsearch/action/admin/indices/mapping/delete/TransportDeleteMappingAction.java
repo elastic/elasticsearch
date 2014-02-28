@@ -22,14 +22,17 @@ package org.elasticsearch.action.admin.indices.mapping.delete;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
+import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.QuerySourceBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -117,6 +120,9 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {
+                if (logger.isTraceEnabled()) {
+                    traceLogResponse("Flush", flushResponse);
+                }
   
                 // get all types that need to be deleted.
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> result = clusterService.state().metaData().findMappings(
@@ -140,14 +146,30 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).source(querySourceBuilder), new ActionListener<DeleteByQueryResponse>() {
                     @Override
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
+                        if (logger.isTraceEnabled()) {
+                            for (IndexDeleteByQueryResponse indexResponse : deleteByQueryResponse) {
+                                logger.trace("Delete by query[{}] completed with total[{}], successful[{}] and failed[{}]", indexResponse.getIndex(), indexResponse.getTotalShards(), indexResponse.getSuccessfulShards(), indexResponse.getFailedShards());
+                                if (indexResponse.getFailedShards() > 0) {
+                                    for (ShardOperationFailedException failure : indexResponse.getFailures()) {
+                                        logger.trace("[{}/{}] Delete by query shard failure reason: {}", failure.index(), failure.shardId(), failure.reason());
+                                    }
+                                }
+                            }
+                        }
                         refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
+                                if (logger.isTraceEnabled()) {
+                                    traceLogResponse("Refresh", refreshResponse);
+                                }
                                 removeMapping();
                             }
 
                             @Override
                             public void onFailure(Throwable e) {
+                                if (logger.isDebugEnabled()) {
+                                    logger.debug("Refresh failed completely", e);
+                                }
                                 removeMapping();
                             }
 
@@ -184,5 +206,14 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 listener.onFailure(t);
             }
         });
+    }
+
+    private void traceLogResponse(String action, BroadcastOperationResponse response) {
+        logger.trace("{} completed with total[{}], successful[{}] and failed[{}]", action, response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards());
+        if (response.getFailedShards() > 0) {
+            for (ShardOperationFailedException failure : response.getShardFailures()) {
+                logger.trace("[{}/{}] {} shard failure reason: {}", failure.index(), failure.shardId(), action, failure.reason());
+            }
+        }
     }
 }

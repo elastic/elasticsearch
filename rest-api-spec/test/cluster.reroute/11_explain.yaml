@@ -26,6 +26,10 @@ setup:
 ---
 "Explain API for non-existant node & shard":
 
+  - skip:
+      version: 0-999
+      reason: param substitution not implemented yet
+
   - do:
       cluster.state:
         metric: [ master_node ]
@@ -53,4 +57,3 @@ setup:
   - match: {explanations.0.decisions.0.decider: cancel_allocation_command}
   - match: {explanations.0.decisions.0.decision: "NO"}
   - is_true: explanations.0.decisions.0.explanation
-

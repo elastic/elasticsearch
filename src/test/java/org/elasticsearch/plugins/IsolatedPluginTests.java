@@ -36,10 +36,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.Properties;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // NB: the tests uses System Properties to pass the information from different plugins (loaded in separate CLs) to the test.
 // hence the use of try/finally blocks to clean these up after the test has been executed as otherwise the test framework will trigger a failure
@@ -56,7 +58,7 @@ public class IsolatedPluginTests extends ElasticsearchIntegrationTest {
         SETTINGS = ImmutableSettings.settingsBuilder()
                 .put("discovery.zen.ping.multicast.enabled", false)
                 .put("force.http.enabled", true)
-                .put("plugin.isolation", true)
+                .put("plugins.isolation", true)
                 .put("path.plugins", PLUGIN_DIR.getAbsolutePath())
                 .build();
     }
@@ -113,14 +115,17 @@ public class IsolatedPluginTests extends ElasticsearchIntegrationTest {
     @Test
     public void testIsolatedPluginProperties() throws Exception {
         try {
+            String prop = "es.test.isolated.plugin.count";
+            int count = Integer.getInteger(prop, 0);
             client();
+            // do a >= comparison in case there are multiple tests running in the same JVM (build server)
+            assertThat(Integer.getInteger(prop), greaterThanOrEqualTo(count + 2));
             Properties p = System.getProperties();
-            assertThat(p.getProperty("es.test.isolated.plugin.count"), equalTo("2"));
-            String prop = p.getProperty("es.test.isolated.plugin.instantiated.hashes");
+            prop = p.getProperty("es.test.isolated.plugin.instantiated.hashes");
             String[] hashes = Strings.delimitedListToStringArray(prop, " ");
             // 2 plugins plus trailing space
-            assertThat(hashes.length, equalTo(3));
-            assertThat(p.getProperty("es.test.isolated.plugin.instantiated"), equalTo(hashes[1]));
+            assertThat(hashes.length, greaterThanOrEqualTo(count + 2));
+            assertThat(Arrays.binarySearch(hashes, p.getProperty("es.test.isolated.plugin.instantiated")), greaterThanOrEqualTo(0));
         } finally {
             System.setProperties(props);
         }

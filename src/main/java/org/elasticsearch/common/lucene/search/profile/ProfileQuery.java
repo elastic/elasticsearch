@@ -73,7 +73,11 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        Stopwatch stopwatch = Stopwatch.createStarted();
         Query rewrittenQuery = subQuery.rewrite(reader);
+        stopwatch.stop();
+        addTime(stopwatch.elapsed(TimeUnit.MICROSECONDS));
+
         if (rewrittenQuery == subQuery) {
             return this;
         }

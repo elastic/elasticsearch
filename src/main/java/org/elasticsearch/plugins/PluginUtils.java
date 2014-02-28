@@ -118,7 +118,10 @@ public final class PluginUtils {
                         found.add(new URL("jar:" + file.toURI().toString() + "!/es.plugin.properties"));
                     }
                 } finally {
-                    IOUtils.closeWhileHandlingException(jar);
+                    try {
+                        jar.close();
+                    } catch (Throwable t) {
+                    }
                 }
             }
             else {

@@ -72,13 +72,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("chunk_size", randomIntBetween(100, 1000))));
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -146,13 +144,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", newTempDir(LifecycleScope.SUITE))
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("chunk_size", randomIntBetween(100, 1000))));
 
         logger.info("--> create index with foo type");
         assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put("refresh_interval", 10)));
@@ -211,9 +207,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())));
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
@@ -245,9 +240,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository");
         File location = newTempDir();
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", location)).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", location)));
 
         logger.info("-->  creating test template");
         assertThat(client.admin().indices().preparePutTemplate("test-template").setTemplate("te*").addMapping("test-mapping", "{}").get().isAcknowledged(), equalTo(true));
@@ -325,14 +319,12 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
                                 .put("location", newTempDir(LifecycleScope.TEST))
                                 .put("random", randomAsciiOfLength(10))
-                                .put("random_control_io_exception_rate", 0.2)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                                .put("random_control_io_exception_rate", 0.2)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -376,14 +368,12 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
     public void dataFileFailureDuringSnapshotTest() throws Exception {
         Client client = client();
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
                                 .put("location", newTempDir(LifecycleScope.TEST))
                                 .put("random", randomAsciiOfLength(10))
-                                .put("random_data_file_io_exception_rate", 0.1)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                                .put("random_data_file_io_exception_rate", 0.1)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -421,9 +411,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -441,14 +430,12 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
 
         logger.info("-->  update repository with mock version");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
-                                .put("random_data_file_io_exception_rate", 0.3)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                                .put("random_data_file_io_exception_rate", 0.3)));
 
         // Test restore after index deletion
         logger.info("--> delete index");
@@ -468,9 +455,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         Client client = client();
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)));
 
         createIndex("test-idx");
         ensureGreen();
@@ -488,14 +474,13 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
 
         logger.info("-->  update repository with mock version");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
                                 .put("random_data_file_io_exception_rate", 1.0) // Fail completely
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                ));
 
         // Test restore after index deletion
         logger.info("--> delete index");
@@ -517,9 +502,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(restoreSnapshotResponse.getRestoreInfo().failedShards()));
 
         logger.info("--> restoring working repository");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)));
 
         logger.info("--> trying to restore index again");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
@@ -536,11 +520,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
 
         logger.info("-->  creating index that cannot be allocated");
         prepareCreate("test-idx", 2, ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + ".tag", "nowhere").put("index.number_of_shards", 3)).get();
@@ -560,13 +542,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         File repo = newTempDir(LifecycleScope.SUITE);
         logger.info("-->  creating repository at " + repo.getAbsolutePath());
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repo)
                         .put("compress", false)
-                        .put("chunk_size", randomIntBetween(100, 1000))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("chunk_size", randomIntBetween(100, 1000))));
 
         createIndex("test-idx");
         ensureGreen();
@@ -620,16 +600,14 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
 
         createIndex("test-idx", "test-idx-closed");
         ensureGreen();
         logger.info("-->  closing index test-idx-closed");
-        client.admin().indices().prepareClose("test-idx-closed").get();
+        assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test-idx-closed").state(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), nullValue());
@@ -648,11 +626,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
 
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
 
         createIndex("test-idx-1", "test-idx-2");
         ensureGreen();
@@ -694,7 +670,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
 
         logger.info("--> close indices");
-        client.admin().indices().prepareClose("test-idx-1", "test-idx-2-copy").get();
+        assertAcked(client.admin().indices().prepareClose("test-idx-1", "test-idx-2-copy"));
 
         logger.info("--> restore indices with different names");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
@@ -732,14 +708,12 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         Client client = client();
         File repositoryLocation = newTempDir(LifecycleScope.TEST);
         logger.info("-->  creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType(MockRepositoryModule.class.getCanonicalName()).setSettings(
                         ImmutableSettings.settingsBuilder()
                                 .put("location", repositoryLocation)
                                 .put("random", randomAsciiOfLength(10))
-                                .put("wait_after_unblock", 200)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                                .put("wait_after_unblock", 200)));
 
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
         assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put("number_of_replicas", 0)));
@@ -781,10 +755,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         wipeIndices("test-idx");
 
         logger.info("--> replace mock repository with real one at the same location");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)));
 
         logger.info("--> restore index");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
@@ -848,10 +820,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         }
 
         logger.info("--> trying to create a repository with different name");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo-2")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", new File(repositoryLocation, "test"))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo-2")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", new File(repositoryLocation, "test"))));
 
         logger.info("--> unblocking blocked node");
         unblockNode(blockedNode);
@@ -870,10 +840,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         wipeIndices("test-idx");
 
         logger.info("--> replace mock repository with real one at the same location");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", repositoryLocation)));
 
         logger.info("--> restore index");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
@@ -889,13 +857,11 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("-->  creating repository");
         File repositoryLocation = newTempDir(LifecycleScope.SUITE);
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000))
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("chunk_size", randomIntBetween(100, 1000))));
 
         createIndex("test-idx");
         ensureGreen();
@@ -918,12 +884,10 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         wipeIndices("test-idx");
 
         logger.info("--> create read-only URL repository");
-        putRepositoryResponse = client.admin().cluster().preparePutRepository("url-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("url-repo")
                 .setType("url").setSettings(ImmutableSettings.settingsBuilder()
                         .put("url", repositoryLocation.toURI().toURL())
-                        .put("list_directories", randomBoolean())
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("list_directories", randomBoolean())));
         logger.info("--> restore index after deletion");
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("url-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
@@ -953,15 +917,13 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         File repositoryLocation = newTempDir(LifecycleScope.SUITE);
         boolean throttleSnapshot = randomBoolean();
         boolean throttleRestore = randomBoolean();
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
                         .put("location", repositoryLocation)
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))
                         .put("max_restore_bytes_per_sec", throttleRestore ? "2.5k" : "0")
-                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "2.5k" : "0")
-                ).get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+                        .put("max_snapshot_bytes_per_sec", throttleSnapshot ? "2.5k" : "0")));
 
         createIndex("test-idx");
         ensureGreen();

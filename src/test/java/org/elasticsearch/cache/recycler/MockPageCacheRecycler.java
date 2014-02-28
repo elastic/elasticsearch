@@ -35,12 +35,15 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = Maps.newConcurrentMap();
 
+    public static void reset() {
+        ACQUIRED_PAGES.clear();
+    }
+
     public static void ensureAllPagesAreReleased() {
         if (ACQUIRED_PAGES.size() > 0) {
             final Throwable t = ACQUIRED_PAGES.entrySet().iterator().next().getValue();
             throw new RuntimeException(ACQUIRED_PAGES.size() + " pages have not been released", t);
         }
-        ACQUIRED_PAGES.clear();
     }
 
     private final Random random;

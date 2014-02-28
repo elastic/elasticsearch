@@ -982,6 +982,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             rwl.readLock().lock();
             try {
                 ensureOpen();
+                /*
+                 * The way we implement "forced forced merges" is a bit hackish in the sense that we set an instance variable and that this
+                 * setting will thus apply to all forced merges that will be run until `force` is set back to false. However, since
+                 * InternalEngine.optimize is the only place in code where we call forceMerge and since calls are protected with
+                 * `optimizeMutex`, this has the expected behavior.
+                 */
                 if (optimize.force()) {
                     elasticsearchMergePolicy.setForce(true);
                 }

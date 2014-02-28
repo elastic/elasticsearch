@@ -54,7 +54,7 @@ import java.util.Map;
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
-    private boolean force;
+    private volatile boolean force;
 
     /** @param delegate the merge policy to wrap */
     public ElasticsearchMergePolicy(MergePolicy delegate) {
@@ -241,7 +241,8 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
 
     /**
      * When <code>force</code> is true, running a force merge will cause a merge even if there
-     * is a single segment in the directory.
+     * is a single segment in the directory. This will apply to all calls to
+     * {@link IndexWriter#forceMerge} that are handled by this {@link MergePolicy}.
      */
     public void setForce(boolean force) {
         this.force = force;

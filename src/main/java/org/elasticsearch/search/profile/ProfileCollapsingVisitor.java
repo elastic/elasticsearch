@@ -42,16 +42,16 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
 
     public ArrayList<Profile> visit(ProfileQuery pQuery) {
         Profile p =  new Profile();
-        p.setClassName(pQuery.subQuery().getClass().getSimpleName());
-        p.setDetails(pQuery.subQuery().toString());
+        p.setClassName(pQuery.className());
+        p.setDetails(pQuery.details());
 
         return this.compileResults(p, apply(pQuery.subQuery()), pQuery.time());
     }
 
     public ArrayList<Profile> visit(ProfileFilter pFilter) {
         Profile p =  new Profile();
-        p.setClassName(pFilter.subFilter().getClass().getSimpleName());
-        p.setDetails(pFilter.subFilter().toString());
+        p.setClassName(pFilter.className());
+        p.setDetails(pFilter.details());
 
         return this.compileResults(p, apply(pFilter.subFilter()), pFilter.time());
     }

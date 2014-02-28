@@ -50,8 +50,13 @@ public class ProfileQuery extends Query implements ProfileComponent {
     Query subQuery;
     private long time = 0;
 
+    private String className;
+    private String details;
+
     public ProfileQuery(Query subQuery) {
         this.subQuery = subQuery;
+        this.setClassName(subQuery.getClass().getSimpleName());
+        this.setDetails(subQuery.toString());
     }
 
     public Query subQuery() {
@@ -68,6 +73,22 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     public void addTime(long time) {
         this.time += time;
+    }
+
+    public String className() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
+    }
+
+    public String details() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details;
     }
 
 

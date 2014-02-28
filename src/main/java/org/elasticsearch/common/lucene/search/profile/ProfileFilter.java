@@ -15,8 +15,13 @@ public class ProfileFilter extends Filter implements ProfileComponent {
     private Filter subFilter;
     private long time = 0;
 
+    private String className;
+    private String details;
+
     public ProfileFilter(Filter filter) {
         this.subFilter = filter;
+        this.setClassName(filter.getClass().getSimpleName());
+        this.setDetails(filter.toString());
     }
 
     public Filter subFilter() {
@@ -33,6 +38,22 @@ public class ProfileFilter extends Filter implements ProfileComponent {
 
     public void addTime(long time) {
         this.time += time;
+    }
+
+    public String className() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
+    }
+
+    public String details() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details;
     }
 
     @Override

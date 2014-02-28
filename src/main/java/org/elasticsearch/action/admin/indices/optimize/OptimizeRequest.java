@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,12 +47,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         public static final int MAX_NUM_SEGMENTS = -1;
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
+        public static final boolean FORCE = false;
     }
 
     private boolean waitForMerge = Defaults.WAIT_FOR_MERGE;
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    private boolean force = Defaults.FORCE;
 
     /**
      * Constructs an optimization request over one or more indices.
@@ -130,12 +133,31 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         return this;
     }
 
+    /**
+     * Should the merge be forced even if there is a single segment with no deletions in the shard.
+     * Defaults to <tt>false</tt>.
+     */
+    public boolean force() {
+        return force;
+    }
+
+    /**
+     * See #force().
+     */
+    public OptimizeRequest force(boolean force) {
+        this.force = force;
+        return this;
+    }
+
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         waitForMerge = in.readBoolean();
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            force = in.readBoolean();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -144,5 +166,8 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeBoolean(force);
+        }
     }
 }

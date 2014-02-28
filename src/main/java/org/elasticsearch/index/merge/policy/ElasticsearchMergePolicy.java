@@ -20,6 +20,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -39,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link MergePolicy} that upgrades segments.
+ * A {@link MergePolicy} that upgrades segments and can force merges.
  * <p>
  * It can be useful to use the background merging process to upgrade segments,
  * for example when we perform internal changes that imply different index
@@ -50,12 +51,13 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-public final class IndexUpgraderMergePolicy extends MergePolicy {
+public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
+    private volatile boolean force;
 
     /** @param delegate the merge policy to wrap */
-    public IndexUpgraderMergePolicy(MergePolicy delegate) {
+    public ElasticsearchMergePolicy(MergePolicy delegate) {
         this.delegate = delegate;
     }
 
@@ -194,6 +196,19 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
     public MergeSpecification findForcedMerges(SegmentInfos segmentInfos,
         int maxSegmentCount, Map<SegmentCommitInfo,Boolean> segmentsToMerge)
         throws IOException {
+      if (force) {
+          List<SegmentCommitInfo> segments = Lists.newArrayList();
+          for (SegmentCommitInfo info : segmentInfos) {
+              if (segmentsToMerge.containsKey(info)) {
+                  segments.add(info);
+              }
+          }
+          if (!segments.isEmpty()) {
+              MergeSpecification spec = new IndexUpgraderMergeSpecification();
+              spec.add(new OneMerge(segments));
+              return spec;
+          }
+      }
       return upgradedMergeSpecification(delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge));
     }
 
@@ -205,7 +220,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
 
     @Override
     public MergePolicy clone() {
-      return new IndexUpgraderMergePolicy(delegate.clone());
+      return new ElasticsearchMergePolicy(delegate.clone());
     }
 
     @Override
@@ -222,6 +237,15 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
     @Override
     public void setIndexWriter(IndexWriter writer) {
       delegate.setIndexWriter(writer);
+    }
+
+    /**
+     * When <code>force</code> is true, running a force merge will cause a merge even if there
+     * is a single segment in the directory. This will apply to all calls to
+     * {@link IndexWriter#forceMerge} that are handled by this {@link MergePolicy}.
+     */
+    public void setForce(boolean force) {
+        this.force = force;
     }
 
     @Override

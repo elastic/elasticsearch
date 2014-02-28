@@ -125,6 +125,7 @@ public class IsolatedPluginTests extends ElasticsearchIntegrationTest {
             String[] hashes = Strings.delimitedListToStringArray(prop, " ");
             // 2 plugins plus trailing space
             assertThat(hashes.length, greaterThanOrEqualTo(count + 2));
+            Arrays.sort(hashes);
             assertThat(Arrays.binarySearch(hashes, p.getProperty("es.test.isolated.plugin.instantiated")), greaterThanOrEqualTo(0));
         } finally {
             System.setProperties(props);

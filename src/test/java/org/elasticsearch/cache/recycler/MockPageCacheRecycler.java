@@ -54,16 +54,10 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     private <T> V<T> wrap(final V<T> v) {
         ACQUIRED_PAGES.put(v, new Throwable());
-        final Thread t = Thread.currentThread();
         return new V<T>() {
 
             @Override
             public boolean release() throws ElasticsearchException {
-                if (t != Thread.currentThread()) {
-                    // Releasing from a different thread doesn't break anything but this is bad practice as pages should be acquired
-                    // as late as possible and released as soon as possible in a try/finally fashion
-                    throw new RuntimeException("Page was allocated in " + t + " but released in " + Thread.currentThread());
-                }
                 final Throwable t = ACQUIRED_PAGES.remove(v);
                 if (t == null) {
                     throw new IllegalStateException("Releasing a page that has not been acquired");

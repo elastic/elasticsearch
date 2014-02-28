@@ -409,6 +409,12 @@ public class ClusterState implements ToXContent {
             builder.endObject();
         }
 
+        if (isAllMetricsOnly || metrics.contains("routing_table")) {
+            // An empty array is written to maintain REST backwards compatibility for 1.0 -> 1.x
+            builder.startArray("allocations");
+            builder.endArray();
+        }
+
         if (isAllMetricsOnly || metrics.contains("customs")) {
             for (ObjectObjectCursor<String, Custom> cursor : customs) {
                 builder.startObject(cursor.key);

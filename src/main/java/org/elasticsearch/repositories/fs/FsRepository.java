@@ -53,6 +53,8 @@ public class FsRepository extends BlobStoreRepository {
 
     private final FsBlobStore blobStore;
 
+    private final FsBlobStore indexShardBlobStore;
+
     private ByteSizeValue chunkSize;
 
     private final BlobPath basePath;
@@ -78,9 +80,12 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             locationFile = new File(location);
         }
-        int concurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
-        ExecutorService concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
-        blobStore = new FsBlobStore(componentSettings, concurrentStreamPool, locationFile);
+        int concurrentStreams = repositorySettings.settings().getAsInt("metadata_concurrent_streams", componentSettings.getAsInt("metadata_concurrent_streams", 3));
+        int shardConcurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
+        ExecutorService streamPool = EsExecutors.newScaling(1, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_stream]"));
+        ExecutorService shardStreamPool = EsExecutors.newScaling(1, shardConcurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[fs_shard_stream]"));
+        blobStore = new FsBlobStore(componentSettings, streamPool, locationFile);
+        indexShardBlobStore = new FsBlobStore(componentSettings, shardStreamPool, locationFile);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", null));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
         this.basePath = BlobPath.cleanPath();
@@ -92,6 +97,11 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected BlobStore blobStore() {
         return blobStore;
+    }
+
+    @Override
+    protected BlobStore indexShardBlobStore() {
+        return indexShardBlobStore;
     }
 
     /**

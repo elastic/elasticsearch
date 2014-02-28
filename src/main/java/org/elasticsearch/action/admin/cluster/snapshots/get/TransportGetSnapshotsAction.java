@@ -51,7 +51,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeOperationAct
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SNAPSHOT;
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override

@@ -81,6 +81,7 @@ public class MockRepository extends FsRepository {
         waitAfterUnblock = repositorySettings.settings().getAsLong("wait_after_unblock", 0L);
         logger.info("starting mock repository with random prefix " + randomPrefix);
         mockBlobStore = new MockBlobStore(super.blobStore());
+
     }
 
     private void addFailure() {
@@ -95,6 +96,11 @@ public class MockRepository extends FsRepository {
 
     @Override
     protected BlobStore blobStore() {
+        return mockBlobStore;
+    }
+
+    @Override
+    protected BlobStore indexShardBlobStore() {
         return mockBlobStore;
     }
 

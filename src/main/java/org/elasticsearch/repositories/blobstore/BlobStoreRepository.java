@@ -148,7 +148,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     @Override
     protected void doStart() throws ElasticsearchException {
         this.snapshotsBlobContainer = blobStore().immutableBlobContainer(basePath());
-        indexShardRepository.initialize(blobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this);
+        indexShardRepository.initialize(indexShardBlobStore(), basePath(), chunkSize(), snapshotRateLimiter, restoreRateLimiter, this);
     }
 
     /**
@@ -171,13 +171,25 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     }
 
     /**
-     * Returns initialized and ready to use BlobStore
+     * Returns initialized and ready to use BlobStore that will be used for accessing snapshot metadata
      * <p/>
      * This method is first called in the {@link #doStart()} method.
      *
      * @return blob store
      */
     abstract protected BlobStore blobStore();
+
+
+    /**
+     * Returns initialized and ready to use BlobStore that will be used for accessing index shard data
+     * <p/>
+     * This method is first called in the {@link #doStart()} method.
+     *
+     * @return blob store
+     */
+    protected BlobStore indexShardBlobStore() {
+        return blobStore();
+    }
 
     /**
      * Returns base path of the repository

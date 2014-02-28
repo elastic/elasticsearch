@@ -57,7 +57,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.index.merge.OnGoingMerge;
-import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
+import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
@@ -939,9 +939,28 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             flush(new Flush().force(true).waitIfOngoing(true));
         }
         if (optimizeMutex.compareAndSet(false, true)) {
+            ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             rwl.readLock().lock();
             try {
                 ensureOpen();
+
+                if (indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
+                    elasticsearchMergePolicy = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
+                }
+                if (optimize.force() && elasticsearchMergePolicy == null) {
+                    throw new ElasticsearchIllegalStateException("The `force` flag can only be used if the merge policy is an instance of "
+                            + ElasticsearchMergePolicy.class.getSimpleName() + ", got [" + indexWriter.getConfig().getMergePolicy().getClass().getName() + "]");
+                }
+
+                /*
+                 * The way we implement "forced forced merges" is a bit hackish in the sense that we set an instance variable and that this
+                 * setting will thus apply to all forced merges that will be run until `force` is set back to false. However, since
+                 * InternalEngine.optimize is the only place in code where we call forceMerge and since calls are protected with
+                 * `optimizeMutex`, this has the expected behavior.
+                 */
+                if (optimize.force()) {
+                    elasticsearchMergePolicy.setForce(true);
+                }
                 if (optimize.onlyExpungeDeletes()) {
                     Merges.forceMergeDeletes(indexWriter, false);
                 } else if (optimize.maxNumSegments() <= 0) {
@@ -961,6 +980,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             } catch (Throwable e) {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
+                if (elasticsearchMergePolicy != null) {
+                    elasticsearchMergePolicy.setForce(false);
+                }
                 rwl.readLock().unlock();
                 optimizeMutex.set(false);
             }
@@ -1320,7 +1342,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             MergePolicy mergePolicy = mergePolicyProvider.newMergePolicy();
             // Give us the opportunity to upgrade old segments while performing
             // background merges
-            mergePolicy = new IndexUpgraderMergePolicy(mergePolicy);
+            mergePolicy = new ElasticsearchMergePolicy(mergePolicy);
             config.setMergePolicy(mergePolicy);
             config.setSimilarity(similarityService.similarity());
             config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
@@ -1608,4 +1630,5 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return ongoingRecoveries;
         }
     }
+
 }

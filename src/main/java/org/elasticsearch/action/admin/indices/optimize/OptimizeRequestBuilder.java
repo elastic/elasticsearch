@@ -74,6 +74,15 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
         return this;
     }
 
+    /**
+     * Should the merge be forced even if there is a single segment with no deletions in the shard.
+     * Defaults to <tt>false</tt>.
+     */
+    public OptimizeRequestBuilder setForce(boolean force) {
+        request.force(force);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<OptimizeResponse> listener) {
         ((IndicesAdminClient) client).optimize(request, listener);

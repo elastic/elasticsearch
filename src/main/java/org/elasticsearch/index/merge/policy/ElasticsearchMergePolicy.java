@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link MergePolicy} that upgrades segments.
+ * A {@link MergePolicy} that upgrades segments and can force merges.
  * <p>
  * It can be useful to use the background merging process to upgrade segments,
  * for example when we perform internal changes that imply different index
@@ -51,13 +51,13 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
-public final class IndexUpgraderMergePolicy extends MergePolicy {
+public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;
     private boolean force;
 
     /** @param delegate the merge policy to wrap */
-    public IndexUpgraderMergePolicy(MergePolicy delegate) {
+    public ElasticsearchMergePolicy(MergePolicy delegate) {
         this.delegate = delegate;
     }
 
@@ -220,7 +220,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
 
     @Override
     public MergePolicy clone() {
-      return new IndexUpgraderMergePolicy(delegate.clone());
+      return new ElasticsearchMergePolicy(delegate.clone());
     }
 
     @Override

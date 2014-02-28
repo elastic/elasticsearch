@@ -2,13 +2,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <name>elasticsearch-analysis-phonetic</name>
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-analysis-phonetic</artifactId>
     <version>2.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <description>Phonetic Analysis for ElasticSearch</description>
+    <name>Phonetic Analysis for elasticsearch</name>
+    <description>The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.</description>
+    <url>https://github.com/elasticsearch/elasticsearch-analysis-phonetic/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>

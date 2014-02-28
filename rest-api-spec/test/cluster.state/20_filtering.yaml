@@ -20,6 +20,7 @@ setup:
   - is_false: metadata
   - is_false: routing_table
   - is_false: routing_nodes
+  - is_false: allocations
   - length:   { blocks: 0 }
 
 ---
@@ -40,6 +41,7 @@ setup:
   - is_false: metadata
   - is_false: routing_table
   - is_false: routing_nodes
+  - is_false: allocations
   - length:   { blocks: 1 }
 
 ---
@@ -53,6 +55,7 @@ setup:
   - is_false: metadata
   - is_false: routing_table
   - is_false: routing_nodes
+  - is_false: allocations
 
 ---
 "Filtering the cluster state by metadata only should work":
@@ -65,6 +68,7 @@ setup:
   - is_true: metadata
   - is_false: routing_table
   - is_false: routing_nodes
+  - is_false: allocations
 
 
 ---
@@ -78,6 +82,7 @@ setup:
   - is_false: metadata
   - is_true: routing_table
   - is_true: routing_nodes
+  - is_true: allocations
 
 
 ---
@@ -115,6 +120,7 @@ setup:
   - is_true: metadata
   - is_false: routing_table
   - is_false: routing_nodes
+  - is_false: allocations
   - is_true: metadata.templates.test1
   - is_true: metadata.templates.test2
   - is_false: metadata.templates.foo
@@ -154,3 +160,4 @@ setup:
   - is_true: metadata
   - is_true: routing_table
   - is_true: routing_nodes
+  - is_true: allocations

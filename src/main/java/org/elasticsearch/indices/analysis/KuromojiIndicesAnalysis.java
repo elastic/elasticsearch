@@ -43,7 +43,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
         super(settings);
 
         indicesAnalysisService.charFilterFactories().put("kuromoji_iteration_mark",
-                new PreBuiltCharFilterFactoryFactory(new CharFilterFactory() {
+                new KurumojiCharFilterFactoryFactory(new CharFilterFactory() {
                     @Override
                     public String name() {
                         return "kuromoji_iteration_mark";
@@ -58,7 +58,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
                 }));
 
         indicesAnalysisService.tokenizerFactories().put("kuromoji_tokenizer",
-                new PreBuiltTokenizerFactoryFactory(new TokenizerFactory() {
+                new KurumojiTokenizerFactoryFactory(new TokenizerFactory() {
                     @Override
                     public String name() {
                         return "kuromoji_tokenizer";
@@ -72,7 +72,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
                 }));
 
         indicesAnalysisService.tokenFilterFactories().put("kuromoji_baseform",
-                new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+                new KurumojiTokenFilterFactoryFactory(new TokenFilterFactory() {
                     @Override
                     public String name() {
                         return "kuromoji_baseform";
@@ -86,7 +86,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
         indicesAnalysisService.tokenFilterFactories().put(
                 "kuromoji_part_of_speech",
-                new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+                new KurumojiTokenFilterFactoryFactory(new TokenFilterFactory() {
                     @Override
                     public String name() {
                         return "kuromoji_part_of_speech";
@@ -102,7 +102,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
         indicesAnalysisService.tokenFilterFactories().put(
                 "kuromoji_readingform",
-                new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+                new KurumojiTokenFilterFactoryFactory(new TokenFilterFactory() {
                     @Override
                     public String name() {
                         return "kuromoji_readingform";
@@ -115,7 +115,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
                 }));
 
         indicesAnalysisService.tokenFilterFactories().put("kuromoji_stemmer",
-                new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+                new KurumojiTokenFilterFactoryFactory(new TokenFilterFactory() {
                     @Override
                     public String name() {
                         return "kuromoji_stemmer";

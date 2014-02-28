@@ -16,7 +16,7 @@
         },
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "blocks", "metadata", "nodes", "routing_table"],
+          "options" : ["_all", "blocks", "metadata", "nodes", "routing_table", "master_node", "version"],
           "description" : "Limit the information returned to the specified metrics"
         }
       },

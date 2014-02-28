@@ -122,6 +122,11 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return new File(uri);
     }
 
+    @Before
+    public void resetPageTracking() {
+        MockPageCacheRecycler.reset();
+    }
+
     @After
     public void ensureAllPagesReleased() {
         MockPageCacheRecycler.ensureAllPagesAreReleased();

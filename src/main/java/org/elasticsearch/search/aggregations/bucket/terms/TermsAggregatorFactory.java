@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -70,6 +71,31 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
         }
     }
 
+    private boolean shouldUseOrdinals(Aggregator parent, ValuesSource valuesSource, AggregationContext context) {
+        // if there is a parent bucket aggregator the number of instances of this aggregator is going to be unbounded and most instances
+        // may only aggregate few documents, so don't use ordinals
+        if (hasParentBucketAggregator(parent)) {
+            return false;
+        }
+
+        // be defensive: if the number of unique values is unknown, don't use ordinals
+        final long maxNumUniqueValues = valuesSource.metaData().maxAtomicUniqueValuesCount();
+        if (maxNumUniqueValues == -1) {
+            return false;
+        }
+
+        // if the number of unique values is high compared to the document count, then ordinals are only going to make things slower
+        int maxDoc = 0;
+        for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().reader().leaves()) {
+            maxDoc = Math.max(maxDoc, ctx.reader().maxDoc());
+        }
+        if (maxNumUniqueValues > (maxDoc >>> 4)) {
+            return false;
+        }
+
+        return true;
+    }
+
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
@@ -98,7 +124,7 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
             }
             if (execution == null) {
                 if ((valuesSource instanceof BytesValuesSource.WithOrdinals)
-                        && !hasParentBucketAggregator(parent)) {
+                        && shouldUseOrdinals(parent, valuesSource, aggregationContext)) {
                     execution = EXECUTION_HINT_VALUE_ORDINALS;
                 } else {
                     execution = EXECUTION_HINT_VALUE_MAP;

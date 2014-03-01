@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
@@ -107,9 +106,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     public AnalyzeRequest tokenFilters(String... tokenFilters) {
-        if (tokenFilters == null) {
-            throw new ElasticsearchIllegalArgumentException("token filters must not be null");
-        }
         this.tokenFilters = tokenFilters;
         return this;
     }
@@ -119,9 +115,6 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     }
 
     public AnalyzeRequest charFilters(String... charFilters) {
-        if (charFilters == null) {
-            throw new ElasticsearchIllegalArgumentException("char filters must not be null");
-        }
         this.charFilters = charFilters;
         return this;
     }
@@ -144,6 +137,12 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         ActionRequestValidationException validationException = super.validate();
         if (text == null) {
             validationException = addValidationError("text is missing", validationException);
+        }
+        if (tokenFilters == null) {
+            validationException = addValidationError("token filters must not be null", validationException);
+        }
+        if (charFilters == null) {
+            validationException = addValidationError("char filters must not be null", validationException);
         }
         return validationException;
     }

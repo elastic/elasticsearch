@@ -40,7 +40,7 @@ fractional values are allowed, for example 1.5 hours:
 }
 --------------------------------------------------
 
-Other available expressions for interval: `year`, `quarter`, `week`, `day`, `hour`, `minute`, `second`
+Available expressions for interval: `year`, `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`
 
 ==== Time Zone
 

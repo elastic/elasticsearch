@@ -115,7 +115,7 @@ public final class PluginUtils {
                 try {
                     JarEntry jarEntry = jar.getJarEntry("es-plugin.properties");
                     if (jarEntry != null) {
-                        found.add(new URL("jar:" + file.toURI().toString() + "!/es.plugin.properties"));
+                        found.add(new URL("jar:" + file.toURI().toString() + "!/es-plugin.properties"));
                     }
                 } finally {
                     IOUtils.closeWhileHandlingException(jar);

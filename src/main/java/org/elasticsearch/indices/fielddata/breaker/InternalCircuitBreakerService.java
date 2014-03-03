@@ -41,16 +41,16 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     private static final String DEFAULT_BREAKER_LIMIT = "80%";
 
     private volatile MemoryCircuitBreaker breaker;
-    private volatile long maxBytes;
+    private volatile ByteSizeValue maxBytes;
     private volatile double overhead;
 
     @Inject
     public InternalCircuitBreakerService(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.maxBytes = settings.getAsMemory(CIRCUIT_BREAKER_MAX_BYTES_SETTING, DEFAULT_BREAKER_LIMIT).bytes();
+        this.maxBytes = settings.getAsMemory(CIRCUIT_BREAKER_MAX_BYTES_SETTING, DEFAULT_BREAKER_LIMIT);
         this.overhead = settings.getAsDouble(CIRCUIT_BREAKER_OVERHEAD_SETTING, DEFAULT_OVERHEAD_CONSTANT);
 
-        this.breaker = new MemoryCircuitBreaker(new ByteSizeValue(maxBytes), overhead, null, logger);
+        this.breaker = new MemoryCircuitBreaker(maxBytes, overhead, null, logger);
 
         nodeSettingsService.addListener(new ApplySettings());
     }
@@ -59,12 +59,12 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
         @Override
         public void onRefreshSettings(Settings settings) {
             // clear breaker now that settings have changed
-            long newMaxByteSizeValue = settings.getAsMemory(CIRCUIT_BREAKER_MAX_BYTES_SETTING, DEFAULT_BREAKER_LIMIT).bytes();
+            ByteSizeValue newMaxByteSizeValue = settings.getAsMemory(CIRCUIT_BREAKER_MAX_BYTES_SETTING, maxBytes.toString());
             boolean breakerResetNeeded = false;
 
-            if (newMaxByteSizeValue != maxBytes) {
+            if (!newMaxByteSizeValue.equals(maxBytes)) {
                 logger.info("updating [{}] from [{}] to [{}]", CIRCUIT_BREAKER_MAX_BYTES_SETTING,
-                        new ByteSizeValue(InternalCircuitBreakerService.this.maxBytes), newMaxByteSizeValue);
+                        InternalCircuitBreakerService.this.maxBytes, newMaxByteSizeValue.bytes());
                 maxBytes = newMaxByteSizeValue;
                 breakerResetNeeded = true;
             }
@@ -99,7 +99,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     public synchronized void resetBreaker() {
         final MemoryCircuitBreaker oldBreaker = this.breaker;
         // discard old breaker by creating a new one and pre-populating from the current breaker
-        this.breaker = new MemoryCircuitBreaker(new ByteSizeValue(maxBytes), overhead, oldBreaker, logger);
+        this.breaker = new MemoryCircuitBreaker(maxBytes, overhead, oldBreaker, logger);
     }
 
     @Override

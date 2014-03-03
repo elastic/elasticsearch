@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.test.rest.parser;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.section.ApiCallSection;
 import org.elasticsearch.test.rest.section.DoSection;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Parser for do sections
@@ -58,15 +57,19 @@ public class DoSectionParser implements RestTestFragmentParser<DoSection> {
                             paramName = parser.currentName();
                         } else if (token.isValue()) {
                             if ("body".equals(paramName)) {
-                                apiCallSection.addBody(parser.text());
+                                String body = parser.text();
+                                XContentType bodyContentType = XContentFactory.xContentType(body);
+                                XContentParser bodyParser = XContentFactory.xContent(bodyContentType).createParser(body);
+                                //multiple bodies are supported e.g. in case of bulk provided as a whole string
+                                while(bodyParser.nextToken() != null) {
+                                    apiCallSection.addBody(bodyParser.mapOrdered());
+                                }
                             } else {
                                 apiCallSection.addParam(paramName, parser.text());
                             }
                         } else if (token == XContentParser.Token.START_OBJECT) {
                             if ("body".equals(paramName)) {
-                                Map<String,Object> map = parser.mapOrdered();
-                                XContentBuilder contentBuilder = XContentFactory.jsonBuilder().map(map);
-                                apiCallSection.addBody(contentBuilder.string());
+                                apiCallSection.addBody(parser.mapOrdered());
                             }
                         }
                     }

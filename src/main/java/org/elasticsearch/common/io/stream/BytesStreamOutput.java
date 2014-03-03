@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.cache.recycler.NonPageCacheRecyclerService;
+import org.elasticsearch.cache.recycler.NonePageCacheRecyclerService;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,13 +38,10 @@ import java.util.List;
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
-    // Shared non-recycler for legacy constructor clients; should be removed eventually.
-    private static final NonPageCacheRecyclerService NONRECYCLING = new NonPageCacheRecyclerService();
-
     /**
      * PageCacheRecycler for acquiring/releasing individual memory pages
      */
-    private final NonPageCacheRecyclerService pageRecycler;
+    private final NonePageCacheRecyclerService pageRecycler;
 
     /**
      * The buffer where data is stored.
@@ -66,7 +63,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
      * Create a nonrecycling {@link BytesStreamOutput} with 1 initial page acquired.
      */
     public BytesStreamOutput() {
-        this(NONRECYCLING, BigArrays.BYTE_PAGE_SIZE);
+        this(NonePageCacheRecyclerService.INSTANCE, BigArrays.BYTE_PAGE_SIZE);
     }
 
     /**
@@ -76,7 +73,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
      * @param expectedSize the expected maximum size of the stream in bytes.
      */
     public BytesStreamOutput(int expectedSize) {
-        this(NONRECYCLING, expectedSize);
+        this(NonePageCacheRecyclerService.INSTANCE, expectedSize);
     }
 
     /**
@@ -85,7 +82,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
      * @param pageCacheRecycler the {@link PageCacheRecycler} from which to obtain
      *            bytes[]s.
      */
-    private BytesStreamOutput(NonPageCacheRecyclerService pageCacheRecycler) {
+    private BytesStreamOutput(NonePageCacheRecyclerService pageCacheRecycler) {
         // expected size does not matter as long as it's >0
         this(pageCacheRecycler, 1);
     }
@@ -98,7 +95,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
      *            bytes[]s.
      * @param expectedSize the expected maximum size of the stream in bytes.
      */
-    private BytesStreamOutput(NonPageCacheRecyclerService pageCacheRecycler, int expectedSize) {
+    private BytesStreamOutput(NonePageCacheRecyclerService pageCacheRecycler, int expectedSize) {
         this.pageRecycler = pageCacheRecycler;
         // there is no good way to figure out the pageSize used by a PCR, so
         // get one page and use its size.
@@ -220,20 +217,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     @Override
     public void close() throws IOException {
-        // since most callers are broken we don't do anything here.
-        // a strict implementation would look liek this:
-        // if (count != -1) {
-        //  // return pages to recycler
-        //  for (Recycler.V<byte[]> vpage : pages) {
-        //      vpage.release();
-        //  }
-        //
-        //  // clear refs
-        //  pages.clear();
-        //
-        //  // mark as closed
-        //   count = -1;
-        //  }
+        // empty for now.
     }
 
     /**
@@ -258,7 +242,12 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         // stricly speaking this is undefined. :/
         // ensureOpen();
 
-        // result array
+        if (count <= pageSize) {
+            // simply return the first page
+            return pages.get(0).v();
+        }
+
+        // create result array
         byte[] result = new byte[count];
         int resultOffset = 0;
 

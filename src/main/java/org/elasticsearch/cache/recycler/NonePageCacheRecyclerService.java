@@ -26,7 +26,10 @@ import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.util.BigArrays;
 
 // Should implement PageCacheRecycler once that is made into an interface
-public class NonPageCacheRecyclerService {
+public class NonePageCacheRecyclerService {
+
+    // Shared non-recycler for legacy constructor clients; should be removed eventually.
+    public static final NonePageCacheRecyclerService INSTANCE = new NonePageCacheRecyclerService();
 
     private final Recycler<byte[]> byteRecycler;
     private final Recycler<int[]> intRecycler;
@@ -35,7 +38,7 @@ public class NonPageCacheRecyclerService {
     private final Recycler<double[]> doubleRecycler;
     private final Recycler<Object[]> objectRecycler;
 
-    public NonPageCacheRecyclerService() {
+    private NonePageCacheRecyclerService() {
         Recycler.C<byte[]> rcb = new NoneRecyclingByteFactory();
         this.byteRecycler = new NoneRecycler<byte[]>(rcb);
         Recycler.C<int[]> rci = new NoneRecyclingIntFactory();

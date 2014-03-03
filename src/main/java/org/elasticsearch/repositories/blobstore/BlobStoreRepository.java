@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.ImmutableBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -221,11 +222,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 // TODO: Can we make it atomic?
                 throw new InvalidSnapshotNameException(snapshotId, "snapshot with such name already exists");
             }
-            snapshotsBlobContainer.writeBlob(snapshotBlobName, bStream.bytes().streamInput(), bStream.bytes().length());
+            BytesReference bRef = bStream.bytes();
+            snapshotsBlobContainer.writeBlob(snapshotBlobName, bRef.streamInput(), bRef.length());
             // Write Global MetaData
             // TODO: Check if metadata needs to be written
             bStream = writeGlobalMetaData(metaData);
-            snapshotsBlobContainer.writeBlob(metaDataBlobName(snapshotId), bStream.bytes().streamInput(), bStream.bytes().length());
+            bRef = bStream.bytes();
+            snapshotsBlobContainer.writeBlob(metaDataBlobName(snapshotId), bRef.streamInput(), bRef.length());
             for (String index : indices) {
                 IndexMetaData indexMetaData = metaData.index(index);
                 BlobPath indexPath = basePath().add("indices").add(index);
@@ -240,7 +243,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                 IndexMetaData.Builder.toXContent(indexMetaData, builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
                 builder.close();
-                indexMetaDataBlobContainer.writeBlob(snapshotBlobName(snapshotId), bStream.bytes().streamInput(), bStream.bytes().length());
+                bRef = bStream.bytes();
+                indexMetaDataBlobContainer.writeBlob(snapshotBlobName(snapshotId), bRef.streamInput(), bRef.length());
             }
         } catch (IOException ex) {
             throw new SnapshotCreationException(snapshotId, ex);
@@ -314,7 +318,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             updatedSnapshot.endTime(System.currentTimeMillis());
             snapshot = updatedSnapshot.build();
             BytesStreamOutput bStream = writeSnapshot(snapshot);
-            snapshotsBlobContainer.writeBlob(blobName, bStream.bytes().streamInput(), bStream.bytes().length());
+            BytesReference bRef = bStream.bytes();
+            snapshotsBlobContainer.writeBlob(blobName, bRef.streamInput(), bRef.length());
             ImmutableList<SnapshotId> snapshotIds = snapshots();
             if (!snapshotIds.contains(snapshotId)) {
                 snapshotIds = ImmutableList.<SnapshotId>builder().addAll(snapshotIds).add(snapshotId).build();
@@ -569,7 +574,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         builder.endArray();
         builder.endObject();
         builder.close();
-        snapshotsBlobContainer.writeBlob(SNAPSHOTS_FILE, bStream.bytes().streamInput(), bStream.bytes().length());
+        BytesReference bRef = bStream.bytes();
+        snapshotsBlobContainer.writeBlob(SNAPSHOTS_FILE, bRef.streamInput(), bRef.length());
     }
 
     /**

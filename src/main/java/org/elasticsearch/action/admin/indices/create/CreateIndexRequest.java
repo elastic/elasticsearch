@@ -256,7 +256,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(source);
-            return aliases(builder.string());
+            return aliases(builder.bytes());
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -266,19 +266,22 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(XContentBuilder source) {
-        try {
-            return aliases(source.string());
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to build json for aliases", e);
-        }
+        return aliases(source.bytes());
     }
 
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
     public CreateIndexRequest aliases(String source) {
+        return aliases(new BytesArray(source));
+    }
+
+    /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequest aliases(BytesReference source) {
         try {
-            XContentParser parser = XContentHelper.createParser(new BytesArray(source));
+            XContentParser parser = XContentHelper.createParser(source);
             //move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {

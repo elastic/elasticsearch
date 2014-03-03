@@ -70,3 +70,12 @@ allows for extremely fast joining with parent docs.
 Those internal nested documents are automatically masked away when doing
 operations against the index (like searching with a match_all query),
 and they bubble out when using the nested query.
+
+Because nested docs are always masked to the parent doc, the nested docs
+can never be accessed outside the scope of the `nested` query. For example
+stored fields can be enabled on fields inside nested objects, but there is
+no way of retrieving them, since stored fields are fetched outside of
+the `nested` query scope.
+
+The `_source` field is always associated with the parent document and
+because of that field values via the source can be fetched for nested object.

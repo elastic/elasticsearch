@@ -175,6 +175,14 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
+     * Sets the aliases that will be associated with the index when it gets created
+     */
+    public CreateIndexRequestBuilder setAliases(BytesReference source) {
+        request.aliases(source);
+        return this;
+    }
+
+    /**
      * Adds an alias that will be associated with the index when it gets created
      */
     public CreateIndexRequestBuilder addAlias(Alias alias) {

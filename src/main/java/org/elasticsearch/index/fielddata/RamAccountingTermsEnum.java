@@ -33,8 +33,8 @@ import java.io.IOException;
  */
 public final class RamAccountingTermsEnum extends FilteredTermsEnum {
 
-    // Flush every 1mb
-    private static final long FLUSH_BUFFER_SIZE = 1024 * 1024;
+    // Flush every 5mb
+    private static final long FLUSH_BUFFER_SIZE = 1024 * 1024 * 5;
 
     private final MemoryCircuitBreaker breaker;
     private final TermsEnum termsEnum;

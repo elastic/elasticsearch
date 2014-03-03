@@ -7,7 +7,7 @@
     <artifactId>elasticsearch-analysis-phonetic</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Phonetic Analysis for elasticsearch</name>
+    <name>Elasticsearch Phonetic Analysis plugin</name>
     <description>The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.</description>
     <url>https://github.com/elasticsearch/elasticsearch-analysis-phonetic/</url>
     <inceptionYear>2009</inceptionYear>

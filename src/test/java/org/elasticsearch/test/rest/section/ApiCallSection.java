@@ -34,9 +34,7 @@ public class ApiCallSection {
 
     private final String api;
     private final Map<String, String> params = Maps.newHashMap();
-    private final List<String> bodies = Lists.newArrayList();
-
-    private static final String EMPTY_BODY = "";
+    private final List<Map<String, Object>> bodies = Lists.newArrayList();
 
     public ApiCallSection(String api) {
         this.api = api;
@@ -59,27 +57,11 @@ public class ApiCallSection {
         this.params.put(key, value);
     }
 
-    public List<String> getBodiesAsList() {
+    public List<Map<String, Object>> getBodies() {
         return ImmutableList.copyOf(bodies);
     }
 
-    public String getBody() {
-        if (bodies.size() == 0) {
-            return EMPTY_BODY;
-        }
-
-        if (bodies.size() == 1) {
-            return bodies.get(0);
-        }
-
-        StringBuilder bodyBuilder = new StringBuilder();
-        for (String body : bodies) {
-            bodyBuilder.append(body).append("\n");
-        }
-        return bodyBuilder.toString();
-    }
-
-    public void addBody(String body) {
+    public void addBody(Map<String, Object> body) {
         this.bodies.add(body);
     }
 

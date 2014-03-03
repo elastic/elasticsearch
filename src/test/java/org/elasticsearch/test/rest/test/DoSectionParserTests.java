@@ -98,8 +98,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getParams().get("id"), equalTo("1"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
 
-        assertJsonEquals(apiCallSection.getBodiesAsList().get(0), body);
-        assertJsonEquals(apiCallSection.getBody(), body);
+        assertJsonEquals(apiCallSection.getBodies().get(0), body);
     }
 
     @Test
@@ -129,12 +128,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getParams().size(), equalTo(1));
         assertThat(apiCallSection.getParams().get("refresh"), equalTo("true"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(1));
-        StringBuilder bodyBuilder = new StringBuilder();
-        for (String body : bodies) {
-            bodyBuilder.append(body);
-        }
-        assertThat(apiCallSection.getBody(), equalTo(bodyBuilder.toString()));
+        assertThat(apiCallSection.getBodies().size(), equalTo(4));
     }
 
     @Test
@@ -161,15 +155,9 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getParams().size(), equalTo(1));
         assertThat(apiCallSection.getParams().get("refresh"), equalTo("true"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(bodies.length));
+        assertThat(apiCallSection.getBodies().size(), equalTo(bodies.length));
         for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(apiCallSection.getBodiesAsList().get(i), bodies[i]);
-        }
-
-        String[] returnedBodies = apiCallSection.getBody().split("\n");
-        assertThat(returnedBodies.length, equalTo(bodies.length));
-        for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(returnedBodies[i], bodies[i]);
+            assertJsonEquals(apiCallSection.getBodies().get(i), bodies[i]);
         }
     }
 
@@ -191,9 +179,8 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getApi(), equalTo("search"));
         assertThat(apiCallSection.getParams().size(), equalTo(0));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(1));
-        assertJsonEquals(apiCallSection.getBodiesAsList().get(0), body);
-        assertJsonEquals(apiCallSection.getBody(), body);
+        assertThat(apiCallSection.getBodies().size(), equalTo(1));
+        assertJsonEquals(apiCallSection.getBodies().get(0), body);
     }
 
     @Test
@@ -230,16 +217,10 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getParams().size(), equalTo(1));
         assertThat(apiCallSection.getParams().get("refresh"), equalTo("true"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(bodies.length));
+        assertThat(apiCallSection.getBodies().size(), equalTo(bodies.length));
 
         for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(apiCallSection.getBodiesAsList().get(i), bodies[i]);
-        }
-
-        String[] returnedBodies = apiCallSection.getBody().split("\n");
-        assertThat(returnedBodies.length, equalTo(bodies.length));
-        for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(returnedBodies[i], bodies[i]);
+            assertJsonEquals(apiCallSection.getBodies().get(i), bodies[i]);
         }
     }
 
@@ -270,16 +251,10 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getParams().size(), equalTo(1));
         assertThat(apiCallSection.getParams().get("refresh"), equalTo("true"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(bodies.length));
+        assertThat(apiCallSection.getBodies().size(), equalTo(bodies.length));
 
         for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(apiCallSection.getBodiesAsList().get(i), bodies[i]);
-        }
-
-        String[] returnedBodies = apiCallSection.getBody().split("\n");
-        assertThat(returnedBodies.length, equalTo(bodies.length));
-        for (int i = 0; i < bodies.length; i++) {
-            assertJsonEquals(returnedBodies[i], bodies[i]);
+            assertJsonEquals(apiCallSection.getBodies().get(i), bodies[i]);
         }
     }
 
@@ -305,9 +280,8 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getApi(), equalTo("mget"));
         assertThat(apiCallSection.getParams().size(), equalTo(0));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(1));
-        assertJsonEquals(apiCallSection.getBodiesAsList().get(0), body);
-        assertJsonEquals(apiCallSection.getBody(), body);
+        assertThat(apiCallSection.getBodies().size(), equalTo(1));
+        assertJsonEquals(apiCallSection.getBodies().get(0), body);
     }
 
     @Test
@@ -331,9 +305,9 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getParams().get("type"), equalTo("test"));
         assertThat(apiCallSection.getParams().get("id"), equalTo("1"));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(1));
+        assertThat(apiCallSection.getBodies().size(), equalTo(1));
         //stringified body is taken as is
-        assertThat(apiCallSection.getBodiesAsList().get(0), equalTo("{ _source: true, query: { match_all: {} } }"));
+        assertJsonEquals(apiCallSection.getBodies().get(0), "{ _source: true, query: { match_all: {} } }");
     }
 
     @Test
@@ -354,10 +328,10 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(apiCallSection.getApi(), equalTo("index"));
         assertThat(apiCallSection.getParams().size(), equalTo(0));
         assertThat(apiCallSection.hasBody(), equalTo(true));
-        assertThat(apiCallSection.getBodiesAsList().size(), equalTo(2));
+        assertThat(apiCallSection.getBodies().size(), equalTo(2));
         //stringified body is taken as is
-        assertThat(apiCallSection.getBodiesAsList().get(0), equalTo("{ _source: true, query: { match_all: {} } }"));
-        assertJsonEquals(apiCallSection.getBodiesAsList().get(1), body);
+        assertJsonEquals(apiCallSection.getBodies().get(0), "{ _source: true, query: { match_all: {} } }");
+        assertJsonEquals(apiCallSection.getBodies().get(1), body);
     }
 
     @Test
@@ -409,12 +383,11 @@ public class DoSectionParserTests extends AbstractParserTests {
         assertThat(doSection.getApiCallSection().getParams().get("type"), equalTo("test_type"));
         assertThat(doSection.getApiCallSection().getParams().get("field"), equalTo("text,text1"));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
-        assertThat(doSection.getApiCallSection().getBodiesAsList().size(), equalTo(0));
+        assertThat(doSection.getApiCallSection().getBodies().size(), equalTo(0));
     }
 
-    private static void assertJsonEquals(String actual, String expected) throws IOException {
-        Map<String,Object> actualMap = JsonXContent.jsonXContent.createParser(actual).mapOrderedAndClose();
+    private static void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {
         Map<String,Object> expectedMap = JsonXContent.jsonXContent.createParser(expected).mapOrderedAndClose();
-        MatcherAssert.assertThat(actualMap, equalTo(expectedMap));
+        MatcherAssert.assertThat(actual, equalTo(expectedMap));
     }
 }

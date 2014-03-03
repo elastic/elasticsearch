@@ -46,7 +46,7 @@ public class SetSection implements ExecutableSection {
     public void execute(RestTestExecutionContext executionContext) throws IOException {
         for (Map.Entry<String, String> entry : stash.entrySet()) {
             Object actualValue = executionContext.response(entry.getKey());
-            executionContext.stash(entry.getValue(), actualValue);
+            executionContext.stash().stashValue(entry.getValue(), actualValue);
         }
     }
 }

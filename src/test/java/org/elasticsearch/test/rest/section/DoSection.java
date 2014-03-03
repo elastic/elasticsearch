@@ -82,7 +82,7 @@ public class DoSection implements ExecutableSection {
         }
 
         try {
-            RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(), apiCallSection.getBody());
+            RestResponse restResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(), apiCallSection.getBodies());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {

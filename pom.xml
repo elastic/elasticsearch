@@ -7,7 +7,7 @@
     <artifactId>elasticsearch-analysis-icu</artifactId>
     <version>2.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>ICU Analysis plugin for elasticsearch</name>
+    <name>Elasticsearch ICU Analysis plugin</name>
     <description>The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.</description>
     <url>https://github.com/elasticsearch/elasticsearch-analysis-icu/</url>
     <inceptionYear>2009</inceptionYear>

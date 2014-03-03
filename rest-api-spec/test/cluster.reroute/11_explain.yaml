@@ -26,10 +26,6 @@ setup:
 ---
 "Explain API for non-existant node & shard":
 
-  - skip:
-      version: 0-999
-      reason: param substitution not implemented yet
-
   - do:
       cluster.state:
         metric: [ master_node ]

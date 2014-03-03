@@ -1,5 +1,5 @@
 [Unit]
-Description=Starts and stops a single elasticsearch instance on this system
+Description=Elasticsearch
 Documentation=http://www.elasticsearch.org
 
 [Service]
@@ -15,6 +15,9 @@ LimitNOFILE=65535
 #LimitMEMLOCK=infinity
 # Shutdown delay in seconds, before process is tried to be killed with KILL (if configured)
 TimeoutStopSec=20
+# Use journalctl to read possible error messages when the service is started
+StandardOutput=journal+console
+StandardError=journal+console
 
 [Install]
 WantedBy=multi-user.target

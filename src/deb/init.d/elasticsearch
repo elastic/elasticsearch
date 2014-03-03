@@ -78,6 +78,9 @@ MAX_OPEN_FILES=65535
 # Elasticsearch log directory
 LOG_DIR=/var/log/$NAME
 
+# stdout log file
+STDOUT_LOG_FILE=/var/log/elasticsearch/elasticsearch-stdout.log
+
 # Elasticsearch data directory
 DATA_DIR=/var/lib/$NAME
 
@@ -147,6 +150,7 @@ case "$1" in
 	# Prepare environment
 	mkdir -p "$LOG_DIR" "$DATA_DIR" "$WORK_DIR" && chown "$ES_USER":"$ES_GROUP" "$LOG_DIR" "$DATA_DIR" "$WORK_DIR"
 	touch "$PID_FILE" && chown "$ES_USER":"$ES_GROUP" "$PID_FILE"
+	touch "$STDOUT_LOG_FILE" && chown "$ES_USER":"$ES_GROUP" "$STDOUT_LOG_FILE"
 
 	if [ -n "$MAX_OPEN_FILES" ]; then
 		ulimit -n $MAX_OPEN_FILES
@@ -161,7 +165,7 @@ case "$1" in
 	fi
 
 	# Start Daemon
-	start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
+	start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec /bin/bash -- -c "$DAEMON $DAEMON_OPTS > $STDOUT_LOG_FILE 2>&1"
 	log_end_msg $?
 	;;		
   stop)

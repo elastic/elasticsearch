@@ -25,6 +25,9 @@ MAX_MAP_COUNT=262144
 # Elasticsearch log directory
 LOG_DIR=/var/log/elasticsearch
 
+# stdout log file
+STDOUT_LOG_FILE=/var/log/elasticsearch/elasticsearch-stdout.log
+
 # Elasticsearch data directory
 DATA_DIR=/var/lib/elasticsearch
 

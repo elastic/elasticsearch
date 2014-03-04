@@ -80,7 +80,7 @@ public class MaxAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return maxes.get(owningBucketOrd);
+        return valuesSource == null ? Double.NEGATIVE_INFINITY : maxes.get(owningBucketOrd);
     }
 
     @Override

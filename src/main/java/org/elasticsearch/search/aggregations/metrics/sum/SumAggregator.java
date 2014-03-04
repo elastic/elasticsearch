@@ -75,7 +75,7 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return sums.get(owningBucketOrd);
+        return valuesSource == null ? 0 : sums.get(owningBucketOrd);
     }
 
     @Override

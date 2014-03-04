@@ -97,7 +97,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
             }
             geometry = FACTORY.createMultiLineString(lineStrings);
         }
-        return new JtsGeometry(geometry, SPATIAL_CONTEXT, true);
+        return jtsGeometry(geometry);
     }
 
     public static class InternalLineStringBuilder extends BaseLineStringBuilder<InternalLineStringBuilder> {

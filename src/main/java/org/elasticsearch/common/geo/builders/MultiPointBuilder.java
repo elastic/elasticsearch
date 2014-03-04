@@ -19,13 +19,15 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
+import com.spatial4j.core.shape.ShapeCollection;
 import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.MultiPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
@@ -43,8 +45,13 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
     @Override
     public Shape build() {
-        MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
-        return new JtsGeometry(geometry, SPATIAL_CONTEXT, true);
+        //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
+        //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
+        List<Point> shapes = new ArrayList<Point>(points.size());
+        for (Coordinate coord : points) {
+            shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
+        }
+        return new ShapeCollection<Point>(shapes, SPATIAL_CONTEXT);
     }
 
     @Override

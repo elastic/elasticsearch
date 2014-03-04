@@ -124,7 +124,7 @@ script to generate values which percentiles are calculated on
 
 There are many different algorithms to calculate percentiles.  The naive 
 implementation simply stores all the values in a sorted array.  To find the 50th
-percentile, you simple find the value that is at `my_array[count(my_array) * 0.5]`.
+percentile, you simply find the value that is at `my_array[count(my_array) * 0.5]`.
 
 Clearly, the naive implementation does not scale -- the sorted array grows
 linearly with the number of values in your dataset.  To calculate percentiles

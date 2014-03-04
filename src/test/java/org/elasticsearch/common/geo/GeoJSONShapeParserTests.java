@@ -20,6 +20,7 @@
 package org.elasticsearch.common.geo;
 
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
@@ -33,7 +34,10 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.common.geo.builders.ShapeBuilder.SPATIAL_CONTEXT;
 
 
 /**
@@ -41,7 +45,7 @@ import java.util.List;
  */
 public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
-    private final static GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
+    private final static GeometryFactory GEOMETRY_FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
     @Test
     public void testParse_simplePoint() throws IOException {
@@ -50,7 +54,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endObject().string();
 
         Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
-        assertGeometryEquals(new JtsPoint(expected, ShapeBuilder.SPATIAL_CONTEXT), pointGeoJson);
+        assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 
     @Test
@@ -68,7 +72,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         LineString expected = GEOMETRY_FACTORY.createLineString(
                 lineCoordinates.toArray(new Coordinate[lineCoordinates.size()]));
-        assertGeometryEquals(new JtsGeometry(expected, ShapeBuilder.SPATIAL_CONTEXT, false), lineGeoJson);
+        assertGeometryEquals(jtsGeom(expected), lineGeoJson);
     }
 
     @Test
@@ -94,7 +98,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
-        assertGeometryEquals(new JtsGeometry(expected, ShapeBuilder.SPATIAL_CONTEXT, false), polygonGeoJson);
+        assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
 
     @Test
@@ -138,7 +142,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         holes[0] = GEOMETRY_FACTORY.createLinearRing(
                 holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, holes);
-        assertGeometryEquals(new JtsGeometry(expected, ShapeBuilder.SPATIAL_CONTEXT, false), polygonGeoJson);
+        assertGeometryEquals(jtsGeom(expected), polygonGeoJson);
     }
 
     @Test
@@ -150,20 +154,17 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<Coordinate> multiPointCoordinates = new ArrayList<Coordinate>();
-        multiPointCoordinates.add(new Coordinate(100, 0));
-        multiPointCoordinates.add(new Coordinate(101, 1));
-
-        MultiPoint expected = GEOMETRY_FACTORY.createMultiPoint(
-                multiPointCoordinates.toArray(new Coordinate[multiPointCoordinates.size()]));
-        assertGeometryEquals(new JtsGeometry(expected, ShapeBuilder.SPATIAL_CONTEXT, false), multiPointGeoJson);
+        ShapeCollection expected = shapeCollection(
+                SPATIAL_CONTEXT.makePoint(100, 0),
+                SPATIAL_CONTEXT.makePoint(101, 1.0));
+        assertGeometryEquals(expected, multiPointGeoJson);
     }
 
     @Test
     public void testParse_multiPolygon() throws IOException {
         String multiPolygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiPolygon")
                 .startArray("coordinates")
-                .startArray()
+                .startArray()//first poly (without holes)
                 .startArray()
                 .startArray().value(102.0).value(2.0).endArray()
                 .startArray().value(103.0).value(2.0).endArray()
@@ -172,7 +173,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .startArray().value(102.0).value(2.0).endArray()
                 .endArray()
                 .endArray()
-                .startArray()
+                .startArray()//second poly (with hole)
                 .startArray()
                 .startArray().value(100.0).value(0.0).endArray()
                 .startArray().value(101.0).value(0.0).endArray()
@@ -180,7 +181,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .startArray().value(100.0).value(1.0).endArray()
                 .startArray().value(100.0).value(0.0).endArray()
                 .endArray()
-                .startArray()
+                .startArray()//hole
                 .startArray().value(100.2).value(0.8).endArray()
                 .startArray().value(100.2).value(0.2).endArray()
                 .startArray().value(100.8).value(0.2).endArray()
@@ -221,9 +222,9 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
 
-        MultiPolygon expected = GEOMETRY_FACTORY.createMultiPolygon(new Polygon[] {withoutHoles, withHoles});
+        Shape expected = shapeCollection(withoutHoles, withHoles);
 
-        assertGeometryEquals(new JtsGeometry(expected, ShapeBuilder.SPATIAL_CONTEXT, false), multiPolygonGeoJson);
+        assertGeometryEquals(expected, multiPolygonGeoJson);
     }
 
     @Test
@@ -244,13 +245,29 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endObject().string();
 
         Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
-        assertGeometryEquals(new JtsPoint(expected, ShapeBuilder.SPATIAL_CONTEXT), pointGeoJson);
+        assertGeometryEquals(new JtsPoint(expected, SPATIAL_CONTEXT), pointGeoJson);
     }
 
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoJson);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertEquals(ShapeBuilder.parse(parser).build(), expected);
+        ElasticsearchGeoAssertions.assertEquals(expected, ShapeBuilder.parse(parser).build());
+    }
+
+    private ShapeCollection<Shape> shapeCollection(Shape... shapes) {
+        return new ShapeCollection<Shape>(Arrays.asList(shapes), SPATIAL_CONTEXT);
+    }
+
+    private ShapeCollection<Shape> shapeCollection(Geometry... geoms) {
+        List<Shape> shapes = new ArrayList<Shape>(geoms.length);
+        for (Geometry geom : geoms) {
+            shapes.add(jtsGeom(geom));
+        }
+        return new ShapeCollection<Shape>(shapes, SPATIAL_CONTEXT);
+    }
+
+    private JtsGeometry jtsGeom(Geometry geom) {
+        return new JtsGeometry(geom, SPATIAL_CONTEXT, false, false);
     }
 
 }

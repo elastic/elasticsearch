@@ -27,7 +27,6 @@ import java.util.Iterator;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -149,8 +148,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
     @Override
     public Shape build() {
-        Geometry geometry = buildGeometry(FACTORY, wrapdateline);
-        return new JtsGeometry(geometry, SPATIAL_CONTEXT, !wrapdateline);
+        return jtsGeometry(buildGeometry(FACTORY, wrapdateline));
     }
 
     protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {

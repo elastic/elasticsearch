@@ -146,14 +146,14 @@
         <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
-            <version>0.3</version>
+            <version>0.4.1</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>com.vividsolutions</groupId>
             <artifactId>jts</artifactId>
-            <version>1.12</version>
+            <version>1.13</version>
             <scope>compile</scope>
             <optional>true</optional>
             <exclusions>

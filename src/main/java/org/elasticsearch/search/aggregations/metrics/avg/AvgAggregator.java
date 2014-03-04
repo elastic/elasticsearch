@@ -80,7 +80,7 @@ public class AvgAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+        return valuesSource == null ? Double.NaN : sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
     }
 
     @Override

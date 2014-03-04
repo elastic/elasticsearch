@@ -21,7 +21,9 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.index.mapper.ParsedDocument;
 
-
+/**
+ * Abstraction on how to index the percolator document.
+ */
 interface PercolatorIndex {
 
     /**
@@ -31,10 +33,5 @@ interface PercolatorIndex {
      * @param document Document that is percolated. Can contain several documents.
      * */
     void prepare(PercolateContext context, ParsedDocument document);
-
-    /**
-     * Release resources
-     * */
-    void clean();
 
 }

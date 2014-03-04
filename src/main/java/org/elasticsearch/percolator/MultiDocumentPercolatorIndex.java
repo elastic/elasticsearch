@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -32,34 +33,51 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.util.List;
 
 
-
+/**
+ * Implementation of {@link PercolatorIndex} that can hold multiple Lucene documents by
+ * opening multiple {@link MemoryIndex} based IndexReaders and wrapping them via a single top level reader.
+ */
 class MultiDocumentPercolatorIndex implements PercolatorIndex {
 
-    public MultiDocumentPercolatorIndex() {
+    private final CloseableThreadLocal<MemoryIndex> cache;
+
+    MultiDocumentPercolatorIndex(CloseableThreadLocal<MemoryIndex> cache) {
+        this.cache = cache;
     }
 
     @Override
     public void prepare(PercolateContext context, ParsedDocument parsedDocument) {
-        int docCounter = 0;
         IndexReader[] memoryIndices = new IndexReader[parsedDocument.docs().size()];
-        for (ParseContext.Document d : parsedDocument.docs()) {
-            memoryIndices[docCounter] = indexDoc(d, parsedDocument.analyzer()).createSearcher().getIndexReader();
-            docCounter++;
+        List<ParseContext.Document> docs = parsedDocument.docs();
+        int rootDocIndex = docs.size() - 1;
+        assert rootDocIndex > 0;
+        MemoryIndex rootDocMemoryIndex = null;
+        for (int i = 0; i < docs.size(); i++) {
+            ParseContext.Document d = docs.get(i);
+            MemoryIndex memoryIndex;
+            if (rootDocIndex == i) {
+                // the last doc is always the rootDoc, since that is usually the biggest document it make sense
+                // to reuse the MemoryIndex it uses
+                memoryIndex = rootDocMemoryIndex = cache.get();
+            } else {
+                memoryIndex = new MemoryIndex(true);
+            }
+            memoryIndices[i] = indexDoc(d, parsedDocument.analyzer(), memoryIndex).createSearcher().getIndexReader();
         }
         MultiReader mReader = new MultiReader(memoryIndices, true);
         try {
             AtomicReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
-            DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader));
+            DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader), rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create index for percolator with nested document ", e);
         }
     }
 
-    MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer) {
-        MemoryIndex memoryIndex = new MemoryIndex(true);
+    MemoryIndex indexDoc(ParseContext.Document d, Analyzer analyzer, MemoryIndex memoryIndex) {
         for (IndexableField field : d.getFields()) {
             if (!field.fieldType().indexed() && field.name().equals(UidFieldMapper.NAME)) {
                 continue;
@@ -76,17 +94,14 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         return memoryIndex;
     }
 
-    @Override
-    public void clean() {
-        // noop
-    }
-
     private class DocSearcher implements Engine.Searcher {
 
         private final IndexSearcher searcher;
+        private final MemoryIndex rootDocMemoryIndex;
 
-        private DocSearcher(IndexSearcher searcher) {
+        private DocSearcher(IndexSearcher searcher, MemoryIndex rootDocMemoryIndex) {
             this.searcher = searcher;
+            this.rootDocMemoryIndex = rootDocMemoryIndex;
         }
 
         @Override
@@ -108,6 +123,7 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         public boolean release() throws ElasticsearchException {
             try {
                 searcher.getIndexReader().close();
+                rootDocMemoryIndex.reset();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to close IndexReader in percolator with nested doc", e);
             }

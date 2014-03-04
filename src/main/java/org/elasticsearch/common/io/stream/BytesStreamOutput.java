@@ -19,34 +19,30 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.cache.recycler.NonePageCacheRecyclerService;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
- * A @link {@link StreamOutput} that uses a {@link PageCacheRecycler} to acquire pages of
- * bytes, which avoids frequent reallocation & copying of the internal data. Pages are
- * returned to the recycler on {@link #close()}.
+ * A @link {@link StreamOutput} that uses{@link BigArrays} to acquire pages of
+ * bytes, which avoids frequent reallocation & copying of the internal data.
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     /**
-     * PageCacheRecycler for acquiring/releasing individual memory pages
+     * Factory/manager for our ByteArray
      */
-    private final NonePageCacheRecyclerService pageRecycler;
+    private final BigArrays bigarrays;
 
     /**
-     * The buffer where data is stored.
+     * The internal list of pages.
      */
-    private final List<Recycler.V<byte[]>> pages;
+    private ByteArray bytes;
 
     /**
      * The number of valid bytes in the buffer.
@@ -54,16 +50,10 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     private int count;
 
     /**
-     * Size of a page taken from the PageCacheRecycler. We assume a constant page size for
-     * all requests.
-     */
-    private final int pageSize;
-
-    /**
      * Create a nonrecycling {@link BytesStreamOutput} with 1 initial page acquired.
      */
     public BytesStreamOutput() {
-        this(NonePageCacheRecyclerService.INSTANCE, BigArrays.BYTE_PAGE_SIZE);
+        this(BigArrays.PAGE_SIZE_IN_BYTES);
     }
 
     /**
@@ -73,42 +63,8 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
      * @param expectedSize the expected maximum size of the stream in bytes.
      */
     public BytesStreamOutput(int expectedSize) {
-        this(NonePageCacheRecyclerService.INSTANCE, expectedSize);
-    }
-
-    /**
-     * Create a {@link BytesStreamOutput} with 1 initial page acquired.
-     * 
-     * @param pageCacheRecycler the {@link PageCacheRecycler} from which to obtain
-     *            bytes[]s.
-     */
-    private BytesStreamOutput(NonePageCacheRecyclerService pageCacheRecycler) {
-        // expected size does not matter as long as it's >0
-        this(pageCacheRecycler, 1);
-    }
-
-    /**
-     * Create a {@link BytesStreamOutput} with enough initial pages acquired to satisfy
-     * the capacity given by {@link expectedSize}.
-     * 
-     * @param pageCacheRecycler the {@link PageCacheRecycler} from which to obtain
-     *            bytes[]s.
-     * @param expectedSize the expected maximum size of the stream in bytes.
-     */
-    private BytesStreamOutput(NonePageCacheRecyclerService pageCacheRecycler, int expectedSize) {
-        this.pageRecycler = pageCacheRecycler;
-        // there is no good way to figure out the pageSize used by a PCR, so
-        // get one page and use its size.
-        Recycler.V<byte[]> vpage = pageRecycler.bytePage(true);
-        this.pageSize = vpage.v().length;
-        // expect 16 pages by default, more if specified
-        this.pages = new ArrayList<Recycler.V<byte[]>>(Math.max(16, expectedSize / pageSize));
-        // keep already acquired page
-        this.pages.add(vpage);
-        // acquire all other requested pages up front if expectedSize > pageSize
-        if (expectedSize > pageSize) {
-            ensureCapacity(expectedSize);
-        }
+        bigarrays = BigArrays.NON_RECYCLING_INSTANCE;
+        bytes = bigarrays.newByteArray(expectedSize);
     }
 
     @Override
@@ -124,10 +80,8 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     @Override
     public void writeByte(byte b) throws IOException {
         ensureOpen();
-        ensureCapacity(count);
-        byte[] page = pages.get(count / pageSize).v();
-        int offset = count % pageSize;
-        page[offset] = b;
+        ensureCapacity(count+1);
+        bytes.set(count, b);
         count++;
     }
 
@@ -146,59 +100,28 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         }
 
         // get enough pages for new size
-        ensureCapacity(count + length);
+        ensureCapacity(count+length);
 
-        // where are we?
-        int currentPageIndex = count / pageSize;
-        byte[] currentPage = pages.get(currentPageIndex).v();
-        int initialOffset = count % pageSize;
-        int remainingPageCapacity = pageSize - initialOffset;
-        int remainingLength = length;
+        // bulk copy
+        bytes.set(count, b, offset, length);
 
-        // try to fill the current page pointed to by #count in one copy if possible
-        if (remainingLength <= remainingPageCapacity) {
-            // simply copy all of length
-            System.arraycopy(b, offset, currentPage, initialOffset, remainingLength);
-            count += remainingLength;
-        }
-        else {
-            // first fill remainder of first page
-            System.arraycopy(b, offset, currentPage, initialOffset, remainingPageCapacity);
-            count += remainingPageCapacity;
-            remainingLength -= remainingPageCapacity;
-            int copied = remainingPageCapacity;
-
-            // if there is enough to copy try to fill adjacent pages directly
-            while (remainingLength > pageSize) {
-                // advance & fill next page
-                currentPage = pages.get(++currentPageIndex).v();
-                System.arraycopy(b, offset + copied, currentPage, 0, pageSize);
-                copied += pageSize;
-                remainingLength -= pageSize;
-                count += pageSize;
-            }
-
-            // finally take care of remaining bytes: tricky since the above loop may not
-            // have run, and #count could point to the middle of a page. So figure out
-            // again where we are.
-            currentPageIndex = count / pageSize;
-            currentPage = pages.get(currentPageIndex).v();
-            initialOffset = count % pageSize;
-            System.arraycopy(b, offset + copied, currentPage, initialOffset, remainingLength);
-            count += remainingLength;
-        }
+        // advance
+        count += length;
     }
 
     public void reset() {
         ensureOpen();
-        // reset the count but keep all acquired pages
+
+        // shrink list of pages
+        bytes = bigarrays.resize(bytes, BigArrays.PAGE_SIZE_IN_BYTES);
+
+        // go back to start
         count = 0;
     }
 
     @Override
     public void flush() throws IOException {
         ensureOpen();
-        // nothing to do there
     }
 
     @Override
@@ -206,6 +129,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         if (position > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("position " + position + " > Integer.MAX_VALUE");
         }
+
         count = (int)position;
         ensureCapacity(count);
     }
@@ -233,55 +157,18 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     @Override
     public BytesReference bytes() {
-        // for now just create a copy; later we might create a page-aware BytesReference
-        // and just transfer ownership.
-        return new BytesArray(toByteArray(), 0, count);
+        BytesRef bref = new BytesRef();
+        bytes.get(0, count, bref);
+        return new BytesArray(bref, false);
     }
 
-    private byte[] toByteArray() {
-        // stricly speaking this is undefined. :/
-        // ensureOpen();
-
-        if (count <= pageSize) {
-            // simply return the first page
-            return pages.get(0).v();
-        }
-
-        // create result array
-        byte[] result = new byte[count];
-        int resultOffset = 0;
-
-        // copy all full pages
-        int toCopy = Math.min(count, pageSize);
-        int numPages = count / pageSize;
-        for (int i = 0; i < numPages; i++) {
-            byte[] page = pages.get(i).v();
-            System.arraycopy(page, 0, result, resultOffset, toCopy);
-            resultOffset += toCopy;
-        }
-
-        // copy any remaining bytes from the last page
-        int remainder = count % pageSize;
-        if (remainder > 0) {
-            byte[] lastPage = pages.get(numPages).v();
-            System.arraycopy(lastPage, 0, result, resultOffset, remainder);
-        }
-
-        return result;
+    private void ensureCapacity(int offset) {
+        bytes = bigarrays.grow(bytes, offset);
     }
 
     private void ensureOpen() {
         if (count < 0) {
             throw new IllegalStateException("Stream is already closed.");
-        }
-    }
-
-    private void ensureCapacity(int offset) {
-        int capacity = pageSize * pages.size();
-        while (offset >= capacity) {
-            Recycler.V<byte[]> vpage = pageRecycler.bytePage(true);
-            pages.add(vpage);
-            capacity += pageSize;
         }
     }
 

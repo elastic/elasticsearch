@@ -21,7 +21,7 @@ package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.File;
@@ -340,18 +341,25 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();
 
+            // write size to beginning of stream
             int size = out.size();
             out.seek(0);
             out.writeInt(size - 4);
+            
+            // seek back to end
+            out.seek(size);
 
-            Location location = current.add(out.bytes().array(), out.bytes().arrayOffset(), size);
+            BytesReference ref = out.bytes();
+            byte[] refBytes = ref.array();
+            int refBytesOffset = ref.arrayOffset();
+            Location location = current.add(refBytes, refBytesOffset, size);
             if (syncOnEachOperation) {
                 current.sync();
             }
             FsTranslogFile trans = this.trans;
             if (trans != null) {
                 try {
-                    location = trans.add(out.bytes().array(), out.bytes().arrayOffset(), size);
+                    location = trans.add(refBytes, refBytesOffset, size);
                 } catch (ClosedChannelException e) {
                     // ignore
                 }

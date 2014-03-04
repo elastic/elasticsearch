@@ -19,7 +19,9 @@
 
 package org.elasticsearch.test.hamcrest;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.shape.ShapeCollection;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
@@ -173,6 +175,13 @@ public class ElasticsearchGeoAssertions {
         assertEquals(g1.getGeom(), g2.getGeom());
     }
 
+    public static void assertEquals(ShapeCollection s1, ShapeCollection s2) {
+        Assert.assertEquals(s1.size(), s2.size());
+        for (int i = 0; i < s1.size(); i++) {
+            assertEquals(s1.get(i), s2.get(i));
+        }
+    }
+
     public static void assertEquals(Shape s1, Shape s2) {
         if(s1 instanceof JtsGeometry && s2 instanceof JtsGeometry) {
             assertEquals((JtsGeometry) s1, (JtsGeometry) s2);
@@ -180,8 +189,13 @@ public class ElasticsearchGeoAssertions {
             JtsPoint p1 = (JtsPoint) s1;
             JtsPoint p2 = (JtsPoint) s2;
             Assert.assertEquals(p1, p2);
+        } else if (s1 instanceof ShapeCollection && s2 instanceof ShapeCollection) {
+            assertEquals((ShapeCollection)s1, (ShapeCollection)s2);
         } else {
-            throw new RuntimeException("equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]");
+            //We want to know the type of the shape because we test shape equality in a special way...
+            //... in particular we test that one ring is equivalent to another ring even if the points are rotated or reversed.
+            throw new RuntimeException(
+                    "equality of shape types not supported [" + s1.getClass().getName() + " and " + s2.getClass().getName() + "]");
         }
     }
 

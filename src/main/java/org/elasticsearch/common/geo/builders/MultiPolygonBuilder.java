@@ -21,15 +21,13 @@ package org.elasticsearch.common.geo.builders;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.List;
 
+import com.spatial4j.core.shape.ShapeCollection;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.Polygon;
 
 public class MultiPolygonBuilder extends ShapeBuilder {
 
@@ -70,30 +68,24 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     @Override
     public Shape build() {
 
-        Polygon[] polygons;
+        List<Shape> shapes = new ArrayList<Shape>(this.polygons.size());
         
         if(wrapdateline) {
-            ArrayList<Polygon> polygonSet = new ArrayList<Polygon>(this.polygons.size());
             for (BasePolygonBuilder<?> polygon : this.polygons) {
                 for(Coordinate[][] part : polygon.coordinates()) {
-                    polygonSet.add(PolygonBuilder.polygon(FACTORY, part));
+                    shapes.add(jtsGeometry(PolygonBuilder.polygon(FACTORY, part)));
                 }
             }
-
-            polygons = polygonSet.toArray(new Polygon[polygonSet.size()]);
         } else {
-            polygons = new Polygon[this.polygons.size()];
-            Iterator<BasePolygonBuilder<?>> iterator = this.polygons.iterator();
-            for (int i = 0; iterator.hasNext(); i++) {
-                polygons[i] = iterator.next().toPolygon(FACTORY);
+            for (BasePolygonBuilder<?> polygon : this.polygons) {
+                shapes.add(jtsGeometry(polygon.toPolygon(FACTORY)));
             }
         }
-
-        Geometry geometry = polygons.length == 1
-                ? polygons[0]
-                : FACTORY.createMultiPolygon(polygons);
-
-        return new JtsGeometry(geometry, SPATIAL_CONTEXT, !wrapdateline);
+        if (shapes.size() == 1)
+            return shapes.get(0);
+        else
+            return new ShapeCollection<Shape>(shapes, SPATIAL_CONTEXT);
+        //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
     public static class InternalPolygonBuilder extends BasePolygonBuilder<InternalPolygonBuilder> {

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.spatial4j.core.shape.jts.JtsGeometry;
+import com.vividsolutions.jts.geom.Geometry;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -54,10 +56,21 @@ public abstract class ShapeBuilder implements ToXContent {
     }
 
     public static final double DATELINE = 180;
-    public static final GeometryFactory FACTORY = new GeometryFactory();
-    public static final JtsSpatialContext SPATIAL_CONTEXT = new JtsSpatialContext(true);
+    // TODO how might we use JtsSpatialContextFactory to configure the context (esp. for non-geo)?
+    public static final JtsSpatialContext SPATIAL_CONTEXT = JtsSpatialContext.GEO;
+    public static final GeometryFactory FACTORY = SPATIAL_CONTEXT.getGeometryFactory();
 
-    protected final boolean wrapdateline = true;
+    /** We're expecting some geometries might cross the dateline. */
+    protected final boolean wrapdateline = SPATIAL_CONTEXT.isGeo();
+
+    /** It's possible that some geometries in a MULTI* shape might overlap. With the possible exception of GeometryCollection,
+     * this normally isn't allowed.
+     */
+    protected final boolean multiPolygonMayOverlap = false;
+    /** @see com.spatial4j.core.shape.jts.JtsGeometry#validate() */
+    protected final boolean autoValidateJtsGeometry = true;
+    /** @see com.spatial4j.core.shape.jts.JtsGeometry#index() */
+    protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
 
     protected ShapeBuilder() {
 
@@ -65,6 +78,16 @@ public abstract class ShapeBuilder implements ToXContent {
 
     protected static Coordinate coordinate(double longitude, double latitude) {
         return new Coordinate(longitude, latitude);
+    }
+
+    protected JtsGeometry jtsGeometry(Geometry geom) {
+        //dateline180Check is false because ElasticSearch does it's own dateline wrapping
+        JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, multiPolygonMayOverlap);
+        if (autoValidateJtsGeometry)
+            jtsGeometry.validate();
+        if (autoIndexJtsGeometry)
+            jtsGeometry.index();
+        return jtsGeometry;
     }
 
     /**

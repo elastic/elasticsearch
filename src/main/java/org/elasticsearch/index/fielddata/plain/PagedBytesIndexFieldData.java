@@ -145,6 +145,9 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
          * @return the number of bytes for the term based on the length and ordinal overhead
          */
         public long bytesPerValue(BytesRef term) {
+            if (term == null) {
+                return 0;
+            }
             long bytes = term.length;
             // 64 bytes for miscellaneous overhead
             bytes += 64;

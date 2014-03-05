@@ -24,3 +24,9 @@ org.apache.lucene.util.RamUsageEstimator#sizeOf(java.lang.Object) @ This can be 
 org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
 org.apache.lucene.index.IndexReader#tryIncRef()
+
+org.apache.lucene.index.IndexWriter#maybeMerge() @ use Merges#maybeMerge
+org.apache.lucene.index.IndexWriter#forceMerge(int) @ use Merges#forceMerge
+org.apache.lucene.index.IndexWriter#forceMerge(int,boolean) @ use Merges#forceMerge
+org.apache.lucene.index.IndexWriter#forceMergeDeletes() @ use Merges#forceMergeDeletes
+org.apache.lucene.index.IndexWriter#forceMergeDeletes(boolean) @ use Merges#forceMergeDeletes

@@ -22,6 +22,7 @@ package org.elasticsearch.index.merge.scheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.merge.EnableMergeScheduler;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -36,7 +37,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  *
  */
-public abstract class MergeSchedulerProvider<T extends MergeScheduler> extends AbstractIndexShardComponent implements IndexShardComponent {
+public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent implements IndexShardComponent {
+
+    public static final String FORCE_ASYNC_MERGE = "index.merge.force_async_merge";
 
     public static interface FailureListener {
         void onFailedMerge(MergePolicy.MergeException e);
@@ -110,7 +113,16 @@ public abstract class MergeSchedulerProvider<T extends MergeScheduler> extends A
         }
     }
 
-    public abstract T newMergeScheduler();
+    public final MergeScheduler newMergeScheduler() {
+        MergeScheduler scheduler = buildMergeScheduler();
+        // an internal settings, that would allow us to disable this behavior if really needed
+        if (indexSettings.getAsBoolean(FORCE_ASYNC_MERGE, true)) {
+            scheduler = new EnableMergeScheduler(scheduler);
+        }
+        return scheduler;
+    }
+
+    protected abstract MergeScheduler buildMergeScheduler();
 
     public abstract MergeStats stats();
 

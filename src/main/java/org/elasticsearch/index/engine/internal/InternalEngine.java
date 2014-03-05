@@ -56,6 +56,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
@@ -947,7 +948,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         rwl.readLock().lock();
         try {
             ensureOpen();
-            indexWriter.maybeMerge();
+            Merges.maybeMerge(indexWriter);
         } catch (OutOfMemoryError e) {
             failEngine(e);
             throw new OptimizeFailedEngineException(shardId, e);
@@ -973,12 +974,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 ensureOpen();
                 if (optimize.onlyExpungeDeletes()) {
-                    indexWriter.forceMergeDeletes(false);
+                    Merges.forceMergeDeletes(indexWriter, false);
                 } else if (optimize.maxNumSegments() <= 0) {
-                    indexWriter.maybeMerge();
+                    Merges.maybeMerge(indexWriter);
                     possibleMergeNeeded = false;
                 } else {
-                    indexWriter.forceMerge(optimize.maxNumSegments(), false);
+                    Merges.forceMerge(indexWriter, optimize.maxNumSegments(), false);
                 }
             } catch (OutOfMemoryError e) {
                 failEngine(e);

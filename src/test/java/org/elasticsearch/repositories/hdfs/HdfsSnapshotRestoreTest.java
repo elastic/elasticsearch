@@ -71,8 +71,8 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
         //cleanRepositoryFiles(path);
     }
 
-    @Test
-    public void testSimpleWorkflow() {
+    //@Test
+    public void tstSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);
 
@@ -145,6 +145,25 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
+    }
+
+    @Test
+    public void testWrongPath() {
+        Client client = client();
+        logger.info("-->  creating hdfs repository with path [{}]", path);
+
+        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+                .setType("hdfs")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                .put("uri", "file://./")
+                .put("path", path + "a b c 11:22")
+                .put("chunk_size", randomIntBetween(100, 1000))
+                .put("compress", randomBoolean())
+                ).get();
+        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+
+        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+        ensureGreen();
     }
 
     /**

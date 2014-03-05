@@ -66,8 +66,8 @@ public class AbstractHdfsBlobContainer extends AbstractBlobContainer {
                 FSDataInputStream fileStream;
                 try {
                     fileStream = blobStore.fileSystem().open(new Path(path, blobName));
-                } catch (IOException e) {
-                    listener.onFailure(e);
+                } catch (Throwable th) {
+                    listener.onFailure(th);
                     return;
                 }
                 try {
@@ -76,13 +76,13 @@ public class AbstractHdfsBlobContainer extends AbstractBlobContainer {
                         listener.onPartial(buffer, 0, bytesRead);
                     }
                     listener.onCompleted();
-                } catch (Exception e) {
+                } catch (Throwable th) {
                     try {
                         fileStream.close();
-                    } catch (IOException e1) {
+                    } catch (Throwable t) {
                         // ignore
                     }
-                    listener.onFailure(e);
+                    listener.onFailure(th);
                 }
             }
         });

@@ -240,7 +240,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", stats.getOs().getLoadAverage()[0]));
             table.addCell(stats == null ? null : stats.getJvm().uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
-            table.addCell(masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
+            table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
             table.addCell(node.name());
 
             table.addCell(stats == null ? null : stats.getIndices().getCompletion().getSize());

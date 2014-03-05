@@ -58,6 +58,10 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -292,7 +296,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             client().admin().indices().preparePutTemplate("random_index_template")
                     .setTemplate("*")
                     .setOrder(0)
-                    .setSettings(setRandomNormsLoading(setRandomMergePolicy(getRandom(), ImmutableSettings.builder())
+                    .setSettings(setRandomNormsLoading(setRandomMerge(getRandom(), ImmutableSettings.builder())
                             .put(INDEX_SEED_SETTING, randomLong())))
                     .execute().actionGet();
         }
@@ -305,24 +309,38 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return builder;
     }
 
-    private static ImmutableSettings.Builder setRandomMergePolicy(Random random, ImmutableSettings.Builder builder) {
+    private static ImmutableSettings.Builder setRandomMerge(Random random, ImmutableSettings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
                     random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
         }
-        Class<? extends MergePolicyProvider<?>> clazz = TieredMergePolicyProvider.class;
+        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
         switch (random.nextInt(5)) {
             case 4:
-                clazz = LogByteSizeMergePolicyProvider.class;
+                mergePolicy = LogByteSizeMergePolicyProvider.class;
                 break;
             case 3:
-                clazz = LogDocMergePolicyProvider.class;
+                mergePolicy = LogDocMergePolicyProvider.class;
                 break;
             case 0:
-                return builder; // don't set the setting at all
+                mergePolicy = null;
         }
-        assert clazz != null;
-        builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, clazz.getName());
+        if (mergePolicy != null) {
+            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
+        }
+        switch (random.nextInt(5)) {
+            case 4:
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, SerialMergeSchedulerProvider.class.getName());
+                break;
+            case 3:
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class.getName());
+                break;
+        }
+
         return builder;
     }
 

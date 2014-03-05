@@ -41,6 +41,7 @@ import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvid
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -265,7 +266,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             writer.addDocument(doc);
         }
         writer.commit();
-        writer.forceMerge(1);
+        Merges.forceMerge(writer, 1);
         writer.commit();
         DirectoryReader reader = DirectoryReader.open(writer, true);
         assertThat(reader.leaves().size(), equalTo(1));

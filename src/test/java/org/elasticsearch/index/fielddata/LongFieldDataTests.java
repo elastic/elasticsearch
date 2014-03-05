@@ -28,6 +28,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
+import org.elasticsearch.index.merge.Merges;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -325,7 +326,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             }
             writer.addDocument(doc);
         }
-        writer.forceMerge(1);
+        Merges.forceMerge(writer, 1);
 
         final IndexNumericFieldData indexFieldData = getForField("value");
         final AtomicNumericFieldData atomicFieldData = indexFieldData.load(refreshReader());

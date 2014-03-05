@@ -47,7 +47,7 @@ public final class XIntBlockPool implements Releasable {
    */
   public static class Allocator {
     private final PageCacheRecycler recycler;
-    
+
     public Allocator(PageCacheRecycler recycler) {
       this.recycler = recycler;
     }
@@ -63,7 +63,7 @@ public final class XIntBlockPool implements Releasable {
       return recycler.intPage(true);
     }
   }
-  
+
   /** array of buffers currently used in the pool. Buffers are allocated if needed don't modify this outside of this class */
   @SuppressWarnings("unchecked")
   public Recycler.V<int[]>[] buffers = (V<int[]>[]) new Recycler.V<?>[10];

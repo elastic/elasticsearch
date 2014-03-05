@@ -312,7 +312,7 @@ public abstract class AbstractDelegatingOrAnalyzingReader extends FilterAtomicRe
 
     /**
      * Terms enum that doesn't spit out the terms in any particular order.  Horrible
-     * for anything but the FVH.
+     * for anything but the FVH or PostingsHighlighter.
      */
     private static class AnalyzedTermsEnum extends TermsEnum {
         private final BytesRef ref = new BytesRef();

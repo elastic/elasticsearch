@@ -81,22 +81,6 @@ fast vector highlighter:
   for things like phrase matches being sorted above term matches when
   highlighting a Boosting Query that boosts phrase matches over term matches
 
-coming[1.1.0]
-Here is an example of setting the `content` field to allow for
-highlighting using the fast vector highlighter on it.  Each field over
-one thousand characters will store term vectors and each field under
-a thousand characters will be reanalyzed when it is highlighted.
-
-[source,js]
---------------------------------------------------
-{
-    "type_name" : {
-        "content" : {"term_vector_over_1k" : "with_positions_offsets"}
-    }
-}
---------------------------------------------------
-
-deprecated[1.1.0]
 Here is an example of setting the `content` field to allow for
 highlighting using the fast vector highlighter on it.  This will store
 term vectors for all fields regardless of length.
@@ -109,14 +93,6 @@ term vectors for all fields regardless of length.
     }
 }
 --------------------------------------------------
-
-[NOTE]
-Liberal storage of term vector information has been known to increase
-the index size from between 20% and 50% and loading term vectors for
-short fields is actually slower then just re-analyzing them.  Thus
-using `term_vector_over_X` both limits term vectors to fields that would
-benefit from it and and provides a way to trade hit time for disk space
-and index time.
 
 
 ==== Force highlighter type

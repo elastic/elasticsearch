@@ -91,3 +91,19 @@ curl localhost:9200/_stats/fielddata/field1,field2?pretty
 curl localhost:9200/_stats/fielddata/field*?pretty
 curl localhost:9200/_nodes/stats/indices/field*?pretty
 --------------------------------------------------
+
+[float]
+[[search-groups]]
+=== Search groups
+
+You can get statistics about search groups for searches executed
+on this node.
+
+[source,js]
+--------------------------------------------------
+# All groups with all stats
+curl localhost:9200/_nodes/stats?pretty&groups=_all
+
+# Some groups from just the indices stats
+curl localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar
+--------------------------------------------------

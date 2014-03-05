@@ -39,13 +39,14 @@ public class HdfsImmutableBlobContainer extends AbstractHdfsBlobContainer implem
         blobStore.executor().execute(new Runnable() {
             @Override
             public void run() {
-                Path file = new Path(path, blobName);
-
+                Path file;
                 FSDataOutputStream fileStream;
+
                 try {
+                    file = new Path(path, blobName);
                     fileStream = blobStore.fileSystem().create(file, true);
-                } catch (IOException e) {
-                    listener.onFailure(e);
+                } catch (Throwable th) {
+                    listener.onFailure(th);
                     return;
                 }
                 try {
@@ -60,16 +61,16 @@ public class HdfsImmutableBlobContainer extends AbstractHdfsBlobContainer implem
                         IOUtils.closeStream(fileStream);
                     }
                     listener.onCompleted();
-                } catch (Exception e) {
+                } catch (Throwable th) {
                     // just on the safe size, try and delete it on failure
                     try {
                         if (blobStore.fileSystem().exists(file)) {
                             blobStore.fileSystem().delete(file, true);
                         }
-                    } catch (Exception e1) {
+                    } catch (Throwable t) {
                         // ignore
                     }
-                    listener.onFailure(e);
+                    listener.onFailure(th);
                 }
             }
         });

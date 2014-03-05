@@ -34,6 +34,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.hamcrest.MatcherAssert;
@@ -266,7 +267,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
                 .put("1", 0L).put("2", 0L).put("3", 0L).put("4", 4L).put("5", 5L).put("6", 6L).build();
 
         // Force merge and check versions
-        iw.forceMerge(1);
+        Merges.forceMerge(iw, 1);
         final AtomicReader ir = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(iw.getDirectory()));
         final NumericDocValues versions = ir.getNumericDocValues(VersionFieldMapper.NAME);
         assertThat(versions, notNullValue());

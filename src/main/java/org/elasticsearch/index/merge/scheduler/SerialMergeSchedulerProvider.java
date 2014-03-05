@@ -48,7 +48,7 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
     }
 
     @Override
-    public MergeScheduler newMergeScheduler() {
+    public MergeScheduler buildMergeScheduler() {
         CustomSerialMergeScheduler scheduler = new CustomSerialMergeScheduler(logger, this);
         schedulers.add(scheduler);
         return scheduler;

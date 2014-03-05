@@ -149,7 +149,7 @@ This cache has the following options:
 `indices.cache.filter.terms.expire_after_access`:: 
     The time after the last read an entry should expire. Disabled by default.
 
-`indices.cache.filter.terms.expire_after_write`: 
+`indices.cache.filter.terms.expire_after_write`:: 
     The time after the last write an entry should expire. Disabled by default.
 
 All options for the lookup of the documents cache can only be configured

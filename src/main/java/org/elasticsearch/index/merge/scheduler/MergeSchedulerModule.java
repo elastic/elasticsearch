@@ -22,16 +22,13 @@ package org.elasticsearch.index.merge.scheduler;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 
-import static org.elasticsearch.index.merge.scheduler.MergeSchedulerModule.MergeSchedulerSettings.TYPE;
-
 /**
  *
  */
 public class MergeSchedulerModule extends AbstractModule {
 
-    public static class MergeSchedulerSettings {
-        public static final String TYPE = "index.merge.scheduler.type";
-    }
+    public static final String MERGE_SCHEDULER_TYPE_KEY = "index.merge.scheduler.type";
+    public static final Class<? extends MergeSchedulerProvider> DEFAULT = ConcurrentMergeSchedulerProvider.class;
 
     private final Settings settings;
 
@@ -42,7 +39,7 @@ public class MergeSchedulerModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(MergeSchedulerProvider.class)
-                .to(settings.getAsClass(TYPE, ConcurrentMergeSchedulerProvider.class, "org.elasticsearch.index.merge.scheduler.", "MergeSchedulerProvider"))
+                .to(settings.getAsClass(MERGE_SCHEDULER_TYPE_KEY, DEFAULT, "org.elasticsearch.index.merge.scheduler.", "MergeSchedulerProvider"))
                 .asEagerSingleton();
     }
 }

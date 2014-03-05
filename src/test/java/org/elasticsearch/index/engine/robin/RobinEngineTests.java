@@ -182,7 +182,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         return new LogByteSizeMergePolicyProvider(store, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS));
     }
 
-    protected MergeSchedulerProvider<?> createMergeScheduler() {
+    protected MergeSchedulerProvider createMergeScheduler() {
         return new SerialMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
     }
 
@@ -190,7 +190,7 @@ public class RobinEngineTests extends ElasticsearchTestCase {
         return createEngine(indexSettingsService, store, translog, createMergeScheduler());
     }
 
-    protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider<?> mergeSchedulerProvider) {
+    protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
         return new RobinEngine(shardId, defaultSettings, threadPool, indexSettingsService, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
                 new AnalysisService(shardId.index()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
     }

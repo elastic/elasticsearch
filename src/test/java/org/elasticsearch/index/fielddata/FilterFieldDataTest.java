@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.AtomicFieldData.WithOrdinals;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.merge.Merges;
 import org.junit.Test;
 
 import java.util.Random;
@@ -61,7 +62,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
             }
             writer.addDocument(d);
         }
-        writer.forceMerge(1);
+        Merges.forceMerge(writer, 1);
         AtomicReaderContext context = refreshReader();
         String[] formats = new String[] { "fst", "paged_bytes"};
         
@@ -163,8 +164,8 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
             }
             writer.addDocument(d);
         }
-        System.out.println(hundred + " " + ten + " " +five);
-        writer.forceMerge(1);
+        System.out.println(hundred + " " + ten + " " + five);
+        Merges.forceMerge(writer, 1);
         AtomicReaderContext context = refreshReader();
         String[] formats = new String[] { "fst", "paged_bytes"};
         for (String format : formats) {

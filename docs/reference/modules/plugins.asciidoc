@@ -279,5 +279,6 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/endgameinc/elasticsearch-term-plugin[Terms Component Plugin] (by Endgame Inc.)
 * http://tlrx.github.com/elasticsearch-view-plugin[Elasticsearch View Plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
+* https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
 
 

@@ -23,6 +23,7 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -41,8 +42,7 @@ import org.junit.Test;
 
 import java.util.Collection;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
 
@@ -184,6 +184,8 @@ public class RobinEngineIntegrationTest extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numDocs; i++) {
             if ((i + 1) % 10 == 0) {
                 logger.debug("  --> Indexed [{}] documents", i + 1);
+                OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
+                assertNoFailures(actionGet);
             }
             client().prepareIndex("test", "type1")
                     .setSource("a", "" + i)

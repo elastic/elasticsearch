@@ -278,4 +278,34 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+      <profile>
+        <id>default</id>
+        <activation>
+          <activeByDefault>true</activeByDefault>
+        </activation>
+      </profile>
+
+      <profile>
+        <id>plugin-test</id>
+        <activation>
+          <property>
+            <name>tests.plugin</name>
+          </property>
+        </activation>
+
+        <properties>
+          <elasticsearch.lib>${basedir}/elasticsearch/target</elasticsearch.lib>
+        </properties>
+
+        <repositories>
+          <repository>
+            <id>ElasticsearchRepo</id>
+            <name>ElasticsearchRepo</name>
+            <url>file://${elasticsearch.lib}</url>
+          </repository>
+        </repositories>
+      </profile>
+    </profiles>
 </project>

@@ -74,7 +74,7 @@ sudo service elasticsearch start
 [float]
 ===== Using systemd
 
-Distributions like SuSe do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch`. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
+Distributions like SUSE do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch`. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
 
 [source,sh]
 --------------------------------------------------

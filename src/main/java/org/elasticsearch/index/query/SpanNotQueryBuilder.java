@@ -29,17 +29,19 @@ import java.io.IOException;
  */
 public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNotQueryBuilder> {
 
+    public static final int NOT_SET = -1;
+
     private SpanQueryBuilder include;
 
     private SpanQueryBuilder exclude;
 
-    private int dist = -1;
+    private int dist = NOT_SET;
 
-    private int pre = -1;
+    private int pre = NOT_SET;
 
-    private int post = -1;
+    private int post = NOT_SET;
 
-    private float boost = -1;
+    private float boost = NOT_SET;
 
     private String queryName;
 
@@ -59,12 +61,12 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
     }
 
     public SpanNotQueryBuilder pre(int pre) {
-        this.pre = pre;
+        this.pre = (pre >=0) ? pre : 0;
         return this;
     }
 
     public SpanNotQueryBuilder post(int post) {
-        this.post = post;
+        this.post = (post >= 0) ? post : 0;
         return this;
     }
 
@@ -75,6 +77,8 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
 
     /**
      * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     * @param queryName The query name
+     * @return this
      */
     public SpanNotQueryBuilder queryName(String queryName) {
         this.queryName = queryName;
@@ -90,8 +94,15 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
             throw new ElasticsearchIllegalArgumentException("Must specify exclude when using spanNot query");
         }
 
-        if ((dist != -1 && (pre != -1 || post != -1)) || (pre != -1 && post == -1) || (pre == -1 && post != -1))  {
-            throw new ElasticSearchIllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
+        if (dist != NOT_SET && (pre != NOT_SET || post != NOT_SET)) {
+             throw new ElasticsearchIllegalArgumentException("spanNot can either use [dist] or [pre] & [post] (or none)");
+        }
+
+        // set appropriate defaults
+        if (pre != NOT_SET && post == NOT_SET) {
+            post = 0;
+        } else if (pre == NOT_SET && post != NOT_SET){
+            pre = 0;
         }
 
         builder.startObject(SpanNotQueryParser.NAME);
@@ -99,16 +110,16 @@ public class SpanNotQueryBuilder extends BaseQueryBuilder implements SpanQueryBu
         include.toXContent(builder, params);
         builder.field("exclude");
         exclude.toXContent(builder, params);
-        if (dist != -1) {
+        if (dist != NOT_SET) {
             builder.field("dist", dist);
         }
-        if (pre != -1) {
+        if (pre != NOT_SET) {
             builder.field("pre", pre);
         }
-        if (post != -1) {
+        if (post != NOT_SET) {
             builder.field("post", post);
         }
-        if (boost != -1) {
+        if (boost != NOT_SET) {
             builder.field("boost", boost);
         }
         if (queryName != null) {

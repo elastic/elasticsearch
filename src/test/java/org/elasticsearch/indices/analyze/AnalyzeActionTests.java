@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -40,14 +39,8 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void simpleAnalyzerTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
             AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
@@ -73,14 +66,9 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void analyzeNumericField() throws ElasticsearchException, IOException {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         createIndex("test");
-        
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
+
         client().prepareIndex("test", "test", "1")
         .setSource(XContentFactory.jsonBuilder()
                 .startObject()
@@ -157,7 +145,7 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     public void analyzerWithFieldOrTypeTests() throws Exception {
 
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         client().admin().indices().preparePutMapping("test")
                 .setType("document").setSource(

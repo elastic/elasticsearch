@@ -152,23 +152,47 @@ has several values within the corpus.
 
 |`doc['field_name'].lons` |The longitudes of a geo point type.
 
-|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in miles)
+|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in meters)
 of this geo point field from the provided lat/lon.
 
-|`doc['field_name'].arcDistance(lat, lon)` |The `arc` distance (in
+|`doc['field_name'].distanceWithDefault(lat, lon, default)` |The `plane` distance (in meters)
+of this geo point field from the provided lat/lon with a default value.
+
+|`doc['field_name'].distanceInMiles(lat, lon)` |The `plane` distance (in
 miles) of this geo point field from the provided lat/lon.
+
+|`doc['field_name'].distanceInMilesWithDefault(lat, lon, default)` |The `plane` distance (in
+miles) of this geo point field from the provided lat/lon with a default value.
 
 |`doc['field_name'].distanceInKm(lat, lon)` |The `plane` distance (in
 km) of this geo point field from the provided lat/lon.
 
+|`doc['field_name'].distanceInKmWithDefault(lat, lon, default)` |The `plane` distance (in
+km) of this geo point field from the provided lat/lon with a default value.
+
+|`doc['field_name'].arcDistance(lat, lon)` |The `arc` distance (in
+meters) of this geo point field from the provided lat/lon.
+
+|`doc['field_name'].arcDistanceWithDefault(lat, lon, default)` |The `arc` distance (in
+meters) of this geo point field from the provided lat/lon with a default value.
+
+|`doc['field_name'].arcDistanceInMiles(lat, lon)` |The `arc` distance (in
+miles) of this geo point field from the provided lat/lon.
+
+|`doc['field_name'].arcDistanceInMilesWithDefault(lat, lon, default)` |The `arc` distance (in
+miles) of this geo point field from the provided lat/lon with a default value.
+
 |`doc['field_name'].arcDistanceInKm(lat, lon)` |The `arc` distance (in
 km) of this geo point field from the provided lat/lon.
 
-|`doc['field_name'].geohashDistance(geohash)` |The distance (in miles)
-of this geo point field from the provided geohash.
+|`doc['field_name'].arcDistanceInKmWithDefault(lat, lon, default)` |The `arc` distance (in
+km) of this geo point field from the provided lat/lon with a default value.
 
-|`doc['field_name'].geohashDistanceInKm(geohash)` |The distance (in km)
-of this geo point field from the provided geohash.
+|`doc['field_name'].factorDistance(lat, lon)` |The distance factor of this geo point field from the provided lat/lon.
+
+|`doc['field_name'].factorDistance(lat, lon, default)` |The distance factor of this geo point field from the provided lat/lon with a default value.
+
+
 |=======================================================================
 
 [float]

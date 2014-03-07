@@ -13,7 +13,7 @@ when looking at an ssh terminal, need compact and aligned text.  The
 cat API aims to meet this need.
 
 All the cat commands accept a query string parameter `help` to see all
-the headers and info they provide, and the `/_cat?help` command lists all
+the headers and info they provide, and the `/_cat` command alone lists all
 the available commands.
 
 [float]

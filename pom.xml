@@ -304,6 +304,8 @@
             <id>ElasticsearchRepo</id>
             <name>ElasticsearchRepo</name>
             <url>file://${elasticsearch.lib}</url>
+            <releases><enabled>true</enabled><updatePolicy>always</updatePolicy></releases>
+            <snapshots><enabled>true</enabled><updatePolicy>always</updatePolicy></snapshots>
           </repository>
         </repositories>
       </profile>

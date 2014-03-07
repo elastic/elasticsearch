@@ -1,15 +1,15 @@
 [[mapping-dynamic-mapping]]
 == Dynamic Mapping
 
-Default mappings allow to automatically apply generic mapping definition
-to types that do not have mapping pre defined. This is mainly done
+Default mappings allow to automatically apply generic mapping definitions
+to types that do not have mappings predefined. This is mainly done
 thanks to the fact that the
 <<mapping-object-type,object mapping>> and
 namely the <<mapping-root-object-type,root
 object mapping>> allow for schema-less dynamic addition of unmapped
 fields.
 
-The default mapping definition is plain mapping definition that is
+The default mapping definition is a plain mapping definition that is
 embedded within the distribution:
 
 [source,js]
@@ -20,10 +20,10 @@ embedded within the distribution:
 }
 --------------------------------------------------
 
-Pretty short, no? Basically, everything is defaulted, especially the
+Pretty short, isn't it? Basically, everything is defaulted, especially the
 dynamic nature of the root object mapping. The default mapping
 definition can be overridden in several manners. The simplest manner is
-to simply define a file called `default-mapping.json` and placed it
+to simply define a file called `default-mapping.json` and to place it
 under the `config` directory (which can be configured to exist in a
 different location). It can also be explicitly set using the
 `index.mapper.default_mapping_location` setting.

@@ -90,7 +90,7 @@ date fields, not for `date` fields that you specify in your mapping.
 [float]
 ==== date_detection
 
-Allows to disable automatic date type detection (a new field introduced
+Allows to disable automatic date type detection (if a new field is introduced
 and matches the provided format), for example:
 
 [source,js]

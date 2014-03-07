@@ -163,9 +163,9 @@ An alias can also be added with the endpoint
 where
 
 [horizontal]
-`index`::   The index to alias refers to. Can be any of `blank | * | _all | glob pattern | name1, name2, …` 
-`name`::   The name of the alias. This is a required option. 
-`routing`:: An optional routing that can be associated with an alias. 
+`index`::   The index the alias refers to. Can be any of `blank | * | _all | glob pattern | name1, name2, …`
+`name`::   The name of the alias. This is a required option.
+`routing`:: An optional routing that can be associated with an alias.
 `filter`::  An optional filter that can be associated with an alias.
 
 You can also use the plural `_aliases`.
@@ -190,7 +190,7 @@ curl -XPUT 'localhost:9200/users/_alias/user_12' -d '{
         "term" : {
             "user_id" : 12
         }
-    }       
+    }
 }'
 --------------------------------------------------
 
@@ -226,8 +226,8 @@ The rest endpoint is: `/{index}/_alias/{name}`
 where
 
 [horizontal]
-`index`::  `* | _all | glob pattern | name1, name2, …` 
-`name`::  `* | _all | glob pattern | name1, name2, …` 
+`index`::  `* | _all | glob pattern | name1, name2, …`
+`name`::  `* | _all | glob pattern | name1, name2, …`
 
 Alternatively you can use the plural `_aliases`. Example:
 
@@ -245,15 +245,14 @@ alias name and index name. This api redirects to the master and fetches
 the requested index aliases, if available. This api only serialises the
 found index aliases.
 
-Possible options: 
+Possible options:
 [horizontal]
-`index`::   
-
+`index`::
     The index name to get aliases for. Partially names are
     supported via wildcards, also multiple index names can be specified
-    separated with a comma. Also the alias name for an index can be used. 
+    separated with a comma. Also the alias name for an index can be used.
 
-`alias`::   
+`alias`::
     The name of alias to return in the response. Like the index
     option, this option supports wildcards and the option the specify
     multiple alias names separated by a comma.

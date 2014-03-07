@@ -13,7 +13,7 @@ and get them.
 
 Index warmup can be disabled by setting `index.warmer.enabled` to
 `false`. It is supported as a realtime setting using update settings
-API. This can be handy when doing initial bulk indexing, disabling pre
+API. This can be handy when doing initial bulk indexing: disable pre
 registered warmers to make indexing faster and less expensive and then
 enable it.
 

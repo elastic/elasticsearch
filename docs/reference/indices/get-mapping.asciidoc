@@ -1,7 +1,7 @@
 [[indices-get-mapping]]
 == Get Mapping
 
-The get mapping API allows to retrieve mapping definition of index or
+The get mapping API allows to retrieve mapping definitions for an index or
 index/type.
 
 [source,js]
@@ -15,7 +15,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_mapping'
 The get mapping API can be used to get more than one index or type
 mapping with a single call. General usage of the API follows the
 following syntax: `host:port/{index}/{type}/_mapping` where both
-`{index}` and `{type}` can stand for comma-separated list of names. To
+`{index}` and `{type}` can accept a comma-separated list of names. To
 get mappings for all indices you can use `_all` for `{index}`. The
 following are some examples:
 

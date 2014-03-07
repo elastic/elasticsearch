@@ -139,21 +139,21 @@ number of terms that will be indexed depends on the `geohash_precision`.
 Defaults to `false`. *Note*: This option implicitly enables `geohash`.
 
 |`validate` |Set to `true` to reject geo points with invalid latitude or
-longitude (default is `false`) *Note*: Validation only works when
+longitude (default is `false`). *Note*: Validation only works when
 normalization has been disabled.
 
 |`validate_lat` |Set to `true` to reject geo points with an invalid
-latitude
+latitude.
 
 |`validate_lon` |Set to `true` to reject geo points with an invalid
-longitude
+longitude.
 
 |`normalize` |Set to `true` to normalize latitude and longitude (default
-is `true`)
+is `true`).
 
-|`normalize_lat` |Set to `true` to normalize latitude
+|`normalize_lat` |Set to `true` to normalize latitude.
 
-|`normalize_lon` |Set to `true` to normalize longitude
+|`normalize_lon` |Set to `true` to normalize longitude.
 |=======================================================================
 
 [float]

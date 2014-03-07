@@ -47,7 +47,7 @@ Also, the analyzer can be derived based on a field mapping, for example:
 curl -XGET 'localhost:9200/test/_analyze?field=obj1.field1' -d 'this is a test'
 --------------------------------------------------
 
-Will cause the analysis to happen based on the analyzer configure in the
+Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
 Also, the text can be provided as part of the request body, and not as a

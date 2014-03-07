@@ -38,7 +38,7 @@ Accept-Encoding). Defaults to `false`.
 Defaults to `6`.
 |=======================================================================
 
-It also shares the uses the common
+It also uses the common
 <<modules-network,network settings>>.
 
 [float]

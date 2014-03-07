@@ -2,8 +2,8 @@
 == Codec module
 
 Codecs define how documents are written to disk and read from disk. The
-postings format is the part of the codec that responsible for reading
-and writing the term dictionary, postings lists and positions, payloads
+postings format is the part of the codec that is responsible for reading
+and writing the term dictionary, postings lists and positions, as well as the payloads
 and offsets stored in the postings list. The doc values format is
 responsible for reading column-stride storage for a field and is typically
 used for sorting or faceting. When a field doesn't have doc values enabled,
@@ -25,7 +25,7 @@ Elasticsearch, requiring data to be reindexed.
 [[custom-postings]]
 === Configuring a custom postings format
 
-Custom postings format can be defined in the index settings in the
+A custom postings format can be defined in the index settings in the
 `codec` part. The `codec` part can be configured when creating an index
 or updating index settings. An example on how to define your custom
 postings format:
@@ -48,7 +48,7 @@ curl -XPUT 'http://localhost:9200/twitter/' -d '{
 }'
 --------------------------------------------------
 
-Then we defining your mapping your can use the `my_format` name in the
+Then when defining your mapping you can use the `my_format` name in the
 `postings_format` option as the example below illustrates:
 
 [source,js]

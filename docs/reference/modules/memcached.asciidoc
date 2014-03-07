@@ -58,7 +58,7 @@ The following are the settings the can be configured for memcached:
 |`memcached.port` |A bind port range. Defaults to `11211-11311`.
 |===============================================================
 
-It also shares the uses the common
+It also uses the common
 <<modules-network,network settings>>.
 
 [float]

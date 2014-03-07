@@ -26,7 +26,7 @@ merge needs to execute, and if so, executes it.
 `only_expunge_deletes`:: Should the optimize process only expunge segments
 with deletes in it. In Lucene, a document is not deleted from a segment,
 just marked as deleted. During a merge process of segments, a new
-segment is created that does not have those deletes. This flag allow to
+segment is created that does not have those deletes. This flag allows to
 only merge segments that have deletes. Defaults to `false`.
 
 `flush`::  Should a flush be performed after the optimize. Defaults to

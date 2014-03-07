@@ -2,8 +2,8 @@
 == Analysis
 
 The index analysis module acts as a configurable registry of Analyzers
-that can be used in order to both break indexed (analyzed) fields when a
-document is indexed and process query strings. It maps to the Lucene
+that can be used in order to break down indexed (analyzed) fields when a
+document is indexed as well as to process query strings. It maps to the Lucene
 `Analyzer`.
 
 Analyzers are (generally) composed of a single `Tokenizer` and zero or

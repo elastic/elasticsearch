@@ -123,7 +123,7 @@ specific attributes.
 
 For example, lets say we have an awareness attribute called `zone`, and
 we know we are going to have two zones, `zone1` and `zone2`. Here is how
-we can force awareness one a node:
+we can force awareness on a node:
 
 [source,js]
 -------------------------------------------------------------------
@@ -153,7 +153,7 @@ The settings can be updated using the <<cluster-update-settings,cluster update s
 [[allocation-filtering]]
 === Shard Allocation Filtering
 
-Allow to control allocation if indices on nodes based on include/exclude
+Allow to control allocation of indices on nodes based on include/exclude
 filters. The filters can be set both on the index level and on the
 cluster level. Lets start with an example of setting it on the cluster
 level:

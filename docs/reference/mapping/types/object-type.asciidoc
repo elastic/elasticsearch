@@ -134,7 +134,7 @@ example, if we added age and its value is a number, then it can't be
 treated as a string.
 
 The `dynamic` parameter can also be set to `strict`, meaning that not
-only new fields will not be introduced into the mapping, parsing
+only will new fields not be introduced into the mapping, but also that parsing
 (indexing) docs with such new fields will fail.
 
 [float]
@@ -173,6 +173,6 @@ In the above, `name` and its content will not be indexed at all.
 ==== include_in_all
 
 `include_in_all` can be set on the `object` type level. When set, it
-propagates down to all the inner mapping defined within the `object`
+propagates down to all the inner mappings defined within the `object`
 that do no explicitly set it.
 

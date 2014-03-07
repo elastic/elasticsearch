@@ -8,16 +8,31 @@ explicit mappings pre defined. For more information about mapping
 definitions, check out the <<mapping,mapping section>>.
 
 [float]
-=== Dynamic / Default Mappings
+=== Dynamic Mappings
 
-Dynamic mappings allow to automatically apply generic mapping definition
-to types that do not have mapping pre defined or applied to new mapping
-definitions (overridden). This is mainly done thanks to the fact that
-the `object` type and namely the root `object` type allow for schema
-less dynamic addition of unmapped fields.
+New types and new fields within types can be added dynamically just
+by indexing a document.  When Elasticsearch encounters a new type,
+it creates the type using the `_default_` mapping (see below).
 
-The default mapping definition is plain mapping definition that is
-embedded within Elasticsearch:
+When it encounters a new field within a type, it autodetects the
+datatype that the field contains and adds it to the type mapping
+automatically.
+
+See <<mapping-dynamic-mapping>> for details of how to control and
+configure dynamic mapping.
+
+[float]
+=== Default Mapping
+
+When a new type is created (at <<indices-create-index,index creation>> time,
+using the  <<indices-put-mapping,`put-mapping` API>> or just by indexing a
+document into it), the type uses the `_default_` mapping as its basis.  Any
+mapping specified in the  <<indices-create-index,`create-index`>> or
+<<indices-put-mapping,`put-mapping`>> request override values set in the
+`_default_` mapping.
+
+The default mapping definition is a plain mapping definition that is
+embedded within ElasticSearch:
 
 [source,js]
 --------------------------------------------------
@@ -27,13 +42,15 @@ embedded within Elasticsearch:
 }
 --------------------------------------------------
 
-Pretty short, no? Basically, everything is defaulted, especially the
-dynamic nature of the root object mapping. The default mapping
-definition can be overridden in several manners. The simplest manner is
-to simply define a file called `default-mapping.json` and placed it
-under the `config` directory (which can be configured to exist in a
-different location). It can also be explicitly set using the
-`index.mapper.default_mapping_location` setting.
+Pretty short, isn't it? Basically, everything is `_default_`ed, including the
+dynamic nature of the root object mapping which allows new fields to be added
+automatically.
+
+The built-in default mapping definition can be overridden in several ways. A
+`_default_` mapping can be specified when creating a new index, or the global
+`_default_` mapping (for all indices) can be configured by creating a file
+called `config/default-mapping.json`. (This location can be changed with
+the `index.mapper.default_mapping_location` setting.)
 
 Dynamic creation of mappings for unmapped types can be completely
 disabled by setting `index.mapper.dynamic` to `false`.

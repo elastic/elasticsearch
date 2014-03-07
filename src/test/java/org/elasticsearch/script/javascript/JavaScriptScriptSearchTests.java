@@ -106,7 +106,6 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addField("_source.obj1") // we also automatically detect _source in fields
                 .addScriptField("s_obj1", "js", "_source.obj1", null)
                 .addScriptField("s_obj1_test", "js", "_source.obj1.test", null)
                 .addScriptField("s_obj2", "js", "_source.obj2", null)

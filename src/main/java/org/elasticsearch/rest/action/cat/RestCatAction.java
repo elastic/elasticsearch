@@ -40,7 +40,7 @@ public class RestCatAction extends BaseRestHandler {
         super(settings, client);
         controller.registerHandler(GET, "/_cat", this);
         StringBuilder sb = new StringBuilder();
-        sb.append(CAT).append(" try:\n");
+        sb.append(CAT_NL);
         for (AbstractCatAction catAction : catActions) {
             catAction.documentation(sb);
         }
@@ -50,12 +50,7 @@ public class RestCatAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         try {
-            boolean helpWanted = request.paramAsBoolean("h", request.paramAsBoolean("help", false));
-            if (helpWanted) {
-                channel.sendResponse(new StringRestResponse(RestStatus.OK, HELP));
-            } else {
-                channel.sendResponse(new StringRestResponse(RestStatus.OK, CAT_NL));
-            }
+            channel.sendResponse(new StringRestResponse(RestStatus.OK, HELP));
         } catch (Throwable t) {
             try {
                 channel.sendResponse(new XContentThrowableRestResponse(request, t));

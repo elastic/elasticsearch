@@ -43,6 +43,9 @@
 
 * https://github.com/dadoonet/spring-elasticsearch[Spring Elasticsearch]:
   Spring Factory for Elasticsearch
+  
+* https://github.com/spring-projects/spring-data-elasticsearch[Spring Data Elasticsearch]:
+  Spring Data implementation for Elasticsearch
 
 * https://camel.apache.org/elasticsearch.html[Apache Camel Integration]:
   An Apache camel component to integrate elasticsearch

@@ -221,6 +221,14 @@ Compares two numeric values, eg:
     - lt: { fields._ttl: 10000 }  # the `_ttl` value is less than 10,000
 ....
 
+=== `lte` and `gte`
+
+Compares two numeric values, eg:
+
+....
+    - lte: { fields._ttl: 10000 }  # the `_ttl` value is less than or equal to 10,000
+....
+
 === `length`
 
 This depends on the datatype of the value being examined, eg:

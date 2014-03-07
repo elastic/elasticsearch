@@ -65,7 +65,9 @@ public class RestApiParser {
                                 while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                                     restApi.addPathPart(parser.currentName());
                                     parser.nextToken();
-                                    assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+                                    if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                        throw new IOException("Expected parts field in rest api definition to contain an object");
+                                    }
                                     parser.skipChildren();
                                 }
                             }
@@ -74,7 +76,9 @@ public class RestApiParser {
                                 while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                                     restApi.addParam(parser.currentName());
                                     parser.nextToken();
-                                    assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+                                    if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                                        throw new IOException("Expected params field in rest api definition to contain an object");
+                                    }
                                     parser.skipChildren();
                                 }
                             }

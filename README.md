@@ -5,14 +5,13 @@ The Python (jython) language plugin allows to have `python` as the language of s
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-python/2.0.0.RC1`.
 
+* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-lang-python/tree/master).
+* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-lang-python/tree/1.x).
+
 |     Python Lang Plugin      |    elasticsearch    |  jython  | Release date |
 |-----------------------------|---------------------|----------|:------------:|
-| 2.0.0-SNAPSHOT (master)     | 1.0.0.RC1 -> master |  2.5.3   |              |
+| 2.0.0-SNAPSHOT              | 1.0.0.RC1 -> master |  2.5.3   |  XXXX-XX-XX  |
 | 2.0.0.RC1                   | 1.0.0.RC1 -> master |  2.5.3   |  2014-01-15  |
-| 1.3.0-SNAPSHOT (1.x)        | 0.90                |  2.5.3   |              |
-| 1.2.0                       | 0.90                |  2.5.2   |  2013-02-26  |
-| 1.1.0                       | 0.19 -> 0.20        |  2.5.2   |  2012-02-07  |
-| 1.0.0                       | 0.18                |  2.5.2   |  2011-12-05  |
 
 License
 -------

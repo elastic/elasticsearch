@@ -43,7 +43,7 @@ This policy has the following settings:
 
 	Segments smaller than this are "rounded up" to this size, i.e. treated as
 	equal (floor) size for merge selection. This is to prevent frequent
-	flushing of tiny segments from allowing a long tail in the index. Default
+	flushing of tiny segments, thus preventing a long tail in the index. Default
 	is `2mb`.
 
 `index.merge.policy.max_merge_at_once`::
@@ -67,7 +67,7 @@ This policy has the following settings:
 
 	Sets the allowed number of segments per tier. Smaller values mean more
 	merging but fewer segments. Default is `10`. Note, this value needs to be
-	>= then the `max_merge_at_once` otherwise you'll force too many merges to
+	>= than the `max_merge_at_once` otherwise you'll force too many merges to
 	occur.
 
 `index.reclaim_deletes_weight`::
@@ -83,8 +83,8 @@ This policy has the following settings:
 	<<index-modules-settings>>.
 
 For normal merging, this policy first computes a "budget" of how many
-segments are allowed by be in the index. If the index is over-budget,
-then the policy sorts segments by decreasing size (pro-rating by percent
+segments are allowed to be in the index. If the index is over-budget,
+then the policy sorts segments by decreasing size (proportionally considering percent
 deletes), and then finds the least-cost merge. Merge cost is measured by
 a combination of the "skew" of the merge (size of largest seg divided by
 smallest seg), total merge size and pct deletes reclaimed, so that
@@ -99,7 +99,7 @@ budget.
 Note, this can mean that for large shards that holds many gigabytes of
 data, the default of `max_merged_segment` (`5gb`) can cause for many
 segments to be in an index, and causing searches to be slower. Use the
-indices segments API to see the segments that an index have, and
+indices segments API to see the segments that an index has, and
 possibly either increase the `max_merged_segment` or issue an optimize
 call for the index (try and aim to issue it on a low traffic time).
 
@@ -192,24 +192,21 @@ supported, with the default being the `ConcurrentMergeScheduler`.
 [float]
 ==== ConcurrentMergeScheduler
 
-A merge scheduler that runs merges using a separated thread, until the
-maximum number of threads at which when a merge is needed, the thread(s)
-that are updating the index will pause until one or more merges
-completes.
+A merge scheduler that runs merges using a separate thread. When the maximum
+number of threads is reached, further merges will wait until a merge thread
+becomes available.
+
 
 The scheduler supports the following settings:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|index.merge.scheduler.max_thread_count |The maximum number of threads
-to perform the merge operation. Defaults to
+`index.merge.scheduler.max_thread_count`::
+
+The maximum number of threads to perform the merge operation. Defaults to
 `Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2))`.
-|=======================================================================
 
 [float]
 ==== SerialMergeScheduler
 
 A merge scheduler that simply does each merge sequentially using the
-calling thread (blocking the operations that triggered the merge, the
+calling thread (blocking the operations that triggered the merge or the
 index operation).

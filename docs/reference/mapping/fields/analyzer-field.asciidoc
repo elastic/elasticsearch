@@ -20,7 +20,7 @@ Here is a simple mapping:
 --------------------------------------------------
 
 The above will use the value of the `my_field` to lookup an analyzer
-registered under it. For example, indexing a the following doc:
+registered under it. For example, indexing the following doc:
 
 [source,js]
 --------------------------------------------------
@@ -33,7 +33,7 @@ Will cause the `whitespace` analyzer to be used as the index analyzer
 for all fields without explicit analyzer setting.
 
 The default path value is `_analyzer`, so the analyzer can be driven for
-a specific document by setting `_analyzer` field in it. If custom json
+a specific document by setting the `_analyzer` field in it. If a custom json
 field name is needed, an explicit mapping with a different path should
 be set.
 

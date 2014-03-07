@@ -7,8 +7,8 @@ especially for search requests, where we want to execute a search query
 against the content of a document, without knowing which fields to
 search on. This comes at the expense of CPU cycles and index size.
 
-The `_all` fields can be completely disabled. Explicit field mapping and
-object mapping can be excluded / included in the `_all` field. By
+The `_all` fields can be completely disabled. Explicit field mappings and
+object mappings can be excluded / included in the `_all` field. By
 default, it is enabled and all fields are included in it for ease of
 use.
 
@@ -69,7 +69,7 @@ specific `index_analyzer` and `search_analyzer`) to be set.
 
 For any field to allow
 <<search-request-highlighting,highlighting>> it has
-to be either stored or part of the `_source` field. By default `_all`
+to be either stored or part of the `_source` field. By default the `_all`
 field does not qualify for either, so highlighting for it does not yield
 any data.
 

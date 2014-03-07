@@ -38,7 +38,7 @@ which means conflicts are *not* ignored.
 The definition of conflict is really dependent on the type merged, but
 in general, if a different core type is defined, it is considered as a
 conflict. New mapping definitions can be added to object types, and core
-type mapping can be upgraded by specifying multi fields on a core type.
+type mappings can be upgraded by specifying multi fields on a core type.
 
 [float]
 [[put-mapping-multi-index]]

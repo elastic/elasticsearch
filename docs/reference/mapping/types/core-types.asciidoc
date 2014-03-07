@@ -86,7 +86,7 @@ The following table lists all the attributes that can be used with the
 |`index_name` |The name of the field that will be stored in the index.
 Defaults to the property/field name.
 
-|`store` |Set to `true` to store actual field in the index, `false` to not
+|`store` |Set to `true` to actually store the field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
 
@@ -208,8 +208,8 @@ store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
 
 |`index` |Set to `no` if the value should not be indexed. Setting to
-`no` disables `include_in_all`. If set to `no` the field can be stored
-in `_source`, have `include_in_all` enabled, or `store` should be set to
+`no` disables `include_in_all`. If set to `no` the field should be either stored
+in `_source`, have `include_in_all` enabled, or `store` be set to
 `true` for this to be useful.
 
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
@@ -317,8 +317,8 @@ store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
 
 |`index` |Set to `no` if the value should not be indexed. Setting to
-`no` disables `include_in_all`. If set to `no` the field can be stored
-in `_source`, have `include_in_all` enabled, or `store` should be set to
+`no` disables `include_in_all`. If set to `no` the field should be either stored
+in `_source`, have `include_in_all` enabled, or `store` be set to
 `true` for this to be useful.
 
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
@@ -380,8 +380,8 @@ store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
 
 |`index` |Set to `no` if the value should not be indexed. Setting to
-`no` disables `include_in_all`. If set to `no` the field can be stored
-in `_source`, have `include_in_all` enabled, or `store` should be set to
+`no` disables `include_in_all`. If set to `no` the field should be either stored
+in `_source`, have `include_in_all` enabled, or `store` be set to
 `true` for this to be useful.
 
 |`boost` |The boost value. Defaults to `1.0`.
@@ -488,13 +488,13 @@ Elasticsearch has several builtin formats:
         contained in a very low number of documents.
 
 `pulsing`::
-        A postings format in-lines the posting lists for very low
+        A postings format that in-lines the posting lists for very low
         frequent terms in the term dictionary. This is useful to improve lookup
         performance for low-frequent terms.
 
 `bloom_default`::
         A postings format that uses a bloom filter to
-        improve term lookup performance. This is useful for primarily keys or
+        improve term lookup performance. This is useful for primary keys or
         fields that are used as a delete key.
 
 `bloom_pulsing`::
@@ -579,10 +579,8 @@ custom doc values formats. See
 ==== Similarity
 
 Elasticsearch allows you to configure a similarity (scoring algorithm) per field.
-Allowing users a simpler extension beyond the usual TF/IDF algorithm. As
-part of this, new algorithms have been added including BM25. Also as
-part of the changes, it is now possible to define a Similarity per
-field, giving even greater control over scoring.
+The `similarity` setting provides a simple way of choosing a similarity algorithm
+other than the default TF/IDF, such as `BM25`.
 
 You can configure similarities via the
 <<index-modules-similarity,similarity module>>

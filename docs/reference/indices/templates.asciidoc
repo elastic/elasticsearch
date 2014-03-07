@@ -61,7 +61,7 @@ actual index name that the template gets applied to during index creation.
 === Deleting a Template
 
 Index templates are identified by a name (in the above case
-`template_1`) and can be delete as well:
+`template_1`) and can be deleted as well:
 
 [source,js]
 --------------------------------------------------

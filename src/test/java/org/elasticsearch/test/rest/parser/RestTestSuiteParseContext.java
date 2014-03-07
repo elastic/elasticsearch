@@ -44,7 +44,9 @@ public class RestTestSuiteParseContext {
         EXECUTABLE_SECTIONS_PARSERS.put("is_true", new IsTrueParser());
         EXECUTABLE_SECTIONS_PARSERS.put("is_false", new IsFalseParser());
         EXECUTABLE_SECTIONS_PARSERS.put("gt", new GreaterThanParser());
+        EXECUTABLE_SECTIONS_PARSERS.put("gte", new GreaterThanEqualToParser());
         EXECUTABLE_SECTIONS_PARSERS.put("lt", new LessThanParser());
+        EXECUTABLE_SECTIONS_PARSERS.put("lte", new LessThanOrEqualToParser());
         EXECUTABLE_SECTIONS_PARSERS.put("length", new LengthParser());
     }
 

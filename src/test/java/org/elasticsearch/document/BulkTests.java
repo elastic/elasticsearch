@@ -608,4 +608,21 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test // issue 4987
+    public void testThatInvalidIndexNamesShouldNotBreakCompleteBulkRequest() {
+        int bulkEntryCount = randomIntBetween(10, 50);
+        BulkRequestBuilder builder = client().prepareBulk();
+        boolean[] expectedFailures = new boolean[bulkEntryCount];
+        for (int i = 0; i < bulkEntryCount; i++) {
+            expectedFailures[i] = randomBoolean();
+            builder.add(client().prepareIndex().setIndex(expectedFailures[i] ? "INVALID.NAME" : "test").setType("type1").setId("1").setSource("field", 1));
+        }
+        BulkResponse bulkResponse = builder.get();
+
+        assertThat(bulkResponse.hasFailures(), is(true));
+        assertThat(bulkResponse.getItems().length, is(bulkEntryCount));
+        for (int i = 0; i < bulkEntryCount; i++) {
+            assertThat(bulkResponse.getItems()[i].isFailed(), is(expectedFailures[i]));
+        }
+    }
 }

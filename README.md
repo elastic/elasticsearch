@@ -1,7 +1,7 @@
 JavaScript lang Plugin for Elasticsearch
 ==================================
 
-The JavaScript language plugin allows to have `javascript` as the language of scripts to execute.
+The JavaScript language plugin allows to have `javascript` (or `js`) as the language of scripts to execute.
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-javascript/2.0.0.RC1`.
 

@@ -21,6 +21,7 @@ package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -112,11 +113,7 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
                 .addScriptField("s_obj2_arr2", "js", "_source.obj2.arr2", null)
                 .execute().actionGet();
 
-        Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("_source.obj1").value();
-        assertThat(sObj1.get("test").toString(), equalTo("something"));
-        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
-
-        sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
+        Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
         assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
@@ -145,7 +142,8 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running doc['num1'].value");
         SearchResponse response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                        .add(ScoreFunctionBuilders.scriptFunction("doc['num1'].value").lang("js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -159,7 +157,8 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running -doc['num1'].value");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                        .add(ScoreFunctionBuilders.scriptFunction("-doc['num1'].value").lang("js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -174,7 +173,8 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running pow(doc['num1'].value, 2)");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.pow(doc['num1'].value, 2)").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                        .add(ScoreFunctionBuilders.scriptFunction("Math.pow(doc['num1'].value, 2)").lang("js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -188,7 +188,8 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running max(doc['num1'].value, 1)");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("Math.max(doc['num1'].value, 1)").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                        .add(ScoreFunctionBuilders.scriptFunction("Math.max(doc['num1'].value, 1)").lang("js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -202,7 +203,8 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running doc['num1'].value * _score");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * _score").lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                        .add(ScoreFunctionBuilders.scriptFunction("doc['num1'].value * _score").lang("js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
@@ -216,7 +218,8 @@ public class JavaScriptScriptSearchTests extends ElasticsearchIntegrationTest {
         logger.info(" --> running param1 * param2 * _score");
         response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2).lang("js")))
+                .source(searchSource().explain(true).query(functionScoreQuery(termQuery("test", "value"))
+                        .add(ScoreFunctionBuilders.scriptFunction("param1 * param2 * _score").param("param1", 2).param("param2", 2).lang("js"))))
         ).actionGet();
 
         assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));

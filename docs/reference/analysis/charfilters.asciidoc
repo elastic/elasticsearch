@@ -14,3 +14,5 @@ include::charfilters/mapping-charfilter.asciidoc[]
 include::charfilters/htmlstrip-charfilter.asciidoc[]
 
 include::charfilters/pattern-replace-charfilter.asciidoc[]
+
+include::charfilters/sentence-charfilter.asciidoc[]

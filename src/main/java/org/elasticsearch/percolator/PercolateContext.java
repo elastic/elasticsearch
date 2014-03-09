@@ -82,12 +82,11 @@ import java.util.concurrent.ConcurrentMap;
 public class PercolateContext extends SearchContext {
 
     public boolean limit;
-    public int size;
+    private int size;
     public boolean doSort;
     public byte percolatorTypeId;
     private boolean trackScores;
 
-    private final PercolateShardRequest request;
     private final SearchShardTarget searchShardTarget;
     private final IndexService indexService;
     private final IndexFieldDataService fieldDataService;
@@ -118,7 +117,6 @@ public class PercolateContext extends SearchContext {
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
                             BigArrays bigArrays, ScriptService scriptService) {
-        this.request = request;
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
@@ -554,7 +552,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public int from() {
-        throw new UnsupportedOperationException();
+        return 0;
     }
 
     @Override
@@ -564,12 +562,14 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException();
+        return size;
     }
 
     @Override
     public SearchContext size(int size) {
-        throw new UnsupportedOperationException();
+        this.size = size;
+        this.limit = true;
+        return this;
     }
 
     @Override

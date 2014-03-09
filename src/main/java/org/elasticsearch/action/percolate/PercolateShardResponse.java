@@ -64,7 +64,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         this.count = count;
         this.scores = scores;
         this.percolatorTypeId = context.percolatorTypeId;
-        this.requestedSize = context.size;
+        this.requestedSize = context.size();
         QuerySearchResult result = context.queryResult();
         if (result != null) {
             if (result.facets() != null) {

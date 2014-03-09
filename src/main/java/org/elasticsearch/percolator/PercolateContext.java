@@ -84,7 +84,7 @@ import java.util.concurrent.ConcurrentMap;
 public class PercolateContext extends SearchContext {
 
     public boolean limit;
-    public int size;
+    private int size;
     public boolean doSort;
     public byte percolatorTypeId;
     private boolean trackScores;
@@ -585,12 +585,14 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException();
+        return size;
     }
 
     @Override
     public SearchContext size(int size) {
-        throw new UnsupportedOperationException();
+        this.size = size;
+        this.limit = true;
+        return this;
     }
 
     @Override

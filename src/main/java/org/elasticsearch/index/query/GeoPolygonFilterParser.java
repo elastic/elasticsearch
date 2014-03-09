@@ -53,7 +53,7 @@ import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFi
 public class GeoPolygonFilterParser implements FilterParser {
 
     public static final String NAME = "geo_polygon";
-    public static final String POINTS = "points"; 
+    public static final String POINTS = "points";
 
     @Inject
     public GeoPolygonFilterParser() {
@@ -91,13 +91,15 @@ public class GeoPolygonFilterParser implements FilterParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if(POINTS.equals(currentFieldName)) {
-                            while((token = parser.nextToken()) != Token.END_ARRAY) {
+                        if (POINTS.equals(currentFieldName)) {
+                            while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoPoint.parse(parser));
                             }
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
                         }
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support token type [" + token.name() + "] under [" + currentFieldName + "]");
                     }
                 }
             } else if (token.isValue()) {
@@ -113,20 +115,22 @@ public class GeoPolygonFilterParser implements FilterParser {
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new QueryParsingException(parseContext.index(), "[geo_polygon] unexpected token type [" + token.name() + "]");
             }
         }
 
         if (shell.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "no points defined for geo_polygon filter");
         } else {
-            if(shell.size() < 3) {
+            if (shell.size() < 3) {
                 throw new QueryParsingException(parseContext.index(), "to few points defined for geo_polygon filter");
             }
             GeoPoint start = shell.get(0);
-            if(!start.equals(shell.get(shell.size()-1))) {
+            if (!start.equals(shell.get(shell.size() - 1))) {
                 shell.add(start);
             }
-            if(shell.size() < 4) {
+            if (shell.size() < 4) {
                 throw new QueryParsingException(parseContext.index(), "to few points defined for geo_polygon filter");
             }
         }

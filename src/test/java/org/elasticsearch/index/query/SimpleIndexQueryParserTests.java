@@ -2038,6 +2038,29 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 
+
+    @Test
+    public void testGeoPolygonFilterParsingExceptions() throws IOException {
+        String[] brokenFiles = new String[]{
+                "/org/elasticsearch/index/query/geo_polygon_exception_1.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_2.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_3.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_4.json",
+                "/org/elasticsearch/index/query/geo_polygon_exception_5.json"
+        };
+        for (String brokenFile : brokenFiles) {
+            IndexQueryParserService queryParser = queryParser();
+            String query = copyToStringFromClasspath(brokenFile);
+            try {
+                queryParser.parse(query).query();
+                fail("parsing a broken geo_polygon filter didn't fail as expected while parsing: " + brokenFile);
+            } catch (QueryParsingException e) {
+                // success!
+            }
+        }
+    }
+
+
     @Test
     public void testGeoPolygonFilter1() throws IOException {
         IndexQueryParserService queryParser = queryParser();
@@ -2181,7 +2204,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat((double) (parsedQuery.getBoost()), Matchers.closeTo(3.0, 1.e-7));
     }
-    
+
     @Test
     public void testBadTypeMatchQuery() throws Exception {
         IndexQueryParserService queryParser = queryParser();
@@ -2193,7 +2216,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
             expectedException = qpe;
         }
         assertThat(expectedException, notNullValue());
-    }     
+    }
 
     @Test
     public void testMultiMatchQuery() throws Exception {

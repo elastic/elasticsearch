@@ -102,31 +102,23 @@
 
         <resources>
             <resource>
-                <directory>${basedir}/src/main/java</directory>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
                 <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.yml</include>
-                </includes>
-            </resource>
-            <resource>
-                <directory>${basedir}/src/main/resources</directory>
-                <includes>
-                    <include>**/*.*</include>
+                    <include>**/*.properties</include>
                 </includes>
             </resource>
         </resources>
 
         <testResources>
             <testResource>
-                <directory>${basedir}/src/test/java</directory>
+                <directory>src/test/java</directory>
                 <includes>
                     <include>**/*.json</include>
-                    <include>**/*.yml</include>
-                    <include>**/*.txt</include>
                 </includes>
             </testResource>
             <testResource>
-                <directory>${basedir}/src/test/resources</directory>
+                <directory>src/test/resources</directory>
                 <includes>
                     <include>**/*.*</include>
                 </includes>

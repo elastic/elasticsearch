@@ -555,7 +555,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(5l)); // We have 5 partitions
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l)); // One primary and replica
-        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1l));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
         long percolateCount = 0;
@@ -577,7 +577,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo(10l));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
         assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l));
-        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), equalTo(-1l));
 
         percolateCount = 0;
         nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();

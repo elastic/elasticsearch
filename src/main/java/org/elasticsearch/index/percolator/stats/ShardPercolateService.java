@@ -20,7 +20,6 @@
 package org.elasticsearch.index.percolator.stats;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -38,7 +37,6 @@ import java.util.concurrent.TimeUnit;
  *     <li> total time spent in percolate api
  *     <li> the current number of percolate requests
  *     <li> number of registered percolate queries
- *     <li> the estimated amount of memory the registered queries take
  * </ul>
  */
 public class ShardPercolateService extends AbstractIndexShardComponent {
@@ -52,7 +50,6 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
     private final CounterMetric currentMetric = new CounterMetric();
 
     private final CounterMetric numberOfQueries = new CounterMetric();
-    private final CounterMetric memorySizeInBytes = new CounterMetric();
 
     public void prePercolate() {
         currentMetric.inc();
@@ -64,27 +61,22 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
     }
 
     public void addedQuery(HashedBytesRef id, Query previousQuery, Query newQuery) {
-        if (previousQuery != null) {
-            memorySizeInBytes.dec(computeSizeInMemory(id, previousQuery));
-        } else {
-            numberOfQueries.inc();
-        }
-        memorySizeInBytes.inc(computeSizeInMemory(id, newQuery));
+        numberOfQueries.inc();
     }
 
     public void removedQuery(HashedBytesRef id, Query query) {
         numberOfQueries.dec();
-        memorySizeInBytes.dec(computeSizeInMemory(id, query));
     }
 
     /**
      * @return The current metrics
      */
     public PercolateStats stats() {
-        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count(), memorySizeInBytes.count(), numberOfQueries.count());
+        return new PercolateStats(percolateMetric.count(), TimeUnit.NANOSECONDS.toMillis(percolateMetric.sum()), currentMetric.count(), -1, numberOfQueries.count());
     }
 
-    private static long computeSizeInMemory(HashedBytesRef id, Query query) {
+    // Enable when a more efficient manner is found for estimating the size of a Lucene query.
+    /*private static long computeSizeInMemory(HashedBytesRef id, Query query) {
         long size = (3 * RamUsageEstimator.NUM_BYTES_INT) + RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + id.bytes.bytes.length;
         size += RamEstimator.sizeOf(query);
         return size;
@@ -96,6 +88,6 @@ public class ShardPercolateService extends AbstractIndexShardComponent {
         static long sizeOf(Query query) {
             return RamUsageEstimator.sizeOf(query);
         }
-    }
+    }*/
 
 }

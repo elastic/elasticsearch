@@ -205,7 +205,7 @@
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
-            <version>2.1.5.Final</version>
+            <version>2.1.9.Final</version>
             <scope>compile</scope>
         </dependency>
 

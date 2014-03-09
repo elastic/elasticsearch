@@ -1256,15 +1256,17 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPercolateSorting_unsupportedField() throws Exception {
-        client().admin().indices().prepareCreate("my-index").execute().actionGet();
+        client().admin().indices().prepareCreate("my-index")
+                .addMapping("my-type", "level", "type=integer")
+                .get();
         ensureGreen();
 
         client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 1).endObject())
-                .execute().actionGet();
+                .get();
         client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
                 .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("level", 2).endObject())
-                .execute().actionGet();
+                .get();
         refresh();
 
         PercolateResponse response = client().preparePercolate().setIndices("my-index").setDocumentType("my-type")

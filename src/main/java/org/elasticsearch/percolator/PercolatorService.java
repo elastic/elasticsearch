@@ -185,8 +185,8 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticsearchIllegalArgumentException("Can't highlight if size isn't specified");
             }
 
-            if (context.size < 0) {
-                context.size = 0;
+            if (context.size() < 0) {
+                context.size(0);
             }
 
             // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
@@ -294,10 +294,9 @@ public class PercolatorService extends AbstractComponent {
                     break;
                 } else if (token.isValue()) {
                     if ("size".equals(currentFieldName)) {
-                        context.limit = true;
-                        context.size = parser.intValue();
-                        if (context.size < 0) {
-                            throw new ElasticsearchParseException("size is set to [" + context.size + "] and is expected to be higher or equal to 0");
+                        context.size(parser.intValue());
+                        if (context.size() < 0) {
+                            throw new ElasticsearchParseException("size is set to [" + context.size() + "] and is expected to be higher or equal to 0");
                         }
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);
@@ -531,7 +530,7 @@ public class PercolatorService extends AbstractComponent {
                 }
 
                 if (collector.exists()) {
-                    if (!context.limit || count < context.size) {
+                    if (!context.limit || count < context.size()) {
                         matches.add(entry.getKey().bytes);
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());

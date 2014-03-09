@@ -184,7 +184,7 @@ abstract class QueryCollector extends Collector {
         Match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase) {
             super(logger, context);
             this.limit = context.limit;
-            this.size = context.size;
+            this.size = context.size();
             this.context = context;
             this.highlightPhase = highlightPhase;
         }
@@ -243,7 +243,7 @@ abstract class QueryCollector extends Collector {
         MatchAndSort(ESLogger logger, PercolateContext context) {
             super(logger, context);
             // TODO: Use TopFieldCollector.create(...) for ascending and decending scoring?
-            topDocsCollector = TopScoreDocCollector.create(context.size, false);
+            topDocsCollector = TopScoreDocCollector.create(context.size(), false);
         }
 
         @Override
@@ -303,7 +303,7 @@ abstract class QueryCollector extends Collector {
         MatchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase) {
             super(logger, context);
             this.limit = context.limit;
-            this.size = context.size;
+            this.size = context.size();
             this.context = context;
             this.highlightPhase = highlightPhase;
         }

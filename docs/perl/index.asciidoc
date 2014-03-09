@@ -2,14 +2,14 @@
 
 == Overview
 
-Elasticsearch.pm is the official Perl API for Elasticsearch. The full
-documentation is available on https://metacpan.org/module/Elasticsearch.
+Search::Elasticsearch is the official Perl API for Elasticsearch. The full
+documentation is available on https://metacpan.org/module/Search::Elasticsearch.
 
 It can be installed with:
 
 [source,sh]
 ------------------------------------
-cpanm Elasticsearch
+cpanm Search::Elasticsearch
 ------------------------------------
 
 === Features
@@ -36,13 +36,13 @@ This client provides:
 
 [source,perl]
 ------------------------------------
-use Elasticsearch;
+use Search::Elasticsearch;
 
 # Connect to localhost:9200:
-my $e = Elasticsearch->new();
+my $e = Search::Elasticsearch->new();
 
 # Round-robin between two nodes:
-my $e = Elasticsearch->new(
+my $e = Search::Elasticsearch->new(
     nodes => [
         'search1:9200',
         'search2:9200'
@@ -50,7 +50,7 @@ my $e = Elasticsearch->new(
 );
 
 # Connect to cluster at search1:9200, sniff all nodes and round-robin between them:
-my $e = Elasticsearch->new(
+my $e = Search::Elasticsearch->new(
     nodes    => 'search1:9200',
     cxn_pool => 'Sniff'
 );
@@ -92,11 +92,11 @@ The current version of the client supports the Elasticsearch 1.0 branch by
 default, which is not backwards compatible with the 0.90 branch.
 
 If you need to talk to a version of Elasticsearch before 1.0.0,
-please use `Elasticsearch::Client::0_90::Direct` as follows:
+please use `Search::Elasticsearch::Client::0_90::Direct` as follows:
 
 [source,perl]
 ------------------------------------
-    $es = Elasticsearch->new(
+    $es = Search::Elasticsearch->new(
         client => '0_90::Direct'
     );
 ------------------------------------
@@ -115,7 +115,7 @@ https://github.com/elasticsearch/elasticsearch-perl/blob/master/CONTRIBUTING.asc
 
 == Copyright and License
 
-This software is Copyright (c) 2013 by Elasticsearch BV.
+This software is Copyright (c) 2013-2014 by Elasticsearch BV.
 
 This is free software, licensed under:
 https://github.com/elasticsearch/elasticsearch-perl/blob/master/LICENSE.txt[The Apache License Version 2.0].

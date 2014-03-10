@@ -29,6 +29,7 @@ import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1674,7 +1675,41 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12)).query();
         assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
-//        FuzzyLikeThisQuery fuzzyLikeThisQuery = (FuzzyLikeThisQuery) parsedQuery;
+        parsedQuery = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("4"))).query();
+        assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
+
+        Query parsedQuery1 = queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("4.0"))).query();
+        assertThat(parsedQuery1, instanceOf(FuzzyLikeThisQuery.class));
+        assertThat(parsedQuery, equalTo(parsedQuery1));
+
+        try {
+            queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("4.1"))).query();
+            fail("exception expected - fractional edit distance");
+        } catch (ElasticsearchException ex) {
+           //
+        }
+
+        try {
+            queryParser.parse(fuzzyLikeThisQuery("name.first", "name.last").likeText("something").maxQueryTerms(12).fuzziness(Fuzziness.build("-" + between(1, 100)))).query();
+            fail("exception expected - negative edit distance");
+        } catch (ElasticsearchException ex) {
+            //
+        }
+        String[] queries = new String[] {
+                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": \"4\"}}",
+                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": \"4.00000000\"}}",
+                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": \"4.\"}}",
+                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": 4}}",
+                "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": 4.0}}"
+        };
+        int iters = atLeast(5);
+        for (int i = 0; i < iters; i++) {
+            parsedQuery = queryParser.parse(new BytesArray((String) randomFrom(queries))).query();
+            parsedQuery1 = queryParser.parse(new BytesArray((String) randomFrom(queries))).query();
+            assertThat(parsedQuery1, instanceOf(FuzzyLikeThisQuery.class));
+            assertThat(parsedQuery, instanceOf(FuzzyLikeThisQuery.class));
+            assertThat(parsedQuery, equalTo(parsedQuery1));
+        }
     }
 
     @Test

@@ -768,6 +768,11 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGetFields_nonLeafField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
+                .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
+                        .startObject("field1").startObject("properties")
+                        .startObject("field2").field("type", "string").endObject()
+                        .endObject().endObject()
+                        .endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .get();
 

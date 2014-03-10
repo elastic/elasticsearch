@@ -161,7 +161,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    private List<B> buckets;
+    protected List<B> buckets;
     private LongObjectOpenHashMap<B> bucketsMap;
     private InternalOrder order;
     private ValueFormatter formatter;

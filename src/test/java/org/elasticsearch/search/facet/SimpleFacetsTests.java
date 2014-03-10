@@ -197,7 +197,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .field("foo", "" + i)
                     .endObject()).execute().actionGet();
         }
-        int shardSize = numberOfShards() > 5 ? 20 : 10;
+        int shardSize = getNumShards("test").numPrimaries > 5 ? 20 : 10;
         String[] execHint = new String[]{"map", null};
         for (String hint : execHint) {
 

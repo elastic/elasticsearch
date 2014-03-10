@@ -33,7 +33,7 @@ import java.util.List;
  */
 public final class Features {
 
-    private static final List<String> SUPPORTED = Lists.newArrayList("regex");
+    private static final List<String> SUPPORTED = Lists.newArrayList("regex", "gtelte");
 
     private Features() {
 

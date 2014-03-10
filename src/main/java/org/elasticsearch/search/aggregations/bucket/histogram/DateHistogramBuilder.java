@@ -37,6 +37,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private String preZone;
     private String postZone;
     private boolean preZoneAdjustLargeInterval;
+    private String format;
     long preOffset = 0;
     long postOffset = 0;
     float factor = 1.0f;
@@ -95,6 +96,11 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
         return this;
     }
 
+    public DateHistogramBuilder format(String format) {
+        this.format = format;
+        return this;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (interval == null) {
@@ -136,6 +142,10 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         if (factor != 1.0f) {
             builder.field("factor", factor);
+        }
+
+        if (format != null) {
+            builder.field("format", format);
         }
 
         return builder;

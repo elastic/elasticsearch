@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationStreams;
@@ -91,6 +92,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         }
     }
 
+    private ObjectObjectOpenHashMap<String, InternalDateHistogram.Bucket> bucketsMap;
+
     InternalDateHistogram() {} // for serialization
 
     InternalDateHistogram(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order, long minDocCount,
@@ -104,6 +107,23 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     }
 
     @Override
+    public Bucket getBucketByKey(String key) {
+        try {
+            long time = Long.parseLong(key);
+            return super.getBucketByKey(time);
+        } catch (NumberFormatException nfe) {
+            // it's not a number, so lets try to parse it as a date using the formatter.
+        }
+        if (bucketsMap == null) {
+            bucketsMap = new ObjectObjectOpenHashMap<String, InternalDateHistogram.Bucket>();
+            for (InternalDateHistogram.Bucket bucket : buckets) {
+                bucketsMap.put(bucket.getKey(), bucket);
+            }
+        }
+        return bucketsMap.get(key);
+    }
+
+    @Override
     public DateHistogram.Bucket getBucketByKey(DateTime key) {
         return getBucketByKey(key.getMillis());
     }
@@ -112,4 +132,11 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     protected InternalDateHistogram.Bucket createBucket(long key, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
         return new Bucket(key, docCount, aggregations, formatter);
     }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        bucketsMap = null; // we need to reset this on read (as it's lazily created on demand)
+    }
+
 }

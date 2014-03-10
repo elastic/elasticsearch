@@ -178,10 +178,15 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(countResponse, 0l);
     }
 
-    @Test
+    @Test //https://github.com/elasticsearch/elasticsearch/issues/3540
     public void testDateRangeInQueryString() {
-        createIndex("test");
+        //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
+        //as with dynamic mappings some shards might be lacking behind and parse a different query
+        assertAcked(prepareCreate("test").addMapping(
+                "type", "past", "type=date", "future", "type=date"
+        ));
         ensureGreen();
+
         NumShards test = getNumShards("test");
 
         String aMonthAgo = ISODateTimeFormat.yearMonthDay().print(new DateTime(DateTimeZone.UTC).minusMonths(1));

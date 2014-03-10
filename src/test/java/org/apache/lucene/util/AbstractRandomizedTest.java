@@ -362,4 +362,5 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
     }
+
 }

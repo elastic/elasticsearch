@@ -141,8 +141,15 @@ public class FuzzyLikeThisQueryParser implements QueryParser {
         if (fields.isEmpty()) {
             return null;
         }
+        float minSimilarity = fuzziness.asFloat();
+        if (minSimilarity >= 1.0f && minSimilarity != (int)minSimilarity) {
+            throw new ElasticsearchIllegalArgumentException("fractional edit distances are not allowed");
+        }
+        if (minSimilarity < 0.0f)  {
+            throw new ElasticsearchIllegalArgumentException("minimumSimilarity cannot be less than 0");
+        }
         for (String field : fields) {
-            query.addTerms(likeText, field, fuzziness.asSimilarity(), prefixLength);
+            query.addTerms(likeText, field, minSimilarity, prefixLength);
         }
         query.setBoost(boost);
         query.setIgnoreTF(ignoreTF);

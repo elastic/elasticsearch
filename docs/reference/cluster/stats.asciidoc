@@ -8,7 +8,7 @@ versions, memory usage, cpu and installed plugins).
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/_cluster/stats?human'
+curl -XGET 'http://localhost:9200/_cluster/stats?human&pretty'
 --------------------------------------------------
 
 Will return, for example:

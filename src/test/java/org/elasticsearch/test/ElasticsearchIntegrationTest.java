@@ -1112,7 +1112,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     }
 
-    private final static void initializeSuiteScope() throws Exception {
+    private static void initializeSuiteScope() throws Exception {
         Class<?> targetClass = getContext().getTargetClass();
         assert INSTANCE == null;
         if (isSuiteScope(targetClass)) {

@@ -84,7 +84,7 @@ public class RestTestParserTests extends ElasticsearchTestCase {
         );
 
         RestTestSuiteParser testParser = new RestTestSuiteParser();
-        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo("suite"));
@@ -137,179 +137,6 @@ public class RestTestParserTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testParseTestSetupAndSectionsSkipLastSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
-                "setup:\n" +
-                        "  - do:\n" +
-                        "        indices.create:\n" +
-                        "          index: test_index\n" +
-                        "\n" +
-                        "---\n" +
-                        "\"Get index mapping\":\n" +
-                        "  - do:\n" +
-                        "      indices.get_mapping:\n" +
-                        "        index: test_index\n" +
-                        "\n" +
-                        "  - match: {test_index.test_type.properties.text.type:     string}\n" +
-                        "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n" +
-                        "\n" +
-                        "---\n" +
-                        "\"Get type mapping - pre 1.0\":\n" +
-                        "\n" +
-                        "  - skip:\n" +
-                        "      version:     \"0.90.9 - 999\"\n" +
-                        "      reason:      \"for newer versions the index name is always returned\"\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      indices.get_mapping:\n" +
-                        "        index: test_index\n" +
-                        "        type: test_type\n" +
-                        "\n" +
-                        "  - match: {test_type.properties.text.type:     string}\n" +
-                        "  - match: {test_type.properties.text.analyzer: whitespace}\n"
-        );
-
-        RestTestSuiteParser testParser = new RestTestSuiteParser();
-        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "1.0.0"));
-
-        assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
-        assertThat(restTestSuite.getSetupSection(), notNullValue());
-        assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(true));
-
-        assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(1));
-        assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.create"));
-        assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
-        assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"), equalTo("test_index"));
-
-        assertThat(restTestSuite.getTestSections().size(), equalTo(2));
-
-        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Get index mapping"));
-        assertThat(restTestSuite.getTestSections().get(0).getSkipSection().isEmpty(), equalTo(true));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().size(), equalTo(3));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(0), instanceOf(DoSection.class));
-        DoSection doSection = (DoSection) restTestSuite.getTestSections().get(0).getExecutableSections().get(0);
-        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_mapping"));
-        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
-        assertThat(doSection.getApiCallSection().getParams().get("index"), equalTo("test_index"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(1), instanceOf(MatchAssertion.class));
-        MatchAssertion matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(1);
-        assertThat(matchAssertion.getField(), equalTo("test_index.test_type.properties.text.type"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("string"));
-        assertThat(restTestSuite.getTestSections().get(0).getExecutableSections().get(2), instanceOf(MatchAssertion.class));
-        matchAssertion = (MatchAssertion) restTestSuite.getTestSections().get(0).getExecutableSections().get(2);
-        assertThat(matchAssertion.getField(), equalTo("test_index.test_type.properties.text.analyzer"));
-        assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
-
-        assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping - pre 1.0"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(), equalTo("for newer versions the index name is always returned"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getVersion(), equalTo("0.90.9 - 999"));
-        assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(0));
-    }
-
-    @Test
-    public void testParseTestSetupAndSectionsSkipEntireFile() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
-                "setup:\n" +
-                        "  - skip:\n" +
-                        "      version:     \"0.90.3 - 0.90.6\"\n" +
-                        "      reason:      \"test skip entire file\"\n" +
-                        "  - do:\n" +
-                        "        indices.create:\n" +
-                        "          index: test_index\n" +
-                        "\n" +
-                        "---\n" +
-                        "\"Get index mapping\":\n" +
-                        "  - do:\n" +
-                        "      indices.get_mapping:\n" +
-                        "        index: test_index\n" +
-                        "\n" +
-                        "  - match: {test_index.test_type.properties.text.type:     string}\n" +
-                        "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n" +
-                        "\n" +
-                        "---\n" +
-                        "\"Get type mapping - pre 1.0\":\n" +
-                        "\n" +
-                        "  - skip:\n" +
-                        "      version:     \"0.90.9 - 999\"\n" +
-                        "      reason:      \"for newer versions the index name is always returned\"\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      indices.get_mapping:\n" +
-                        "        index: test_index\n" +
-                        "        type: test_type\n" +
-                        "\n" +
-                        "  - match: {test_type.properties.text.type:     string}\n" +
-                        "  - match: {test_type.properties.text.analyzer: whitespace}\n"
-        );
-
-        RestTestSuiteParser testParser = new RestTestSuiteParser();
-        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
-
-        assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
-        assertThat(restTestSuite.getSetupSection(), notNullValue());
-
-        assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getSetupSection().getSkipSection().getVersion(), equalTo("0.90.3 - 0.90.6"));
-        assertThat(restTestSuite.getSetupSection().getSkipSection().getReason(), equalTo("test skip entire file"));
-
-        assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(0));
-
-        assertThat(restTestSuite.getTestSections().size(), equalTo(0));
-    }
-
-    @Test
-    public void testParseTestSetupAndSectionsSkipEntireFileNoDo() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
-                "setup:\n" +
-                        "  - skip:\n" +
-                        "      version:     \"0.90.3 - 0.90.6\"\n" +
-                        "      reason:      \"test skip entire file\"\n" +
-                        "\n" +
-                        "---\n" +
-                        "\"Get index mapping\":\n" +
-                        "  - do:\n" +
-                        "      indices.get_mapping:\n" +
-                        "        index: test_index\n" +
-                        "\n" +
-                        "  - match: {test_index.test_type.properties.text.type:     string}\n" +
-                        "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n" +
-                        "\n" +
-                        "---\n" +
-                        "\"Get type mapping - pre 1.0\":\n" +
-                        "\n" +
-                        "  - skip:\n" +
-                        "      version:     \"0.90.9 - 999\"\n" +
-                        "      reason:      \"for newer versions the index name is always returned\"\n" +
-                        "\n" +
-                        "  - do:\n" +
-                        "      indices.get_mapping:\n" +
-                        "        index: test_index\n" +
-                        "        type: test_type\n" +
-                        "\n" +
-                        "  - match: {test_type.properties.text.type:     string}\n" +
-                        "  - match: {test_type.properties.text.analyzer: whitespace}\n"
-        );
-
-        RestTestSuiteParser testParser = new RestTestSuiteParser();
-        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
-
-        assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
-        assertThat(restTestSuite.getSetupSection(), notNullValue());
-
-        assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(false));
-        assertThat(restTestSuite.getSetupSection().getSkipSection().getVersion(), equalTo("0.90.3 - 0.90.6"));
-        assertThat(restTestSuite.getSetupSection().getSkipSection().getReason(), equalTo("test skip entire file"));
-
-        assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(0));
-
-        assertThat(restTestSuite.getTestSections().size(), equalTo(0));
-    }
-
-    @Test
     public void testParseTestSingleTestSection() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
         "---\n" +
@@ -342,7 +169,7 @@ public class RestTestParserTests extends ElasticsearchTestCase {
         );
 
         RestTestSuiteParser testParser = new RestTestSuiteParser();
-        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo("suite"));
@@ -456,7 +283,7 @@ public class RestTestParserTests extends ElasticsearchTestCase {
         );
 
         RestTestSuiteParser testParser = new RestTestSuiteParser();
-        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        RestTestSuite restTestSuite = testParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(restTestSuite, notNullValue());
         assertThat(restTestSuite.getName(), equalTo("suite"));
@@ -531,6 +358,6 @@ public class RestTestParserTests extends ElasticsearchTestCase {
         );
 
         RestTestSuiteParser testParser = new RestTestSuiteParser();
-        testParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        testParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
     }
 }

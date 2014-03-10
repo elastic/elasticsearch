@@ -8,6 +8,8 @@
             mappings:
               test:
                 _parent: { type: "foo" }
+            settings:
+              number_of_shards: 5
  - do:
       cluster.health:
           wait_for_status: yellow

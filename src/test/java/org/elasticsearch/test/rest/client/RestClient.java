@@ -48,7 +48,7 @@ public class RestClient implements Closeable {
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
 
-    private final InetSocketAddress[] addresses;
+    private InetSocketAddress[] addresses;
 
     private final String esVersion;
 
@@ -96,21 +96,10 @@ public class RestClient implements Closeable {
     }
 
     /**
-     * Calls an api with the provided parameters
-     * @throws RestException if the obtained status code is non ok, unless the specific error code needs to be ignored
-     * according to the ignore parameter received as input (which won't get sent to elasticsearch)
+     * Allows to update the addresses the client needs to connect to
      */
-    public RestResponse callApi(String apiName, String... params) throws IOException, RestException {
-        if (params.length % 2 != 0) {
-            throw new IllegalArgumentException("The number of params passed must be even but was [" + params.length + "]");
-        }
-
-        Map<String, String> paramsMap = Maps.newHashMap();
-        for (int i = 0; i < params.length; i++) {
-            paramsMap.put(params[i++], params[i]);
-        }
-
-        return callApi(apiName, paramsMap, null);
+    public void updateAddresses(InetSocketAddress[] addresses) {
+        this.addresses = addresses;
     }
 
     /**

@@ -51,7 +51,7 @@ public class RestTestSuite {
     }
 
     //describes the rest test suite (e.g. index/10_with_id)
-    //useful also to reproduce failures (RestReproduceInfoPrinter)
+    //useful also to reproduce failures
     public String getDescription() {
         return api + "/" + name;
     }

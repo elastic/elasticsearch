@@ -31,13 +31,10 @@ import java.io.RandomAccessFile;
 
 /**
  * Parser for a complete test suite (yaml file)
- *
- * Depending on the elasticsearch version the tests are going to run against, a whole test suite might need to get skipped
- * In that case the relevant test sections parsing is entirely skipped
  */
 public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite> {
 
-    public RestTestSuite parse(String currentVersion, String api, File file) throws IOException, RestTestParseException {
+    public RestTestSuite parse(String api, File file) throws IOException, RestTestParseException {
 
         if (!file.isFile()) {
             throw new IllegalArgumentException(file.getAbsolutePath() + " is not a file");
@@ -62,9 +59,14 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
             IOUtils.close(randomAccessFile);
         }
 
-        try (XContentParser parser = YamlXContent.yamlXContent.createParser(new FileInputStream(file))) {
-            RestTestSuiteParseContext testParseContext = new RestTestSuiteParseContext(api, filename, parser, currentVersion);
+        XContentParser parser = YamlXContent.yamlXContent.createParser(new FileInputStream(file));
+        try {
+            RestTestSuiteParseContext testParseContext = new RestTestSuiteParseContext(api, filename, parser);
             return parse(testParseContext);
+        } catch(Exception e) {
+            throw new RestTestParseException("Error parsing " + api + "/" + filename, e);
+        } finally {
+            parser.close();
         }
     }
 
@@ -79,8 +81,6 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
 
         restTestSuite.setSetupSection(parseContext.parseSetupSection());
 
-        boolean skip = restTestSuite.getSetupSection().getSkipSection().skip(parseContext.getCurrentVersion());
-
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed
             //we need to somehow distinguish between a null in the middle of a test ("---")
@@ -91,19 +91,9 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
                 }
             }
 
-            if (skip) {
-                //if there was a skip section, there was a setup section as well, which means that we are sure
-                // the current token is at the beginning of a new object
-                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-                //we need to be at the beginning of an object to be able to skip children
-                parser.skipChildren();
-                //after skipChildren we are at the end of the skipped object, need to move on
-                parser.nextToken();
-            } else {
-                TestSection testSection = parseContext.parseTestSection();
-                if (!restTestSuite.addTestSection(testSection)) {
-                    throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in [" + restTestSuite.getDescription() + "]");
-                }
+            TestSection testSection = parseContext.parseTestSection();
+            if (!restTestSuite.addTestSection(testSection)) {
+                throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in [" + restTestSuite.getDescription() + "]");
             }
         }
 

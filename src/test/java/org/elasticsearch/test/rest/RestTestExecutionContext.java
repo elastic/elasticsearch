@@ -44,17 +44,16 @@ public class RestTestExecutionContext implements Closeable {
 
     private static final ESLogger logger = Loggers.getLogger(RestTestExecutionContext.class);
 
-    private final RestClient restClient;
-
-    private final String esVersion;
-
     private final Stash stash = new Stash();
+
+    private final RestSpec restSpec;
+
+    private RestClient restClient;
 
     private RestResponse response;
 
-    public RestTestExecutionContext(InetSocketAddress[] addresses, RestSpec restSpec) throws RestException, IOException {
-        this.restClient = new RestClient(addresses, restSpec);
-        this.esVersion = restClient.getEsVersion();
+    public RestTestExecutionContext(RestSpec restSpec) throws RestException, IOException {
+        this.restSpec = restSpec;
     }
 
     /**
@@ -104,15 +103,6 @@ public class RestTestExecutionContext implements Closeable {
         return XContentFactory.jsonBuilder().map(body).string();
     }
 
-    /**
-     * Calls an elasticsearch api internally without saving the obtained response in the context.
-     * Useful for internal calls (e.g. delete index during teardown)
-     * @throws RestException if the returned status code is non ok
-     */
-    public RestResponse callApiInternal(String apiName, String... params) throws IOException, RestException {
-        return restClient.callApi(apiName, params);
-    }
-
     private RestResponse callApiInternal(String apiName, Map<String, String> params, String body) throws IOException, RestException  {
         return restClient.callApi(apiName, params, body);
     }
@@ -125,10 +115,21 @@ public class RestTestExecutionContext implements Closeable {
     }
 
     /**
+     * Recreates the embedded REST client which will point to the given addresses
+     */
+    public void resetClient(InetSocketAddress[] addresses) throws IOException, RestException {
+        if (restClient == null) {
+            restClient = new RestClient(addresses, restSpec);
+        } else {
+            restClient.updateAddresses(addresses);
+        }
+    }
+
+    /**
      * Clears the last obtained response and the stashed fields
      */
     public void clear() {
-        logger.debug("resetting response and stash");
+        logger.debug("resetting client, response and stash");
         response = null;
         stash.clear();
     }
@@ -141,7 +142,7 @@ public class RestTestExecutionContext implements Closeable {
      * Returns the current es version as a string
      */
     public String esVersion() {
-        return esVersion;
+        return restClient.getEsVersion();
     }
 
     /**

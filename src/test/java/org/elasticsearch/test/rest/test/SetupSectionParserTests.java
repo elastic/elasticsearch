@@ -48,45 +48,13 @@ public class SetupSectionParserTests extends AbstractParserTests {
         );
 
         SetupSectionParser setupSectionParser = new SetupSectionParser();
-        SetupSection setupSection = setupSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        SetupSection setupSection = setupSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(true));
         assertThat(setupSection.getDoSections().size(), equalTo(2));
         assertThat(setupSection.getDoSections().get(0).getApiCallSection().getApi(), equalTo("index1"));
         assertThat(setupSection.getDoSections().get(1).getApiCallSection().getApi(), equalTo("index2"));
-    }
-
-    @Test
-    public void testParseSetupAndSkipSectionSkip() throws Exception {
-
-        parser = YamlXContent.yamlXContent.createParser(
-                "  - skip:\n" +
-                "      version:  \"0.90.0 - 0.90.7\"\n" +
-                "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
-                "  - do:\n" +
-                "      index1:\n" +
-                "        index:  test_1\n" +
-                "        type:   test\n" +
-                "        id:     1\n" +
-                "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n" +
-                "  - do:\n" +
-                "      index2:\n" +
-                "        index:  test_1\n" +
-                "        type:   test\n" +
-                "        id:     2\n" +
-                "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
-        );
-
-        SetupSectionParser setupSectionParser = new SetupSectionParser();
-        SetupSection setupSection = setupSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
-
-        assertThat(setupSection, notNullValue());
-        assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().getVersion(), equalTo("0.90.0 - 0.90.7"));
-        assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
-        assertThat(setupSection.getDoSections().size(), equalTo(0));
     }
 
     @Test
@@ -111,7 +79,7 @@ public class SetupSectionParserTests extends AbstractParserTests {
         );
 
         SetupSectionParser setupSectionParser = new SetupSectionParser();
-        SetupSection setupSection = setupSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.8"));
+        SetupSection setupSection = setupSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));

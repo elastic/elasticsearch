@@ -22,7 +22,10 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Maps;
 import org.apache.lucene.search.Query;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -109,6 +112,8 @@ public class SearchContextHighlight {
 
         private Character[] boundaryChars = null;
 
+        private Boolean breakOnSentences;
+
         private Query highlightQuery;
 
         private int noMatchSize = -1;
@@ -169,6 +174,10 @@ public class SearchContextHighlight {
 
         public Character[] boundaryChars() {
             return boundaryChars;
+        }
+
+        public Boolean breakOnSentences() {
+            return breakOnSentences;
         }
 
         public Query highlightQuery() {
@@ -265,6 +274,11 @@ public class SearchContextHighlight {
                 return this;
             }
 
+            Builder breakOnSentences(boolean breakOnSentences) {
+                fieldOptions.breakOnSentences = breakOnSentences;
+                return this;
+            }
+
             Builder highlightQuery(Query highlightQuery) {
                 fieldOptions.highlightQuery = highlightQuery;
                 return this;
@@ -324,6 +338,9 @@ public class SearchContextHighlight {
                 }
                 if (fieldOptions.boundaryChars == null && globalOptions.boundaryChars != null) {
                     fieldOptions.boundaryChars = Arrays.copyOf(globalOptions.boundaryChars, globalOptions.boundaryChars.length);
+                }
+                if (fieldOptions.breakOnSentences == null) {
+                    fieldOptions.breakOnSentences = globalOptions.breakOnSentences;
                 }
                 if (fieldOptions.highlighterType == null) {
                     fieldOptions.highlighterType = globalOptions.highlighterType;

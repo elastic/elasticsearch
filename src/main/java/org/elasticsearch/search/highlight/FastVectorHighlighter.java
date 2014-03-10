@@ -97,7 +97,9 @@ public class FastVectorHighlighter implements Highlighter {
                 BaseFragmentsBuilder fragmentsBuilder;
 
                 BoundaryScanner boundaryScanner = DEFAULT_BOUNDARY_SCANNER;
-                if (field.fieldOptions().boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN || field.fieldOptions().boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {
+                if (field.fieldOptions().breakOnSentences()) {
+                    boundaryScanner = new SentenceBoundaryScanner(field.fieldOptions().boundaryMaxScan());
+                } else if (field.fieldOptions().boundaryMaxScan() != SimpleBoundaryScanner.DEFAULT_MAX_SCAN || field.fieldOptions().boundaryChars() != SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS) {                    
                     boundaryScanner = new SimpleBoundaryScanner(field.fieldOptions().boundaryMaxScan(), field.fieldOptions().boundaryChars());
                 }
                 boolean forceSource = context.highlight().forceSource(field);

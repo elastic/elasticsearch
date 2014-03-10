@@ -74,6 +74,7 @@ public class HighlighterParseElement implements SearchParseElement {
                 .requireFieldMatch(false).forceSource(false).fragmentCharSize(100).numberOfFragments(5)
                 .encoder("default").boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
                 .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
+                .breakOnSentences(false)
                 .noMatchSize(0).phraseLimit(256);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -121,6 +122,8 @@ public class HighlighterParseElement implements SearchParseElement {
                         globalBoundaryChars[i] = charsArr[i];
                     }
                     globalOptionsBuilder.boundaryChars(globalBoundaryChars);
+                } else if ("break_on_sentences".equals(topLevelFieldName) || "breakOnSentences".equals(topLevelFieldName)) {
+                    globalOptionsBuilder.breakOnSentences(parser.booleanValue());
                 } else if ("type".equals(topLevelFieldName)) {
                     globalOptionsBuilder.highlighterType(parser.text());
                 } else if ("fragmenter".equals(topLevelFieldName)) {
@@ -179,15 +182,17 @@ public class HighlighterParseElement implements SearchParseElement {
                                         fieldOptionsBuilder.scoreOrdered("score".equals(parser.text()));
                                     } else if ("require_field_match".equals(fieldName) || "requireFieldMatch".equals(fieldName)) {
                                         fieldOptionsBuilder.requireFieldMatch(parser.booleanValue());
-                                    } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
+                                    } else if ("boundary_max_scan".equals(fieldName) || "boundaryMaxScan".equals(fieldName)) {
                                         fieldOptionsBuilder.boundaryMaxScan(parser.intValue());
-                                    } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
+                                    } else if ("boundary_chars".equals(fieldName) || "boundaryChars".equals(fieldName)) {
                                         char[] charsArr = parser.text().toCharArray();
                                         Character[] boundaryChars = new Character[charsArr.length];
                                         for (int i = 0; i < charsArr.length; i++) {
                                             boundaryChars[i] = charsArr[i];
                                         }
                                         fieldOptionsBuilder.boundaryChars(boundaryChars);
+                                    } else if ("break_on_sentences".equals(fieldName) || "breakOnSentences".equals(fieldName)) {
+                                        globalOptionsBuilder.breakOnSentences(parser.booleanValue());
                                     } else if ("type".equals(fieldName)) {
                                         fieldOptionsBuilder.highlighterType(parser.text());
                                     } else if ("fragmenter".equals(fieldName)) {

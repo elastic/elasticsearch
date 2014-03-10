@@ -49,13 +49,13 @@ import java.util.Map;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.missingFilter;
+import static org.elasticsearch.index.query.FilterBuilders.typeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -1497,6 +1497,99 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertHighlight(response, 0, "field1", 0, 1, equalTo("The <b>quick<b> brown <1>fox</1>"));
         assertHighlight(response, 0, "field2", 0, 1, equalTo("The <b>slow<b> brown <2>fox</2>"));
+    }
+
+    @Test
+    public void testFastVectorHighlighterBreakOnSentence() {
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets"));
+        ensureGreen();
+
+        index("test", "type1", "1", "field1", "The quick brown fox jumped over the lazy dog. " +
+                "The last sentence contains all the letters in the English alphabet and the word fox. " +
+                "Short sentence. Cow jumped over the moon");
+        refresh();
+
+        // Basic sentence matching
+        HighlightBuilder.Field field = new HighlightBuilder.Field("field1").highlighterType("fvh").breakOnSentences(true)
+                .boundaryMaxScan(200).fragmentSize(30).numOfFragments(2);
+        SearchRequestBuilder search = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("field1", "fox"))
+                .addHighlightedField(field);
+        SearchResponse response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("The quick brown <em>fox</em> jumped over the lazy dog. "));
+        assertHighlight(response, 0, "field1", 1,
+                equalTo("The last sentence contains all the letters in the English alphabet and the word <em>fox</em>. Short sentence. "));
+
+        // Matching the end of the field
+        search.setQuery(QueryBuilders.matchQuery("field1", "moon"));
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("Cow jumped over the <em>moon</em>"));
+
+        // Matching the beginning
+        field.numOfFragments(1);
+        search.setQuery(QueryBuilders.matchQuery("field1", "The"));
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("<em>The</em> quick brown fox jumped over the lazy dog. "));
+
+        // Breaking on word boundaries
+        field.boundaryMaxScan(10);
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("<em>The</em> quick brown fox jumped over"));
+
+        // In the middle and near the end
+        field.boundaryMaxScan(10).numOfFragments(2);
+        search.setQuery(QueryBuilders.matchQuery("field1", "over"));
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("brown fox jumped <em>over</em> the lazy dog. "));
+        assertHighlight(response, 0, "field1", 1, equalTo("sentence. Cow jumped <em>over</em> the moon"));
+    }
+
+    @Test
+    public void testFastVectorHighlighterBreakOnSentenceMultiValuedFields() {
+        // Almost just like the single valued version but with some extra breaks that don't make much difference
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=string,term_vector=with_positions_offsets"));
+        ensureGreen();
+
+        index("test", "type1", "1", "field1", new Object[] {"The quick brown fox jumped over the lazy dog. ",
+                "The last sentence contains all the letters in the English alphabet and the word fox. ",
+                "Short sentence. Cow jumped over the moon"});
+        refresh();
+
+        // Basic sentence matching
+        HighlightBuilder.Field field = new HighlightBuilder.Field("field1").highlighterType("fvh").breakOnSentences(true)
+                .boundaryMaxScan(200).fragmentSize(30).numOfFragments(2);
+        SearchRequestBuilder search = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("field1", "fox"))
+                .addHighlightedField(field);
+        SearchResponse response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("The quick brown <em>fox</em> jumped over the lazy dog.  "));
+        assertHighlight(response, 0, "field1", 1,
+                equalTo("The last sentence contains all the letters in the English alphabet and the word <em>fox</em>. "));
+
+        // Matching the end of the field
+        search.setQuery(QueryBuilders.matchQuery("field1", "moon"));
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("Cow jumped over the <em>moon</em>"));
+
+        // Matching the beginning
+        field.numOfFragments(1);
+        search.setQuery(QueryBuilders.matchQuery("field1", "The"));
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("<em>The</em> quick brown fox jumped over the lazy dog.  "));
+
+        // Breaking on word boundaries
+        field.boundaryMaxScan(10);
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("<em>The</em> quick brown fox jumped over"));
+
+        // In the middle and near the end
+        field.boundaryMaxScan(10).numOfFragments(2);
+        search.setQuery(QueryBuilders.matchQuery("field1", "over"));
+        response = search.get();
+        assertHighlight(response, 0, "field1", 0, equalTo("brown fox jumped <em>over</em> the lazy dog.  "));
+        assertHighlight(response, 0, "field1", 1, equalTo("sentence. Cow jumped <em>over</em> the moon"));
     }
 
     @Test

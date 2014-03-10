@@ -79,8 +79,8 @@ If `term_vector` information is provided by setting `term_vector` to
 will be used instead of the plain highlighter.  The fast vector highlighter:
 
 * Is faster especially for large fields (> `1MB`)
-* Can be customized with `boundary_chars`, `boundary_max_scan`, and
- `fragment_offset` (see <<boundary-characters,below>>)
+* Can be customized with `boundary_chars`, `boundary_max_scan`,
+ `fragment_offset`, or `break_on_sentence` (see <<boundary-characters,below>>)
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
 * Can combine matches from multiple fields into one result.  See
@@ -417,6 +417,32 @@ defined in it. It defaults to `.,!? \t\n`.
 The `boundary_max_scan` allows to control how far to look for boundary
 characters, and defaults to `20`.
 
+coming[1.1.0]
+Setting the `break_on_sentence` attribute to trye instructs the FVH to
+try to break on sentence boundaries.  If it can't break on sentence
+boundaries then it'll break on word boundaries.  This works best when
+`boundary_max_scan` is set high (`200` or so) and `fragment_size` is set
+low (`30` or so).  This will get it to spit out single complete
+sentences.  If the match is very early or late in the sentence then two
+it'll spit out two sentences if it can find their boundaries within the
+`boundary_max_scan`.
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {...},
+    "highlight": {
+        "fields": {
+              "text": {
+                    "boundary_max_scan": 200,
+                    "fragment_size": 30,
+                    "break_on_sentences": true,
+                    "number_of_fragments": 2
+              }
+        }
+    }
+}
+--------------------------------------------------
 
 [[matched-fields]]
 ==== Matched Fields

@@ -331,6 +331,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.boundaryChars != null) {
                     builder.field("boundary_chars", field.boundaryChars);
                 }
+                if (field.breakOnSentences != null) {
+                    builder.field("break_on_sentences", field.breakOnSentences);
+                }
                 if (field.highlighterType != null) {
                     builder.field("type", field.highlighterType);
                 }
@@ -377,6 +380,7 @@ public class HighlightBuilder implements ToXContent {
         Boolean requireFieldMatch;
         int boundaryMaxScan = -1;
         char[] boundaryChars;
+        Boolean breakOnSentences;
         String highlighterType;
         String fragmenter;
         QueryBuilder highlightQuery;
@@ -455,6 +459,15 @@ public class HighlightBuilder implements ToXContent {
 
         public Field boundaryChars(char[] boundaryChars) {
             this.boundaryChars = boundaryChars;
+            return this;
+        }
+
+        /**
+         * Should this fields segments be broken on sentence boundaries?
+         * @return this for chaining
+         */
+        public Field breakOnSentences(Boolean breakOnSentences) {
+            this.breakOnSentences = breakOnSentences;
             return this;
         }
 

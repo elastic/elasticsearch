@@ -388,7 +388,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
           if version['build_hash'].strip() !=  expected_hash:
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (expected_hash, version['build_hash']))
           print('  Running REST Spec tests against package [%s]' % release_file)
-          run_mvn('test -Dtests.rest=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9200"))
+          run_mvn('test -Dtests.cluster=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9300"))
           print('  Verify if plugins are listed in _nodes')
           conn.request('GET', '/_nodes?plugin=true&pretty=true')
           res = conn.getresponse()

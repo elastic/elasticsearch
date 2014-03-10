@@ -16,22 +16,174 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test.rest;
 
-import org.elasticsearch.test.rest.junit.RestTestSuiteRunner;
-import org.junit.runner.RunWith;
+import com.carrotsearch.randomizedtesting.SysGlobals;
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ReplicateOnEachVm;
+import com.google.common.collect.Lists;
+import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.rest.client.RestException;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
+import org.elasticsearch.test.rest.section.*;
+import org.elasticsearch.test.rest.spec.RestSpec;
+import org.elasticsearch.test.rest.support.FileUtils;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
-import static org.apache.lucene.util.LuceneTestCase.Slow;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Runs the clients test suite against an elasticsearch node, which can be an external node or an automatically created cluster.
- * Communicates with elasticsearch exclusively via REST layer.
- *
- * @see RestTestSuiteRunner for extensive documentation and all the supported options
+ * Runs the clients test suite against an elasticsearch cluster.
  */
-@Slow
-@RunWith(RestTestSuiteRunner.class)
-public class ElasticsearchRestTests {
+//tests distribution disabled for now since it causes reporting problems,
+// due to the non unique suite name
+//@ReplicateOnEachVm
+public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
+    public static final String REST_TESTS = "tests.rest";
+    public static final String REST_TESTS_SUITE = "tests.rest.suite";
+    public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
+    private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
+    private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
+
+    private static final String PATHS_SEPARATOR = ",";
+
+    private static RestTestExecutionContext restTestExecutionContext;
+
+    //private static final int JVM_COUNT = systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_COUNT, 1);
+    //private static final int CURRENT_JVM_ID = systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0);
+
+    private final RestTestCandidate testCandidate;
+
+    public ElasticsearchRestTests(@Name("yaml") RestTestCandidate testCandidate) {
+        this.testCandidate = testCandidate;
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        List<RestTestCandidate> restTestCandidates = collectTestCandidates();
+        List<Object[]> objects = Lists.newArrayList();
+        for (RestTestCandidate restTestCandidate : restTestCandidates) {
+            objects.add(new Object[]{restTestCandidate});
+        }
+        return objects;
+    }
+
+    private static List<RestTestCandidate> collectTestCandidates() throws RestTestParseException, IOException {
+        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
+        Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
+
+        //yaml suites are grouped by directory (effectively by api)
+        List<String> apis = Lists.newArrayList(yamlSuites.keySet());
+
+        List<RestTestCandidate> testCandidates = Lists.newArrayList();
+        RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
+        for (String api : apis) {
+            List<File> yamlFiles = Lists.newArrayList(yamlSuites.get(api));
+            for (File yamlFile : yamlFiles) {
+                //tests distribution disabled for now since it causes reporting problems,
+                // due to the non unique suite name
+                //if (mustExecute(yamlFile.getAbsolutePath())) {
+                    RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                    for (TestSection testSection : restTestSuite.getTestSections()) {
+                        testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
+                    }
+                //}
+            }
+        }
+        return testCandidates;
+    }
+
+    /*private static boolean mustExecute(String test) {
+        //we distribute the tests across the forked jvms if > 1
+        if (JVM_COUNT > 1) {
+            int jvmId = MathUtils.mod(DjbHashFunction.DJB_HASH(test), JVM_COUNT);
+            if (jvmId != CURRENT_JVM_ID) {
+                return false;
+            }
+        }
+        return true;
+    }*/
+
+    private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
+        String property = System.getProperty(propertyName);
+        if (!Strings.hasLength(property)) {
+            return new String[]{defaultValue};
+        } else {
+            return property.split(PATHS_SEPARATOR);
+        }
+    }
+
+    @BeforeClass
+    public static void initExecutionContext() throws IOException, RestException {
+        //skip REST tests if disabled through -Dtests.rest=false
+        assumeTrue(systemPropertyAsBoolean(REST_TESTS, true));
+
+        String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
+        RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
+        restTestExecutionContext = new RestTestExecutionContext(restSpec);
+    }
+
+    @AfterClass
+    public static void close() {
+        restTestExecutionContext.close();
+    }
+
+    @Before
+    public void reset() throws IOException, RestException {
+        restTestExecutionContext.resetClient(immutableCluster().httpAddresses());
+        restTestExecutionContext.clear();
+
+        assumeFalse(buildSkipMessage(testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection()),
+                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+        assumeFalse(buildSkipMessage(testCandidate.getDescription(), testCandidate.getTestSection().getSkipSection()),
+                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+    }
+
+    private static String buildSkipMessage(String description, SkipSection skipSection) {
+        StringBuilder messageBuilder = new StringBuilder();
+        if (skipSection.isVersionCheck()) {
+            messageBuilder.append("[").append(description).append("] skipped, reason: [").append(skipSection.getReason()).append("] ");
+        } else {
+            messageBuilder.append("[").append(description).append("] skipped, reason: features ").append(skipSection.getFeatures()).append(" not supported");
+        }
+        return messageBuilder.toString();
+    }
+
+    @Test
+    public void test() throws IOException {
+        //let's check that there is something to run, otherwise there might be a problem with the test section
+        if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
+            throw new IllegalArgumentException("No executable sections loaded for ["
+                    + testCandidate.getSuiteDescription() + "/" + testCandidate.getTestSection().getName() + "]");
+        }
+
+        if (!testCandidate.getSetupSection().isEmpty()) {
+            logger.info("start setup test [{}: {}]", testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName());
+            for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
+                doSection.execute(restTestExecutionContext);
+            }
+            logger.info("end setup test [{}: {}]", testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName());
+        }
+
+        restTestExecutionContext.clear();
+
+        for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
+            executableSection.execute(restTestExecutionContext);
+        }
+    }
 }

@@ -26,13 +26,18 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.rest.ElasticsearchRestTests;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
+import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
+import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SPEC;
+import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SUITE;
+
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -63,7 +68,13 @@ public class ReproduceInfoPrinter extends RunListener {
         final StringBuilder b = new StringBuilder();
         b.append("FAILURE  : ").append(d.getDisplayName()).append("\n");
         b.append("REPRODUCE WITH  : mvn test");
-        reproduceErrorMessageBuilder(b).appendAllOpts(failure.getDescription());
+        MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
+        mavenMessageBuilder.appendAllOpts(failure.getDescription());
+
+        //ElasticsearchRestTests is a special case as it allows for additional parameters
+        if (ElasticsearchRestTests.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+            mavenMessageBuilder.appendRestTestsProperties();
+        }
 
         b.append("\n");
         b.append("Throwable:\n");
@@ -72,10 +83,6 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         logger.error(b.toString());
-    }
-
-    protected ReproduceErrorMessageBuilder reproduceErrorMessageBuilder(StringBuilder b) {
-        return new MavenMessageBuilder(b);
     }
 
     protected TraceFormatting traces() {
@@ -97,6 +104,12 @@ public class ReproduceInfoPrinter extends RunListener {
         @Override
         public ReproduceErrorMessageBuilder appendAllOpts(Description description) {
             super.appendAllOpts(description);
+
+            if (description.getMethodName() != null) {
+                //prints out the raw method description instead of methodName(description) which filters out the parameters
+                super.appendOpt(SYSPROP_TESTMETHOD(), "\"" + description.getMethodName() + "\"");
+            }
+
             return appendESProperties();
         }
 
@@ -108,9 +121,14 @@ public class ReproduceInfoPrinter extends RunListener {
             if (sysPropName.equals(SYSPROP_ITERATIONS())) { // we don't want the iters to be in there!
                 return this;
             }
+            if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
+                //don't print out the test method, we print it ourselves in appendAllOpts
+                //without filtering out the parameters (needed for REST tests)
+                return this;
+            }
             if (Strings.hasLength(value)) {
                 return super.appendOpt(sysPropName, value);
-            } 
+            }
             return this;
         }
 
@@ -121,6 +139,10 @@ public class ReproduceInfoPrinter extends RunListener {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
             return this;
+        }
+
+        public ReproduceErrorMessageBuilder appendRestTestsProperties() {
+            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

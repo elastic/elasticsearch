@@ -16,37 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.junit;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.test.rest.section.RestTestSuite;
 import org.elasticsearch.test.rest.section.SetupSection;
 import org.elasticsearch.test.rest.section.TestSection;
-import org.junit.runner.Description;
 
 /**
- * Wraps {@link org.elasticsearch.test.rest.section.TestSection}s ready to be run,
- * properly enriched with the needed execution information.
- * The tests tree structure gets flattened to the leaves (test sections)
+ * Wraps {@link org.elasticsearch.test.rest.section.TestSection}s ready to be run.
+ * Each test section is associated to its {@link org.elasticsearch.test.rest.section.RestTestSuite}.
  */
 public class RestTestCandidate {
 
     private final RestTestSuite restTestSuite;
-    private final Description suiteDescription;
     private final TestSection testSection;
-    private final Description testDescription;
-    private final long seed;
 
-    static RestTestCandidate empty(RestTestSuite restTestSuite, Description suiteDescription) {
-        return new RestTestCandidate(restTestSuite, suiteDescription, null, null, -1);
-    }
-
-    RestTestCandidate(RestTestSuite restTestSuite, Description suiteDescription,
-                      TestSection testSection, Description testDescription, long seed) {
+    public RestTestCandidate(RestTestSuite restTestSuite, TestSection testSection) {
         this.restTestSuite = restTestSuite;
-        this.suiteDescription = suiteDescription;
         this.testSection = testSection;
-        this.testDescription = testDescription;
-        this.seed = seed;
     }
 
     public String getApi() {
@@ -61,12 +48,8 @@ public class RestTestCandidate {
         return restTestSuite.getDescription();
     }
 
-    public Description describeSuite() {
-        return suiteDescription;
-    }
-
-    public Description describeTest() {
-        return testDescription;
+    public String getDescription() {
+        return getSuiteDescription() + "/" + testSection.getName();
     }
 
     public SetupSection getSetupSection() {
@@ -77,7 +60,8 @@ public class RestTestCandidate {
         return testSection;
     }
 
-    public long getSeed() {
-        return seed;
+    @Override
+    public String toString() {
+        return getSuiteDescription() + "/" + testSection.getName();
     }
 }

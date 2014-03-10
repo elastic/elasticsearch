@@ -52,7 +52,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.1</version>
+            <version>2.1.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -387,7 +387,7 @@
             <plugin>
                 <groupId>com.carrotsearch.randomizedtesting</groupId>
                 <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.1.1</version>
+                <version>2.1.2</version>
                 <executions>
                     <execution>
                         <id>tests</id>
@@ -445,6 +445,7 @@
                             <sysouts>${tests.verbose}</sysouts>
                             <seed>${tests.seed}</seed>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <uniqueSuiteNames>false</uniqueSuiteNames>
                             <systemProperties>
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
@@ -1138,12 +1139,8 @@
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
-                                <!-- inner classes -->
-                                <include>com/carrotsearch/randomizedtesting/StandaloneRandomizedContext.class</include>
                             </includes>
                             <excludes>
-                                <!-- we only distribute the REST tests runner, not the executable test  -->
-                                <exclude>org/elasticsearch/test/rest/ElasticsearchRestTests.class</exclude>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
                                 <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
                             </excludes>

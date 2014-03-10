@@ -4,6 +4,8 @@
       indices.create:
           index: test_1
           body:
+            settings:
+              number_of_shards: 5
             mappings:
               test:
                 _parent: { type: "foo" }

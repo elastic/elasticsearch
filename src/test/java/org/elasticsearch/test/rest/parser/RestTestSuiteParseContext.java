@@ -53,13 +53,11 @@ public class RestTestSuiteParseContext {
     private final String api;
     private final String suiteName;
     private final XContentParser parser;
-    private final String currentVersion;
 
-    public RestTestSuiteParseContext(String api, String suiteName, XContentParser parser, String currentVersion) {
+    public RestTestSuiteParseContext(String api, String suiteName, XContentParser parser) {
         this.api = api;
         this.suiteName = suiteName;
         this.parser = parser;
-        this.currentVersion = currentVersion;
     }
 
     public String getApi() {
@@ -72,10 +70,6 @@ public class RestTestSuiteParseContext {
 
     public XContentParser parser() {
         return parser;
-    }
-
-    public String getCurrentVersion() {
-        return currentVersion;
     }
 
     public SetupSection parseSetupSection() throws IOException, RestTestParseException {

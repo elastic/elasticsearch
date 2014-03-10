@@ -38,7 +38,7 @@ public class SetSectionParserTests extends AbstractParserTests {
 
         SetSectionParser setSectionParser = new SetSectionParser();
 
-        SetSection setSection = setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        SetSection setSection = setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(setSection, notNullValue());
         assertThat(setSection.getStash(), notNullValue());
@@ -54,7 +54,7 @@ public class SetSectionParserTests extends AbstractParserTests {
 
         SetSectionParser setSectionParser = new SetSectionParser();
 
-        SetSection setSection = setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        SetSection setSection = setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(setSection, notNullValue());
         assertThat(setSection.getStash(), notNullValue());
@@ -72,6 +72,6 @@ public class SetSectionParserTests extends AbstractParserTests {
 
         SetSectionParser setSectionParser = new SetSectionParser();
 
-        setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        setSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
     }
 }

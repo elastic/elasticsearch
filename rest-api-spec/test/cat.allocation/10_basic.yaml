@@ -55,7 +55,7 @@
   - match:
       $body: >
             /^
-              ( [1-5]               \s+
+              ( \d+                 \s+
                 \d+(\.\d+)?[kmgt]b  \s+
                 \d+(\.\d+)?[kmgt]b  \s+
                 \d+(\.\d+)?[kmgt]b  \s+

@@ -197,23 +197,23 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .field("foo", "" + i)
                     .endObject()).execute().actionGet();
         }
-
+        int shardSize = numberOfShards() > 5 ? 20 : 10;
         String[] execHint = new String[]{"map", null};
         for (String hint : execHint) {
 
             flushAndRefresh();
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .addFacet(termsFacet("double").executionHint(hint).field("double").size(10))
-                    .addFacet(termsFacet("float").executionHint(hint).field("float").size(10))
-                    .addFacet(termsFacet("integer").executionHint(hint).field("integer").size(10))
-                    .addFacet(termsFacet("long").executionHint(hint).field("long").size(10))
-                    .addFacet(termsFacet("short").executionHint(hint).field("short").size(10))
-                    .addFacet(termsFacet("byte").executionHint(hint).field("byte").size(10))
-                    .addFacet(termsFacet("termFacet").executionHint(hint).field("name").size(10))
-                    .addFacet(termsFacet("termFacetRegex").executionHint(hint).field("multiValued").regex("9\\d").size(20))
-                    .addFacet(termsFacet("termFacetScript").executionHint(hint).field("multiValued").script("Integer.toHexString(Integer.parseInt(term))").size(10))
-                    .addFacet(termsFacet("termFacetScriptRegex").executionHint(hint).field("multiValued").script("Integer.toHexString(Integer.parseInt(term))").regex("9\\d").size(20))
+                    .addFacet(termsFacet("double").shardSize(shardSize).executionHint(hint).field("double").size(10))
+                    .addFacet(termsFacet("float").shardSize(shardSize).executionHint(hint).field("float").size(10))
+                    .addFacet(termsFacet("integer").shardSize(shardSize).executionHint(hint).field("integer").size(10))
+                    .addFacet(termsFacet("long").shardSize(shardSize).executionHint(hint).field("long").size(10))
+                    .addFacet(termsFacet("short").shardSize(shardSize).executionHint(hint).field("short").size(10))
+                    .addFacet(termsFacet("byte").shardSize(shardSize).executionHint(hint).field("byte").size(10))
+                    .addFacet(termsFacet("termFacet").shardSize(shardSize).executionHint(hint).field("name").size(10))
+                    .addFacet(termsFacet("termFacetRegex").shardSize(shardSize).executionHint(hint).field("multiValued").regex("9\\d").size(20))
+                    .addFacet(termsFacet("termFacetScript").shardSize(shardSize).executionHint(hint).field("multiValued").script("Integer.toHexString(Integer.parseInt(term))").size(10))
+                    .addFacet(termsFacet("termFacetScriptRegex").shardSize(shardSize).executionHint(hint).field("multiValued").script("Integer.toHexString(Integer.parseInt(term))").regex("9\\d").size(20))
 
                     .execute().actionGet();
 

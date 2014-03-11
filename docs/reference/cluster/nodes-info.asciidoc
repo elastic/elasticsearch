@@ -40,6 +40,7 @@ plugins per node:
 * `site`: `true` if the plugin is a site plugin
 * `jvm`: `true` if the plugin is a plugin running in the JVM
 * `url`: URL if the plugin is a site plugin
+* `isolation`: whether the plugin is loaded in isolation (`true`) or not (`false`)
 
 The result will look similar to:
 

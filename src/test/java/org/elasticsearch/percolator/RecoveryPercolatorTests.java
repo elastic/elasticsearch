@@ -22,7 +22,6 @@ package org.elasticsearch.percolator;
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -31,6 +30,7 @@ import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -97,7 +97,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -141,7 +140,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
@@ -151,7 +149,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
         assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         percolate = client().preparePercolate()
@@ -191,9 +188,9 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         cluster().ensureAtLeastNumNodes(2);
         cluster().ensureAtMostNumNodes(2);
 
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .execute().actionGet();
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
         ensureGreen();
 
         logger.info("--> Add dummy docs");
@@ -229,8 +226,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> Percolate doc with field1=100");
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
-                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject())
-                .execute().actionGet();
+                .setSource(jsonBuilder().startObject().startObject("doc").field("field1", 100).endObject().endObject()).get();
+
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(response.getMatches()[0].getId().string(), equalTo("100"));

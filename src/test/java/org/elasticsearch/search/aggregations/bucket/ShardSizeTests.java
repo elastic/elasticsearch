@@ -54,11 +54,6 @@ public abstract class ShardSizeTests extends ElasticsearchIntegrationTest {
         return 2;
     }
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     protected void createIdx(String keyFieldMapping) {
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "key", keyFieldMapping));

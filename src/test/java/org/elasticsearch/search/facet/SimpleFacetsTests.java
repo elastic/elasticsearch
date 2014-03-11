@@ -68,11 +68,6 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     private int numRuns = -1;
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     protected int numberOfRuns() {
         if (numRuns == -1) {
             numRuns = atLeast(3);

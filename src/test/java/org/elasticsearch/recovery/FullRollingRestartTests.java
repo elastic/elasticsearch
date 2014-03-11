@@ -45,7 +45,11 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
             logger.info("cluster health request timed out:\n{}", clusterHealth);
             fail("cluster health request timed out");
         }
+    }
 
+    @Override
+    protected int numberOfReplicas() {
+        return 1;
     }
 
     @Test
@@ -59,7 +63,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test", "type1", Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
         }
-        client().admin().indices().prepareFlush().execute().actionGet();
+        flush();
         for (int i = 1000; i < 2000; i++) {
             client().prepareIndex("test", "type1", Long.toString(i))
                     .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
@@ -79,7 +83,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
         }
@@ -92,8 +96,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
         }
@@ -106,7 +109,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
         }

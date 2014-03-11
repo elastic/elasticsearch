@@ -44,11 +44,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class CombiTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     /**
      * Making sure that if there are multiple aggregations, working on the same field, yet require different
      * value source type, they can all still work. It used to fail as we used to cache the ValueSource by the

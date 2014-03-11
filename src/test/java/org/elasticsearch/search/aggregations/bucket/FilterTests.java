@@ -47,11 +47,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class FilterTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     int numDocs, numTag1Docs;
 
     @Before

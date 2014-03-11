@@ -49,11 +49,6 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
     private static final String MULTI_VALUED_FIELD_NAME = "l_values";
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     int numDocs;
 
     @Before

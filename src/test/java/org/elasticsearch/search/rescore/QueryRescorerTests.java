@@ -41,7 +41,6 @@ import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -531,20 +530,18 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     private int indexRandomNumbers(String analyzer, int shards) throws Exception {
-        Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1));
+        Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
 
         if (shards > 0) {
             builder.put(SETTING_NUMBER_OF_SHARDS, shards);
         }
 
-        client().admin()
-                .indices()
-                .prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", analyzer).field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(builder).get();
+                .setSettings(builder));
         int numDocs = atLeast(100);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {

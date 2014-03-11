@@ -20,8 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -39,14 +37,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 public class NaNSortingTests extends ElasticsearchIntegrationTest {
-
-    @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_shards", between(1, 5))
-                .put("index.number_of_replicas", between(0, 1))
-                .build();
-    }
 
     private enum SubAggregation {
         AVG("avg") {

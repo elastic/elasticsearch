@@ -19,11 +19,9 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -41,12 +39,9 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.*;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
-import static org.hamcrest.Matchers.is;
 
 public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
@@ -75,8 +70,9 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasicGeo() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision("5km").neighbors(true))));
+        ensureYellow();
+
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
                     .startObject(FIELD)
@@ -112,7 +108,6 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testGeoField() throws Exception {
-        createIndexAndSettings();
 
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
@@ -135,9 +130,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         mapping.endObject();
         mapping.endObject();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mapping).get();
-
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
         ensureYellow();
 
         XContentBuilder source1 = jsonBuilder()
@@ -162,7 +155,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject();
         client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
 
-        client().admin().indices().prepareRefresh(INDEX).get();
+        refresh();
         
         String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
@@ -190,8 +183,9 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         String treptow = "u33d9unn7fp7";
 
         double precision = 100.0; // meters
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.location("st").precision(precision).neighbors(true));
+
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.location("st").precision(precision).neighbors(true))));
+        ensureYellow();
 
         String[] locations = { reinickendorf, pankow, koepenick, bernau, berlin, mitte, steglitz, wilmersdorf, spandau, tempelhof,
                 schoeneberg, treptow };
@@ -230,8 +224,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimplePrefix() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.category("st"));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.category("st"))));
+        ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
             XContentBuilder source = jsonBuilder().startObject().startObject(FIELD).startArray("input").value(HEROS[i]).endArray()
@@ -256,8 +250,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testBasic() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, false, ContextBuilder.reference("st", "_type"), ContextBuilder.reference("nd", "_type"))));
+        ensureYellow();
 
         client().prepareIndex(INDEX, TYPE, "1")
                 .setSource(
@@ -273,8 +267,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleField() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.reference("st", "category"));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
+        ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
             client().prepareIndex(INDEX, TYPE, "" + i)
@@ -300,8 +294,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiValueField() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.reference("st", "category"));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "category"))));
+        ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
             client().prepareIndex(INDEX, TYPE, "" + i)
@@ -322,13 +316,12 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertFieldSuggestions("2", "s", "Smythe, Alistair");
         assertFieldSuggestions("1", "w", "Whitemane, Aelfyre");
         assertFieldSuggestions("2", "w", "Whitemane, Kofi");
-
     }
 
     @Test
     public void testMultiContext() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
+        ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
             client().prepareIndex(INDEX, TYPE, "" + i)
@@ -354,8 +347,8 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultiContextWithFuzzyLogic() throws Exception {
-        createIndexAndSettings();
-        createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"));
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, createMapping(TYPE, ContextBuilder.reference("st", "categoryA"), ContextBuilder.reference("nd", "categoryB"))));
+        ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
             String source = jsonBuilder().startObject().field("categoryA", "" + (char) ('0' + (i % 3)))
@@ -387,10 +380,12 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testSimpleType() throws Exception {
         String[] types = { TYPE + "A", TYPE + "B", TYPE + "C" };
 
-        createIndexAndSettings();
-        for (int i = 0; i < types.length; i++) {
-            createMapping(types[i], ContextBuilder.reference("st", "_type"));
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(INDEX);
+        for (String type : types) {
+            createIndexRequestBuilder.addMapping(type, createMapping(type, ContextBuilder.reference("st", "_type")));
         }
+        assertAcked(createIndexRequestBuilder);
+        ensureYellow();
 
         for (int i = 0; i < HEROS.length; i++) {
             String type = types[i % types.length];
@@ -584,30 +579,15 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertEquals(hits.length, numSuggestions);
     }
 
-    private void createMapping(String type, ContextBuilder<?>... context) throws IOException {
-        createMapping(type, false, context);
+    private XContentBuilder createMapping(String type, ContextBuilder<?>... context) throws IOException {
+        return createMapping(type, false, context);
     }
 
-    private void createMapping(String type, boolean preserveSeparators, ContextBuilder<?>... context) throws IOException {
-        createMapping(type, "simple", "simple", true, preserveSeparators, true, context);
+    private XContentBuilder createMapping(String type, boolean preserveSeparators, ContextBuilder<?>... context) throws IOException {
+        return createMapping(type, "simple", "simple", true, preserveSeparators, true, context);
     }
 
-    private ImmutableSettings.Builder createDefaultSettings() {
-        int randomShardNumber = between(1, 5);
-        int randomReplicaNumber = between(0, cluster().size() - 1);
-        return settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, randomShardNumber).put(SETTING_NUMBER_OF_REPLICAS, randomReplicaNumber);
-    }
-
-    private void createIndexAndSettings() throws IOException {
-        createIndexAndSettings(createDefaultSettings());
-    }
-
-    private void createIndexAndSettings(Settings.Builder settingsBuilder) throws IOException {
-        client().admin().indices().prepareCreate(INDEX).setSettings(settingsBuilder).get();
-        ensureYellow();
-    }
-
-    private void createMapping(String type, String indexAnalyzer, String searchAnalyzer, boolean payloads, boolean preserveSeparators,
+    private XContentBuilder createMapping(String type, String indexAnalyzer, String searchAnalyzer, boolean payloads, boolean preserveSeparators,
             boolean preservePositionIncrements, ContextBuilder<?>... contexts) throws IOException {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
@@ -631,10 +611,6 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         mapping.endObject();
         mapping.endObject();
         mapping.endObject();
-
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(type).setSource(mapping).get();
-
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-        ensureYellow();
+        return mapping;
     }
 }

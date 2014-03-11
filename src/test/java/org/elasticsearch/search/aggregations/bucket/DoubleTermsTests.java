@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -60,11 +58,6 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     private static final int NUM_DOCS = 5; // TODO: randomize the size?
     private static final String SINGLE_VALUED_FIELD_NAME = "d_value";
     private static final String MULTI_VALUED_FIELD_NAME = "d_values";
-
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
 
     @Before
     public void init() throws Exception {

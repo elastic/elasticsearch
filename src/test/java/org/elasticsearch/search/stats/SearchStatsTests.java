@@ -38,6 +38,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -54,26 +56,32 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();
         createIndex("test1");
-        for (int i = 0; i < 500; i++) {
+        int docsTest1 = atLeast(20);
+        for (int i = 0; i < docsTest1; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-            if (i == 10) {
+            if (rarely()) {
                 refresh();
             }
         }
         createIndex("test2");
-        for (int i = 0; i < 500; i++) {
+        int docsTest2 = atLeast(20);
+        for (int i = 0; i < docsTest2; i++) {
             client().prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
-            if (i == 10) {
+            if (rarely()) {
                 refresh();
             }
         }
+        refresh();
         cluster().ensureAtMostNumNodes(numAssignedShards("test1", "test2"));
         assertThat(cluster().size(), greaterThanOrEqualTo(2));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         // THERE WILL BE AT LEAST 2 NODES HERE SO WE CAN WAIT FOR GREEN
         ensureGreen();
-        for (int i = 0; i < 200; i++) {
-            client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
+        int iters = atLeast(20);
+        for (int i = 0; i < iters; i++) {
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
+            assertHitCount(searchResponse, docsTest1 + docsTest2);
+            assertAllSuccessful(searchResponse);
         }
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
@@ -127,7 +135,8 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testOpenContexts() {
         createIndex("test1");
-        for (int i = 0; i < 50; i++) {
+        final int docs = atLeast(20);
+        for (int i = 0; i < docs; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();

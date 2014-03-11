@@ -48,10 +48,10 @@ governing permissions and limitations under the License. -->
     </issueManagement>
 
     <properties>
-        <elasticsearch.version>1.0.0.RC1</elasticsearch.version>
+        <elasticsearch.version>1.0.1</elasticsearch.version>
         <google.gce.version>v1beta16-rev1-1.17.0-rc</google.gce.version>
         <google.api.version>1.17.0-rc</google.api.version>
-        <lucene.version>4.6.0</lucene.version>
+        <lucene.version>4.6.1</lucene.version>
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>

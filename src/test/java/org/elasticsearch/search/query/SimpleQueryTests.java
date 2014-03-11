@@ -728,12 +728,10 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         refresh();
 
         builder = multiMatchQuery("value1", "field1", "field2", "field4");
-        try {
-            client().prepareSearch().setQuery(builder).get();
-            fail("Exception expected");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
-        }
+
+        assertFailures(client().prepareSearch().setQuery(builder),
+                RestStatus.BAD_REQUEST,
+                containsString("NumberFormatException[For input string: \"value1\"]"));
 
         builder.lenient(true);
         searchResponse = client().prepareSearch().setQuery(builder).get();

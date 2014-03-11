@@ -1307,8 +1307,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
         assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
-        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
@@ -1321,8 +1321,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
-        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
@@ -1335,8 +1335,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
-        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
-        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
+        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
+        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }

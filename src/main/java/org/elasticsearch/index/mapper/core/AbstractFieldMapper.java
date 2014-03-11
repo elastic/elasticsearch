@@ -30,7 +30,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.XTermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -484,7 +484,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new TermsFilter(names.indexName(), bytesRefs);
+        return new XTermsFilter(names.indexName(), bytesRefs);
     }
 
     /**

@@ -72,11 +72,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
-    @Override
-    protected int numberOfReplicas() {
-        return  between(0, cluster().size() - 1);
-    }
-
     @Test
     public void testSimple() throws Exception {
         createIndexAndMapping(completionMappingBuilder);

@@ -71,6 +71,12 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
         return -1;
     }
 
+    @Override
+    protected int numberOfReplicas() {
+        //number of replicas won't be set through index settings, the one from the index templates needs to be used
+        return -1;
+    }
+
     @Test
     public void testThatLoadingTemplateFromFileWorks() throws Exception {
         final int iters = atLeast(5);

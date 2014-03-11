@@ -59,9 +59,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
     @Test // see #3196
     public void testSuggestAcrossMultipleIndices() throws IOException {
-        assertAcked(prepareCreate("test").setSettings(
-                settingsBuilder().put(indexSettings())
-                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        createIndex("test");
         ensureGreen();
 
         index("test", "type1", "1", "text", "abcd");
@@ -76,9 +74,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("text");
         logger.info("--> run suggestions with one index");
         searchSuggest( termSuggest);
-        assertAcked(prepareCreate("test_1").setSettings(
-                settingsBuilder().put(indexSettings())
-                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        createIndex("test_1");
         ensureGreen();
 
         index("test_1", "type1", "1", "text", "ab cd");
@@ -100,10 +96,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("text").field("type", "string").field("analyzer", "keyword").endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test_2").setSettings(
-                settingsBuilder().put(indexSettings())
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
-                ).addMapping("type1", mapping));
+        assertAcked(prepareCreate("test_2").addMapping("type1", mapping));
         ensureGreen();
 
         index("test_2", "type1", "1", "text", "ab cd");
@@ -237,7 +230,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testUnmappedField() throws IOException, InterruptedException, ExecutionException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.biword.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -774,7 +766,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testShardFailures() throws IOException, InterruptedException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.suggest.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.suggest.filter", "standard", "lowercase", "shingler")
                 .put("index.analysis.filter.shingler.type", "shingle")
@@ -880,7 +871,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")

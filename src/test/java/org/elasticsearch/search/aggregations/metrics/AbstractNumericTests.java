@@ -32,11 +32,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     protected long minValue, maxValue, minValues, maxValues;
 
     @Before

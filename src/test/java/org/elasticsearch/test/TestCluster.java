@@ -835,7 +835,6 @@ public final class TestCluster implements Iterable<Client> {
         }
     }
 
-
     /**
      * Stops the current master node forcefully
      */
@@ -1029,13 +1028,26 @@ public final class TestCluster implements Iterable<Client> {
             dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
         }
         nodes.put(nodeAndClient.name, nodeAndClient);
-
     }
 
     public void closeNonSharedNodes(boolean wipeData) {
         reset(random, wipeData, transportClientRatio);
     }
 
+    public int dataNodes() {
+        return dataNodeAndClients().size();
+    }
+
+    private Collection<NodeAndClient> dataNodeAndClients() {
+        return Collections2.filter(nodes.values(), new DataNodePredicate());
+    }
+
+    private static final class DataNodePredicate implements Predicate<NodeAndClient> {
+        @Override
+        public boolean apply(NodeAndClient nodeAndClient) {
+            return nodeAndClient.node.settings().getAsBoolean("node.data", true);
+        }
+    }
 
     private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
         private final String masterNodeName;

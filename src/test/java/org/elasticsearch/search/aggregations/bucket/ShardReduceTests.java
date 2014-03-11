@@ -52,11 +52,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ShardReduceTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     private IndexRequestBuilder indexDoc(String date, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()
                 .startObject()

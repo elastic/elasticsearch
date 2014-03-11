@@ -61,7 +61,6 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
             assertThat("Breaker is not set to 0", node.getBreaker().getEstimated(), equalTo(0L));
         }
 
-        final int numReplicas = randomIntBetween(0, 1);
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("type")
@@ -107,7 +106,6 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
 
         ImmutableSettings.Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put("index.number_of_replicas", numReplicas)
                 .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)

@@ -29,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -41,9 +42,8 @@ public class ConcurrentDocumentOperationTests extends ElasticsearchIntegrationTe
     public void concurrentOperationOnSameDocTest() throws Exception {
 
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", cluster().size()-1))
-                .execute().actionGet();
+        assertAcked(prepareCreate("test")
+                .setSettings(settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;

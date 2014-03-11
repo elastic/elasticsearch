@@ -49,11 +49,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
         source.startArray("location");

@@ -72,7 +72,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSpecifiedIndexUnavailable() throws Exception {
-        assertAcked(prepareCreate("test1"));
+        createIndex("test1");
         ensureYellow();
 
         // Verify defaults
@@ -180,7 +180,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSpecifiedIndexUnavailable_snapshotRestore() throws Exception {
-        assertAcked(prepareCreate("test1"));
+        createIndex("test1");
         ensureYellow();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
@@ -344,7 +344,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testWildcardBehaviour_snapshotRestore() throws Exception {
-        assertAcked(prepareCreate("foobar"));
+        createIndex("foobar");
         ensureYellow();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
@@ -373,7 +373,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testAllMissing_lenient() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test1"));
+        createIndex("test1");
         client().prepareIndex("test1", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
         SearchResponse response = client().prepareSearch("test2")
                 .setIndicesOptions(IndicesOptions.lenient())
@@ -396,7 +396,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testAllMissing_strict() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test1"));
+        createIndex("test1");
         ensureYellow();
         try {
             client().prepareSearch("test2")
@@ -421,8 +421,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     @Test
     // For now don't handle closed indices
     public void testCloseApi_specifiedIndices() throws Exception {
-        assertAcked(prepareCreate("test1"));
-        assertAcked(prepareCreate("test2"));
+        createIndex("test1", "test2");
         ensureYellow();
         verify(search("test1", "test2"), false);
         verify(count("test1", "test2"), false);
@@ -448,10 +447,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testCloseApi_wildcards() throws Exception {
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().prepareClose("bar*"), false);
@@ -468,7 +464,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteIndex() throws Exception {
-        assertAcked(prepareCreate("foobar"));
+        createIndex("foobar");
         ensureYellow();
 
         verify(client().admin().indices().prepareDelete("foo"), true);
@@ -481,10 +477,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     public void testDeleteIndex_wildcard() throws Exception {
         verify(client().admin().indices().prepareDelete("_all"), false);
 
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().prepareDelete("foo*"), false);
@@ -541,7 +534,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPutWarmer() throws Exception {
-        assertAcked(prepareCreate("foobar"));
+        createIndex("foobar");
         ensureYellow();
         verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foobar").setQuery(QueryBuilders.matchAllQuery())), false);
         assertThat(client().admin().indices().prepareGetWarmers("foobar").setWarmers("warmer1").get().getWarmers().size(), equalTo(1));
@@ -550,11 +543,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testPutWarmer_wildcard() throws Exception {
-        
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().preparePutWarmer("warmer1").setSearchRequest(client().prepareSearch().setIndices("foo*").setQuery(QueryBuilders.matchAllQuery())), false);
@@ -575,7 +564,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPutAlias() throws Exception {
-        assertAcked(prepareCreate("foobar"));
+        createIndex("foobar");
         ensureYellow();
         verify(client().admin().indices().prepareAliases().addAlias("foobar", "foobar_alias"), false);
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("foobar").get().exists(), equalTo(true));
@@ -584,11 +573,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testPutAlias_wildcard() throws Exception {
-        
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().prepareAliases().addAlias("foo*", "foobar_alias"), false);
@@ -686,10 +671,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareExists("foo*").setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false)).get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareExists("_all").get().isExists(), equalTo(false));
 
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         assertThat(client().admin().indices().prepareExists("foo*").get().isExists(), equalTo(true));
@@ -704,10 +686,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=string"), true);
         verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=string"), true);
 
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
 
         verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=string"), false);
@@ -739,10 +718,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put("a", "b")), true);
         verify(client().admin().indices().prepareUpdateSettings("_all").setSettings(ImmutableSettings.builder().put("a", "b")), true);
 
-        assertAcked(prepareCreate("foo"));
-        assertAcked(prepareCreate("foobar"));
-        assertAcked(prepareCreate("bar"));
-        assertAcked(prepareCreate("barbaz"));
+        createIndex("foo", "foobar", "bar", "barbaz");
         ensureYellow();
         assertAcked(client().admin().indices().prepareClose("_all").get());
 

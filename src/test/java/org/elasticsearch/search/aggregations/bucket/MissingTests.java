@@ -44,11 +44,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class MissingTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     int numDocs, numDocsMissing, numDocsUnmapped;
 
     @Before

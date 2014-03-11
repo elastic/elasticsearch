@@ -40,11 +40,6 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
 
     private final String mappingType = "test-mapping";
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     @Test // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";

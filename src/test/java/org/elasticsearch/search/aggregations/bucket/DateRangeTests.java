@@ -20,8 +20,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRange;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
@@ -52,11 +50,6 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 public class DateRangeTests extends ElasticsearchIntegrationTest {
-
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(jsonBuilder()

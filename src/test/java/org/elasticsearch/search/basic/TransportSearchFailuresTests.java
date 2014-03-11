@@ -39,21 +39,20 @@ import java.io.IOException;
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return 1;
+    }
 
     @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
-        prepareCreate("test", 1, settingsBuilder().put(indexSettings())
-                    .put("index.number_of_replicas", 2)
-                    .put("routing.hash.type", "simple")).execute().actionGet();
-
+        assertAcked(prepareCreate("test", 1, settingsBuilder().put("routing.hash.type", "simple")));
         ensureYellow();
 
         NumShards test = getNumShards("test");
@@ -83,15 +82,15 @@ public class TransportSearchFailuresTests extends ElasticsearchIntegrationTest {
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest("test")
-                .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(test.numPrimaries * 2)).actionGet();
+                .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(test.totalNumShards)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(clusterHealth.getActiveShards(), equalTo(test.numPrimaries * 2));
+        assertThat(clusterHealth.getStatus(), anyOf(equalTo(ClusterHealthStatus.YELLOW), equalTo(ClusterHealthStatus.GREEN)));
+        assertThat(clusterHealth.getActiveShards(), equalTo(test.totalNumShards));
 
         refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(test.totalNumShards));
-        assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.numPrimaries * 2));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(test.totalNumShards));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         for (int i = 0; i < 5; i++) {

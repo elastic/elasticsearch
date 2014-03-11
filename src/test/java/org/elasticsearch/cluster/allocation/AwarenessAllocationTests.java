@@ -50,6 +50,11 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(AwarenessAllocationTests.class);
 
+    @Override
+    protected int numberOfReplicas() {
+        return 1;
+    }
+
     @Test
     public void testSimpleAwareness() throws Exception {
         Settings commonSettings = ImmutableSettings.settingsBuilder()
@@ -70,8 +75,7 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
         //no replicas will be allocated as both indices end up on a single node
         final int totalPrimaries = test1.numPrimaries + test2.numPrimaries;
 
-        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         logger.info("--> starting 1 node on a different rack");
         final String node3 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2").build());
@@ -144,7 +148,6 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
                 .put("cluster.routing.allocation.awareness.force.zone.values", "a,b")
                 .put("cluster.routing.allocation.awareness.attributes", "zone")
                 .build();
-
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
         String A_0 = cluster().startNode(ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build());

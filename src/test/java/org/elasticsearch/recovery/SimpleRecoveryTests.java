@@ -28,25 +28,29 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class SimpleRecoveryTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings indexSettings() {
-        return recoverySettings();
+        return settingsBuilder().put(super.indexSettings()).put(recoverySettings()).build();
     }
-    
+
     protected Settings recoverySettings() {
         return ImmutableSettings.Builder.EMPTY_SETTINGS;
     }
 
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return 1;
+    }
+
     @Test
     public void testSimpleRecovery() throws Exception {
-        prepareCreate("test", 1).execute().actionGet(5000);
+        assertAcked(prepareCreate("test", 1).execute().actionGet(5000));
 
         NumShards numShards = getNumShards("test");
 

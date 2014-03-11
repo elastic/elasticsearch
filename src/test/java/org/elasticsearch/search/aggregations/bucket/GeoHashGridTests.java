@@ -45,11 +45,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     private IndexRequestBuilder indexCity(String name, String latLon) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
         if (latLon != null) {

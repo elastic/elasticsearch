@@ -20,14 +20,12 @@
 package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -40,49 +38,50 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Random;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.SUITE, numNodes = 2)
 public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleStats() throws Exception {
-        // rely on 1 replica for this tests
-        createIndex("test1");
-        createIndex("test2");
-
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        createIndex("test1", "test2");
+        ensureGreen();
 
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
+
+        NumShards test1 = getNumShards("test1");
+        long test1ExpectedWrites = 2 * test1.dataCopies;
+        NumShards test2 = getNumShards("test2");
+        long test2ExpectedWrites = test2.dataCopies;
+        long totalExpectedWrites = test1ExpectedWrites + test2ExpectedWrites;
 
         IndicesStatsResponse stats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
-        assertThat(stats.getTotal().getDocs().getCount(), equalTo(6l));
+        assertThat(stats.getTotal().getDocs().getCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
-        assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(6l));
+        assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(totalExpectedWrites));
         assertThat(stats.getTotal().getStore(), notNullValue());
         assertThat(stats.getTotal().getMerge(), notNullValue());
         assertThat(stats.getTotal().getFlush(), notNullValue());
         assertThat(stats.getTotal().getRefresh(), notNullValue());
 
         assertThat(stats.getIndex("test1").getPrimaries().getDocs().getCount(), equalTo(2l));
-        assertThat(stats.getIndex("test1").getTotal().getDocs().getCount(), equalTo(4l));
+        assertThat(stats.getIndex("test1").getTotal().getDocs().getCount(), equalTo(test1ExpectedWrites));
         assertThat(stats.getIndex("test1").getPrimaries().getStore(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getMerge(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getFlush(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), notNullValue());
 
         assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1l));
-        assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(2l));
+        assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(test2ExpectedWrites));
 
         // make sure that number of requests in progress is 0
         assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0l));
@@ -151,11 +150,9 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMergeStats() {
-        // rely on 1 replica for this tests
         createIndex("test1");
 
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         // clear all
         IndicesStatsResponse stats = client().admin().indices().prepareStats()
@@ -190,12 +187,10 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSegmentsStats() {
-        assertAcked(prepareCreate("test1", 2));
+        assertAcked(prepareCreate("test1", 2, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        ensureGreen();
 
         NumShards test1 = getNumShards("test1");
-
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         for (int i = 0; i < 20; i++) {
             index("test1", "type1", Integer.toString(i), "field", "value");
@@ -217,8 +212,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         createIndex("test1");
         createIndex("test2");
 
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureGreen();
 
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();

@@ -33,7 +33,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Strings;
@@ -50,6 +49,7 @@ import org.junit.Test;
 
 import java.io.File;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
@@ -149,7 +149,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                         .put("chunk_size", randomIntBetween(100, 1000))));
 
         logger.info("--> create index with foo type");
-        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put("refresh_interval", 10)));
+        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder()
+                .put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 10)));
 
         NumShards numShards = getNumShards("test-idx");
 
@@ -163,7 +164,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         logger.info("--> delete the index and recreate it with bar type");
         wipeIndices("test-idx");
-        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries).put("refresh_interval", 5)));
+        assertAcked(prepareCreate("test-idx", 2, ImmutableSettings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries).put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)).put("refresh_interval", 5)));
         assertAcked(client().admin().indices().preparePutMapping("test-idx").setType("bar").setSource("baz", "type=string"));
         ensureGreen();
 
@@ -609,7 +611,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  closing index test-idx-closed");
         assertAcked(client.admin().indices().prepareClose("test-idx-closed"));
         ClusterStateResponse stateResponse = client.admin().cluster().prepareState().get();
-        assertThat(stateResponse.getState().metaData().index("test-idx-closed").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metaData().index("test-idx-closed").state(), equalTo(State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test-idx-closed"), nullValue());
 
         logger.info("--> snapshot");

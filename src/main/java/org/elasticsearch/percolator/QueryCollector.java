@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
@@ -61,8 +62,7 @@ abstract class QueryCollector extends Collector {
 
     BytesValues values;
 
-    final List<Collector> facetCollectors = new ArrayList<Collector>();
-    final Collector facetAndAggregatorCollector;
+    final List<Collector> facetAndAggregatorCollector;
 
     QueryCollector(ESLogger logger, PercolateContext context) {
         this.logger = logger;
@@ -71,6 +71,7 @@ abstract class QueryCollector extends Collector {
         final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
         this.idFieldData = context.fieldData().getForField(idMapper);
 
+        ImmutableList.Builder<Collector> facetAggCollectorBuilder = ImmutableList.builder();
         if (context.facets() != null) {
             for (SearchContextFacets.Entry entry : context.facets().entries()) {
                 if (entry.isGlobal()) {
@@ -84,11 +85,10 @@ abstract class QueryCollector extends Collector {
                         collector = new FilteredCollector(collector, entry.getFilter());
                     }
                 }
-                facetCollectors.add(collector);
+                facetAggCollectorBuilder.add(collector);
             }
         }
 
-        List<Collector> collectors = new ArrayList<Collector>(facetCollectors);
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
@@ -105,24 +105,22 @@ abstract class QueryCollector extends Collector {
             }
             context.aggregations().aggregators(aggregators);
             if (!aggregatorCollectors.isEmpty()) {
-                collectors.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
+                facetAggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
             }
         }
+        facetAndAggregatorCollector = facetAggCollectorBuilder.build();
+    }
 
-        int size = collectors.size();
-        if (size == 0) {
-            facetAndAggregatorCollector = null;
-        } else if (size == 1) {
-            facetAndAggregatorCollector = collectors.get(0);
-        } else {
-            facetAndAggregatorCollector = MultiCollector.wrap(collectors.toArray(new Collector[collectors.size()]));
+    public void postMatch(int doc) throws IOException {
+        for (Collector collector : facetAndAggregatorCollector) {
+            collector.collect(doc);
         }
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        if (facetAndAggregatorCollector != null) {
-            facetAndAggregatorCollector.setScorer(scorer);
+        for (Collector collector : facetAndAggregatorCollector) {
+            collector.setScorer(scorer);
         }
     }
 
@@ -130,8 +128,8 @@ abstract class QueryCollector extends Collector {
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
         values = idFieldData.load(context).getBytesValues(true);
-        if (facetAndAggregatorCollector != null) {
-            facetAndAggregatorCollector.setNextReader(context);
+        for (Collector collector : facetAndAggregatorCollector) {
+            collector.setNextReader(context);
         }
     }
 
@@ -214,9 +212,7 @@ abstract class QueryCollector extends Collector {
                         }
                     }
                     counter++;
-                    if (facetAndAggregatorCollector != null) {
-                        facetAndAggregatorCollector.collect(doc);
-                    }
+                    postMatch(doc);
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
@@ -259,9 +255,7 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     topDocsCollector.collect(doc);
-                    if (facetAndAggregatorCollector != null) {
-                        facetAndAggregatorCollector.collect(doc);
-                    }
+                    postMatch(doc);
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
@@ -333,9 +327,7 @@ abstract class QueryCollector extends Collector {
                         }
                     }
                     counter++;
-                    if (facetAndAggregatorCollector != null) {
-                        facetAndAggregatorCollector.collect(doc);
-                    }
+                    postMatch(doc);
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
@@ -385,9 +377,7 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     counter++;
-                    if (facetAndAggregatorCollector != null) {
-                        facetAndAggregatorCollector.collect(doc);
-                    }
+                    postMatch(doc);
                 }
             } catch (IOException e) {
                 logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);

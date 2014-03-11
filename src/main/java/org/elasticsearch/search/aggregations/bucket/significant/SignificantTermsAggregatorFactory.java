@@ -18,17 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
@@ -47,6 +49,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
     public static final String EXECUTION_HINT_VALUE_MAP = "map";
     public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
+    static final int INITIAL_NUM_TERM_FREQS_CACHED = 512;
 
     private final int requiredSize;
     private final int shardSize;
@@ -55,6 +58,8 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private final String executionHint;
     private String indexedFieldName;
     private FieldMapper mapper;
+    private IntArray termDocFreqs;
+    private BytesRefHash cachedTermOrds;
 
       public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig,  int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
@@ -67,6 +72,10 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
             this.indexedFieldName = valuesSourceConfig.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
+        PageCacheRecycler pageCacheRecycler = SearchContext.current().pageCacheRecycler();
+        termDocFreqs = BigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, pageCacheRecycler, true);
+        cachedTermOrds = new BytesRefHash(INITIAL_NUM_TERM_FREQS_CACHED, pageCacheRecycler);
+
     }
 
     @Override
@@ -145,22 +154,22 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
                 "]. It can only be applied to numeric or string fields.");
     }
 
-    //Cache used to avoid multiple aggs hitting IndexReaders for docFreq info for the same term
-    final ObjectObjectOpenHashMap<HashedBytesRef, Integer> cachedDocFreqs = new ObjectObjectOpenHashMap<HashedBytesRef, Integer>();
-    HashedBytesRef spare = new HashedBytesRef();
-    
-    //Many child aggs may ask for the same docFreq information so cache docFreq values for these terms
+    // Many child aggs may ask for the same docFreq information so cache docFreq
+    // values for these terms
     public long getBackgroundFrequency(IndexReader topReader, BytesRef termBytes) {
-        spare.reset(termBytes, termBytes.hashCode());
-        Integer result = cachedDocFreqs.get(spare);
-        if (result == null) {
+        int result = 0;
+        long termOrd = cachedTermOrds.add(termBytes);
+        if (termOrd < 0) { // already seen, return the cached docFreq
+            termOrd = -1 - termOrd;
+            result = termDocFreqs.get(termOrd);
+        } else { // cache miss - read the terms' frequency in this shard and cache it
             try {
                 result = topReader.docFreq(new Term(indexedFieldName, termBytes));
-                HashedBytesRef key = new HashedBytesRef(BytesRef.deepCopyOf(termBytes), spare.hash);
-                cachedDocFreqs.put(key, result);
             } catch (IOException e) {
                 throw new ElasticsearchException("IOException reading document frequency", e);
             }
+            termDocFreqs = BigArrays.grow(termDocFreqs, termOrd + 1);
+            termDocFreqs.set(termOrd, result);
         }
         return result;
     }

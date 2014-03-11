@@ -115,7 +115,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         }
 
         public void updateScore() {
-            score=getSampledTermSignificance(subsetDf,subsetSize,supersetDf,supersetSize);        
+            score = getSampledTermSignificance(subsetDf, subsetSize, supersetDf, supersetSize);
         }          
 
         @Override

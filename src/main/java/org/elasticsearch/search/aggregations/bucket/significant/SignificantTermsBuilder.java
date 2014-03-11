@@ -32,9 +32,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
 
 
     private String field;
-    private int requiredSize=SignificantTermsParser.DEFAULT_REQUIRED_SIZE;
-    private int shardSize=SignificantTermsParser.DEFAULT_SHARD_SIZE;
-    private int minDocCount=SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
+    private int requiredSize = SignificantTermsParser.DEFAULT_REQUIRED_SIZE;
+    private int shardSize = SignificantTermsParser.DEFAULT_SHARD_SIZE;
+    private int minDocCount = SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
 
     public SignificantTermsBuilder(String name) {
         super(name, SignificantStringTerms.TYPE.name());
@@ -54,7 +54,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         return this;
     }
     public SignificantTermsBuilder minDocCount(int minDocCount) {
-        this.minDocCount=minDocCount;
+        this.minDocCount = minDocCount;
         return this;
     }
 

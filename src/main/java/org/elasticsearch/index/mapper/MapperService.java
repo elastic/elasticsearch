@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.XTermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
@@ -392,7 +392,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            return new TermsFilter(TypeFieldMapper.NAME, typesBytes);
+            return new XTermsFilter(TypeFieldMapper.NAME, typesBytes);
         } else {
             XBooleanFilter bool = new XBooleanFilter();
             for (String type : types) {

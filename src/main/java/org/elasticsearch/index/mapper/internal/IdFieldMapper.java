@@ -24,7 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.XTermsFilter;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -174,7 +174,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexed() || context == null) {
             return super.termFilter(value, context);
         }
-        return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value));
+        return new XTermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value));
     }
 
     @Override
@@ -182,7 +182,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexed() || context == null) {
             return super.termsFilter(values, context);
         }
-        return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
+        return new XTermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
     }
 
     @Override

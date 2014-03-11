@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.queries.XTermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -115,7 +115,7 @@ public class IdsQueryParser implements QueryParser {
             types = parseContext.mapperService().types();
         }
 
-        TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
+        XTermsFilter filter = new XTermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         ConstantScoreQuery query = new ConstantScoreQuery(filter);
         query.setBoost(boost);

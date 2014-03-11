@@ -95,7 +95,7 @@ public final class TestCluster implements Iterable<Client> {
      * A boolean value to enable or disable mock modules. This is useful to test the
      * system without asserting modules that to make sure they don't hide any bugs in
      * production.
-     * 
+     *
      * @see ElasticsearchIntegrationTest
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
@@ -167,10 +167,10 @@ public final class TestCluster implements Iterable<Client> {
 
         assert numSharedNodes >= 0;
         /*
-         *  TODO 
+         *  TODO
          *  - we might want start some master only nodes?
          *  - we could add a flag that returns a client to the master all the time?
-         *  - we could add a flag that never returns a client to the master 
+         *  - we could add a flag that never returns a client to the master
          *  - along those lines use a dedicated node that is master eligible and let all other nodes be only data nodes
          */
         sharedNodesSeeds = new long[numSharedNodes];
@@ -266,6 +266,7 @@ public final class TestCluster implements Iterable<Client> {
                 }
             }
         }
+        builder.put("plugins.isolation", random.nextBoolean());
         return builder.build();
     }
 
@@ -644,7 +645,7 @@ public final class TestCluster implements Iterable<Client> {
             if (nextDouble < transportClientRatio) {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
-                } 
+                }
                 /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
                  * we first need support of transportClientRatio as annotations or so
                  */

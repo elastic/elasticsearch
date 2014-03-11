@@ -28,8 +28,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
@@ -45,12 +43,10 @@ import static org.hamcrest.Matchers.*;
 /**
  */
 public class SearchStatsTests extends ElasticsearchIntegrationTest {
-    
+
     @Override
-    public Settings indexSettings() {
-        return ImmutableSettings.builder()
-                .put("index.number_of_replicas", 0)
-                .build();
+    protected int numberOfReplicas() {
+        return 0;
     }
 
     @Test
@@ -72,6 +68,10 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
             }
         }
         cluster().ensureAtMostNumNodes(numAssignedShards("test1", "test2"));
+        assertThat(cluster().size(), greaterThanOrEqualTo(2));
+        assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
+        // THERE WILL BE AT LEAST 2 NODES HERE SO WE CAN WAIT FOR GREEN
+        ensureGreen();
         for (int i = 0; i < 200; i++) {
             client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
         }

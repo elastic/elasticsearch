@@ -777,7 +777,7 @@ public class PercolatorService extends AbstractComponent {
         FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
 
-        for (Collector queryCollector : percolateCollector.facetCollectors) {
+        for (Collector queryCollector : percolateCollector.facetAndAggregatorCollector) {
             if (queryCollector instanceof XCollector) {
                 ((XCollector) queryCollector).postCollection();
             }

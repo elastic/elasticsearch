@@ -1262,7 +1262,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
             }
         } catch (Throwable e) {
-            logger.debug("failed to rollback writer on close", e);
+            logger.warn("failed to rollback writer on close", e);
         } finally {
             indexWriter = null;
         }

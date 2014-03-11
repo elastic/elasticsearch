@@ -49,7 +49,7 @@ public class SimpleAllocationTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 3));
         ensureGreen();
 
-         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(0));
         for (RoutingNode node : state.routingNodes()) {
             if (!node.isEmpty()) {

@@ -48,11 +48,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class RandomTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
     public void testRandomRanges() throws Exception {

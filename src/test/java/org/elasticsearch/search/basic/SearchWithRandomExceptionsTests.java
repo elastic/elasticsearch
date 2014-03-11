@@ -46,6 +46,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
     
@@ -85,14 +86,13 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         
         Builder settings = settingsBuilder()
         .put(indexSettings())
-        .put("index.number_of_replicas", randomIntBetween(0, 1))
         .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, exceptionRate)
         .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, exceptionOnOpenRate)
         .put(MockDirectoryHelper.CHECK_INDEX_ON_CLOSE, true);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping).execute().actionGet();
+                .addMapping("type", mapping));
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5))).get(); // it's OK to timeout here 
         final int numDocs;
@@ -184,15 +184,14 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
 
         Builder settings = settingsBuilder()
                 .put(indexSettings())
-                .put("index.number_of_replicas", randomIntBetween(0, 1))
                 .put(MockInternalEngine.READER_WRAPPER_TYPE, RandomExceptionDirectoryReaderWrapper.class.getName())
                 .put(EXCEPTION_TOP_LEVEL_RATIO_KEY, topLevelRate)
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
                 .put(MockInternalEngine.WRAP_READER_RATIO, 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
-        client().admin().indices().prepareCreate("test")
+        assertAcked(prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping).execute().actionGet();
+                .addMapping("type", mapping));
         ensureSearchable();
         final int numDocs = between(10, 100);
         long numCreated = 0;

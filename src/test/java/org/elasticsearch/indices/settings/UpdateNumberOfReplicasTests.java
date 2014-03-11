@@ -33,10 +33,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int maximumNumberOfReplicas() {
+        return 1;
+    }
 
     @Test
     public void simpleUpdateNumberOfReplicasTests() throws Exception {
@@ -51,7 +53,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(clusterHealth.getIndices().get("test").getActivePrimaryShards(), equalTo(numShards.numPrimaries));
-        assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(1));
+        assertThat(clusterHealth.getIndices().get("test").getNumberOfReplicas(), equalTo(numShards.numReplicas));
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.totalNumShards));
 
         for (int i = 0; i < 10; i++) {

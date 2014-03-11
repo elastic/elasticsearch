@@ -53,11 +53,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  */
 public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     private DateTime date(int month, int day) {
         return new DateTime(2012, month, day, 0, 0, DateTimeZone.UTC);
     }

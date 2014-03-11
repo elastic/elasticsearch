@@ -22,8 +22,6 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -61,11 +59,6 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
-
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
 
     public static String randomExecutionHint() {
         return randomFrom(Arrays.asList(null, TermsAggregatorFactory.EXECUTION_HINT_VALUE_MAP, TermsAggregatorFactory.EXECUTION_HINT_VALUE_ORDINALS));

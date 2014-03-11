@@ -37,11 +37,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleGetFieldMappingsTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     @Test
     public void getMappingsWhereThereAreNone() {
         createIndex("index");

@@ -21,8 +21,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -52,11 +50,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 public class NestedTests extends ElasticsearchIntegrationTest {
-
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
 
     int numParents;
     int[] numChildren;

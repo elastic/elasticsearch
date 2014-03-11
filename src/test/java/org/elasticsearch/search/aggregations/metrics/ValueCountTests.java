@@ -35,11 +35,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class ValueCountTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     @Before
     public void init() throws Exception {
         createIndex("idx");

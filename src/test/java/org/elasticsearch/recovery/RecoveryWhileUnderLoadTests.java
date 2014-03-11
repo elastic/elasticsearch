@@ -43,15 +43,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
@@ -60,7 +58,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
         logger.info("--> creating test index ...");
-        assertAcked(prepareCreate("test", 1));
+        assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
@@ -137,7 +135,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
-        assertAcked(prepareCreate("test", 1));
+        assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
@@ -211,7 +209,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     @Slow
     public void recoverWhileUnderLoadWithNodeShutdown() throws Exception {
         logger.info("--> creating test index ...");
-        assertAcked(prepareCreate("test", 2));
+        assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();

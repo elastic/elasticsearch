@@ -19,6 +19,7 @@
 
 package org.elasticsearch.percolator;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -29,6 +30,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -54,11 +57,11 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPercolatingWithTimeToLive() throws Exception {
-        Client client = client();
+        final Client client = client();
         client.admin().indices().prepareDelete("_all").execute().actionGet();
         ensureGreen();
 
-        String precolatorMapping = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
+        String percolatorMapping = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
                 .startObject("_ttl").field("enabled", true).endObject()
                 .startObject("_timestamp").field("enabled", true).endObject()
                 .endObject().endObject().string();
@@ -70,10 +73,12 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
         client.admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping(PercolatorService.TYPE_NAME, precolatorMapping)
+                .addMapping(PercolatorService.TYPE_NAME, percolatorMapping)
                 .addMapping("type1", typeMapping)
                 .execute().actionGet();
         ensureGreen();
+
+        final NumShards test = getNumShards("test");
 
         long ttl = 1500;
         long now = System.currentTimeMillis();
@@ -90,7 +95,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
         IndicesStatsResponse response = client.admin().indices().prepareStats("test")
                 .clear().setIndexing(true)
                 .execute().actionGet();
-        assertThat(response.getIndices().get("test").getTotal().getIndexing().getTotal().getIndexCount(), equalTo(2l));
+        assertThat(response.getIndices().get("test").getTotal().getIndexing().getTotal().getIndexCount(), equalTo((long)test.dataCopies));
 
         PercolateResponse percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -110,7 +115,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                     .clear().setIndexing(true)
                     .execute().actionGet();
             long currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
-            assertThat(currentDeleteCount, equalTo(2l));
+            assertThat(currentDeleteCount, equalTo((long)test.dataCopies));
             return;
         }
 
@@ -123,16 +128,14 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
         // See comment in SimpleTTLTests
         logger.info("Checking if the ttl purger has run");
-        long currentDeleteCount;
-        do {
-            response = client.admin().indices().prepareStats("test")
-                    .clear().setIndexing(true)
-                    .execute().actionGet();
-            // This returns the number of delete operations stats (not Lucene delete count)
-            currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
-        }
-        while (currentDeleteCount < 2); // TTL deletes one doc, but it is indexed in the primary shard and replica shard.
-        assertThat(currentDeleteCount, equalTo(2l));
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats("test").clear().setIndexing(true).get();
+                // TTL deletes one doc, but it is indexed in the primary shard and replica shards
+                return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() == test.dataCopies;
+            }
+        }, 5, TimeUnit.SECONDS), equalTo(true));
 
         percolateResponse = client.preparePercolate()
                 .setIndices("test").setDocumentType("type1")

@@ -45,11 +45,6 @@ public class StressSearchServiceReaperTest extends ElasticsearchIntegrationTest 
         return ImmutableSettings.builder().put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
     }
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     @Slow
     @Test // see issue #5165 - this test fails each time without the fix in pull #5170
     public void testStressReaper() throws ExecutionException, InterruptedException {

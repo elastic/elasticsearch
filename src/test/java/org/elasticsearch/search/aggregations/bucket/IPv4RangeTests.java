@@ -47,11 +47,6 @@ import static org.hamcrest.core.IsNull.nullValue;
  */
 public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-    
     @Before
     public void init() throws Exception {
         prepareCreate("idx")

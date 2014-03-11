@@ -85,6 +85,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -300,7 +301,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     .setOrder(0)
                     .setSettings(setRandomNormsLoading(setRandomMerge(getRandom(), ImmutableSettings.builder())
                             .put(INDEX_SEED_SETTING, randomLong()))
-                            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS)))
+                            .put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
+                            .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1)))
                     .execute().actionGet();
         }
     }
@@ -366,9 +368,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return between(minimumNumberOfShards(), maximumNumberOfShards());
     }
 
+    protected int minimumNumberOfReplicas() {
+        return 0;
+    }
+
+    protected int maximumNumberOfReplicas() {
+        return cluster().dataNodes() - 1;
+    }
+
     protected int numberOfReplicas() {
-        //number of replicas won't be set through index settings, default will be used
-        return -1;
+        return between(minimumNumberOfReplicas(), maximumNumberOfReplicas());
     }
 
     /**
@@ -381,11 +390,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         int numberOfShards = numberOfShards();
         if (numberOfShards > 0) {
-            builder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
         }
         int numberOfReplicas = numberOfReplicas();
         if (numberOfReplicas >= 0) {
-            builder.put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         }
         return builder.build();
     }
@@ -1066,8 +1075,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected NumShards getNumShards(String index) {
         MetaData metaData = client().admin().cluster().prepareState().get().getState().metaData();
         assertThat(metaData.hasIndex(index), equalTo(true));
-        int numShards = Integer.valueOf(metaData.index(index).settings().get(IndexMetaData.SETTING_NUMBER_OF_SHARDS));
-        int numReplicas = Integer.valueOf(metaData.index(index).settings().get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS));
+        int numShards = Integer.valueOf(metaData.index(index).settings().get(SETTING_NUMBER_OF_SHARDS));
+        int numReplicas = Integer.valueOf(metaData.index(index).settings().get(SETTING_NUMBER_OF_REPLICAS));
         return new NumShards(numShards, numReplicas);
     }
 
@@ -1075,11 +1084,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         public final int numPrimaries;
         public final int numReplicas;
         public final int totalNumShards;
+        public final int dataCopies;
 
         private NumShards(int numPrimaries, int numReplicas) {
             this.numPrimaries = numPrimaries;
             this.numReplicas = numReplicas;
-            this.totalNumShards = numPrimaries * (numReplicas + 1);
+            this.dataCopies = numReplicas + 1;
+            this.totalNumShards = numPrimaries * dataCopies;
         }
     }
 }

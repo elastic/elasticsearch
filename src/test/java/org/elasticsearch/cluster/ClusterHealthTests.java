@@ -21,14 +21,12 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterHealthTests extends ElasticsearchIntegrationTest {
-
 
     @Test
     public void testHealth() {
@@ -39,18 +37,16 @@ public class ClusterHealthTests extends ElasticsearchIntegrationTest {
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
 
         logger.info("--> running cluster wide health");
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout("10s").execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
 
         logger.info("--> Creating index test1 with zero replicas");
-        client().admin().indices().prepareCreate("test1")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_replicas", 0))
-                .execute().actionGet();
+        createIndex("test1");
 
         logger.info("--> running cluster health on an index that does exists");
-        healthResponse = client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("10s").execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth("test1").setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));

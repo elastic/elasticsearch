@@ -557,7 +557,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         IndicesStatsResponse indicesResponse = client().admin().indices().prepareStats("test").execute().actionGet();
         assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
-        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l)); // One primary and replica
+        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
         assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
 
         NodesStatsResponse nodesResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
@@ -577,9 +577,9 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
 
         indicesResponse = client().admin().indices().prepareStats().setPercolate(true).execute().actionGet();
-        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries *2));
+        assertThat(indicesResponse.getTotal().getPercolate().getCount(), equalTo((long) numShards.numPrimaries * 2));
         assertThat(indicesResponse.getTotal().getPercolate().getCurrent(), equalTo(0l));
-        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo(2l));
+        assertThat(indicesResponse.getTotal().getPercolate().getNumQueries(), equalTo((long)numShards.dataCopies)); //number of copies
         assertThat(indicesResponse.getTotal().getPercolate().getMemorySizeInBytes(), greaterThan(0l));
 
         percolateCount = 0;

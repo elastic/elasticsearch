@@ -19,7 +19,6 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
@@ -40,12 +39,7 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void consistentHitsWithSameSeed() throws Exception {
-        final int replicas = between(0, 2); // needed for green status!
-        cluster().ensureAtLeastNumNodes(replicas + 1);
-        assertAcked(prepareCreate("test")
-                .setSettings(
-                        ImmutableSettings.builder().put(indexSettings())
-                                .put("index.number_of_replicas", replicas)));
+        createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?
         int docCount = atLeast(100);
         for (int i = 0; i < docCount; i++) {

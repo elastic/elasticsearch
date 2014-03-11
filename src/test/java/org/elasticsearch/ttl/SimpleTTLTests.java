@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ttl;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -70,6 +73,8 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
                         .endObject()
                         .endObject()));
         ensureGreen();
+
+        final NumShards test = getNumShards("test");
 
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");
@@ -130,6 +135,9 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
         ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
 
+        IndicesStatsResponse response = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
+        assertThat(response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount(), equalTo(0L));
+
         // make sure the purger has done its job for all indexed docs that are expired
         long shouldBeExpiredDate = now + providedTTLValue + PURGE_INTERVAL + 2000;
         currentTime = System.currentTimeMillis();
@@ -142,19 +150,19 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
         // But we can use index statistics' delete count to be sure that deletes have been executed, that must be incremented before
         // ttl purging has finished.
         logger.info("--> checking purger");
-        long currentDeleteCount;
-        do {
-            if (rarely()) {
-                client().admin().indices().prepareFlush("test").setFull(true).execute().actionGet();
-            } else if (rarely()) {
-                client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).execute().actionGet();
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                if (rarely()) {
+                    client().admin().indices().prepareFlush("test").setFull(true).get();
+                } else if (rarely()) {
+                    client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
+                }
+                IndicesStatsResponse response = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
+                // TTL deletes two docs, but it is indexed in the primary shard and replica shard.
+                return response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() == 2L * test.dataCopies;
             }
-            IndicesStatsResponse response = client().admin().indices().prepareStats("test")
-                    .clear().setIndexing(true)
-                    .execute().actionGet();
-            currentDeleteCount = response.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount();
-        } while (currentDeleteCount < 4); // TTL deletes two docs, but it is indexed in the primary shard and replica shard.
-        assertThat(currentDeleteCount, equalTo(4l));
+        }, 5, TimeUnit.SECONDS), equalTo(true));
 
         // realtime get check
         getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();

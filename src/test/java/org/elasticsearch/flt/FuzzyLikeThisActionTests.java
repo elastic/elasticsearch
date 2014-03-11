@@ -36,11 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class FuzzyLikeThisActionTests extends ElasticsearchIntegrationTest {
 
-    @Override
-    protected int numberOfReplicas() {
-        return between(0, 1);
-    }
-
     @Test
     // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
     public void testNumericField() throws Exception {

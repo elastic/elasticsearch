@@ -20,10 +20,12 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
@@ -85,11 +87,17 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
 
     public SnapshotInfo waitForCompletion(String repository, String snapshot, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
+        SnapshotId snapshotId = new SnapshotId(repository, snapshot);
         while (System.currentTimeMillis() - start < timeout.millis()) {
             ImmutableList<SnapshotInfo> snapshotInfos = client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot).get().getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
-                return snapshotInfos.get(0);
+                // Make sure that snapshot clean up operations are finished
+                ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
+                SnapshotMetaData snapshotMetaData = stateResponse.getState().getMetaData().custom(SnapshotMetaData.TYPE);
+                if (snapshotMetaData == null || snapshotMetaData.snapshot(snapshotId) == null) {
+                    return snapshotInfos.get(0);
+                }
             }
             Thread.sleep(100);
         }

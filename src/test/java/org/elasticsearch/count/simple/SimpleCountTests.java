@@ -45,7 +45,7 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type", "5").setSource("field", "value"),
                 client().prepareIndex("test", "type", "6").setSource("field", "value"));
 
-        int iters = atLeast(10);
+        int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
             // id is not indexed, but lets see that we automatically convert to
             CountResponse countResponse = client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).setPreference(randomUnicodeOfLengthBetween(0, 4)).get();

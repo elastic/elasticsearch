@@ -53,12 +53,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         return null;
     }
 
-    public static int atLeast(Random random, int i) {
-        int min = i;
-        int max = min + (min / 2);
-        return min + random.nextInt(max - min);
-    }
-
     @Test
     public void testDuelAllTypesSingleValue() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -73,7 +67,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
                 .endObject().endObject().endObject().string();
         final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
         Random random = getRandom();
-        int atLeast = atLeast(random, 1000);
+        int atLeast = scaledRandomIntBetween(1000, 1500);
         for (int i = 0; i < atLeast; i++) {
             String s = Integer.toString(randomByte());
 
@@ -152,7 +146,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
         final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
         Random random = getRandom();
-        int atLeast = atLeast(random, 1000);
+        int atLeast = scaledRandomIntBetween(1000, 1500);
         final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 40);
         byte[] values = new byte[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
@@ -230,7 +224,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
         final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
         Random random = getRandom();
-        int atLeast = atLeast(random, 1000);
+        int atLeast = scaledRandomIntBetween(1000, 1500);
         final int maxNumValues = randomBoolean() ? 1 : randomIntBetween(2, 40);
         float[] values = new float[maxNumValues];
         for (int i = 0; i < atLeast; i++) {
@@ -302,7 +296,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
     @Test
     public void testDuelStrings() throws Exception {
         Random random = getRandom();
-        int atLeast = atLeast(random, 1000);
+        int atLeast = scaledRandomIntBetween(1000, 1500);
         for (int i = 0; i < atLeast; i++) {
             Document d = new Document();
             d.add(new StringField("_id", "" + i, Field.Store.NO));
@@ -377,7 +371,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         final DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
 
         Random random = getRandom();
-        int atLeast = atLeast(random, 1000);
+        int atLeast = scaledRandomIntBetween(1000, 1500);
         int maxValuesPerDoc = randomBoolean() ? 1 : randomIntBetween(2, 40);
         // to test deduplication
         double defaultLat = randomDouble() * 180 - 90;

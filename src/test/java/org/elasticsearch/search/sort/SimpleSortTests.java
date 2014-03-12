@@ -122,7 +122,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
         TreeMap<BytesRef, String> sparseBytes = new TreeMap<BytesRef, String>();
         TreeMap<BytesRef, String> denseBytes = new TreeMap<BytesRef, String>();
-        int numDocs = atLeast(200);
+        int numDocs = randomIntBetween(200, 300);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             String docId = Integer.toString(i);
@@ -1458,7 +1458,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                         .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", timestampDocValues ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject()));
         ensureGreen();
-        final int numDocs = atLeast(10);
+        final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
             indexReqs[i] = client().prepareIndex("test", "typ", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000))).setSource();

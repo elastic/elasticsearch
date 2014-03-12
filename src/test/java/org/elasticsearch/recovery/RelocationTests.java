@@ -108,8 +108,8 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testPrimaryRelocationWhileIndexingRandom() throws Exception {
-        int numRelocations = atLeast(rarely() ? 3 : 1);
-        int numWriters = atLeast(rarely() ? 3 : 1);
+        int numRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
+        int numWriters = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         boolean batch = getRandom().nextBoolean();
         logger.info("testPrimaryRelocationWhileIndexingRandom(numRelocations={}, numWriters={}, batch={}",
                 numRelocations, numWriters, batch);
@@ -261,8 +261,8 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testReplicaRelocationWhileIndexingRandom() throws Exception {
-        int numRelocations = atLeast(rarely() ? 3 : 1);
-        int numWriters = atLeast(rarely() ? 3 : 1);
+        int numRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
+        int numWriters = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         boolean batch = getRandom().nextBoolean();
         logger.info("testReplicaRelocationWhileIndexing(numRelocations={}, numWriters={}, batch={}", numRelocations, numWriters, batch);
         testReplicaRelocationWhileIndexing(numRelocations, numWriters, batch);

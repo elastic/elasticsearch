@@ -72,11 +72,11 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
         assertHitCount(client().prepareSearch().get(), (long) (numDocs));
-        final int numIters = atLeast(10);
+        final int numIters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
             final List<Throwable> thrownExceptions = new CopyOnWriteArrayList<Throwable>();
-            Thread[] threads = new Thread[atLeast(1)];
+            Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
             for (int j = 0; j < threads.length; j++) {
                 threads[j] = new Thread() {
                     public void run() {

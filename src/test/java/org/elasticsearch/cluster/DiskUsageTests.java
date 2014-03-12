@@ -38,7 +38,7 @@ public class DiskUsageTests extends ElasticsearchTestCase {
 
     @Test
     public void randomDiskUsageTest() {
-        int iters = atLeast(1000);
+        int iters = scaledRandomIntBetween(1000, 10000);
         for (int i = 1; i < iters; i++) {
             long total = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             long free = between(Integer.MIN_VALUE, Integer.MAX_VALUE);

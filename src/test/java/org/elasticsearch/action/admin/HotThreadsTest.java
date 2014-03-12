@@ -51,7 +51,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
          * This test just checks if nothing crashes or gets stuck etc.
          */
         createIndex("test");
-        final int iters = atLeast(2);
+        final int iters = scaledRandomIntBetween(2, 20);
         final AtomicBoolean hasErrors = new AtomicBoolean(false);
         for (int i = 0; i < iters; i++) {
             final String type;

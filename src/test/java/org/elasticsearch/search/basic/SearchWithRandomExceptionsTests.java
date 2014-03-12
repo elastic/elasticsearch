@@ -126,12 +126,11 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info("Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ", refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length, refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
-        final int numSearches = atLeast(10);
+        final int numSearches = scaledRandomIntBetween(10, 20);
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.
         for (int i = 0; i < numSearches; i++) {
             try {
                 int docToQuery = between(0, numDocs-1);
-                long expectedResults = added[docToQuery] ? 1 : 0; 
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
                 SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
@@ -212,7 +211,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         logger.info("Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ", refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length, refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
 
         NumShards test = getNumShards("test");
-        final int numSearches = atLeast(100);
+        final int numSearches = scaledRandomIntBetween(100, 200);
         // we don't check anything here really just making sure we don't leave any open files or a broken index behind.
         for (int i = 0; i < numSearches; i++) {
             try {

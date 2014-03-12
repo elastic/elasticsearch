@@ -125,7 +125,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDeleteByFieldQuery() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
-        int numDocs = atLeast(10);
+        int numDocs = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "test", Integer.toString(i))
                     .setRouting(randomAsciiOfLengthBetween(1, 5))

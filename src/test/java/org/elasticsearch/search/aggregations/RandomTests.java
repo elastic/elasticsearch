@@ -51,7 +51,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
     public void testRandomRanges() throws Exception {
-        final int numDocs = atLeast(1000);
+        final int numDocs = scaledRandomIntBetween(1000, 10000);
         final double[][] docs = new double[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
             final int numValues = randomInt(5);
@@ -142,7 +142,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
     // test long/double/string terms aggs with high number of buckets that require array growth
     public void testDuelTerms() throws Exception {
         // These high numbers of docs and terms are important to trigger page recycling
-        final int numDocs = atLeast(10000);
+        final int numDocs = scaledRandomIntBetween(10000, 20000);
         final int maxNumTerms = randomIntBetween(10, 100000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
@@ -221,7 +221,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
     public void testDuelTermsHistogram() throws Exception {
         createIndex("idx");
 
-        final int numDocs = atLeast(1000);
+        final int numDocs = scaledRandomIntBetween(1000, 5000);
         final int maxNumTerms = randomIntBetween(10, 2000);
         final int interval = randomIntBetween(1, 100);
 
@@ -267,7 +267,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         // test high numbers of percentile buckets to make sure paging and release work correctly
         createIndex("idx");
 
-        final int numDocs = atLeast(25000);
+        final int numDocs = scaledRandomIntBetween(25000, 50000);
+        logger.info("Indexing [" + numDocs +"] docs");
         int t = 0;
         for (int i = 0; i < numDocs; ) {
             BulkRequestBuilder request = client().prepareBulk();

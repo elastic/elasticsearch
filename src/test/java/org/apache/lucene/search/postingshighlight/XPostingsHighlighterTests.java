@@ -1484,7 +1484,7 @@ public class XPostingsHighlighterTests extends ElasticsearchLuceneTestCase {
         FieldType offsetsType = new FieldType(TextField.TYPE_STORED);
         offsetsType.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
 
-        int numDocs = atLeast(100);
+        int numDocs = scaledRandomIntBetween(100, 1000);
         for(int i=0;i<numDocs;i++) {
             Document doc = new Document();
             String content = "the answer is " + i;

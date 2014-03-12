@@ -70,7 +70,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
 
     protected int numberOfRuns() {
         if (numRuns == -1) {
-            numRuns = atLeast(3);
+            numRuns = scaledRandomIntBetween(3, 10);
         }
         return numRuns;
     }

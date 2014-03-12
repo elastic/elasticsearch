@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase {
@@ -108,7 +109,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     
     @Test
     public void testBackwardsCompatibilityEdgeNgramTokenizer() throws IllegalArgumentException, IllegalAccessException {
-        int iters = atLeast(20);
+        int iters = scaledRandomIntBetween(20, 100);
         final Index index = new Index("test");
         final String name = "ngr";
         for (int i = 0; i < iters; i++) {
@@ -150,7 +151,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     
     @Test
     public void testBackwardsCompatibilityNgramTokenizer() throws IllegalArgumentException, IllegalAccessException {
-        int iters = atLeast(20);
+        int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test");
             final String name = "ngr";
@@ -183,7 +184,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     
     @Test
     public void testBackwardsCompatibilityEdgeNgramTokenFilter() throws IllegalArgumentException, IllegalAccessException {
-        int iters = atLeast(20);
+        int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             final Index index = new Index("test");
             final String name = "ngr";

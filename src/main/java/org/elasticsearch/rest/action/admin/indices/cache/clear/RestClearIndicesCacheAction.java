@@ -24,12 +24,15 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRespo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -56,30 +59,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.listenerThreaded(false);
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
-        if (request.hasParam("filter")) {
-            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
-        }
-        if (request.hasParam("filter_cache")) {
-            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter_cache", clearIndicesCacheRequest.filterCache()));
-        }
-        if (request.hasParam("field_data")) {
-            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
-        }
-        if (request.hasParam("fielddata")) {
-            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("fielddata", clearIndicesCacheRequest.fieldDataCache()));
-        }
-        if (request.hasParam("id")) {
-            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
-        }
-        if (request.hasParam("id_cache")) {
-            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id_cache", clearIndicesCacheRequest.idCache()));
-        }
-        if (request.hasParam("recycler")) {
-            clearIndicesCacheRequest.recycler(request.paramAsBoolean("recycler", clearIndicesCacheRequest.recycler()));
-        }
-        clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
-        clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
-
+        fromRequest(request, clearIndicesCacheRequest);
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.THREAD_PER_SHARD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread
@@ -97,4 +77,41 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             }
         });
     }
+
+    public static ClearIndicesCacheRequest fromRequest(final RestRequest request, ClearIndicesCacheRequest clearIndicesCacheRequest) {
+
+        for (Map.Entry<String, String> entry : request.params().entrySet()) {
+
+            if (Fields.FILTER.match(entry.getKey())) {
+                clearIndicesCacheRequest.filterCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.filterCache()));
+            }
+            if (Fields.FIELD_DATA.match(entry.getKey())) {
+                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
+            }
+            if (Fields.ID.match(entry.getKey())) {
+                clearIndicesCacheRequest.idCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.idCache()));
+            }
+            if (Fields.RECYCLER.match(entry.getKey())) {
+                clearIndicesCacheRequest.recycler(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.recycler()));
+            }
+            if (Fields.FIELDS.match(entry.getKey())) {
+                clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
+            }
+            if (Fields.FILTER_KEYS.match(entry.getKey())) {
+                clearIndicesCacheRequest.filterKeys(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.filterKeys()));
+            }
+        }
+
+        return clearIndicesCacheRequest;
+    }
+
+    public static class Fields {
+        public static final ParseField FILTER = new ParseField("filter", "filter_cache");
+        public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
+        public static final ParseField ID = new ParseField("id", "id_cache");
+        public static final ParseField RECYCLER = new ParseField("recycler");
+        public static final ParseField FIELDS = new ParseField("fields");
+        public static final ParseField FILTER_KEYS = new ParseField("filter_keys");
+    }
+
 }

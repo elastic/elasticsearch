@@ -209,6 +209,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 total += current.total - current.counts.get(0);
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
+                } else {
+                    Releasables.release(current);
                 }
             }
             values = indexFieldData.load(context).getBytesValues(false);

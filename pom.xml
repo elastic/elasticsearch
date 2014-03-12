@@ -987,8 +987,6 @@
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
-                                <exclude>org/apache/lucene/search/XReferenceManager.class</exclude>
-                                <exclude>org/apache/lucene/search/XSearcherManager.class</exclude>
                                 <exclude>org/apache/lucene/queries/XTermsFilter.class</exclude>
                                 <exclude>org/elasticsearch/index/percolator/stats/ShardPercolateService$RamEstimator.class</exclude>
                                 <exclude>org/elasticsearch/index/merge/Merges.class</exclude>

@@ -930,7 +930,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .size(1));
         assertSuggestion(searchSuggest, 0, 0, "simple_phrase", "nobel prize");
     }
-
+    
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {
         return searchSuggest(null, suggestion);
     }

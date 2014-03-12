@@ -405,8 +405,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
     public Snapshot readSnapshot(SnapshotId snapshotId) {
         try {
             String blobName = snapshotBlobName(snapshotId);
-            byte[] data = snapshotsBlobContainer.readBlobFully(blobName);
-            return readSnapshot(data);
+            int retryCount = 0;
+            while (true) {
+                byte[] data = snapshotsBlobContainer.readBlobFully(blobName);
+                // Because we are overriding snapshot during finalization, it's possible that
+                // we can get an empty or incomplete snapshot for a brief moment
+                // retrying after some what can resolve the issue
+                // TODO: switch to atomic update after non-local gateways are removed and we switch to java 1.7
+                try {
+                    return readSnapshot(data);
+                } catch (ElasticsearchParseException ex) {
+                    if (retryCount++ < 3) {
+                        try {
+                            Thread.sleep(50);
+                        } catch (InterruptedException ex1) {
+                            Thread.currentThread().interrupt();
+                        }
+                    } else {
+                        throw ex;
+                    }
+                }
+            }
         } catch (FileNotFoundException ex) {
             throw new SnapshotMissingException(snapshotId, ex);
         } catch (IOException ex) {
@@ -416,13 +435,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
 
     /**
      * Configures RateLimiter based on repository and global settings
+     *
      * @param repositorySettings repository settings
-     * @param setting setting to use to configure rate limiter
-     * @param defaultRate default limiting rate
+     * @param setting            setting to use to configure rate limiter
+     * @param defaultRate        default limiting rate
      * @return rate limiter or null of no throttling is needed
      */
     private RateLimiter getRateLimiter(RepositorySettings repositorySettings, String setting, ByteSizeValue defaultRate) {
-        ByteSizeValue maxSnapshotBytesPerSec =  repositorySettings.settings().getAsBytesSize(setting,
+        ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.settings().getAsBytesSize(setting,
                 componentSettings.getAsBytesSize(setting, defaultRate));
         if (maxSnapshotBytesPerSec.bytes() <= 0) {
             return null;

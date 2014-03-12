@@ -323,7 +323,7 @@ public class PluginsService extends AbstractComponent {
 
         List<Tuple<PluginInfo, Plugin>> pluginData = Lists.newArrayList();
 
-        boolean defaultIsolation = settings.getAsBoolean("plugins.isolation", Boolean.TRUE);
+        boolean defaultIsolation = settings.getAsBoolean("plugins.isolation", Boolean.FALSE);
         ClassLoader esClassLoader = settings.getClassLoader();
         Method addURL = null;
         boolean discoveredAddUrl = false;

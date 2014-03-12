@@ -345,7 +345,7 @@ public final class TestCluster implements Iterable<Client> {
         // prevent killing the master if possible
         final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(), Predicates.not(new MasterNodePredicate(getMasterName())));
         final Iterator<NodeAndClient> limit = Iterators.limit(values, nodes.size() - n);
-        logger.info("reducing cluster size from {} to {}", nodes.size() - n, n);
+        logger.info("changing cluster size from {} to {}", nodes.size() - n, n);
         Set<NodeAndClient> nodesToRemove = new HashSet<NodeAndClient>();
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();

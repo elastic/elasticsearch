@@ -71,12 +71,12 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
                 refresh();
             }
         }
-        refresh();
         cluster().ensureAtMostNumNodes(numAssignedShards("test1", "test2"));
         assertThat(cluster().size(), greaterThanOrEqualTo(2));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         // THERE WILL BE AT LEAST 2 NODES HERE SO WE CAN WAIT FOR GREEN
         ensureGreen();
+        refresh();
         int iters = atLeast(20);
         for (int i = 0; i < iters; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();

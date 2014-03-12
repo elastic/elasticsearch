@@ -69,7 +69,7 @@ public class GeoDistanceSortParser implements SortParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                GeoPoint.parse(parser, point);
+                GeoUtils.parseGeoPoint(parser, point);
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -78,7 +78,7 @@ public class GeoDistanceSortParser implements SortParser {
                     nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
                 } else {
                     fieldName = currentName;
-                    GeoPoint.parse(parser, point);
+                    GeoUtils.parseGeoPoint(parser, point);
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {

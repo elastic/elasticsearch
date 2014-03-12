@@ -109,7 +109,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                         entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY));
                     }
                 } else {
-                    GeoPoint.parse(parser, point);
+                    GeoUtils.parseGeoPoint(parser, point);
                     fieldName = currentName;
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -118,7 +118,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
                     fieldName = currentName;
-                    GeoPoint.parse(parser, point);
+                    GeoUtils.parseGeoPoint(parser, point);
                 }
             } else if (token.isValue()) {
                 if (currentName.equals("unit")) {

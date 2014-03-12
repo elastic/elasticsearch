@@ -56,6 +56,7 @@ governing permissions and limitations under the License. -->
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <es.plugin.port>9300</es.plugin.port>
         <es.logger.level>INFO</es.logger.level>
     </properties>
 
@@ -145,6 +146,7 @@ governing permissions and limitations under the License. -->
                 <directory>src/test/resources</directory>
                 <filtering>true</filtering>
                 <includes>
+                    <include>plugin-test.properties</include>
                     <include>elasticsearch.yml</include>
                 </includes>
             </testResource>
@@ -167,9 +169,102 @@ governing permissions and limitations under the License. -->
                 </configuration>
             </plugin>
             <plugin>
+                <groupId>com.carrotsearch.randomizedtesting</groupId>
+                <artifactId>junit4-maven-plugin</artifactId>
+                <version>2.0.14</version>
+                <executions>
+                    <execution>
+                        <id>tests</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>junit4</goal>
+                        </goals>
+                        <configuration>
+                            <heartbeat>20</heartbeat>
+                            <jvmOutputAction>pipe,warn</jvmOutputAction>
+                            <leaveTemporary>true</leaveTemporary>
+                            <listeners>
+                                <report-ant-xml mavenExtensions="true"
+                                                dir="${project.build.directory}/surefire-reports"/>
+                                <report-text
+                                        showThrowable="true"
+                                        showStackTraces="true"
+                                        showOutput="${tests.output}"
+                                        showStatusOk="false"
+                                        showStatusError="true"
+                                        showStatusFailure="true"
+                                        showStatusIgnored="true"
+                                        showSuiteSummary="true"
+                                        timestamps="false"/>
+                                <report-execution-times file="${basedir}/.local-execution-hints.log"/>
+                            </listeners>
+                            <assertions>
+                                <enable/>
+                            </assertions>
+                            <parallelism>${tests.jvms}</parallelism>
+                            <balancers>
+                                <execution-times>
+                                    <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
+                                </execution-times>
+                            </balancers>
+                            <includes>
+                                <include>**/*Tests.class</include>
+                                <include>**/*Test.class</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/Abstract*.class</exclude>
+                                <exclude>**/*StressTest.class</exclude>
+                            </excludes>
+                            <argLine>
+                                ${tests.jvm.argline}
+                            </argLine>
+                            <jvmArgs>
+                                <param>-Xmx512m</param>
+                                <param>-Xss256k</param>
+                                <param>-XX:MaxDirectMemorySize=512m</param>
+                                <param>-Des.logger.prefix=</param>
+                            </jvmArgs>
+                            <shuffleOnSlave>${tests.shuffle}</shuffleOnSlave>
+                            <sysouts>${tests.verbose}</sysouts>
+                            <seed>${tests.seed}</seed>
+                            <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <systemProperties>
+                                <!-- RandomizedTesting library system properties -->
+                                <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <tests.iters>${tests.iters}</tests.iters>
+                                <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
+                                <tests.failfast>${tests.failfast}</tests.failfast>
+                                <tests.class>${tests.class}</tests.class>
+                                <tests.method>${tests.method}</tests.method>
+                                <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.badapples>${tests.badapples}</tests.badapples>
+                                <tests.weekly>${tests.weekly}</tests.weekly>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.gce>${tests.gce}</tests.gce>
+                                <tests.awaitsfix>${tests.awaitsfix}</tests.awaitsfix>
+                                <tests.slow>${tests.slow}</tests.slow>
+                                <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
+                                <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
+                                <tests.integration>${tests.integration}</tests.integration>
+                                <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
+                                <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
+                                <es.node.local>false</es.node.local>
+                                <es.node.mode>network</es.node.mode>
+                                <es.config>${es.config}</es.config>
+                                <es.logger.level>${es.logger.level}</es.logger.level>
+                                <java.awt.headless>true</java.awt.headless>
+                            </systemProperties>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.15</version>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

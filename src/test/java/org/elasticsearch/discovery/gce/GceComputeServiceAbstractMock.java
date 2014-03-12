@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce.tests;
+package org.elasticsearch.discovery.gce;
 
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.Metadata;
@@ -48,13 +48,15 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
         }
     }
 
-    @Override
-    public Collection<Instance> instances() {
-        Collection<Instance> instances = new ArrayList<Instance>();
+    private Collection<Instance> instances = null;
 
+    private void computeInstances() {
+        instances = new ArrayList<Instance>();
+
+        int nodeNumber = 0;
         // For each instance (item of tags)
-        int port = 9300;
         for (List<String> tags : getTags()) {
+            logger.info(" ----> GCE Mock API: Adding node {}", nodeNumber);
             Instance instance = new Instance();
             instance.setName("Mock Node " + tags);
             instance.setMachineType("Mock Type machine");
@@ -71,13 +73,20 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
 
             // Add metadata es_port:930X where X is the instance number
             Metadata metadata = new Metadata();
-            metadata.put("es_port", "" + port);
+            metadata.put("es_port", "" + AbstractGceComputeServiceTest.getPort(nodeNumber));
             instance.setMetadata(metadata);
+
             instances.add(instance);
 
-            port++;
+            nodeNumber++;
         }
+    }
 
+    @Override
+    public Collection<Instance> instances() {
+        if (instances == null || instances.size() == 0) {
+            computeInstances();
+        }
 
         return instances;
     }

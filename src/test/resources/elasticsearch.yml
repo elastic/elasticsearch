@@ -9,7 +9,6 @@
 # KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-  cluster.name: gce
 # GCE discovery allows to use GCE API in order to perform discovery.
 #
 # You have to install the cloud-gce plugin for enabling the GCE discovery.
@@ -18,22 +17,11 @@
 # for more information.
 #
 # See README in elasticsearch-cloud-gce repository for a step-by-step tutorial.
-  cloud:
-      gce:
-          project_id: es-cloud
-          zone: europe-west1-a
-  discovery:
-          type: gce
-          gce:
-                tags: you_can_add_tags_here
-
-# Note that with tests, discovery.gce.tags will be replaced by test values
-
-# We set path here to use maven target dir
-  path:
-      data: ${project.build.directory}/es/data
-      logs: ${project.build.directory}/es/logs
-      work: ${project.build.directory}/es/work
-
-# We don't need http layer for tests
-  http.enabled: false
+#  cloud:
+#      gce:
+#          project_id: es-cloud
+#          zone: europe-west1-a
+#  discovery:
+#          type: gce
+#          gce:
+#                tags: you_can_add_tags_here

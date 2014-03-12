@@ -17,30 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce.tests;
+package org.elasticsearch.discovery.gce;
 
-import org.elasticsearch.common.collect.Lists;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.ArrayList;
-import java.util.List;
-
-/**
- *
- */
-public class GceComputeServiceTwoNodesDifferentTagsMock extends GceComputeServiceAbstractMock {
-    private static List<ArrayList<String>> tags = Lists.newArrayList(
-            Lists.newArrayList("dev"),
-            Lists.newArrayList("elasticsearch","dev"));
+public class GceDifferentTagsNoTagTest extends AbstractGceComputeServiceTest {
 
     @Override
-    protected List<ArrayList<String>> getTags() {
-        return tags;
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal));
+        settings.put("discovery.type", "gce");
+        settings.put("cloud.gce.api.impl", GceComputeServiceTwoNodesDifferentTagsMock.class);
+        return settings.build();
     }
 
-    @Inject
-    protected GceComputeServiceTwoNodesDifferentTagsMock(Settings settings) {
-        super(settings);
+    /**
+     * Set the number of expected nodes in the current cluster
+     */
+    @Override
+    protected int getExpectedNodes() {
+        return 2;
     }
 }

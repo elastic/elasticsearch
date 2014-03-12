@@ -434,7 +434,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testRandom() throws IOException {
-        int iterations = atLeast(400); // don't worry that is fast!
+        int iterations = scaledRandomIntBetween(100, 1000); // don't worry that is fast!
         for (int iter = 0; iter < iterations; iter++) {
             int numClauses = 1 + random().nextInt(10);
             FilterClause[] clauses = new FilterClause[numClauses];

@@ -51,7 +51,7 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
 
-        int numQueries = atLeast(250);
+        int numQueries = scaledRandomIntBetween(250, 500);
         int numUniqueQueries = between(1, numQueries / 2);
         String[] values = new String[numUniqueQueries];
         for (int i = 0; i < values.length; i++) {

@@ -25,7 +25,6 @@ import org.junit.Test;
 import static org.elasticsearch.Version.V_0_20_0;
 import static org.elasticsearch.Version.V_0_90_0;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -54,7 +53,7 @@ public class VersionTests extends ElasticsearchTestCase {
     public void testVersionConstantPresent() {
         assertThat(Version.CURRENT, sameInstance(Version.fromId(Version.CURRENT.id)));
         assertThat(Version.CURRENT.luceneVersion.ordinal(), equalTo(org.apache.lucene.util.Version.LUCENE_CURRENT.ordinal() - 1));
-        final int iters = atLeast(20);
+        final int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
             Version version = randomVersion();
             assertThat(version, sameInstance(Version.fromId(version.id)));

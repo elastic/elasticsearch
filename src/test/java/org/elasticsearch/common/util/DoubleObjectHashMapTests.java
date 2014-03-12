@@ -30,7 +30,7 @@ public class DoubleObjectHashMapTests extends ElasticsearchTestCase {
         final DoubleObjectOpenHashMap<Object> map1 = new DoubleObjectOpenHashMap<Object>();
         final DoubleObjectPagedHashMap<Object> map2 = new DoubleObjectPagedHashMap<Object>(randomInt(42), 0.6f + randomFloat() * 0.39f, BigArraysTests.randombigArrays());
         final int maxKey = randomIntBetween(1, 10000);
-        final int iters = atLeast(10000);
+        final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {
             final boolean put = randomBoolean();
             final int iters2 = randomIntBetween(1, 100);

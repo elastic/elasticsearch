@@ -57,7 +57,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
         try {
             // index some different terms so we have some field data for loading
-            int docCount = atLeast(300);
+            int docCount = scaledRandomIntBetween(300, 1000);
             for (long id = 0; id < docCount; id++) {
                 client.prepareIndex("cb-test", "type", Long.toString(id))
                         .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
@@ -108,7 +108,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             client.admin().cluster().prepareHealth("ramtest").setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
 
             // index some different terms so we have some field data for loading
-            int docCount = atLeast(300);
+            int docCount = scaledRandomIntBetween(300, 1000);
             for (long id = 0; id < docCount; id++) {
                 client.prepareIndex("ramtest", "type", Long.toString(id))
                         .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();

@@ -55,7 +55,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     public void testEnforceWindowSize() {
         createIndex("test");
         // this
-        int iters = atLeast(10);
+        int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i ++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("f", Integer.toString(i)).execute().actionGet();
         }
@@ -236,7 +236,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     public void testEquivalence() throws Exception {
         int numDocs = indexRandomNumbers("whitespace");
 
-        final int iters = atLeast(50);
+        final int iters = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < iters; i++) {
             int resultSize = between(5, 30);
             int rescoreWindow = between(1, 3) * resultSize;
@@ -542,7 +542,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", analyzer).field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(builder));
-        int numDocs = atLeast(100);
+        int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));

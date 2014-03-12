@@ -1702,7 +1702,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
                 "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": 4}}",
                 "{\"flt\": {\"fields\": [\"comment\"], \"like_text\": \"FFFdfds\",\"fuzziness\": 4.0}}"
         };
-        int iters = atLeast(5);
+        int iters = scaledRandomIntBetween(5, 100);
         for (int i = 0; i < iters; i++) {
             parsedQuery = queryParser.parse(new BytesArray((String) randomFrom(queries))).query();
             parsedQuery1 = queryParser.parse(new BytesArray((String) randomFrom(queries))).query();

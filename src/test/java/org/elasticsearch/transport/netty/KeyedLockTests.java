@@ -76,7 +76,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         KeyedLock<String> connectionLock = new KeyedLock<String>();
         String[] names = new String[randomIntBetween(1, 40)];
         connectionLock = new KeyedLock<String>();
-        String name = randomRealisticUnicodeOfLength(atLeast(10));
+        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
         connectionLock.acquire(name);
     }
@@ -88,7 +88,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
         KeyedLock<String> connectionLock = new KeyedLock<String>();
         String[] names = new String[randomIntBetween(1, 40)];
         connectionLock = new KeyedLock<String>();
-        String name = randomRealisticUnicodeOfLength(atLeast(10));
+        String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.release(name);
     }
 
@@ -114,7 +114,7 @@ public class KeyedLockTests extends ElasticsearchTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException();
             }
-            int numRuns = atLeast(500);
+            int numRuns = scaledRandomIntBetween(500, 5000);
             for (int i = 0; i < numRuns; i++) {
                 String curName = names[randomInt(names.length - 1)];
                 connectionLock.acquire(curName);

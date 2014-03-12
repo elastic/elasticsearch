@@ -45,7 +45,7 @@ public class SearchScanTests extends ElasticsearchIntegrationTest {
 
         Set<String> ids = Sets.newHashSet();
         Set<String> expectedIds = Sets.newHashSet();
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[atLeast(50)];
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(50, 100)];
         for (int i = 0; i < builders.length/2; i++) {
             expectedIds.add(Integer.toString(i));
             builders[i] = client().prepareIndex("test", "tweet", Integer.toString(i)).setSource(

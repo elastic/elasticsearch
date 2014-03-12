@@ -31,14 +31,14 @@ import java.nio.LongBuffer;
 public class MurmurHash3Tests extends ElasticsearchTestCase {
 
     public void testHash128() {
-        final int iters = atLeast(100);
+        final int iters = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < iters; ++i) {
             final int seed = randomInt();
             final int offset = randomInt(20);
             final int len = randomInt(randomBoolean() ? 20 : 200);
             final byte[] bytes = new byte[len + offset + randomInt(3)];
             getRandom().nextBytes(bytes);
-            HashCode h1 = Hashing.murmur3_128(seed).hashBytes(bytes, offset, len);;
+            HashCode h1 = Hashing.murmur3_128(seed).hashBytes(bytes, offset, len);
             MurmurHash3.Hash128 h2 = MurmurHash3.hash128(bytes, offset, len, seed, new MurmurHash3.Hash128());
             assertEquals(h1, h2);
         }

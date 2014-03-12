@@ -38,7 +38,7 @@ public class SearchScanScrollingTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testRandomized() throws Exception {
-        testScroll(atLeast(100), between(1, 300), getRandom().nextBoolean(), getRandom().nextBoolean());
+        testScroll(scaledRandomIntBetween(100, 200), between(1, 300), getRandom().nextBoolean(), getRandom().nextBoolean());
     }
 
     private void testScroll(long numberOfDocs, int size, boolean unbalanced, boolean trackScores) throws Exception {

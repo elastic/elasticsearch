@@ -106,7 +106,7 @@ public class RedBlackTreeTests extends ElasticsearchTestCase {
     public void testAdd() {
         Map<Integer, Integer> map = Maps.newHashMap();
         IntRedBlackTree tree = new IntRedBlackTree();
-        final int iters = atLeast(1000);
+        final int iters = scaledRandomIntBetween(1000, 10000);
         for (int i = 0; i < iters; ++i) {
             final int value = randomInt(200);
             final boolean added = tree.add(value);
@@ -133,7 +133,7 @@ public class RedBlackTreeTests extends ElasticsearchTestCase {
     }
 
     public void testRemove() {
-        final int numValues = atLeast(200);
+        final int numValues = scaledRandomIntBetween(200, 1000);
         final FixedBitSet values = new FixedBitSet(numValues);
         values.set(0, numValues);
         IntRedBlackTree tree = new IntRedBlackTree();
@@ -141,7 +141,7 @@ public class RedBlackTreeTests extends ElasticsearchTestCase {
             tree.add(i);
         }
         
-        final int iters = atLeast(300);
+        final int iters = scaledRandomIntBetween(300, 1000);
         for (int i = 0; i < iters; ++i) {
             final int value = randomInt(numValues - 1);
             final boolean removed = tree.remove(value);
@@ -165,7 +165,7 @@ public class RedBlackTreeTests extends ElasticsearchTestCase {
 
     public void testReverse() {
         IntRedBlackTree tree = new IntRedBlackTree();
-        final int iters = atLeast(1000);
+        final int iters = scaledRandomIntBetween(1000, 10000);
         for (int i = 0; i < iters; ++i) {
             final int value = randomInt(2000);
             tree.add(value);

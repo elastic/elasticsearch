@@ -93,7 +93,7 @@ public class GeoPolygonFilterParser implements FilterParser {
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if (POINTS.equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                                shell.add(GeoPoint.parse(parser));
+                                shell.add(GeoUtils.parseGeoPoint(parser));
                             }
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");

@@ -83,7 +83,7 @@ public class GeoDistanceFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 fieldName = currentFieldName;
-                GeoPoint.parse(parser, point);
+                GeoUtils.parseGeoPoint(parser, point);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 String currentName = parser.currentName();

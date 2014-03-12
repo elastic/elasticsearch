@@ -89,7 +89,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicBoolean stop = new AtomicBoolean(false);
         final AtomicInteger counts = new AtomicInteger(0);
-        final AtomicBoolean assertionFailure = new AtomicBoolean(false);
+        final AtomicReference<Throwable> exceptionHolder = new AtomicReference<Throwable>();
         Thread[] threads = new Thread[5];
 
         for (int i = 0; i < threads.length; i++) {
@@ -124,11 +124,10 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                                 assertThat(convertFromTextArray(percolate.getMatches(), "index"), arrayContaining("test2"));
                             }
                         }
-
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                    } catch (AssertionError e) {
-                        assertionFailure.set(true);
+                    } catch (Throwable e) {
+                        exceptionHolder.set(e);
                         Thread.currentThread().interrupt();
                     }
                 }
@@ -142,7 +141,11 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
             thread.join();
         }
 
-        assertThat(assertionFailure.get(), equalTo(false));
+        Throwable assertionError = exceptionHolder.get();
+        if (assertionError != null) {
+            assertionError.printStackTrace();
+        }
+        assertThat(assertionError + " should be null", assertionError, nullValue());
     }
 
     @Test
@@ -158,7 +161,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         final int numPercolateThreads = 6;
         final int numPercolatorOperationsPerThread = 1000;
 
-        final AtomicBoolean assertionFailure = new AtomicBoolean(false);
+        final Set<Throwable> exceptionsHolder = ConcurrentCollections.newConcurrentSet();
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicInteger runningPercolateThreads = new AtomicInteger(numPercolateThreads);
         final AtomicInteger type1 = new AtomicInteger();
@@ -213,7 +216,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                             assertThat(response.getVersion(), equalTo(1l));
                         }
                     } catch (Throwable t) {
-                        assertionFailure.set(true);
+                        exceptionsHolder.add(t);
                         logger.error("Error in indexing thread...", t);
                     }
                 }
@@ -272,7 +275,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                             }
                         }
                     } catch (Throwable t) {
-                        assertionFailure.set(true);
+                        exceptionsHolder.add(t);
                         logger.error("Error in percolate thread...", t);
                     } finally {
                         runningPercolateThreads.decrementAndGet();
@@ -291,7 +294,10 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
             thread.join();
         }
 
-        assertThat(assertionFailure.get(), equalTo(false));
+        for (Throwable t : exceptionsHolder) {
+            logger.error("Unexpected exception {}", t.getMessage(), t);
+        }
+        assertThat(exceptionsHolder.isEmpty(), equalTo(true));
     }
 
     @Test

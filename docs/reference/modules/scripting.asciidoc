@@ -192,7 +192,14 @@ km) of this geo point field from the provided lat/lon with a default value.
 
 |`doc['field_name'].factorDistance(lat, lon, default)` |The distance factor of this geo point field from the provided lat/lon with a default value.
 
+|`doc['field_name'].geohashDistance(geohash)` |The `arc` distance (in meters)
+of this geo point field from the provided geohash.
 
+|`doc['field_name'].geohashDistanceInKm(geohash)` |The `arc` distance (in km)
+of this geo point field from the provided geohash.
+
+|`doc['field_name'].geohashDistanceInMiles(geohash)` |The `arc` distance (in
+miles) of this geo point field from the provided geohash.
 |=======================================================================
 
 [float]

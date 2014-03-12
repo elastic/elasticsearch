@@ -328,7 +328,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareRefresh().get();
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 1; i <= 10; i++) {
+            logger.info("Round {}", i);
             SearchResponse searchResponse = client().prepareSearch("test")
                     .setQuery(constantScoreQuery(queryFilter(topChildrenQuery("child", matchAllQuery())).cache(true))).execute()
                     .actionGet();

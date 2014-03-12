@@ -78,6 +78,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
+                } else if ("format".equals(currentFieldName)) {
+                    format = parser.text();
                 } else if ("include".equals(currentFieldName)) {
                     include = parser.text();
                 } else if ("exclude".equals(currentFieldName)) {

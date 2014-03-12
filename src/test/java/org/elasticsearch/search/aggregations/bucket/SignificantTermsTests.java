@@ -35,7 +35,6 @@ import java.util.HashMap;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -58,35 +57,13 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     
     @Before
     public void init() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0)
-                .addMapping("fact", jsonBuilder()
-                    .startObject()
-                    .startObject("fact")
-                    .startObject("_routing")
-                    .field("required", true)
-                    .field("path", "routingID")
-                    .endObject()
-                    .startObject("properties")
-                    .startObject("routingID")
-                    .field("type", "string")
-                    .field("index", "not_analyzed")
-                    .endObject()
-                    .startObject("factCategory")
-                    .field("type", "integer")
-                    .field("index", "not_analyzed")
-                    .endObject()
-                    .startObject("Description")
-                    .field("type", "string")
-                    .field("index", "analyzed")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-                    .endObject()));
-        
-            createIndex("idx_unmapped");
+        assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("fact",
+                "_routing", "required=true,path=routing_id", "routing_id", "type=string,index=not_analyzed", "fact_category",
+                "type=integer,index=not_analyzed", "description", "type=string,index=analyzed"));
+        createIndex("idx_unmapped");
 
-            ensureGreen();
-            String data[]= {
+        ensureGreen();
+        String data[] = {                    
                     "A\t1\tpaul weller was lead singer of the jam before the style council",
                     "B\t1\tpaul weller left the jam to form the style council",
                     "A\t2\tpaul smith is a designer in the fashion industry",
@@ -108,14 +85,12 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                     "A\t3\tterje haakonsen has been a team rider for burton snowboards for over 20 years"                         
             };
             
-            for (int i = 0; i < data.length; i++) {
-                String[] parts=data[i].split("\t");
-                client().prepareIndex("test", "fact", ""+i).setSource("routingID", parts[0], 
-                        "factCategory", parts[1],
-                        "Description", parts[2]
-                        ).get();
-            }
-            client().admin().indices().refresh(new RefreshRequest("test")).get();
+        for (int i = 0; i < data.length; i++) {
+            String[] parts = data[i].split("\t");
+            client().prepareIndex("test", "fact", "" + i)
+                    .setSource("routing_id", parts[0], "fact_category", parts[1], "description", parts[2]).get();
+        }
+        client().admin().indices().refresh(new RefreshRequest("test")).get();
     }
 
     @Test
@@ -124,13 +99,12 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("factCategory")
-                           .minDocCount(2)
-                        )
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category")
+                           .minDocCount(2))
                 .execute()
                 .actionGet();
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        Number topCategory = topTerms.buckets().iterator().next().getKeyAsNumber();
+        Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
     }
     
@@ -140,13 +114,12 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("factCategory")
-                           .minDocCount(2)
-                        )
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category")
+                           .minDocCount(2))
                 .execute()
                 .actionGet();
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");        
-        assertThat(topTerms.buckets().size(), equalTo(0));
+        assertThat(topTerms.getBuckets().size(), equalTo(0));
     }
 
     @Test
@@ -155,9 +128,8 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("Description")
-                           .minDocCount(2)
-                        )
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(2))
                 .execute()
                 .actionGet();
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
@@ -170,9 +142,8 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("Description")
-                           .minDocCount(2)
-                        )
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(2))
                 .execute()
                 .actionGet();
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");

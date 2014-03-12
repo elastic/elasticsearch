@@ -180,13 +180,13 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
     }
 
     @Override
-    public Collection<SignificantTerms.Bucket> buckets() {
+    public Collection<SignificantTerms.Bucket> getBuckets() {
         Object o = buckets;
         return (Collection<SignificantTerms.Bucket>) o;
     }
 
     @Override
-    public SignificantTerms.Bucket getByTerm(String term) {
+    public SignificantTerms.Bucket getBucketByKey(String term) {
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {

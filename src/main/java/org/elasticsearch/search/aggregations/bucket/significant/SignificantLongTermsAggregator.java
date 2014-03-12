@@ -43,7 +43,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         this.termsAggFactory = termsAggFactory;
     }
 
-    protected int numCollectedDocs;
+    protected long numCollectedDocs;
     private SignificantTermsAggregatorFactory termsAggFactory;
 
     @Override
@@ -60,8 +60,8 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
-        int supersetSize = topReader.numDocs();
-        int subsetSize = numCollectedDocs;
+        long supersetSize = topReader.numDocs();
+        long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantLongTerms.Bucket spare = null;

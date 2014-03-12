@@ -44,7 +44,7 @@ import java.util.Collections;
  */
 public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
-    protected int numCollectedDocs;
+    protected long numCollectedDocs;
     protected SignificantTermsAggregatorFactory termsAggFactory;
     
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
@@ -69,8 +69,8 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
-        int supersetSize = topReader.numDocs();
-        int subsetSize = numCollectedDocs;
+        long supersetSize = topReader.numDocs();
+        long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantStringTerms.Bucket spare = null;

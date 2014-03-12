@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.IntArray;
@@ -154,8 +155,12 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
                 "]. It can only be applied to numeric or string fields.");
     }
 
-    // Many child aggs may ask for the same docFreq information so cache docFreq
-    // values for these terms
+    // Many child aggs may ask for the same docFreq information so here we cache docFreq
+    // values for these terms.
+    // TODO this should be re-factored into a more generic system for efficiently checking frequencies of things
+    // In future we may need to a) check the frequency in a set other than the index e.g. a subset and b) check
+    // the frequency of an entity other than an a single indexed term e.g. a numeric range.
+    // This is likely to require some careful design.
     public long getBackgroundFrequency(IndexReader topReader, BytesRef termBytes) {
         int result = 0;
         long termOrd = cachedTermOrds.add(termBytes);
@@ -185,12 +190,10 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
     @Override
     public boolean release() throws ElasticsearchException {
-        if (cachedTermOrds != null) {
-            cachedTermOrds.release();
+        try {
+            Releasables.release(cachedTermOrds, termDocFreqs);
+        } finally {
             cachedTermOrds = null;
-        }
-        if (termDocFreqs != null) {
-            termDocFreqs.release();
             termDocFreqs = null;
         }
         return true;

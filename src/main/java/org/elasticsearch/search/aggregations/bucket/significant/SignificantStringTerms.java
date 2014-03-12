@@ -73,7 +73,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
 
         @Override
         public Number getKeyAsNumber() {
-            // this method is needed for scripted numeric faceting
+            // this method is needed for scripted numeric aggregations
             return Double.parseDouble(termBytes.utf8ToString());
         }
 

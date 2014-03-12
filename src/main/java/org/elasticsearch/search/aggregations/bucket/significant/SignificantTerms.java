@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Collection;
@@ -26,7 +25,7 @@ import java.util.Collection;
 /**
  *
  */
-public interface SignificantTerms extends Aggregation, Iterable<SignificantTerms.Bucket> {
+public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 
 
       static abstract class Bucket implements MultiBucketsAggregation.Bucket {
@@ -68,9 +67,10 @@ public interface SignificantTerms extends Aggregation, Iterable<SignificantTerms
 
     }
 
-    Collection<Bucket> buckets();
+    @Override
+    Collection<Bucket> getBuckets();
 
-    Bucket getByTerm(String term);
-
+    @Override
+    Bucket getBucketByKey(String key);
 
 }

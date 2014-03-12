@@ -59,6 +59,8 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         Settings settings = ImmutableSettings.builder()
                 .put("tribe.t1.cluster.name", cluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
+                .put("tribe.blocks.write", false)
+                .put("tribe.blocks.read", false)
                 .build();
 
         tribeNode = NodeBuilder.nodeBuilder()

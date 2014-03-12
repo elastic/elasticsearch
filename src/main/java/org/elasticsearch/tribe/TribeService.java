@@ -21,6 +21,7 @@ package org.elasticsearch.tribe;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
@@ -110,7 +111,8 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public TribeService(Settings settings, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
-        Map<String, Settings> nodesSettings = settings.getGroups("tribe", true);
+        Map<String, Settings> nodesSettings = Maps.newHashMap(settings.getGroups("tribe", true));
+        nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
@@ -168,7 +170,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ElasticsearchIllegalStateException("Interrupted while starting [" + this.getClass().getSimpleName()+ "]", e);
+            throw new ElasticsearchIllegalStateException("Interrupted while starting [" + this.getClass().getSimpleName() + "]", e);
         }
         for (InternalNode node : nodes) {
             try {

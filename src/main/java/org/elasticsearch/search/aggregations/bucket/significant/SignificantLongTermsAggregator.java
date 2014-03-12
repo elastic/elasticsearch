@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
@@ -110,5 +111,9 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         return new SignificantLongTerms(0, supersetSize, name,  valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
+    @Override
+    public void doRelease() {
+        Releasables.release(bucketOrds, termsAggFactory);
+    }
 
 }

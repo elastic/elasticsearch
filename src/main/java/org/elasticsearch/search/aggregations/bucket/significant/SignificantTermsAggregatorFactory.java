@@ -23,14 +23,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
-import org.elasticsearch.search.aggregations.bucket.BytesRefHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
@@ -45,7 +45,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFactory {
+public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFactory implements Releasable {
 
     public static final String EXECUTION_HINT_VALUE_MAP = "map";
     public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
@@ -60,6 +60,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private FieldMapper mapper;
     private IntArray termDocFreqs;
     private BytesRefHash cachedTermOrds;
+    private BigArrays bigArrays;
 
       public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig,  int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
@@ -72,15 +73,14 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
             this.indexedFieldName = valuesSourceConfig.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
-        PageCacheRecycler pageCacheRecycler = SearchContext.current().pageCacheRecycler();
-        termDocFreqs = BigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, pageCacheRecycler, true);
-        cachedTermOrds = new BytesRefHash(INITIAL_NUM_TERM_FREQS_CACHED, pageCacheRecycler);
-
+        bigArrays = SearchContext.current().bigArrays();
+        termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, true);
+        cachedTermOrds = new BytesRefHash(INITIAL_NUM_TERM_FREQS_CACHED, bigArrays);
     }
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        return new UnmappedSignificantTermsAggregator(name, requiredSize, minDocCount, aggregationContext, parent);
+        return new UnmappedSignificantTermsAggregator(name, requiredSize, minDocCount, aggregationContext, parent, this);
     }
 
     private static boolean hasParentBucketAggregator(Aggregator parent) {
@@ -168,17 +168,32 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
             } catch (IOException e) {
                 throw new ElasticsearchException("IOException reading document frequency", e);
             }
-            termDocFreqs = BigArrays.grow(termDocFreqs, termOrd + 1);
+            termDocFreqs = bigArrays.grow(termDocFreqs, termOrd + 1);
             termDocFreqs.set(termOrd, result);
         }
         return result;
     }
+
+    
 
     // Many child aggs may ask for the same docFreq information so cache docFreq
     // values for these terms
     public long getBackgroundFrequency(IndexReader topReader, long term) {
         BytesRef indexedVal = mapper.indexedValueForSearch(term);
         return getBackgroundFrequency(topReader, indexedVal);
+    }
+
+    @Override
+    public boolean release() throws ElasticsearchException {
+        if (cachedTermOrds != null) {
+            cachedTermOrds.release();
+            cachedTermOrds = null;
+        }
+        if (termDocFreqs != null) {
+            termDocFreqs.release();
+            termDocFreqs = null;
+        }
+        return true;
     }
 
 }

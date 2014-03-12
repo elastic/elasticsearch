@@ -57,7 +57,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
 
     public static class Bucket extends InternalSignificantTerms.Bucket {
 
-        final BytesRef termBytes;
+        BytesRef termBytes;
      
 
         public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize,InternalAggregations aggregations) {

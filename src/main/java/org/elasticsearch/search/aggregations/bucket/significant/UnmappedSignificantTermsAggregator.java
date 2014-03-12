@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -33,11 +34,13 @@ public class UnmappedSignificantTermsAggregator extends Aggregator {
 
     private final int requiredSize;
     private final long minDocCount;
+    private SignificantTermsAggregatorFactory termsAggFactory;
 
-    public UnmappedSignificantTermsAggregator(String name, int requiredSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
+    public UnmappedSignificantTermsAggregator(String name, int requiredSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
         super(name, BucketAggregationMode.PER_BUCKET, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
+        this.termsAggFactory = termsAggFactory;
     }
 
     @Override
@@ -63,4 +66,10 @@ public class UnmappedSignificantTermsAggregator extends Aggregator {
     public InternalAggregation buildEmptyAggregation() {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount);
     }
+
+    @Override
+    protected void doRelease() {
+        Releasables.release(termsAggFactory);
+    }
+    
 }

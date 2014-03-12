@@ -45,7 +45,7 @@ import java.util.Collections;
 public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected int numCollectedDocs;
-    private SignificantTermsAggregatorFactory termsAggFactory;
+    protected SignificantTermsAggregatorFactory termsAggFactory;
     
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
@@ -98,6 +98,8 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final SignificantStringTerms.Bucket bucket = (SignificantStringTerms.Bucket) ordered.pop();
+            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
+            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
@@ -117,7 +119,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     @Override
     public void doRelease() {
-        Releasables.release(bucketOrds);
+        Releasables.release(bucketOrds, termsAggFactory);
     }
 
     /**
@@ -145,7 +147,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
                 if (ordinalToBucket != null) {
                     ordinalToBucket.release();
                 }
-                ordinalToBucket = BigArrays.newLongArray(BigArrays.overSize(maxOrd), context().pageCacheRecycler(), false);
+                ordinalToBucket = context().bigArrays().newLongArray(BigArrays.overSize(maxOrd), false);
             }
             ordinalToBucket.fill(0, maxOrd, -1L);
         }
@@ -174,6 +176,11 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
                 collectBucket(doc, bucketOrd);
             }
         }
+        
+        @Override
+        public void doRelease() {
+            Releasables.release(bucketOrds, termsAggFactory, ordinalToBucket);
+        }        
 
     }
 

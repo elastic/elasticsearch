@@ -20,6 +20,7 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
+import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -380,5 +381,35 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public ClearScrollRequestBuilder prepareClearScroll() {
         return new ClearScrollRequestBuilder(this);
+    }
+
+    @Override
+    public void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener) {
+        execute(BenchmarkAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public BenchmarkRequestBuilder prepareBench(String... indices) {
+        return new BenchmarkRequestBuilder(this, indices);
+    }
+
+    @Override
+    public void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener) {
+        execute(AbortBenchmarkAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public AbortBenchmarkRequestBuilder prepareAbortBench(String benchmarkId) {
+        return new AbortBenchmarkRequestBuilder(this).setBenchmarkName(benchmarkId);
+    }
+
+    @Override
+    public void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+        execute(BenchmarkStatusAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public BenchmarkStatusRequestBuilder prepareBenchStatus() {
+        return new BenchmarkStatusRequestBuilder(this);
     }
 }

@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -225,8 +224,9 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         // ip_private is a single IP Address. We need to build a TransportAddress from it
                         TransportAddress[] addresses = transportService.addressesFromString(address);
 
+                        // If user has set `es_port` metadata, we don't need to ping all ports
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
-                        for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
+                        for (int i = 0; i < addresses.length; i++) {
                             logger.trace("adding {}, type {}, image {}, address {}, transport_address {}, status {}", name, type,
                                     image, ip_private, addresses[i], status);
                             cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + i, addresses[i], Version.CURRENT));
@@ -248,11 +248,9 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         return cachedDiscoNodes;
     }
 
-    private boolean checkProperty(String name, String value) {
+    private void checkProperty(String name, String value) {
         if (!Strings.hasText(value)) {
             logger.warn("cloud.gce.{} is not set.", name);
-            return false;
         }
-        return true;
     }
 }

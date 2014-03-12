@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -206,7 +207,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             } else if (parameterName.equals(DecayFunctionBuilder.SCALE)) {
                 scaleString = parser.text();
             } else if (parameterName.equals(DecayFunctionBuilder.ORIGIN)) {
-                origin = GeoPoint.parse(parser);
+                origin = GeoUtils.parseGeoPoint(parser);
             } else if (parameterName.equals(DecayFunctionBuilder.DECAY)) {
                 decay = parser.doubleValue();
             } else if (parameterName.equals(DecayFunctionBuilder.OFFSET)) {

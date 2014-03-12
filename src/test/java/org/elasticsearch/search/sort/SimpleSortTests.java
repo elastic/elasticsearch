@@ -668,10 +668,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                     .field("lvalue", new long[]{i, i + 1, i + 2})
                     .field("dvalue", new double[]{i, i + 1, i + 2})
                     .startObject("gvalue")
-                    .startObject("location")
                     .field("lat", (double) i + 1)
                     .field("lon", (double) i)
-                    .endObject()
                     .endObject()
                     .endObject());
             req.execute().actionGet();

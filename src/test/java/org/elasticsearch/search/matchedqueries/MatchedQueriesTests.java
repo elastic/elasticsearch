@@ -217,7 +217,7 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
         refresh();
 
         // Execute search at least two times to load it in cache
-        int iter = atLeast(2);
+        int iter = scaledRandomIntBetween(2, 10);
         for (int i = 0; i < iter; i++) {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(

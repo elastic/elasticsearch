@@ -65,7 +65,7 @@ public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTes
                 .endObject().endObject();
         assertAcked(builder.addMapping("type", mapping));
         ensureGreen();
-        int numDocs = atLeast(5);
+        int numDocs = scaledRandomIntBetween(5, 50);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "type", "" + 0).setSource("name", "bacon bastards", "not_filtered", "bacon bastards").get();
         }

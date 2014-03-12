@@ -50,13 +50,13 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
-        int iters = atLeast(5);
+        int iters = scaledRandomIntBetween(5, 15);
         for (int i = 0; i < iters; i++) {
             wipeIndices("test");
             assertAcked(prepareCreate("test")
                     .addMapping(mappingType, mapping));
             ensureYellow();
-            int numDocs = atLeast(10);
+            int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<Throwable>();
             int currentID = 0;

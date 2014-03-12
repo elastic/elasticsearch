@@ -45,7 +45,7 @@ public class ByteUtilsTests extends ElasticsearchTestCase {
     }
 
     public void testFloat() throws IOException {
-        final float[] data = new float[atLeast(1000)];
+        final float[] data = new float[scaledRandomIntBetween(1000, 10000)];
         final byte[] encoded = new byte[data.length * 4];
         for (int i = 0; i < data.length; ++i) {
             data[i] = randomFloat();
@@ -57,7 +57,7 @@ public class ByteUtilsTests extends ElasticsearchTestCase {
     }
 
     public void testDouble() throws IOException {
-        final double[] data = new double[atLeast(1000)];
+        final double[] data = new double[scaledRandomIntBetween(1000, 10000)];
         final byte[] encoded = new byte[data.length * 8];
         for (int i = 0; i < data.length; ++i) {
             data[i] = randomDouble();
@@ -69,7 +69,7 @@ public class ByteUtilsTests extends ElasticsearchTestCase {
     }
 
     public void testVLong() throws IOException {
-        final long[] data = new long[atLeast(1000)];
+        final long[] data = new long[scaledRandomIntBetween(1000, 10000)];
         for (int i = 0; i < data.length; ++i) {
             switch (randomInt(4)) {
             case 0:

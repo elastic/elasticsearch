@@ -140,7 +140,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
         logger.info("Refresh failed: [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
                 refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length,
                 refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
-        final int numSearches = atLeast(50);
+        final int numSearches = scaledRandomIntBetween(50, 150);
         NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet();
         for (NodeStats stats : resp.getNodes()) {

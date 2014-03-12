@@ -2091,7 +2091,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
                 .setSource("field1", "The quick brown fox jumps over",
                         "field2", "The quick brown fox jumps over").get();
         refresh();
-        final int iters = atLeast(20);
+        final int iters = scaledRandomIntBetween(20, 30);
         for (int i = 0; i < iters; i++) {
             MultiMatchQueryBuilder.Type matchQueryType = rarely() ? null : RandomPicks.randomFrom(getRandom(), MultiMatchQueryBuilder.Type.values());
             final MultiMatchQueryBuilder multiMatchQueryBuilder = multiMatchQuery("the quick brown fox", "field1", "field2").type(matchQueryType);

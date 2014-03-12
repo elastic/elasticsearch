@@ -310,7 +310,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
         final AtomicBoolean stop = new AtomicBoolean(false);
-        Thread[] writers = new Thread[atLeast(3)];
+        Thread[] writers = new Thread[scaledRandomIntBetween(3, 10)];
         final CountDownLatch stopLatch = new CountDownLatch(writers.length);
         logger.info("--> starting {} indexing threads", writers.length);
         final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();

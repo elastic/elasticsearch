@@ -45,7 +45,7 @@ public class FuzzinessTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFromXContent() throws IOException {
-        final int iters = atLeast(10);
+        final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
             {
                 XContent xcontent = XContentType.JSON.xContent();
@@ -165,7 +165,7 @@ public class FuzzinessTests extends ElasticsearchTestCase {
 
     @Test
     public void testAsDistance() {
-        final int iters = atLeast(10);
+        final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
             Integer integer = Integer.valueOf(randomIntBetween(0, 10));
             String value = "" + (randomBoolean() ? integer.intValue() : integer.floatValue());
@@ -183,7 +183,7 @@ public class FuzzinessTests extends ElasticsearchTestCase {
         assertThat((double) Fuzziness.TWO.asSimilarity("abcefg"), closeTo(0.66f, 0.05));
         assertThat((double) Fuzziness.ONE.asSimilarity("ab"), closeTo(0.5f, 0.05));
 
-        int iters = atLeast(100);
+        int iters = randomIntBetween(100, 1000);
         for (int i = 0; i < iters; i++) {
             Fuzziness fuzziness = Fuzziness.fromEdits(between(1, 2));
             String string = rarely() ? randomRealisticUnicodeOfLengthBetween(2, 4) :

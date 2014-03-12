@@ -128,7 +128,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(TEST_VERSION_CURRENT), null, new StandardAnalyzer(
                 TEST_VERSION_CURRENT), options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
         LineFileDocs docs = new LineFileDocs(getRandom());
-        int num = atLeast(150);
+        int num = scaledRandomIntBetween(150, 300);
         final String[] titles = new String[num];
         final long[] weights = new long[num];
         for (int i = 0; i < titles.length; i++) {

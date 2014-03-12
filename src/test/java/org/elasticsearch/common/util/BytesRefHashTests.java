@@ -94,7 +94,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
     @Test
     public void testSize() {
         BytesRef ref = new BytesRef();
-        int num = atLeast(2);
+        int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
             final int mod = 1+randomInt(40);
             for (int i = 0; i < 797; i++) {
@@ -126,7 +126,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
     public void testGet() {
         BytesRef ref = new BytesRef();
         BytesRef scratch = new BytesRef();
-        int num = atLeast(2);
+        int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
             Map<String, Long> strings = new HashMap<String, Long>();
             int uniqueCount = 0;
@@ -166,7 +166,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
     public void testAdd() {
         BytesRef ref = new BytesRef();
         BytesRef scratch = new BytesRef();
-        int num = atLeast(2);
+        int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
             Set<String> strings = new HashSet<String>();
             int uniqueCount = 0;
@@ -202,7 +202,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
     public void testFind() throws Exception {
         BytesRef ref = new BytesRef();
         BytesRef scratch = new BytesRef();
-        int num = atLeast(2);
+        int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
             Set<String> strings = new HashSet<String>();
             int uniqueCount = 0;

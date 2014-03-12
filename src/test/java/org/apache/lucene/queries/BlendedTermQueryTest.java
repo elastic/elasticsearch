@@ -63,7 +63,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
             d.add(new TextField("surname", surNames[i], Field.Store.NO));
             w.addDocument(d);
         }
-        int iters = atLeast(25);
+        int iters = scaledRandomIntBetween(25, 100);
         for (int j = 0; j < iters; j++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(firstNames.length + j), Field.Store.YES));
@@ -123,7 +123,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
             d.add(new Field("song", song[i], ft));
             w.addDocument(d);
         }
-        int iters = atLeast(25);
+        int iters = scaledRandomIntBetween(25, 100);
         for (int j = 0; j < iters; j++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(username.length + j), Field.Store.YES));
@@ -171,7 +171,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testBasics() {
-        final int iters = atLeast(5);
+        final int iters = scaledRandomIntBetween(5, 25);
         for (int j = 0; j < iters; j++) {
             String[] fields = new String[1 + random().nextInt(10)];
             for (int i = 0; i < fields.length; i++) {
@@ -210,7 +210,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
     @Test
     public void testExtractTerms() {
         Set<Term> terms = new HashSet<Term>();
-        int num = atLeast(1);
+        int num = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
             terms.add(new Term(_TestUtil.randomRealisticUnicodeString(random(), 1, 10), _TestUtil.randomRealisticUnicodeString(random(), 1, 10)));
         }

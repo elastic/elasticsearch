@@ -191,7 +191,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(routingTable.allShards().size()));
         List<DiscoveryNode> nodes = new ArrayList<DiscoveryNode>();
         int nodeIdx = 0;
-        int iters = atLeast(10);
+        int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
             int numNodes = between(1, 20);

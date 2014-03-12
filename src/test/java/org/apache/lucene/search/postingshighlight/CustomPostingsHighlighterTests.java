@@ -451,7 +451,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
         Snippet[] snippets = highlighter.highlightDoc("body", filteredQueryTerms, searcher, docId, 5);
         assertThat(snippets.length, equalTo(0));
 
-        highlighter = new CustomPostingsHighlighter(passageFormatter, values, true, Integer.MAX_VALUE - 1, atLeast(1));
+        highlighter = new CustomPostingsHighlighter(passageFormatter, values, true, Integer.MAX_VALUE - 1, scaledRandomIntBetween(1, 10));
         snippets = highlighter.highlightDoc("body", filteredQueryTerms, searcher, docId, 5);
         assertThat(snippets.length, equalTo(1));
         assertThat(snippets[0].getText(), equalTo("This is a test."));

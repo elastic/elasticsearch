@@ -62,7 +62,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
         // special case, these two are the same instance
         assertThat(currentDefaultAnalyzer, is(currentStandardAnalyzer));
         PreBuiltAnalyzers.DEFAULT.getAnalyzer(Version.V_1_0_0_Beta1);
-        final int n = atLeast(10);
+        final int n = scaledRandomIntBetween(10, 100);
         Version version = Version.CURRENT;
         for(int i = 0; i < n; i++) {
             if (version.equals(Version.V_1_0_0_Beta1)) {
@@ -95,7 +95,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
     public void testAnalyzerChangedIn10RC1() throws IOException {
         Analyzer pattern = PreBuiltAnalyzers.PATTERN.getAnalyzer(Version.V_1_0_0_RC1);
         Analyzer standardHtml = PreBuiltAnalyzers.STANDARD_HTML_STRIP.getAnalyzer(Version.V_1_0_0_RC1);
-        final int n = atLeast(10);
+        final int n = scaledRandomIntBetween(10, 100);
         Version version = Version.CURRENT;
         for(int i = 0; i < n; i++) {
             if (version.equals(Version.V_1_0_0_RC1)) {

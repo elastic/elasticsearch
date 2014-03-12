@@ -37,7 +37,7 @@ public class GroupTreeTests extends ElasticsearchTestCase {
         GroupRedBlackTree tree2 = new GroupRedBlackTree(randomInt(100));
 
         // Add elements
-        final int elements = atLeast(100);
+        final int elements = scaledRandomIntBetween(100, 1000);
         for (int i = 0; i < elements; ++i) {
             final double centroid = randomDouble();
             final int count = randomIntBetween(1, 5);

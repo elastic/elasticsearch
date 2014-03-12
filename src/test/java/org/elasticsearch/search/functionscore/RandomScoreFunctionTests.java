@@ -41,17 +41,17 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
     public void consistentHitsWithSameSeed() throws Exception {
         createIndex("test");
         ensureGreen(); // make sure we are done otherwise preference could change?
-        int docCount = atLeast(100);
+        int docCount = randomIntBetween(100, 200);
         for (int i = 0; i < docCount; i++) {
             index("test", "type", "" + i, jsonBuilder().startObject().endObject());
         }
         flush();
         refresh();
-        int outerIters = atLeast(10);
+        int outerIters = scaledRandomIntBetween(10, 20);
         for (int o = 0; o < outerIters; o++) {
             final long seed = randomLong();
             final String preference = randomRealisticUnicodeOfLengthBetween(1, 10); // at least one char!!
-            int innerIters = atLeast(2);
+            int innerIters = scaledRandomIntBetween(2, 5);
             SearchHits hits = null;
             for (int i = 0; i < innerIters; i++) {
                 SearchResponse searchResponse = client().prepareSearch()

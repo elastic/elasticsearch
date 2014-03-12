@@ -152,11 +152,11 @@ has several values within the corpus.
 
 |`doc['field_name'].lons` |The longitudes of a geo point type.
 
-|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in miles)
+|`doc['field_name'].distance(lat, lon)` |The `plane` distance (in meters)
 of this geo point field from the provided lat/lon.
 
 |`doc['field_name'].arcDistance(lat, lon)` |The `arc` distance (in
-miles) of this geo point field from the provided lat/lon.
+meters) of this geo point field from the provided lat/lon.
 
 |`doc['field_name'].distanceInKm(lat, lon)` |The `plane` distance (in
 km) of this geo point field from the provided lat/lon.
@@ -164,11 +164,14 @@ km) of this geo point field from the provided lat/lon.
 |`doc['field_name'].arcDistanceInKm(lat, lon)` |The `arc` distance (in
 km) of this geo point field from the provided lat/lon.
 
-|`doc['field_name'].geohashDistance(geohash)` |The distance (in miles)
+|`doc['field_name'].geohashDistance(geohash)` |The `arc` distance (in meters)
 of this geo point field from the provided geohash.
 
-|`doc['field_name'].geohashDistanceInKm(geohash)` |The distance (in km)
+|`doc['field_name'].geohashDistanceInKm(geohash)` |The `arc` distance (in km)
 of this geo point field from the provided geohash.
+
+|`doc['field_name'].geohashDistanceInMiles(geohash)` |The `arc` distance (in
+miles) of this geo point field from the provided geohash.
 |=======================================================================
 
 [float]

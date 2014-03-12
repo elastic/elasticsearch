@@ -362,4 +362,16 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
     }
+
+    /**
+     * Returns a random value greater or equal to <code>min</code>. The value
+     * picked is affected by {@link #isNightly()} and {@link #multiplier()}.
+     * The upper bound is calculated based on <code>min</code>: <code>min + (min / 2)</code>
+     *
+     * @see #scaledRandomIntBetween(int, int)
+     */
+    public static int atLeast(int min) {
+        if (min < 0) throw new IllegalArgumentException("atLeast requires non-negative argument: " + min);
+        return scaledRandomIntBetween(min, (int)Math.min(Integer.MAX_VALUE, (long)min + (min / 2)));
+    }
 }

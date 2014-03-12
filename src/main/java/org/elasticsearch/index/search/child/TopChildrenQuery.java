@@ -90,8 +90,8 @@ public class TopChildrenQuery extends Query {
     }
 
     // Rewrite invocation logic:
-    // 1) query_then_fetch (default): Rewrite is execute as part of the createWeight invocation, when search child docs.
-    // 2) dfs_query_then_fetch:: First rewrite and then createWeight is executed. During query phase rewrite isn't
+    // 1) query_then|and_fetch (default): Rewrite is execute as part of the createWeight invocation, when search child docs.
+    // 2) dfs_query_then|and_fetch:: First rewrite and then createWeight is executed. During query phase rewrite isn't
     // executed any more because searchContext#queryRewritten() returns true.
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
@@ -127,7 +127,7 @@ public class TopChildrenQuery extends Query {
         if (rewrittenChildQuery == null) {
             childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
         } else {
-            assert rewriteIndexReader == searcher.getIndexReader();
+            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
             childQuery = rewrittenChildQuery;
         }
 

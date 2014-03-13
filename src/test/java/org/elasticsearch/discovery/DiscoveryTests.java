@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +40,11 @@ public class DiscoveryTests extends ElasticsearchIntegrationTest {
     }
     
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "Proposed fix: Each node maintains a list of endpoints that have pinged it " +
+            "(UnicastZenPing#temporalResponses), a node will remove entries that are old. We can use this list to extend " +
+            "'discovery.zen.ping.unicast.hosts' list of nodes to ping. If we do this then in the test both nodes will ping each " +
+            "other, like in solution 1. The upside compared to solution 1, is that it won't go and ping 100 endpoints (based on the default port range), " +
+            "just other nodes that have pinged it in addition to the already configured nodes in the 'discovery.zen.ping.unicast.hosts' list.")
     public void testUnicastDiscovery() {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));

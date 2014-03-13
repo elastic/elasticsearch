@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.SearchStats.Stats;
@@ -37,7 +38,10 @@ import org.junit.Test;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
@@ -55,29 +59,37 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     public void testSimpleStats() throws Exception {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();
-        createIndex("test1");
-        int docsTest1 = atLeast(20);
+        final int numNodes = cluster().dataNodes();
+        assertThat(numNodes, greaterThanOrEqualTo(2));
+        final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
+        final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
+        assertThat(numNodes, lessThanOrEqualTo(shardsIdx1 + shardsIdx2));
+        assertAcked(prepareCreate("test1").setSettings(ImmutableSettings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        int docsTest1 = scaledRandomIntBetween(3*shardsIdx1, 5*shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             if (rarely()) {
                 refresh();
             }
         }
-        createIndex("test2");
-        int docsTest2 = atLeast(20);
+        assertAcked(prepareCreate("test2").setSettings(ImmutableSettings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        int docsTest2 = scaledRandomIntBetween(3*shardsIdx2, 5*shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
             client().prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             if (rarely()) {
                 refresh();
             }
         }
-        cluster().ensureAtMostNumNodes(numAssignedShards("test1", "test2"));
-        assertThat(cluster().size(), greaterThanOrEqualTo(2));
+        assertThat(shardsIdx1+shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         // THERE WILL BE AT LEAST 2 NODES HERE SO WE CAN WAIT FOR GREEN
         ensureGreen();
         refresh();
-        int iters = atLeast(20);
+        int iters = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < iters; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
             assertHitCount(searchResponse, docsTest1 + docsTest2);
@@ -135,7 +147,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testOpenContexts() {
         createIndex("test1");
-        final int docs = atLeast(20);
+        final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }

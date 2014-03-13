@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.primitives.Longs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -109,12 +108,12 @@ public class LongTerms extends InternalTerms {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries(reduceContext.cacheRecycler());
+            terms.trimExcessEntries(reduceContext.bigArrays());
             return terms;
         }
         InternalTerms reduced = null;
 
-        Recycler.V<LongObjectOpenHashMap<List<Bucket>>> buckets = null;
+        LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
             if (terms instanceof UnmappedTerms) {
@@ -124,13 +123,13 @@ public class LongTerms extends InternalTerms {
                 reduced = terms;
             }
             if (buckets == null) {
-                buckets = reduceContext.cacheRecycler().longObjectMap(terms.buckets.size());
+                buckets = new LongObjectPagedHashMap<List<Bucket>>(terms.buckets.size(), reduceContext.bigArrays());
             }
             for (Terms.Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.v().get(((Bucket) bucket).term);
+                List<Bucket> existingBuckets = buckets.get(((Bucket) bucket).term);
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<Bucket>(aggregations.size());
-                    buckets.v().put(((Bucket) bucket).term, existingBuckets);
+                    buckets.put(((Bucket) bucket).term, existingBuckets);
                 }
                 existingBuckets.add((Bucket) bucket);
             }
@@ -142,17 +141,13 @@ public class LongTerms extends InternalTerms {
         }
 
         // TODO: would it be better to sort the backing array buffer of the hppc map directly instead of using a PQ?
-        final int size = Math.min(requiredSize, buckets.v().size());
+        final int size = (int) Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        Object[] internalBuckets = buckets.v().values;
-        boolean[] states = buckets.v().allocated;
-        for (int i = 0; i < states.length; i++) {
-            if (states[i]) {
-                List<LongTerms.Bucket> sameTermBuckets = (List<LongTerms.Bucket>) internalBuckets[i];
-                final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
-                if (b.getDocCount() >= minDocCount) {
-                    ordered.insertWithOverflow(b);
-                }
+        for (LongObjectPagedHashMap.Cursor<List<LongTerms.Bucket>> cursor : buckets) {
+            List<LongTerms.Bucket> sameTermBuckets = cursor.value;
+            final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            if (b.getDocCount() >= minDocCount) {
+                ordered.insertWithOverflow(b);
             }
         }
         buckets.release();

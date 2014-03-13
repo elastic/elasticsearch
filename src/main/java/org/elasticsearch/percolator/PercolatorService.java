@@ -871,7 +871,7 @@ public class PercolatorService extends AbstractComponent {
         for (PercolateShardResponse shardResult : shardResults) {
             aggregationsList.add(shardResult.aggregations());
         }
-        return InternalAggregations.reduce(aggregationsList, cacheRecycler);
+        return InternalAggregations.reduce(aggregationsList, bigArrays);
     }
 
 }

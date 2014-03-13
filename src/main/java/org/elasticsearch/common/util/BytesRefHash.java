@@ -28,6 +28,7 @@ import org.elasticsearch.common.lease.Releasables;
  *  BytesRef values to ids. Collisions are resolved with open addressing and linear
  *  probing, growth is smooth thanks to {@link BigArrays}, hashes are cached for faster
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
+ *  This class is not thread-safe.
  */
 public final class BytesRefHash extends AbstractHash {
 
@@ -150,7 +151,9 @@ public final class BytesRefHash extends AbstractHash {
     }
 
     @Override
-    protected void removeAndAdd(long index, long id) {
+    protected void removeAndAdd(long index) {
+        final long id = id(index, -1);
+        assert id >= 0;
         final int code = hashes.get(id);
         reset(code, id);
     }

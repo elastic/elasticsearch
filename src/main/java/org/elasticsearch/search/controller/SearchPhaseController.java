@@ -26,10 +26,11 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cache.recycler.CacheRecycler;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -67,12 +68,14 @@ public class SearchPhaseController extends AbstractComponent {
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final CacheRecycler cacheRecycler;
+    private final BigArrays bigArrays;
     private final boolean optimizeSingleShard;
 
     @Inject
-    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler) {
+    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler, BigArrays bigArrays) {
         super(settings);
         this.cacheRecycler = cacheRecycler;
+        this.bigArrays = bigArrays;
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
     }
 
@@ -431,7 +434,7 @@ public class SearchPhaseController extends AbstractComponent {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
-                aggregations = InternalAggregations.reduce(aggregationsList, cacheRecycler);
+                aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
             }
         }
 

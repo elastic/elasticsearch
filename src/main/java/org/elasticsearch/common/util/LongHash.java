@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.hash.MurmurHash3;
 import org.elasticsearch.common.lease.Releasables;
 
 /**
@@ -42,12 +41,6 @@ public final class LongHash extends AbstractHash {
     public LongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         keys = bigArrays.newLongArray(capacity(), false);
-    }
-
-    private static long hash(long value) {
-        // Don't use the value directly. Under some cases eg dates, it could be that the low bits don't carry much value and we would like
-        // all bits of the hash to carry as much value
-        return MurmurHash3.hash(value);
     }
 
     /**
@@ -114,12 +107,15 @@ public final class LongHash extends AbstractHash {
     }
 
     @Override
-    protected void resizeKeys(long capacity) {
+    protected void resize(long capacity) {
+        super.resize(capacity);
         keys = bigArrays.resize(keys, capacity);
     }
 
     @Override
-    protected void removeAndAdd(long index, long id) {
+    protected void removeAndAdd(long index) {
+        final long id = id(index, -1);
+        assert id >= 0;
         final long key = keys.set(index, 0);
         reset(key, id);
     }

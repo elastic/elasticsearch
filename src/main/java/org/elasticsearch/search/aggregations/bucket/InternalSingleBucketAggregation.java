@@ -66,7 +66,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalSingleBucketAggregation reduced = ((InternalSingleBucketAggregation) aggregations.get(0));
-            reduced.aggregations.reduce(reduceContext.cacheRecycler());
+            reduced.aggregations.reduce(reduceContext.bigArrays());
             return reduced;
         }
         InternalSingleBucketAggregation reduced = null;
@@ -79,7 +79,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             }
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).aggregations);
         }
-        reduced.aggregations = InternalAggregations.reduce(subAggregationsList, reduceContext.cacheRecycler());
+        reduced.aggregations = InternalAggregations.reduce(subAggregationsList, reduceContext.bigArrays());
         return reduced;
     }
 

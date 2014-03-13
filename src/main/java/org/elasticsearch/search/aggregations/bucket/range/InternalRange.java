@@ -19,11 +19,11 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -109,11 +109,11 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return aggregations;
         }
 
-        Bucket reduce(List<Bucket> ranges, CacheRecycler cacheRecycler) {
+        Bucket reduce(List<Bucket> ranges, BigArrays bigArrays) {
             if (ranges.size() == 1) {
                 // we stil need to call reduce on all the sub aggregations
                 Bucket bucket = ranges.get(0);
-                bucket.aggregations.reduce(cacheRecycler);
+                bucket.aggregations.reduce(bigArrays);
                 return bucket;
             }
             Bucket reduced = null;
@@ -126,7 +126,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
                 }
                 aggregationsList.add(range.aggregations);
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, cacheRecycler);
+            reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
             return reduced;
         }
 
@@ -226,7 +226,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         if (aggregations.size() == 1) {
             InternalRange<B> reduced = (InternalRange<B>) aggregations.get(0);
             for (B bucket : reduced.ranges) {
-                bucket.aggregations.reduce(reduceContext.cacheRecycler());
+                bucket.aggregations.reduce(reduceContext.bigArrays());
             }
             return reduced;
         }
@@ -259,7 +259,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         InternalRange reduced = (InternalRange) aggregations.get(0);
         int i = 0;
         for (List<Bucket> sameRangeList : rangesList) {
-            reduced.ranges.set(i++, (sameRangeList.get(0)).reduce(sameRangeList, reduceContext.cacheRecycler()));
+            reduced.ranges.set(i++, (sameRangeList.get(0)).reduce(sameRangeList, reduceContext.bigArrays()));
         }
         return reduced;
     }

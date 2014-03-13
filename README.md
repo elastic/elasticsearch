@@ -131,7 +131,7 @@ for more information.
 You will need to choose the operating system you want to run on. To get a list of official available images, run:
 
 ```sh
-azure vm list
+azure vm image list
 ```
 
 Let's say we are going to deploy an Ubuntu image on an extra small instance in West Europe:

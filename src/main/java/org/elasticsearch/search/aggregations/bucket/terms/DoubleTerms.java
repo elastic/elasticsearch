@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.carrotsearch.hppc.DoubleObjectOpenHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.DoubleObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -112,12 +111,12 @@ public class DoubleTerms extends InternalTerms {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries(reduceContext.cacheRecycler());
+            terms.trimExcessEntries(reduceContext.bigArrays());
             return terms;
         }
         InternalTerms reduced = null;
 
-        Recycler.V<DoubleObjectOpenHashMap<List<Bucket>>> buckets = null;
+        DoubleObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
             if (terms instanceof UnmappedTerms) {
@@ -127,13 +126,13 @@ public class DoubleTerms extends InternalTerms {
                 reduced = terms;
             }
             if (buckets == null) {
-                buckets = reduceContext.cacheRecycler().doubleObjectMap(terms.buckets.size());
+                buckets = new DoubleObjectPagedHashMap<List<Bucket>>(terms.buckets.size(), reduceContext.bigArrays());
             }
             for (Terms.Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.v().get(((Bucket) bucket).term);
+                List<Bucket> existingBuckets = buckets.get(((Bucket) bucket).term);
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<Bucket>(aggregations.size());
-                    buckets.v().put(((Bucket) bucket).term, existingBuckets);
+                    buckets.put(((Bucket) bucket).term, existingBuckets);
                 }
                 existingBuckets.add((Bucket) bucket);
             }
@@ -145,17 +144,13 @@ public class DoubleTerms extends InternalTerms {
         }
 
         // TODO: would it be better to sort the backing array buffer of hppc map directly instead of using a PQ?
-        final int size = Math.min(requiredSize, buckets.v().size());
+        final int size = (int) Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        boolean[] states = buckets.v().allocated;
-        Object[] internalBuckets = buckets.v().values;
-        for (int i = 0; i < states.length; i++) {
-            if (states[i]) {
-                List<DoubleTerms.Bucket> sameTermBuckets = (List<DoubleTerms.Bucket>) internalBuckets[i];
-                final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.cacheRecycler());
-                if (b.getDocCount() >= minDocCount) {
-                    ordered.insertWithOverflow(b);
-                }
+        for (DoubleObjectPagedHashMap.Cursor<List<DoubleTerms.Bucket>> cursor : buckets) {
+            List<DoubleTerms.Bucket> sameTermBuckets = cursor.value;
+            final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            if (b.getDocCount() >= minDocCount) {
+                ordered.insertWithOverflow(b);
             }
         }
         buckets.release();

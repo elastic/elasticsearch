@@ -21,16 +21,18 @@ package org.elasticsearch.common.network;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 
+import java.io.Closeable;
 import java.net.*;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 
@@ -38,7 +40,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * A multicast channel that supports registering for receive events, and sending datagram packets. Allows
  * to easily share the same multicast socket if it holds the same config.
  */
-public abstract class MulticastChannel {
+public abstract class MulticastChannel implements Closeable {
 
     /**
      * Builds a channel based on the provided config, allowing to control if sharing a channel that uses
@@ -128,6 +130,7 @@ public abstract class MulticastChannel {
     }
 
     protected final Listener listener;
+    private AtomicBoolean closed = new AtomicBoolean();
 
     protected MulticastChannel(Listener listener) {
         this.listener = listener;
@@ -142,7 +145,9 @@ public abstract class MulticastChannel {
      * Close the channel.
      */
     public void close() {
-        close(listener);
+        if (closed.compareAndSet(false, true)) {
+            close(listener);
+        }
     }
 
     protected abstract void close(Listener listener);
@@ -152,7 +157,7 @@ public abstract class MulticastChannel {
      * channel once their reference count has reached 0. It also handles de-registering relevant
      * listener from the shared list of listeners.
      */
-    static class Shared extends MulticastChannel {
+    private static class Shared extends MulticastChannel {
 
         private static final Map<Config, Shared> sharedChannels = Maps.newHashMap();
         private static final Object mutex = new Object();
@@ -168,7 +173,6 @@ public abstract class MulticastChannel {
                 MultiListener multiListener = new MultiListener();
                 multiListener.add(listener);
                 shared = new Shared(multiListener, new Plain(multiListener, "#shared#", config));
-                shared.refCount = 1;
                 sharedChannels.put(config, shared);
                 return shared;
             }
@@ -179,8 +183,9 @@ public abstract class MulticastChannel {
                 // remove this
                 boolean removed = ((MultiListener) shared.listener).remove(listener);
                 assert removed : "a listener should be removed";
-                if (--shared.refCount == 0) {
-                    // we need to really close it
+                int refCount = --shared.refCount;
+                assert refCount >= 0 : "illegal ref counting, close called multiple times";
+                if (refCount == 0) {
                     sharedChannels.remove(shared.channel.getConfig());
                     shared.channel.close();
                 }
@@ -188,9 +193,9 @@ public abstract class MulticastChannel {
         }
 
         final Plain channel;
-        int refCount;
+        int refCount = 1;
 
-        Shared(Listener listener, Plain channel) {
+        Shared(MultiListener listener, Plain channel) {
             super(listener);
             this.channel = channel;
         }
@@ -210,10 +215,9 @@ public abstract class MulticastChannel {
      * A light weight delegate that wraps another channel, mainly to support delegating
      * the close method with the provided listener and not holding existing listener.
      */
-    static class Delegate extends MulticastChannel {
+    private static class Delegate extends MulticastChannel {
 
         private final MulticastChannel channel;
-        private boolean closed;
 
         Delegate(Listener listener, MulticastChannel channel) {
             super(listener);
@@ -221,19 +225,12 @@ public abstract class MulticastChannel {
         }
 
         @Override
-        public synchronized void send(BytesReference data) throws Exception {
-            if (closed) {
-                throw new ElasticsearchIllegalStateException("channel is closed");
-            }
+        public void send(BytesReference data) throws Exception {
             channel.send(data);
         }
 
         @Override
-        protected synchronized void close(Listener listener) {
-            if (closed) {
-                return;
-            }
-            closed = true;
+        protected void close(Listener listener) {
             channel.close(listener); // we delegate here to the close with our listener, not with the delegate listener
         }
     }
@@ -241,7 +238,7 @@ public abstract class MulticastChannel {
     /**
      * Simple implementation of a channel.
      */
-    static class Plain extends MulticastChannel {
+    private static class Plain extends MulticastChannel {
         private final ESLogger logger;
         private final Config config;
 
@@ -277,7 +274,7 @@ public abstract class MulticastChannel {
                 multicastSocket.setReceiveBufferSize(config.bufferSize);
                 multicastSocket.setSendBufferSize(config.bufferSize);
                 multicastSocket.setSoTimeout(60000);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 IOUtils.closeWhileHandlingException(multicastSocket);
                 throw e;
             }
@@ -297,12 +294,8 @@ public abstract class MulticastChannel {
 
         @Override
         protected void close(Listener listener) {
-            if (receiver != null) {
-                receiver.stop();
-            }
-            if (receiverThread != null) {
-                receiverThread.interrupt();
-            }
+            receiver.stop();
+            receiverThread.interrupt();
             if (multicastSocket != null) {
                 IOUtils.closeWhileHandlingException(multicastSocket);
                 multicastSocket = null;

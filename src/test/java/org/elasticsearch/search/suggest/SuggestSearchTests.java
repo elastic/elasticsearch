@@ -410,9 +410,12 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     
     @Test // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws ElasticsearchException, IOException {
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=string,analyzer=stopwd").setSettings(
+                settingsBuilder()
+                        .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
+                        .putArray("index.analysis.analyzer.stopwd.filter", "stop")
+        ));
         ensureGreen();
-
         index("test", "typ1", "1", "body", "this is a test");
         refresh();
 

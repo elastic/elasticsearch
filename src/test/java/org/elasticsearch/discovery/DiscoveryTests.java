@@ -34,8 +34,8 @@ public class DiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put("discovery.zen.multicast.enabled", false)
-                .put("discovery.zen.unicast.hosts", "localhost").put(super.nodeSettings(nodeOrdinal)).build();
+        return ImmutableSettings.settingsBuilder().put("discovery.zen.ping.multicast.enabled", false)
+                .put("discovery.zen.ping.unicast.hosts", "localhost").put(super.nodeSettings(nodeOrdinal)).build();
     }
     
     @Test

@@ -18,16 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -106,11 +105,11 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             return 0;
         }
 
-        public Bucket reduce(List<? extends Bucket> buckets, CacheRecycler cacheRecycler) {
+        public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
             if (buckets.size() == 1) {
                 // we still need to reduce the sub aggs
                 Bucket bucket = buckets.get(0);
-                bucket.aggregations.reduce(cacheRecycler);
+                bucket.aggregations.reduce(bigArrays);
                 return bucket;
             }
             Bucket reduced = null;
@@ -123,7 +122,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
                 }
                 aggregationsList.add(bucket.aggregations);
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, cacheRecycler);
+            reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
             return reduced;
         }
 
@@ -184,25 +183,25 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         if (aggregations.size() == 1) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregations.get(0);
-            grid.reduceAndTrimBuckets(reduceContext.cacheRecycler());
+            grid.reduceAndTrimBuckets(reduceContext.bigArrays());
             return grid;
         }
         InternalGeoHashGrid reduced = null;
 
-        Recycler.V<LongObjectOpenHashMap<List<Bucket>>> buckets = null;
+        LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregation;
             if (reduced == null) {
                 reduced = grid;
             }
             if (buckets == null) {
-                buckets = reduceContext.cacheRecycler().longObjectMap(grid.buckets.size());
+                buckets = new LongObjectPagedHashMap<List<Bucket>>(grid.buckets.size(), reduceContext.bigArrays());
             }
             for (Bucket bucket : grid.buckets) {
-                List<Bucket> existingBuckets = buckets.v().get(bucket.geohashAsLong);
+                List<Bucket> existingBuckets = buckets.get(bucket.geohashAsLong);
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<Bucket>(aggregations.size());
-                    buckets.v().put(bucket.geohashAsLong, existingBuckets);
+                    buckets.put(bucket.geohashAsLong, existingBuckets);
                 }
                 existingBuckets.add(bucket);
             }
@@ -214,15 +213,11 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
 
         // TODO: would it be better to sort the backing array buffer of the hppc map directly instead of using a PQ?
-        final int size = Math.min(requiredSize, buckets.v().size());
+        final int size = (int) Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
-        Object[] internalBuckets = buckets.v().values;
-        boolean[] states = buckets.v().allocated;
-        for (int i = 0; i < states.length; i++) {
-            if (states[i]) {
-                List<Bucket> sameCellBuckets = (List<Bucket>) internalBuckets[i];
-                ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext.cacheRecycler()));
-            }
+        for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
+            List<Bucket> sameCellBuckets = cursor.value;
+            ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext.bigArrays()));
         }
         buckets.release();
         Bucket[] list = new Bucket[ordered.size()];
@@ -233,11 +228,11 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         return reduced;
     }
 
-    protected void reduceAndTrimBuckets(CacheRecycler cacheRecycler) {
+    protected void reduceAndTrimBuckets(BigArrays bigArrays) {
 
         if (requiredSize > buckets.size()) { // nothing to trim
             for (Bucket bucket : buckets) {
-                bucket.aggregations.reduce(cacheRecycler);
+                bucket.aggregations.reduce(bigArrays);
             }
             return;
         }
@@ -247,7 +242,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             if (trimmedBuckets.size() >= requiredSize) {
                 break;
             }
-            bucket.aggregations.reduce(cacheRecycler);
+            bucket.aggregations.reduce(bigArrays);
             trimmedBuckets.add(bucket);
         }
         buckets = trimmedBuckets;

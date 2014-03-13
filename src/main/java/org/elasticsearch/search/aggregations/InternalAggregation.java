@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
@@ -79,19 +79,19 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     protected static class ReduceContext {
 
         private final List<InternalAggregation> aggregations;
-        private final CacheRecycler cacheRecycler;
+        private final BigArrays bigArrays;
 
-        public ReduceContext(List<InternalAggregation> aggregations, CacheRecycler cacheRecycler) {
+        public ReduceContext(List<InternalAggregation> aggregations, BigArrays bigArrays) {
             this.aggregations = aggregations;
-            this.cacheRecycler = cacheRecycler;
+            this.bigArrays = bigArrays;
         }
 
         public List<InternalAggregation> aggregations() {
             return aggregations;
         }
 
-        public CacheRecycler cacheRecycler() {
-            return cacheRecycler;
+        public BigArrays bigArrays() {
+            return bigArrays;
         }
     }
 

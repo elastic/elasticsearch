@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -100,11 +100,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return aggregations;
         }
 
-        <B extends Bucket> B reduce(List<B> buckets, CacheRecycler cacheRecycler) {
+        <B extends Bucket> B reduce(List<B> buckets, BigArrays bigArrays) {
             if (buckets.size() == 1) {
                 // we only need to reduce the sub aggregations
                 Bucket bucket = buckets.get(0);
-                bucket.aggregations.reduce(cacheRecycler);
+                bucket.aggregations.reduce(bigArrays);
                 return (B) bucket;
             }
             List<InternalAggregations> aggregations = new ArrayList<InternalAggregations>(buckets.size());
@@ -117,7 +117,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 }
                 aggregations.add((InternalAggregations) bucket.getAggregations());
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregations, cacheRecycler);
+            reduced.aggregations = InternalAggregations.reduce(aggregations, bigArrays);
             return (B) reduced;
         }
     }
@@ -217,7 +217,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
             if (minDocCount == 1) {
                 for (B bucket : histo.buckets) {
-                    bucket.aggregations.reduce(reduceContext.cacheRecycler());
+                    bucket.aggregations.reduce(reduceContext.bigArrays());
                 }
                 return histo;
             }
@@ -233,7 +233,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     // look ahead on the next bucket without advancing the iter
                     // so we'll be able to insert elements at the right position
                     B nextBucket = list.get(iter.nextIndex());
-                    nextBucket.aggregations.reduce(reduceContext.cacheRecycler());
+                    nextBucket.aggregations.reduce(reduceContext.bigArrays());
                     if (prevBucket != null) {
                         long key = emptyBucketInfo.rounding.nextRoundingValue(prevBucket.key);
                         while (key != nextBucket.key) {
@@ -249,7 +249,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     if (bucket.getDocCount() < minDocCount) {
                         iter.remove();
                     } else {
-                        bucket.aggregations.reduce(reduceContext.cacheRecycler());
+                        bucket.aggregations.reduce(reduceContext.bigArrays());
                     }
                 }
             }
@@ -263,28 +263,25 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         InternalHistogram reduced = (InternalHistogram) aggregations.get(0);
 
-        Recycler.V<LongObjectOpenHashMap<List<Histogram.Bucket>>> bucketsByKey = reduceContext.cacheRecycler().longObjectMap(-1);
+        LongObjectPagedHashMap<List<B>> bucketsByKey = new LongObjectPagedHashMap<List<B>>(reduceContext.bigArrays());
         for (InternalAggregation aggregation : aggregations) {
             InternalHistogram<B> histogram = (InternalHistogram) aggregation;
             for (B bucket : histogram.buckets) {
-                List<Histogram.Bucket> bucketList = bucketsByKey.v().get(bucket.key);
+                List<B> bucketList = bucketsByKey.get(bucket.key);
                 if (bucketList == null) {
-                    bucketList = new ArrayList<Histogram.Bucket>(aggregations.size());
-                    bucketsByKey.v().put(bucket.key, bucketList);
+                    bucketList = new ArrayList<B>(aggregations.size());
+                    bucketsByKey.put(bucket.key, bucketList);
                 }
                 bucketList.add(bucket);
             }
         }
 
-        List<B> reducedBuckets = new ArrayList<B>(bucketsByKey.v().size());
-        Object[] buckets = bucketsByKey.v().values;
-        boolean[] allocated = bucketsByKey.v().allocated;
-        for (int i = 0; i < allocated.length; i++) {
-            if (allocated[i]) {
-                B bucket = ((List<B>) buckets[i]).get(0).reduce(((List<B>) buckets[i]), reduceContext.cacheRecycler());
-                if (bucket.getDocCount() >= minDocCount) {
-                    reducedBuckets.add(bucket);
-                }
+        List<B> reducedBuckets = new ArrayList<B>((int) bucketsByKey.size());
+        for (LongObjectPagedHashMap.Cursor<List<B>> cursor : bucketsByKey) {
+            List<B> sameTermBuckets = cursor.value;
+            B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            if (bucket.getDocCount() >= minDocCount) {
+                reducedBuckets.add(bucket);
             }
         }
         bucketsByKey.release();

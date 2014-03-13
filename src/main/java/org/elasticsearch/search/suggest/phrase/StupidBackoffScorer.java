@@ -54,18 +54,18 @@ public class StupidBackoffScorer extends WordScorer {
 
     @Override
     protected double scoreTrigram(Candidate w, Candidate w_1, Candidate w_2) throws IOException {
-        SuggestUtils.join(separator, spare, w_2.term, w_1.term, w.term);
-        final long trigramCount = frequency(spare);
-        if (trigramCount < 1) {
-            SuggestUtils.join(separator, spare, w_1.term, w.term);
-            final long count = frequency(spare);
-            if (count < 1) {
-                return discount * scoreUnigram(w);
-            }
-            return discount * (count / (w_1.frequency + 0.00000000001d));
-        }
+        // First see if there are bigrams.  If there aren't then skip looking up the trigram.  This saves lookups
+        // when the bigrams and trigrams are rare and we need both anyway.
         SuggestUtils.join(separator, spare, w_1.term, w.term);
-        final long bigramCount = frequency(spare);
+        long bigramCount = frequency(spare);
+        if (bigramCount < 1) {
+            return discount * scoreUnigram(w);
+        }
+        SuggestUtils.join(separator, spare, w_2.term, w_1.term, w.term);
+        long trigramCount = frequency(spare);
+        if (trigramCount < 1) {
+            return discount * (bigramCount / (w_1.frequency + 0.00000000001d));
+        }
         return trigramCount / (bigramCount + 0.00000000001d);
     }
 

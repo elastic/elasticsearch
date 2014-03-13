@@ -20,11 +20,13 @@
 package org.elasticsearch.search.suggest;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -929,6 +931,156 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .maxErrors(5f)
                 .size(1));
         assertSuggestion(searchSuggest, 0, 0, "simple_phrase", "nobel prize");
+    }
+
+    /**
+     * If the suggester finds tons of options then picking the right one is slow without <<<INSERT SOLUTION HERE>>>.
+     */
+    @Test
+    public void suggestWithManyCandidates() throws InterruptedException, ExecutionException, IOException {
+        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
+                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
+                .put("index.analysis.analyzer.text.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
+                .put("index.analysis.filter.my_shingle.type", "shingle")
+                .put("index.analysis.filter.my_shingle.output_unigrams", true)
+                .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
+                .put("index.analysis.filter.my_shingle.max_shingle_size", 3));
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("properties")
+                            .startObject("title")
+                                .field("type", "string")
+                                .field("analyzer", "text")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+        assertAcked(builder.addMapping("type1", mapping));
+        ensureGreen();
+
+        ImmutableList.Builder<String> titles = ImmutableList.<String>builder();
+
+        // We're going to be searching for:
+        //   united states house of representatives elections in washington 2006
+        // But we need to make sure we generate a ton of suggestions so we add a bunch of candidates.
+        // Many of these candidates are drawn from page names on English Wikipedia.
+
+        // Tons of different options very near the exact query term
+        titles.add("United States House of Representatives Elections in Washington 1789");
+        for (int year = 1790; year < 2014; year+= 2) {
+            titles.add("United States House of Representatives Elections in Washington " + year);
+        }
+        // Six of these are near enough to be viable suggestions, just not the top one
+
+        // But we can't stop there!  Titles that are just a year are pretty common so lets just add one per year
+        // since 0.  Why not?
+        for (int year = 0; year < 2015; year++) {
+            titles.add(Integer.toString(year));
+        }
+        // That ought to provide more less good candidates for the last term
+
+        // Now remove or add plural copies of every term we can
+        titles.add("State");
+        titles.add("Houses of Parliament");
+        titles.add("Representative Government");
+        titles.add("Election");
+
+        // Now some possessive
+        titles.add("Washington's Birthday");
+
+        // And some conjugation
+        titles.add("Unified Modeling Language");
+        titles.add("Unite Against Fascism");
+        titles.add("Stated Income Tax");
+        titles.add("Media organizations housed within colleges");
+
+        // And other stuff
+        titles.add("Untied shoelaces");
+        titles.add("Unit circle");
+        titles.add("Untitled");
+        titles.add("Unicef");
+        titles.add("Unrated");
+        titles.add("UniRed");
+        titles.add("Jalan Uniten–Dengkil"); // Highway in Malaysia
+        titles.add("UNITAS");
+        titles.add("UNITER");
+        titles.add("Un-Led-Ed");
+        titles.add("STATS LLC");
+        titles.add("Staples");
+        titles.add("Skates");
+        titles.add("Statues of the Liberators");
+        titles.add("Staten Island");
+        titles.add("Statens Museum for Kunst");
+        titles.add("Hause"); // The last name or the German word, whichever.
+        titles.add("Hose");
+        titles.add("Hoses");
+        titles.add("Howse Peak");
+        titles.add("The Hoose-Gow");
+        titles.add("Hooser");
+        titles.add("Electron");
+        titles.add("Electors");
+        titles.add("Evictions");
+        titles.add("Coronal mass ejection");
+        titles.add("Wasington"); // A film?
+        titles.add("Warrington"); // A town in England
+        titles.add("Waddington"); // Lots of places have this name
+        titles.add("Watlington"); // Ditto
+        titles.add("Waplington"); // Yup, also a town
+        titles.add("Washing of the Spears"); // Book
+
+        for (char c = 'A'; c <= 'Z'; c++) {
+            // Can't forget lists, glorious lists!
+            titles.add("List of former members of the United States House of Representatives (" + c + ")");
+
+            // Lots of people are named Washington <Middle Initial>. LastName
+            titles.add("Washington " + c + ". Lastname");
+
+            // Lets just add some more to be evil
+            titles.add("United " + c);
+            titles.add("States " + c);
+            titles.add("House " + c);
+            titles.add("Elections " + c);
+            titles.add("2006 " + c);
+            titles.add(c + " United");
+            titles.add(c + " States");
+            titles.add(c + " House");
+            titles.add(c + " Elections");
+            titles.add(c + " 2006");
+        }
+
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        for (String title: titles.build()) {
+            builders.add(client().prepareIndex("test", "type1").setSource("title", title));
+        }
+        indexRandom(true, builders);
+
+        PhraseSuggestionBuilder suggest = phraseSuggestion("title")
+                .field("title")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("title")
+                        .suggestMode("always")
+                        .maxTermFreq(.99f)
+                        .size(1000) // Setting a silly high size helps of generate a larger list of candidates for testing.
+                        .maxInspections(1000) // This too
+                )
+                .confidence(0f)
+                .maxErrors(2f)
+                .shardSize(30000)
+                .size(30000);
+        Suggest searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", suggest);
+        assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
+        assertSuggestionSize(searchSuggest, 0, 25480, "title");  // Just to prove that we've run through a ton of options
+
+        suggest.size(1);
+        long start = System.currentTimeMillis();
+        searchSuggest = searchSuggest("united states house of representatives elections in washington 2006", suggest);
+        long total = System.currentTimeMillis() - start;
+        assertSuggestion(searchSuggest, 0, 0, "title", "united states house of representatives elections in washington 2006");
+        assertThat(total, lessThan(1000L)); // Takes many seconds without fix
     }
     
     protected Suggest searchSuggest(SuggestionBuilder<?>... suggestion) {

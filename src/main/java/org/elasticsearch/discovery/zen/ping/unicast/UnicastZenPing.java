@@ -342,7 +342,17 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         if (responses == null) {
                             logger.warn("received ping response {} with no matching id [{}]", pingResponse, response.id);
                         } else {
-                            responses.put(pingResponse.target(), pingResponse);
+                            PingResponse existingResponse = responses.get(pingResponse.target());
+                            if (existingResponse == null) {
+                                responses.put(pingResponse.target(), pingResponse);
+                            } else {
+                                // try and merge the best ping response for it, i.e. if the new one
+                                // doesn't have the master node set, and the existing one does, then
+                                // the existing one is better, so we keep it
+                                if (pingResponse.master() != null) {
+                                    responses.put(pingResponse.target(), pingResponse);
+                                }
+                            }
                         }
                     }
                 } finally {

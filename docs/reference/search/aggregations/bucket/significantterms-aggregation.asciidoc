@@ -3,6 +3,16 @@
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
+.Experimental!
+[IMPORTANT]
+=====
+This feature is marked as experimental, and may be subject to change in the
+future.  If you use this feature, please let us know your experience with it!
+=====
+
+coming[1.1.0]
+
+
 .Example use cases:
 * Suggesting "H5N1" when users search for "bird flu" in text
 * Identifying the merchant that is the "common point of compromise" from the transaction history of credit card owners reporting loss

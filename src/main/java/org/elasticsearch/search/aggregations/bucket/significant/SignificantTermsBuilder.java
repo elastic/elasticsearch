@@ -25,8 +25,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import java.io.IOException;
 
 /**
- * Creates an aggregation that finds interesting or unusual occurrences of terms in a result set
- *
+ * Creates an aggregation that finds interesting or unusual occurrences of terms in a result set.
+ * 
+ * This feature is marked as experimental, and may be subject to change in the future.  If you 
+ * use this feature, please let us know your experience with it!
  */
 public class SignificantTermsBuilder extends AggregationBuilder<SignificantTermsBuilder> {
 

@@ -36,7 +36,7 @@ public class ScriptLongValues extends LongValues implements ScriptValues {
     final SearchScript script;
 
     private Object value;
-    private long[] values = new long[4];
+    private long[] values = new long[1];
     private int valueCount;
     private int valueOffset;
 
@@ -69,12 +69,13 @@ public class ScriptLongValues extends LongValues implements ScriptValues {
             valueCount = Array.getLength(value);
             values = ArrayUtil.grow(values, valueCount);
             for (int i = 0; i < valueCount; ++i) {
-                values[i] = ((Number) Array.get(value, i++)).longValue();
+                values[i] = ((Number) Array.get(value, i)).longValue();
             }
         }
 
         else if (value instanceof Collection) {
             valueCount = ((Collection<?>) value).size();
+            values = ArrayUtil.grow(values, valueCount);
             int i = 0;
             for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
                 values[i] = ((Number) it.next()).longValue();

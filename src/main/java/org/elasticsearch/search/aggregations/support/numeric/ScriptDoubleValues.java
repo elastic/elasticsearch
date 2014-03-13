@@ -36,7 +36,7 @@ public class ScriptDoubleValues extends DoubleValues implements ScriptValues {
     final SearchScript script;
 
     private Object value;
-    private double[] values = new double[4];
+    private double[] values = new double[1];
     private int valueCount;
     private int valueOffset;
 
@@ -76,6 +76,7 @@ public class ScriptDoubleValues extends DoubleValues implements ScriptValues {
 
         else if (value instanceof Collection) {
             valueCount = ((Collection<?>) value).size();
+            values = ArrayUtil.grow(values, valueCount);
             int i = 0;
             for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
                 values[i] = ((Number) it.next()).doubleValue();

@@ -26,6 +26,7 @@ import org.elasticsearch.common.lease.Releasables;
  *  long values to ids. Collisions are resolved with open addressing and linear
  *  probing, growth is smooth thanks to {@link BigArrays} and capacity is always
  *  a multiple of 2 for faster identification of buckets.
+ *  This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class LongHash extends AbstractHash {

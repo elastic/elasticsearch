@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.DoubleObjectHashMap;
+import org.elasticsearch.common.util.DoubleObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -116,7 +116,7 @@ public class DoubleTerms extends InternalTerms {
         }
         InternalTerms reduced = null;
 
-        DoubleObjectHashMap<List<Bucket>> buckets = null;
+        DoubleObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
             if (terms instanceof UnmappedTerms) {
@@ -126,7 +126,7 @@ public class DoubleTerms extends InternalTerms {
                 reduced = terms;
             }
             if (buckets == null) {
-                buckets = new DoubleObjectHashMap<List<Bucket>>(terms.buckets.size(), reduceContext.bigArrays());
+                buckets = new DoubleObjectPagedHashMap<List<Bucket>>(terms.buckets.size(), reduceContext.bigArrays());
             }
             for (Terms.Bucket bucket : terms.buckets) {
                 List<Bucket> existingBuckets = buckets.get(((Bucket) bucket).term);
@@ -146,7 +146,7 @@ public class DoubleTerms extends InternalTerms {
         // TODO: would it be better to sort the backing array buffer of hppc map directly instead of using a PQ?
         final int size = (int) Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        for (DoubleObjectHashMap.Cursor<List<DoubleTerms.Bucket>> cursor : buckets) {
+        for (DoubleObjectPagedHashMap.Cursor<List<DoubleTerms.Bucket>> cursor : buckets) {
             List<DoubleTerms.Bucket> sameTermBuckets = cursor.value;
             final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
             if (b.getDocCount() >= minDocCount) {

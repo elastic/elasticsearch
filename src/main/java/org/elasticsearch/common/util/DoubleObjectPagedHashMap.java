@@ -30,22 +30,22 @@ import java.util.NoSuchElementException;
 
 /**
  * A hash table from native doubles to objects. This implementation resolves collisions
- * using open-addressing and does not support null values.
+ * using open-addressing and does not support null values. This class is not thread-safe.
  */
-public class DoubleObjectHashMap<T> extends AbstractHashTable implements Iterable<DoubleObjectHashMap.Cursor<T>> {
+public class DoubleObjectPagedHashMap<T> extends AbstractPagedHashMap implements Iterable<DoubleObjectPagedHashMap.Cursor<T>> {
 
     private DoubleArray keys;
     private ObjectArray<T> values;
 
-    public DoubleObjectHashMap(BigArrays bigArrays) {
+    public DoubleObjectPagedHashMap(BigArrays bigArrays) {
         this(16, bigArrays);
     }
 
-    public DoubleObjectHashMap(long capacity, BigArrays bigArrays) {
+    public DoubleObjectPagedHashMap(long capacity, BigArrays bigArrays) {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
-    public DoubleObjectHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+    public DoubleObjectPagedHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         keys = bigArrays.newDoubleArray(capacity(), false);
         values = bigArrays.newObjectArray(capacity());

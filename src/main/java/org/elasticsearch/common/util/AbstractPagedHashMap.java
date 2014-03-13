@@ -24,9 +24,9 @@ import com.google.common.base.Preconditions;
 import org.elasticsearch.common.lease.Releasable;
 
 /**
- * Base implementation for a hash table that recycles arrays and grows in-place.
+ * Base implementation for a hash table that is paged, recycles arrays and grows in-place.
  */
-abstract class AbstractHashTable implements Releasable {
+abstract class AbstractPagedHashMap implements Releasable {
 
     // Open addressing typically requires having smaller load factors compared to linked lists because
     // collisions may result into worse lookup performance.
@@ -47,7 +47,7 @@ abstract class AbstractHashTable implements Releasable {
     long size, maxSize;
     long mask;
 
-    AbstractHashTable(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+    AbstractPagedHashMap(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         Preconditions.checkArgument(capacity >= 0, "capacity must be >= 0");
         Preconditions.checkArgument(maxLoadFactor > 0 && maxLoadFactor < 1, "maxLoadFactor must be > 0 and < 1");
         this.bigArrays = bigArrays;

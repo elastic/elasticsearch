@@ -27,7 +27,7 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongObjectHashMap;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -263,7 +263,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         InternalHistogram reduced = (InternalHistogram) aggregations.get(0);
 
-        LongObjectHashMap<List<B>> bucketsByKey = new LongObjectHashMap<List<B>>(reduceContext.bigArrays());
+        LongObjectPagedHashMap<List<B>> bucketsByKey = new LongObjectPagedHashMap<List<B>>(reduceContext.bigArrays());
         for (InternalAggregation aggregation : aggregations) {
             InternalHistogram<B> histogram = (InternalHistogram) aggregation;
             for (B bucket : histogram.buckets) {
@@ -277,7 +277,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         List<B> reducedBuckets = new ArrayList<B>((int) bucketsByKey.size());
-        for (LongObjectHashMap.Cursor<List<B>> cursor : bucketsByKey) {
+        for (LongObjectPagedHashMap.Cursor<List<B>> cursor : bucketsByKey) {
             List<B> sameTermBuckets = cursor.value;
             B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
             if (bucket.getDocCount() >= minDocCount) {

@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongObjectHashMap;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -188,14 +188,14 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
         InternalGeoHashGrid reduced = null;
 
-        LongObjectHashMap<List<Bucket>> buckets = null;
+        LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregation;
             if (reduced == null) {
                 reduced = grid;
             }
             if (buckets == null) {
-                buckets = new LongObjectHashMap<List<Bucket>>(grid.buckets.size(), reduceContext.bigArrays());
+                buckets = new LongObjectPagedHashMap<List<Bucket>>(grid.buckets.size(), reduceContext.bigArrays());
             }
             for (Bucket bucket : grid.buckets) {
                 List<Bucket> existingBuckets = buckets.get(bucket.geohashAsLong);
@@ -215,7 +215,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         // TODO: would it be better to sort the backing array buffer of the hppc map directly instead of using a PQ?
         final int size = (int) Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
-        for (LongObjectHashMap.Cursor<List<Bucket>> cursor : buckets) {
+        for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
             List<Bucket> sameCellBuckets = cursor.value;
             ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext.bigArrays()));
         }

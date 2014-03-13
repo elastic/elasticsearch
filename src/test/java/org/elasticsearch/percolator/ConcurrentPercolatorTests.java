@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.percolator.PercolatorTests.convertFromTextArray;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -50,7 +51,10 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleConcurrentPercolator() throws Exception {
-        createIndex("index");
+        // We need to index a document / define mapping, otherwise field1 doesn't get reconized as number field.
+        // If we don't do this, then 'test2' percolate query gets parsed as a TermQuery and not a RangeQuery.
+        // The percolate api doesn't parse the doc if no queries have registered, so it can't lazily create a mapping
+        assertAcked(prepareCreate("index").addMapping("type", "field1", "type=long", "field2", "type=string")); // random # shards better has a mapping!
         ensureGreen();
 
         final BytesReference onlyField1 = XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -64,10 +68,6 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
                 .field("field2", "value")
                 .endObject().endObject().bytes();
 
-
-        // We need to index a document / define mapping, otherwise field1 doesn't get reconized as number field.
-        // If we don't do this, then 'test2' percolate query gets parsed as a TermQuery and not a RangeQuery.
-        // The percolate api doesn't parse the doc if no queries have registered, so it can't lazily create a mapping
         client().prepareIndex("index", "type", "1").setSource(XContentFactory.jsonBuilder().startObject()
                 .field("field1", 1)
                 .field("field2", "value")
@@ -79,6 +79,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("index", PercolatorService.TYPE_NAME, "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
+        refresh(); // make sure it's refreshed
 
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicBoolean stop = new AtomicBoolean(false);

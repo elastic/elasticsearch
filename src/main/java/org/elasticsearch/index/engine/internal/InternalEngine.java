@@ -968,20 +968,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         if (optimize.flush()) {
             flush(new Flush().force(true).waitIfOngoing(true));
         }
-        final ElasticsearchMergePolicy elasticsearchMergePolicy;
-        if (indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
-            elasticsearchMergePolicy = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
-        } else {
-            elasticsearchMergePolicy = null;
-        }
-        if (optimize.force() && elasticsearchMergePolicy == null) {
-            throw new ElasticsearchIllegalStateException("The `force` flag can only be used if the merge policy is an instance of "
-                    + ElasticsearchMergePolicy.class.getSimpleName() + ", got [" + indexWriter.getConfig().getMergePolicy().getClass().getName() + "]");
-        }
         if (optimizeMutex.compareAndSet(false, true)) {
+            ElasticsearchMergePolicy elasticsearchMergePolicy = null;
             rwl.readLock().lock();
             try {
                 ensureOpen();
+
+                if (indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
+                    elasticsearchMergePolicy = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
+                }
+                if (optimize.force() && elasticsearchMergePolicy == null) {
+                    throw new ElasticsearchIllegalStateException("The `force` flag can only be used if the merge policy is an instance of "
+                            + ElasticsearchMergePolicy.class.getSimpleName() + ", got [" + indexWriter.getConfig().getMergePolicy().getClass().getName() + "]");
+                }
+
                 /*
                  * The way we implement "forced forced merges" is a bit hackish in the sense that we set an instance variable and that this
                  * setting will thus apply to all forced merges that will be run until `force` is set back to false. However, since

@@ -260,4 +260,70 @@ public class BigArraysTests extends ElasticsearchTestCase {
         array2.release();
     }
 
+    public void testByteArrayEquals() {
+        final ByteArray empty1 = byteArrayWithBytes(BytesRef.EMPTY_BYTES);
+        final ByteArray empty2 = byteArrayWithBytes(BytesRef.EMPTY_BYTES);
+
+        // identity = equality
+        assertTrue(bigArrays.equals(empty1, empty1));
+        // equality: both empty
+        assertTrue(bigArrays.equals(empty1, empty2));
+        empty1.release();
+        empty2.release();
+
+        // not equal: contents differ
+        final ByteArray a1 = byteArrayWithBytes(new byte[]{0});
+        final ByteArray a2 = byteArrayWithBytes(new byte[]{1});
+        assertFalse(bigArrays.equals(a1, a2));
+        a1.release();
+        a2.release();
+
+        // not equal: contents differ
+        final ByteArray a3 = byteArrayWithBytes(new byte[]{1,2,3});
+        final ByteArray a4 = byteArrayWithBytes(new byte[]{1,1,3});
+        assertFalse(bigArrays.equals(a3, a4));
+        a3.release();
+        a4.release();
+
+        // not equal: contents differ
+        final ByteArray a5 = byteArrayWithBytes(new byte[]{1,2,3});
+        final ByteArray a6 = byteArrayWithBytes(new byte[]{1,2,4});
+        assertFalse(bigArrays.equals(a5, a6));
+        a5.release();
+        a6.release();
+    }
+
+    public void testByteArrayHashCode() {
+        // null arg has hashCode 0
+        assertEquals(0, bigArrays.hashCode(null));
+
+        // empty array should have equal hash
+        final int emptyHash = Arrays.hashCode(BytesRef.EMPTY_BYTES);
+        final ByteArray emptyByteArray = byteArrayWithBytes(BytesRef.EMPTY_BYTES);
+        final int emptyByteArrayHash = bigArrays.hashCode(emptyByteArray);
+        assertEquals(emptyHash, emptyByteArrayHash);
+        emptyByteArray.release();
+
+        // FUN FACT: Arrays.hashCode() and BytesReference.bytesHashCode() are inconsistent for empty byte[]
+        // final int emptyHash3 = new BytesArray(BytesRef.EMPTY_BYTES).hashCode();
+        // assertEquals(emptyHash1, emptyHash3); -> fail (1 vs. 0)
+
+        // large arrays should be different
+        final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
+        getRandom().nextBytes(array1);
+        final int array1Hash = Arrays.hashCode(array1);
+        final ByteArray array2 = byteArrayWithBytes(array1);
+        final int array2Hash = bigArrays.hashCode(array2);
+        assertEquals(array1Hash, array2Hash);
+        array2.release();
+    }
+
+    private ByteArray byteArrayWithBytes(byte[] bytes) {
+        ByteArray bytearray = bigArrays.newByteArray(bytes.length);
+        for (int i = 0; i < bytes.length; ++i) {
+            bytearray.set(i, bytes[i]);
+        }
+        return bytearray;
+    }
+
 }

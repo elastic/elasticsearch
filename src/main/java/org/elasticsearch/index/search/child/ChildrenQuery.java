@@ -137,7 +137,6 @@ public class ChildrenQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-
         final Query childQuery;
         if (rewrittenChildQuery == null) {
             childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
@@ -154,27 +153,36 @@ public class ChildrenQuery extends Query {
         switch (scoreType) {
             case MAX:
                 MaxCollector maxCollector = new MaxCollector(parentChildIndexFieldData, parentType, searchContext);
-                indexSearcher.search(childQuery, maxCollector);
-                parentIds = maxCollector.parentIds;
-                scores = maxCollector.scores;
-                occurrences = null;
-                Releasables.release(maxCollector.parentIdsIndex);
+                try {
+                    indexSearcher.search(childQuery, maxCollector);
+                    parentIds = maxCollector.parentIds;
+                    scores = maxCollector.scores;
+                    occurrences = null;
+                } finally {
+                    Releasables.release(maxCollector.parentIdsIndex);
+                }
                 break;
             case SUM:
                 SumCollector sumCollector = new SumCollector(parentChildIndexFieldData, parentType, searchContext);
-                indexSearcher.search(childQuery, sumCollector);
-                parentIds = sumCollector.parentIds;
-                scores = sumCollector.scores;
-                occurrences = null;
-                Releasables.release(sumCollector.parentIdsIndex);
+                try {
+                    indexSearcher.search(childQuery, sumCollector);
+                    parentIds = sumCollector.parentIds;
+                    scores = sumCollector.scores;
+                    occurrences = null;
+                } finally {
+                    Releasables.release(sumCollector.parentIdsIndex);
+                }
                 break;
             case AVG:
                 AvgCollector avgCollector = new AvgCollector(parentChildIndexFieldData, parentType, searchContext);
-                indexSearcher.search(childQuery, avgCollector);
-                parentIds = avgCollector.parentIds;
-                scores = avgCollector.scores;
-                occurrences = avgCollector.occurrences;
-                Releasables.release(avgCollector.parentIdsIndex);
+                try {
+                    indexSearcher.search(childQuery, avgCollector);
+                    parentIds = avgCollector.parentIds;
+                    scores = avgCollector.scores;
+                    occurrences = avgCollector.occurrences;
+                } finally {
+                    Releasables.release(avgCollector.parentIdsIndex);
+                }
                 break;
             default:
                 throw new RuntimeException("Are we missing a score type here? -- " + scoreType);

@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.*;
@@ -394,6 +394,23 @@ public class ParseContext {
     public Object externalValue() {
         externalValueSet = false;
         return externalValue;
+    }
+
+    /**
+     * Try to parse an externalValue if any
+     * @param clazz Expected class for external value
+     * @return null if no external value has been set or the value
+     */
+    public <T> T parseExternalValue(Class<T> clazz) {
+        if (!externalValueSet() || externalValue() == null) {
+            return null;
+        }
+
+        if (!clazz.isInstance(externalValue())) {
+            throw new ElasticsearchIllegalArgumentException("illegal external value class ["
+                    + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
+        }
+        return (T) externalValue();
     }
 
     public float docBoost() {

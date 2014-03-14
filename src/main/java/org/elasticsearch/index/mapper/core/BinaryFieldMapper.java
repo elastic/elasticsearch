@@ -174,23 +174,25 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         if (!fieldType().stored()) {
             return;
         }
-        byte[] value;
-        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-            return;
-        } else {
-            value = context.parser().binaryValue();
-            if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
-                if (compressThreshold == -1 || value.length > compressThreshold) {
-                    BytesStreamOutput bStream = new BytesStreamOutput();
-                    StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
-                    stream.writeBytes(value, 0, value.length);
-                    stream.close();
-                    value = bStream.bytes().toBytes();
-                }
+        byte[] value = context.parseExternalValue(byte[].class);
+        if (value == null) {
+            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+                return;
+            } else {
+                value = context.parser().binaryValue();
             }
         }
         if (value == null) {
             return;
+        }
+        if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
+            if (compressThreshold == -1 || value.length > compressThreshold) {
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
+                stream.writeBytes(value, 0, value.length);
+                stream.close();
+                value = bStream.bytes().toBytes();
+            }
         }
         fields.add(new Field(names.indexName(), value, fieldType));
     }

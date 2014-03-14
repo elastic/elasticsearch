@@ -261,6 +261,7 @@ public class MatchQuery {
                 for (int i = 0; i < terms.length; i++) {
                     prefixQuery.add(new Term[] {terms[i]}, positions[i]);
                 }
+                prefixQuery.setSlop(phraseSlop);
                 return prefixQuery;
             } else if (query instanceof MultiPhraseQuery) {
                 MultiPhraseQuery pq = (MultiPhraseQuery)query;
@@ -271,6 +272,7 @@ public class MatchQuery {
                 for (int i = 0; i < terms.size(); i++) {
                     prefixQuery.add(terms.get(i), positions[i]);
                 }
+                prefixQuery.setSlop(phraseSlop);
                 return prefixQuery;
             }
             return query;

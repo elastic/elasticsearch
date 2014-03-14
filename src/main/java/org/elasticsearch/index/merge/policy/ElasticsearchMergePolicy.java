@@ -51,6 +51,7 @@ import java.util.Map;
  * For now, this {@link MergePolicy} takes care of moving versions that used to
  * be stored as payloads to numeric doc values.
  */
+@SuppressWarnings("PMD.ProperCloneImplementation")
 public final class ElasticsearchMergePolicy extends MergePolicy {
 
     private final MergePolicy delegate;

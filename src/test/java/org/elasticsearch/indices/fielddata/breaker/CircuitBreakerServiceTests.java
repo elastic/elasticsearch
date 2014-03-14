@@ -46,7 +46,8 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
     private String randomRidiculouslySmallLimit() {
         // 3 different ways to say 100 bytes
-        return randomFrom(Arrays.asList("100b", "100", (10000. / JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) + "%"));
+        return randomFrom(Arrays.asList("100b", "100"));
+         //, (10000. / JvmInfo.jvmInfo().getMem().getHeapMax().bytes()) + "%")); // this is prone to rounding errors and will fail if JVM memory changes!
     }
 
     @Test

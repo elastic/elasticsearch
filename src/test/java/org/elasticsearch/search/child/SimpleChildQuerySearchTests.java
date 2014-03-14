@@ -124,7 +124,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     // see #2744
     public void test2744() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
-                .addMapping("parent")
+                .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo"));
         ensureGreen();
 

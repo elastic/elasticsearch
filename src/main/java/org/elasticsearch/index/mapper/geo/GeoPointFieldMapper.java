@@ -480,47 +480,52 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         context.path().pathType(pathType);
         context.path().add(name());
 
-        XContentParser.Token token = context.parser().currentToken();
-        if (token == XContentParser.Token.START_ARRAY) {
-            token = context.parser().nextToken();
+        GeoPoint value = context.parseExternalValue(GeoPoint.class);
+        if (value != null) {
+            parseLatLon(context, value.lat(), value.lon());
+        } else {
+            XContentParser.Token token = context.parser().currentToken();
             if (token == XContentParser.Token.START_ARRAY) {
-                // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
-                while (token != XContentParser.Token.END_ARRAY) {
-                    token = context.parser().nextToken();
-                    double lon = context.parser().doubleValue();
-                    token = context.parser().nextToken();
-                    double lat = context.parser().doubleValue();
-                    while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                    }
-                    parseLatLon(context, lat, lon);
-                    token = context.parser().nextToken();
-                }
-            } else {
-                // its an array of other possible values
-                if (token == XContentParser.Token.VALUE_NUMBER) {
-                    double lon = context.parser().doubleValue();
-                    token = context.parser().nextToken();
-                    double lat = context.parser().doubleValue();
-                    while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                    }
-                    parseLatLon(context, lat, lon);
-                } else {
+                token = context.parser().nextToken();
+                if (token == XContentParser.Token.START_ARRAY) {
+                    // its an array of array of lon/lat [ [1.2, 1.3], [1.4, 1.5] ]
                     while (token != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.START_OBJECT) {
-                            parseObjectLatLon(context);
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            parseStringLatLon(context);
+                        token = context.parser().nextToken();
+                        double lon = context.parser().doubleValue();
+                        token = context.parser().nextToken();
+                        double lat = context.parser().doubleValue();
+                        while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
+
                         }
+                        parseLatLon(context, lat, lon);
                         token = context.parser().nextToken();
                     }
+                } else {
+                    // its an array of other possible values
+                    if (token == XContentParser.Token.VALUE_NUMBER) {
+                        double lon = context.parser().doubleValue();
+                        token = context.parser().nextToken();
+                        double lat = context.parser().doubleValue();
+                        while ((token = context.parser().nextToken()) != XContentParser.Token.END_ARRAY) {
+
+                        }
+                        parseLatLon(context, lat, lon);
+                    } else {
+                        while (token != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.START_OBJECT) {
+                                parseObjectLatLon(context);
+                            } else if (token == XContentParser.Token.VALUE_STRING) {
+                                parseStringLatLon(context);
+                            }
+                            token = context.parser().nextToken();
+                        }
+                    }
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                parseObjectLatLon(context);
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                parseStringLatLon(context);
             }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            parseObjectLatLon(context);
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            parseStringLatLon(context);
         }
 
         context.path().remove();

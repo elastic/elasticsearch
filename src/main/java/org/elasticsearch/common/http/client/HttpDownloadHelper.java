@@ -332,13 +332,14 @@ public class HttpDownloadHelper {
                 }
                 finished = !isInterrupted();
             } finally {
-                IOUtils.close(os, is);
-
-                // we have started to (over)write dest, but failed.
-                // Try to delete the garbage we'd otherwise leave
-                // behind.
                 if (!finished) {
+                    // we have started to (over)write dest, but failed.
+                    // Try to delete the garbage we'd otherwise leave
+                    // behind.
+                    IOUtils.closeWhileHandlingException(os, is);
                     dest.delete();
+                } else {
+                    IOUtils.close(os, is);
                 }
             }
             progress.endDownload();

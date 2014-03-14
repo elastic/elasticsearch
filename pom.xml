@@ -989,6 +989,7 @@
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/apache/lucene/queries/XTermsFilter.class</exclude>
                                 <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
+				<exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
                                 <!-- start excludes for Unsafe -->
                                 <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>

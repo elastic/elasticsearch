@@ -25,12 +25,12 @@ import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -185,7 +185,7 @@ public class QueryParseContext {
     }
 
     public void addNamedQuery(String name, Query query) {
-        namedFilters.put(name, new QueryWrapperFilter(query));
+        namedFilters.put(name, Queries.wrap(query));
     }
 
     public ImmutableMap<String, Filter> copyNamedFilters() {

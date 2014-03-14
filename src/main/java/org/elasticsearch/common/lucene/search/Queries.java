@@ -19,11 +19,9 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
 import java.util.List;
 import java.util.regex.Pattern;
@@ -165,5 +163,24 @@ public class Queries {
         return (optionalClauseCount < result ?
                 optionalClauseCount : (result < 0 ? 0 : result));
 
+    }
+
+    public static Filter wrap(Query query) {
+        return FACTORY.wrap(query);
+    }
+
+    private static final QueryWrapperFilterFactory FACTORY = new QueryWrapperFilterFactory();
+    // NOTE: This is a separate class since we added QueryWrapperFilter as a forbidden API
+    // that way we can exclude only the inner class without excluding the entire Queries class
+    // and potentially miss a forbidden API usage!
+    private static final class QueryWrapperFilterFactory {
+
+        public Filter wrap(Query query) {
+            if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
+                return new CustomQueryWrappingFilter(query);
+            } else {
+                return new QueryWrapperFilter(query);
+            }
+        }
     }
 }

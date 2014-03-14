@@ -21,9 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
 
@@ -49,10 +48,6 @@ public class QueryFilterParser implements FilterParser {
         if (query == null) {
             return null;
         }
-        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
-            return new CustomQueryWrappingFilter(query);
-        } else {
-            return new QueryWrapperFilter(query);
-        }
+        return Queries.wrap(query);
     }
 }

@@ -160,13 +160,13 @@ public abstract class MulticastChannel implements Closeable {
     private static class Shared extends MulticastChannel {
 
         private static final Map<Config, Shared> sharedChannels = Maps.newHashMap();
-        private static final Object mutex = new Object();
+        private static final Object mutex = new Object(); // global mutex so we don't sync on static methods (.class)
 
         static MulticastChannel getSharedChannel(Listener listener, Config config) throws Exception {
             synchronized (mutex) {
                 Shared shared = sharedChannels.get(config);
                 if (shared != null) {
-                    shared.refCount++;
+                    shared.incRef();
                     ((MultiListener) shared.listener).add(listener);
                     return new Delegate(listener, shared);
                 }
@@ -183,9 +183,7 @@ public abstract class MulticastChannel implements Closeable {
                 // remove this
                 boolean removed = ((MultiListener) shared.listener).remove(listener);
                 assert removed : "a listener should be removed";
-                int refCount = --shared.refCount;
-                assert refCount >= 0 : "illegal ref counting, close called multiple times";
-                if (refCount == 0) {
+                if (shared.decRef() == 0) {
                     sharedChannels.remove(shared.channel.getConfig());
                     shared.channel.close();
                 }
@@ -193,11 +191,21 @@ public abstract class MulticastChannel implements Closeable {
         }
 
         final Plain channel;
-        int refCount = 1;
+        private int refCount = 1;
 
         Shared(MultiListener listener, Plain channel) {
             super(listener);
             this.channel = channel;
+        }
+
+        private void incRef() {
+            refCount++;
+        }
+
+        private int decRef() {
+            --refCount;
+            assert refCount >= 0 : "illegal ref counting, close called multiple times";
+            return refCount;
         }
 
         @Override

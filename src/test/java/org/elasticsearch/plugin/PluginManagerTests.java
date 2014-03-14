@@ -244,21 +244,51 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     /**
      * We are ignoring by default these tests as they require to have an internet access
      * To activate the test, use -Dtests.network=true
+     * We test regular form: username/reponame/version
+     * It should find it in download.elasticsearch.org service
      */
     @Test
     @Network
-    public void testInstallPluginWithInternet() throws IOException {
-        // We test regular form: username/reponame/version
-        // It should find it in download.elasticsearch.org service
+    public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
+        assumeTrue(isDownloadServiceWorking("http://download.elasticsearch.org/"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+    }
 
-        // We test regular form: groupId/artifactId/version
-        // It should find it in maven central service
+    /**
+     * We are ignoring by default these tests as they require to have an internet access
+     * To activate the test, use -Dtests.network=true
+     * We test regular form: groupId/artifactId/version
+     * It should find it in maven central service
+     */
+    @Test
+    @Network
+    public void testInstallPluginWithMavenCentral() throws IOException {
+        assumeTrue(isDownloadServiceWorking("http://search.maven.org/"));
         singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
+    }
 
-        // We test site plugins from github: userName/repoName
-        // It should find it on github
+    /**
+     * We are ignoring by default these tests as they require to have an internet access
+     * To activate the test, use -Dtests.network=true
+     * We test site plugins from github: userName/repoName
+     * It should find it on github
+     */
+    @Test
+    @Network
+    public void testInstallPluginWithGithub() throws IOException {
+        assumeTrue(isDownloadServiceWorking("https://github.com/"));
         singlePluginInstallAndRemove("elasticsearch/kibana", null);
+    }
+
+    private boolean isDownloadServiceWorking(String url) {
+        HttpClient client = new HttpClient(url);
+        try {
+            client.request("/");
+            return true;
+        } catch (Throwable t) {
+            logger.warn("[{}] download service is not working. Disabling current test.", url);
+        }
+        return false;
     }
 
     private void deletePluginsFolder() {

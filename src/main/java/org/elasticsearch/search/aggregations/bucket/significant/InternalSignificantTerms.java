@@ -34,6 +34,16 @@ import java.util.*;
  */
 public abstract class InternalSignificantTerms extends InternalAggregation implements SignificantTerms, ToXContent, Streamable {
 
+    protected int requiredSize;
+    protected long minDocCount;
+    protected Collection<Bucket> buckets;
+    protected Map<String, Bucket> bucketMap;
+    protected long subsetSize;
+    protected long supersetSize;
+    protected InternalSignificantTerms() {} // for serialization
+
+    // TODO updateScore call in constructor to be cleaned up as part of adding pluggable scoring algos
+    @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
     public static abstract class Bucket extends SignificantTerms.Bucket {
 
         long bucketOrd;
@@ -45,7 +55,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
             this.aggregations = aggregations;
             assert subsetDf <= supersetDf;
             updateScore();
-      }
+        }
 
         @Override
         public long getSubsetDf(){
@@ -110,8 +120,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
 
             // A blend of the above metrics - favours medium-rare terms to strike a useful
             // balance between precision and recall.
-            double score = absoluteProbabilityChange * relativeProbabilityChange;
-            return score;
+            return absoluteProbabilityChange * relativeProbabilityChange;
         }
 
         public void updateScore() {
@@ -154,15 +163,6 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
             return score;
         }        
     }
-
-    protected int requiredSize;
-    protected long minDocCount;
-    protected Collection<Bucket> buckets;
-    protected Map<String, Bucket> bucketMap;
-    protected long subsetSize;
-    protected long supersetSize;
-
-    protected InternalSignificantTerms() {} // for serialization
 
     protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, Collection<Bucket> buckets) {
         super(name);

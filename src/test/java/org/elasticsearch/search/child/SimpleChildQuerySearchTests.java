@@ -126,7 +126,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     // see #2744
     public void test2744() throws ElasticsearchException, IOException {
         client().admin().indices().prepareCreate("test")
-                .addMapping("parent")
+                .addMapping("foo")
                 .addMapping("test", "_parent", "type=foo")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .get();

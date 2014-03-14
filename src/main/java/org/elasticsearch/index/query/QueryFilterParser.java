@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
 import java.io.IOException;
 
@@ -48,6 +49,10 @@ public class QueryFilterParser implements FilterParser {
         if (query == null) {
             return null;
         }
-        return new QueryWrapperFilter(query);
+        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
+            return new CustomQueryWrappingFilter(query);
+        } else {
+            return new QueryWrapperFilter(query);
+        }
     }
 }

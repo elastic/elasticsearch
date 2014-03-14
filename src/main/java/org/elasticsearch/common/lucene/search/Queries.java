@@ -170,7 +170,9 @@ public class Queries {
     }
 
     private static final QueryWrapperFilterFactory FACTORY = new QueryWrapperFilterFactory();
-
+    // NOTE: This is a separate class since we added QueryWrapperFilter as a forbidden API
+    // that way we can exclude only the inner class without excluding the entire Queries class
+    // and potentially miss a forbidden API usage!
     private static final class QueryWrapperFilterFactory {
 
         public Filter wrap(Query query) {

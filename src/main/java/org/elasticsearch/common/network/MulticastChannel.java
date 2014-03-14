@@ -22,6 +22,7 @@ package org.elasticsearch.common.network;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.IOUtils;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -283,8 +284,15 @@ public abstract class MulticastChannel implements Closeable {
                 multicastSocket.setSendBufferSize(config.bufferSize);
                 multicastSocket.setSoTimeout(60000);
             } catch (Throwable e) {
-                IOUtils.closeWhileHandlingException(multicastSocket);
-                throw e;
+                try {
+                    multicastSocket.close();
+                } catch (Throwable ignore) {
+                    // ignore
+                }
+                if (e instanceof Exception) {
+                    throw ((Exception) e);
+                }
+                throw new ElasticsearchException(e.getMessage(), e);
             }
             return multicastSocket;
         }
@@ -305,7 +313,11 @@ public abstract class MulticastChannel implements Closeable {
             receiver.stop();
             receiverThread.interrupt();
             if (multicastSocket != null) {
-                IOUtils.closeWhileHandlingException(multicastSocket);
+                try {
+                    multicastSocket.close();
+                } catch (Throwable ignore) {
+                    // ignore
+                }
                 multicastSocket = null;
             }
         }

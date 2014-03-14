@@ -301,19 +301,26 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
-
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
         // index simple data
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i).get();
+            builders.add(client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i));
         }
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "child", Integer.toString(i)).setSource("c_field", i).setParent("" + 0).get();
+        indexRandom(randomBoolean(), builders);
+        builders.clear();
+        for (int j = 0; j < 2; j++) {
+            for (int i = 0; i < 10; i++) {
+                builders.add(client().prepareIndex("test", "child", Integer.toString(i)).setSource("c_field", i).setParent("" + 0));
+            }
+            for (int i = 0; i < 10; i++) {
+                builders.add(client().prepareIndex("test", "child", Integer.toString(i + 10)).setSource("c_field", i + 10).setParent(Integer.toString(i)));
+            }
+
+            if (randomBoolean()) {
+                break; // randomly break out and dont' have deletes / updates
+            }
         }
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "child", Integer.toString(i + 10)).setSource("c_field", i + 10).setParent(Integer.toString(i))
-                    .get();
-        }
-        flushAndRefresh();
+        indexRandom(true, builders);
 
         for (int i = 1; i <= 10; i++) {
             logger.info("Round {}", i);

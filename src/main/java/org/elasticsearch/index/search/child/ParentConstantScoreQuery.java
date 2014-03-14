@@ -85,7 +85,7 @@ public class ParentConstantScoreQuery extends Query {
         if (rewrittenParentQuery != null) {
             parentQuery = rewrittenParentQuery;
         } else {
-            assert rewriteIndexReader == searcher.getIndexReader();
+            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
             parentQuery = rewrittenParentQuery = originalParentQuery.rewrite(searcher.getIndexReader());
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());

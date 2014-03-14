@@ -129,7 +129,7 @@ public class ParentQuery extends Query {
         if (rewrittenParentQuery == null) {
             parentQuery = rewrittenParentQuery = searcher.rewrite(originalParentQuery);
         } else {
-            assert rewriteIndexReader == searcher.getIndexReader();
+            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
             parentQuery = rewrittenParentQuery;
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());

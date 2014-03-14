@@ -25,6 +25,7 @@ import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 
 import java.io.IOException;
 
@@ -85,7 +86,12 @@ public class FQueryFilterParser implements FilterParser {
         if (query == null) {
             return null;
         }
-        Filter filter = new QueryWrapperFilter(query);
+        Filter filter;
+        if (CustomQueryWrappingFilter.shouldUseCustomQueryWrappingFilter(query)) {
+            filter = new CustomQueryWrappingFilter(query);
+        } else {
+            filter = new QueryWrapperFilter(query);
+        }
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

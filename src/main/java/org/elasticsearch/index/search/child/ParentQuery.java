@@ -125,7 +125,7 @@ public class ParentQuery extends Query {
         SearchContext searchContext = SearchContext.current();
         ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
         ChildWeight childWeight;
-        boolean success = false;
+        boolean releaseCollectorResource = true;
         try {
             final Query parentQuery;
             if (rewrittenParentQuery == null) {
@@ -143,9 +143,10 @@ public class ParentQuery extends Query {
                 return Queries.newMatchNoDocsQuery().createWeight(searcher);
             }
             childWeight = new ChildWeight(searchContext, parentQuery.createWeight(searcher), childrenFilter, parentIds, scores);
-            success = true;
+            releaseCollectorResource = false;
         } finally {
-            if (!success) {
+            if (releaseCollectorResource) {
+                // either if we run into an exception or if we return early
                 Releasables.release(collector.parentIds, collector.scores);
             }
         }

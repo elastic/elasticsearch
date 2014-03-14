@@ -170,7 +170,7 @@ public class ChildrenQuery extends Query {
                     scores = sumCollector.scores;
                     occurrences = null;
                 } finally {
-                Releasables.release(sumCollector.parentIdsIndex);
+                    Releasables.release(sumCollector.parentIdsIndex);
                 }
                 break;
             case AVG:
@@ -181,7 +181,7 @@ public class ChildrenQuery extends Query {
                     scores = avgCollector.scores;
                     occurrences = avgCollector.occurrences;
                 } finally {
-                Releasables.release(avgCollector.parentIdsIndex);
+                    Releasables.release(avgCollector.parentIdsIndex);
                 }
                 break;
             default:

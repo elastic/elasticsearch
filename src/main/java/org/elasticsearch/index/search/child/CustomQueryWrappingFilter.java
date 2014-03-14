@@ -121,4 +121,15 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     public int hashCode() {
         return query.hashCode() ^ 0x823D64C9;
     }
+
+    /** @return Whether {@link CustomQueryWrappingFilter} should be used. */
+    public static boolean shouldUseCustomQueryWrappingFilter(Query query) {
+        if (query instanceof TopChildrenQuery || query instanceof ChildrenConstantScoreQuery
+                || query instanceof ChildrenQuery || query instanceof ParentConstantScoreQuery
+                || query instanceof ParentQuery) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

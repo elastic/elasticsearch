@@ -332,29 +332,30 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     public void testCachingBug_withFqueryFilter() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin()
-                .indices()
-                .preparePutMapping("test")
-                .setType("child")
-                .setSource(
-                        jsonBuilder().startObject().startObject("child").startObject("_parent").field("type", "parent").endObject()
-                                .endObject().endObject()).execute().actionGet();
-
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent")
+                .get();
+        ensureGreen();
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
         // index simple data
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i).execute().actionGet();
+            builders.add(client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i));
         }
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "child", Integer.toString(i)).setSource("c_field", i).setParent("" + 0).execute().actionGet();
+        indexRandom(randomBoolean(), builders);
+        builders.clear();
+        for (int j = 0; j < 2; j++) {
+            for (int i = 0; i < 10; i++) {
+                builders.add(client().prepareIndex("test", "child", Integer.toString(i)).setSource("c_field", i).setParent("" + 0));
+            }
+            for (int i = 0; i < 10; i++) {
+                builders.add(client().prepareIndex("test", "child", Integer.toString(i + 10)).setSource("c_field", i + 10).setParent(Integer.toString(i)));
+            }
+
+            if (randomBoolean()) {
+                break; // randomly break out and dont' have deletes / updates
+            }
         }
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test", "child", Integer.toString(i + 10)).setSource("c_field", i + 10).setParent(Integer.toString(i))
-                    .execute().actionGet();
-        }
-        client().admin().indices().prepareFlush().execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indexRandom(true, builders);
 
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch("test")

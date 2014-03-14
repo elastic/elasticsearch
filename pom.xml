@@ -980,6 +980,7 @@
                                 <exclude>org/apache/lucene/search/XSearcherManager.class</exclude>
                                 <exclude>org/apache/lucene/queries/XTermsFilter.class</exclude>
                                 <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
+				<exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
                             </excludes>
                             <bundledSignatures>

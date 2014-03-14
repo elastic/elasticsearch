@@ -21,11 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -154,9 +154,9 @@ public class NestedFilterParser implements FilterParser {
             Filter nestedFilter;
             if (join) {
                 ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None);
-                nestedFilter = new QueryWrapperFilter(joinQuery);
+                nestedFilter = Queries.wrap(joinQuery);
             } else {
-                nestedFilter = new QueryWrapperFilter(query);
+                nestedFilter = Queries.wrap(query);
             }
 
             if (cache) {

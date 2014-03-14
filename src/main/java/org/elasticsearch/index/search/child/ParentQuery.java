@@ -124,26 +124,31 @@ public class ParentQuery extends Query {
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
         ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
-
-        final Query parentQuery;
-        if (rewrittenParentQuery == null) {
-            parentQuery = rewrittenParentQuery = searcher.rewrite(originalParentQuery);
-        } else {
-            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-            parentQuery = rewrittenParentQuery;
+        ChildWeight childWeight;
+        boolean success = false;
+        try {
+            final Query parentQuery;
+            if (rewrittenParentQuery == null) {
+                parentQuery = rewrittenParentQuery = searcher.rewrite(originalParentQuery);
+            } else {
+                assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+                parentQuery = rewrittenParentQuery;
+            }
+            IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+            indexSearcher.setSimilarity(searcher.getSimilarity());
+            indexSearcher.search(parentQuery, collector);
+            FloatArray scores = collector.scores;
+            BytesRefHash parentIds = collector.parentIds;
+            if (parentIds.size() == 0) {
+                return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            }
+            childWeight = new ChildWeight(searchContext, parentQuery.createWeight(searcher), childrenFilter, parentIds, scores);
+            success = true;
+        } finally {
+            if (!success) {
+                Releasables.release(collector.parentIds, collector.scores);
+            }
         }
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity());
-        indexSearcher.search(parentQuery, collector);
-        FloatArray scores = collector.scores;
-        BytesRefHash parentIds = collector.parentIds;
-
-        if (parentIds.size() == 0) {
-            Releasables.release(parentIds, scores);
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
-        }
-
-        ChildWeight childWeight = new ChildWeight(searchContext, parentQuery.createWeight(searcher), childrenFilter, parentIds, scores);
         searchContext.addReleasable(childWeight);
         return childWeight;
     }

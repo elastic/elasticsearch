@@ -382,6 +382,39 @@ public class BigArrays extends AbstractComponent {
         return resize(array, newSize);
     }
 
+    /** @see Arrays.hashCode(byte[]) */
+    public int hashCode(ByteArray array) {
+        if (array == null) {
+            return 0;
+        }
+
+        int hash = 1;
+        for (long i = 0; i < array.size(); i++) {
+            hash = 31 * hash + array.get(i);
+        }
+
+        return hash;
+    }
+
+    /** @see Arrays.equals(byte[], byte[]) */
+    public boolean equals(ByteArray array, ByteArray other) {
+        if (array == other) {
+            return true;
+        }
+
+        if (array.size() != other.size()) {
+            return false;
+        }
+
+        for (long i = 0; i < array.size(); i++) {
+            if (array.get(i) != other.get(i)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Allocate a new {@link IntArray}.
      * @param size          the initial length of the array

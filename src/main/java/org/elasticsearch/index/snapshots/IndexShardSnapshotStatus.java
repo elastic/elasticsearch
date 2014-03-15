@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.snapshots;
 
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Represent shard snapshot status
  */
@@ -58,11 +61,17 @@ public class IndexShardSnapshotStatus {
 
     private int numberOfFiles;
 
+    private volatile int processedFiles;
+
     private long totalSize;
+
+    private volatile long processedSize;
 
     private long indexVersion;
 
     private boolean aborted;
+
+    private String failure;
 
     /**
      * Returns current snapshot stage
@@ -146,6 +155,25 @@ public class IndexShardSnapshotStatus {
     }
 
     /**
+     * Sets processed files stats
+     *
+     * @param numberOfFiles number of files in this snapshot
+     * @param totalSize     total size of files in this snapshot
+     */
+    public synchronized void processedFiles(int numberOfFiles, long totalSize) {
+        processedFiles = numberOfFiles;
+        processedSize = totalSize;
+    }
+
+    /**
+     * Increments number of processed files
+     */
+    public synchronized void addProcessedFile(long size) {
+        processedFiles++;
+        processedSize += size;
+    }
+
+    /**
      * Number of files
      *
      * @return number of files
@@ -164,6 +192,25 @@ public class IndexShardSnapshotStatus {
     }
 
     /**
+     * Number of processed files
+     *
+     * @return number of processed files
+     */
+    public int processedFiles() {
+        return processedFiles;
+    }
+
+    /**
+     * Size of processed files
+     *
+     * @return size of processed files
+     */
+    public long processedSize() {
+        return processedSize;
+    }
+
+
+    /**
      * Sets index version
      *
      * @param indexVersion index version
@@ -179,5 +226,19 @@ public class IndexShardSnapshotStatus {
      */
     public long indexVersion() {
         return indexVersion;
+    }
+
+    /**
+     * Sets the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
+     */
+    public void failure(String failure) {
+        this.failure = failure;
+    }
+
+    /**
+     * Returns the reason for the failure if the snapshot is in the {@link IndexShardSnapshotStatus.Stage#FAILURE} state
+     */
+    public String failure() {
+        return failure;
     }
 }

@@ -175,7 +175,7 @@ started by mistake.
 [float]
 === Restore
 
-A snapshot can be restored using this following command:
+A snapshot can be restored using the following command:
 
 [source,shell]
 -----------------------------------
@@ -205,3 +205,37 @@ closed. The restore operation automatically opens restored indices if they were 
 didn't exist in the cluster. If cluster state is restored, the restored templates that don't currently exist in the
 cluster are added and existing templates with the same name are replaced by the restored templates. The restored
 persistent settings are added to the existing persistent settings.
+
+
+[float]
+=== Snapshot status
+
+A list of currently running snapshots with their detailed status information can be obtained using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/_status"
+-----------------------------------
+
+In this format, the command will return information about all currently running snapshots. By specifying a repository name, it's possible
+to limit the results to a particular repository:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/_status"
+-----------------------------------
+
+If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
+if it's not currently running:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1/_status"
+-----------------------------------
+
+Multiple ids are also supported:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/snapshot_1,snapshot_2/_status"
+-----------------------------------

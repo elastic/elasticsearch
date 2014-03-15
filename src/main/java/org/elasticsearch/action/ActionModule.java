@@ -52,6 +52,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
@@ -214,6 +216,7 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteSnapshotAction.INSTANCE, TransportDeleteSnapshotAction.class);
         registerAction(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
         registerAction(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
+        registerAction(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
         registerAction(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         registerAction(IndicesStatusAction.INSTANCE, TransportIndicesStatusAction.class);

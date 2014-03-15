@@ -23,9 +23,35 @@ gateway:
     expected_nodes: 2
 --------------------------------------------------
 
-Note, to backup/snapshot the full cluster state it is recommended that
-the local storage for all nodes be copied (in theory not all are
-required, just enough to guarantee a copy of each shard has been copied,
-i.e. depending on the replication settings) while disabling flush.
-Shared storage such as S3 can be used to keep the different nodes'
-copies in one place, though it does comes at a price of more IO.
+[float]
+==== Dangling indices
+
+When a node joins the cluster, any shards/indices stored in its  local `data/`
+directory which do not already exist in the cluster will be imported into the
+cluster by default.  This functionality has two purposes:
+
+1. If a new master node is started which is unaware of the other indices in
+   the cluster, adding the old nodes will cause the old indices to be
+   imported, instead of being deleted.
+
+2. An old index can be added to an existing cluster by copying it to the
+   `data/` directory of a new node, starting the node and letting it join
+   the cluster. Once the index has been replicated to other nodes in the
+   cluster, the new node can be shut down and removed.
+
+The import of dangling indices can be controlled with the
+`gateway.local.auto_import_dangled` which accepts:
+
+[horizontal]
+`yes`::
+
+    Import dangling indices into the cluster (default).
+
+`close`::
+
+    Import dangling indices into the cluster state, but leave them closed.
+
+`no`::
+
+    Delete dangling indices after `gateway.local.dangling_timeout`, which
+    defaults to 2 hours.

@@ -42,6 +42,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.IndicesService;
@@ -363,6 +364,128 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
             }
             userCreateSnapshotListener.onFailure(t);
         }
+    }
+
+    /**
+     * Returns status of the currently running snapshots
+     * <p>
+     * This method is executed on master node
+     * </p>
+     *
+     * @param repository repository id
+     * @param snapshots  optional list of snapshots that will be used as a filter
+     * @return list of metadata for currently running snapshots
+     */
+    public ImmutableList<SnapshotMetaData.Entry> currentSnapshots(String repository, String[] snapshots) {
+        MetaData metaData = clusterService.state().metaData();
+        SnapshotMetaData snapshotMetaData = metaData.custom(SnapshotMetaData.TYPE);
+        if (snapshotMetaData == null || snapshotMetaData.entries().isEmpty()) {
+            return ImmutableList.of();
+        }
+        if (repository == null) {
+            return snapshotMetaData.entries();
+        }
+        if (snapshotMetaData.entries().size() == 1) {
+            // Most likely scenario - one snapshot is currently running
+            // Check this snapshot against the query
+            SnapshotMetaData.Entry entry = snapshotMetaData.entries().get(0);
+            if (!entry.snapshotId().getRepository().equals(repository)) {
+                return ImmutableList.of();
+            }
+            if (snapshots != null && snapshots.length > 0) {
+                for (String snapshot : snapshots) {
+                    if (entry.snapshotId().getSnapshot().equals(snapshot)) {
+                        return snapshotMetaData.entries();
+                    }
+                }
+                return ImmutableList.of();
+            } else {
+                return snapshotMetaData.entries();
+            }
+        }
+        ImmutableList.Builder<SnapshotMetaData.Entry> builder = ImmutableList.builder();
+        for (SnapshotMetaData.Entry entry : snapshotMetaData.entries()) {
+            if (!entry.snapshotId().getRepository().equals(repository)) {
+                continue;
+            }
+            if (snapshots != null && snapshots.length > 0) {
+                for (String snapshot : snapshots) {
+                    if (entry.snapshotId().getSnapshot().equals(snapshot)) {
+                        builder.add(entry);
+                        break;
+                    }
+                }
+            } else {
+                builder.add(entry);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Returns status of shards that are snapshotted on the node and belong to the given snapshot
+     * <p>
+     * This method is executed on data node
+     * </p>
+     *
+     * @param snapshotId snapshot id
+     * @return map of shard id to snapshot status
+     */
+    public ImmutableMap<ShardId, IndexShardSnapshotStatus> currentSnapshotShards(SnapshotId snapshotId) {
+        SnapshotShards snapshotShards = shardSnapshots.get(snapshotId);
+        if (snapshotShards == null) {
+            return null;
+        } else {
+            return snapshotShards.shards;
+        }
+    }
+
+    /**
+     * Returns status of shards  currently finished snapshots
+     * <p>
+     * This method is executed on master node and it's complimentary to the {@link #currentSnapshotShards(SnapshotId)} becuase it
+     * returns simliar information but for already finished snapshots.
+     * </p>
+     *
+     * @param snapshotId snapshot id
+     * @return map of shard id to snapshot status
+     */
+    public ImmutableMap<ShardId, IndexShardSnapshotStatus> snapshotShards(SnapshotId snapshotId) {
+        ImmutableMap.Builder<ShardId, IndexShardSnapshotStatus> shardStatusBuilder = ImmutableMap.builder();
+        Repository repository = repositoriesService.repository(snapshotId.getRepository());
+        IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(snapshotId.getRepository());
+        Snapshot snapshot = repository.readSnapshot(snapshotId);
+        MetaData metaData = repository.readSnapshotMetaData(snapshotId, snapshot.indices());
+        for (String index : snapshot.indices()) {
+            IndexMetaData indexMetaData = metaData.indices().get(index);
+            if (indexMetaData != null) {
+                int numberOfShards = indexMetaData.getNumberOfShards();
+                for (int i = 0; i < numberOfShards; i++) {
+                    ShardId shardId = new ShardId(index, i);
+                    SnapshotShardFailure shardFailure = findShardFailure(snapshot.shardFailures(), shardId);
+                    if (shardFailure != null) {
+                        IndexShardSnapshotStatus shardSnapshotStatus = new IndexShardSnapshotStatus();
+                        shardSnapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
+                        shardSnapshotStatus.failure(shardFailure.reason());
+                        shardStatusBuilder.put(shardId, shardSnapshotStatus);
+                    } else {
+                        IndexShardSnapshotStatus shardSnapshotStatus = indexShardRepository.snapshotStatus(snapshotId, shardId);
+                        shardStatusBuilder.put(shardId, shardSnapshotStatus);
+                    }
+                }
+            }
+        }
+        return shardStatusBuilder.build();
+    }
+
+
+    private SnapshotShardFailure findShardFailure(ImmutableList<SnapshotShardFailure> shardFailures, ShardId shardId) {
+        for (SnapshotShardFailure shardFailure : shardFailures) {
+            if (shardId.getIndex().equals(shardFailure.index()) && shardId.getId() == shardFailure.shardId()) {
+                return shardFailure;
+            }
+        }
+        return null;
     }
 
     @Override

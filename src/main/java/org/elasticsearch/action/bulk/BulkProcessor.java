@@ -313,10 +313,10 @@ public class BulkProcessor {
     }
 
     private boolean isOverTheLimit() {
-        if (bulkActions != -1 && bulkRequest.numberOfActions() > bulkActions) {
+        if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
             return true;
         }
-        if (bulkSize != -1 && bulkRequest.estimatedSizeInBytes() > bulkSize) {
+        if (bulkSize != -1 && bulkRequest.estimatedSizeInBytes() >= bulkSize) {
             return true;
         }
         return false;

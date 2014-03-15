@@ -26,6 +26,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -50,6 +51,7 @@ import org.elasticsearch.repositories.RepositoryName;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -130,6 +132,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         } catch (Throwable e) {
             snapshotStatus.time(System.currentTimeMillis() - snapshotStatus.startTime());
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FAILURE);
+            snapshotStatus.failure(ExceptionsHelper.detailedMessage(e));
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
@@ -152,6 +155,23 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         } catch (Throwable e) {
             throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, ShardId shardId) {
+        Context context = new Context(snapshotId, shardId);
+        BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
+        IndexShardSnapshotStatus status = new IndexShardSnapshotStatus();
+        status.updateStage(IndexShardSnapshotStatus.Stage.DONE);
+        status.startTime(snapshot.startTime());
+        status.files(snapshot.numberOfFiles(), snapshot.totalSize());
+        // The snapshot is done which means the number of processed files is the same as total
+        status.processedFiles(snapshot.numberOfFiles(), snapshot.totalSize());
+        status.time(snapshot.time());
+        return status;
     }
 
     /**
@@ -267,6 +287,19 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         }
 
         /**
+         * Loads information about shard snapshot
+         */
+        public BlobStoreIndexShardSnapshot loadSnapshot() {
+            BlobStoreIndexShardSnapshot snapshot;
+            try {
+                snapshot = readSnapshot(blobContainer.readBlobFully(snapshotBlobName(snapshotId)));
+            } catch (IOException ex) {
+                throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
+            }
+            return snapshot;
+        }
+
+        /**
          * Removes all unreferenced files from the repository
          *
          * @param snapshots list of active snapshots in the container
@@ -343,6 +376,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             }
             return new BlobStoreIndexShardSnapshots(snapshots);
         }
+
     }
 
     /**
@@ -370,7 +404,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         /**
          * Create snapshot from index commit point
          *
-         * @param snapshotIndexCommit
+         * @param snapshotIndexCommit snapshot commit point
          */
         public void snapshot(SnapshotIndexCommit snapshotIndexCommit) {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, repositoryName);
@@ -385,14 +419,12 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             long generation = findLatestFileNameGeneration(blobs);
             BlobStoreIndexShardSnapshots snapshots = buildBlobStoreIndexShardSnapshots(blobs);
 
-            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.STARTED);
-
-            final CountDownLatch indexLatch = new CountDownLatch(snapshotIndexCommit.getFiles().length);
             final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
             final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = newArrayList();
 
             int indexNumberOfFiles = 0;
             long indexTotalFilesSize = 0;
+            ArrayList<FileInfo> filesToSnapshot = newArrayList();
             for (String fileName : snapshotIndexCommit.getFiles()) {
                 if (snapshotStatus.aborted()) {
                     logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
@@ -423,20 +455,28 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     indexNumberOfFiles++;
                     indexTotalFilesSize += md.length();
                     // create a new FileInfo
-                    try {
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), fileName, md.length(), chunkSize, md.checksum());
-                        indexCommitPointFiles.add(snapshotFileInfo);
-                        snapshotFile(snapshotFileInfo, indexLatch, failures);
-                    } catch (IOException e) {
-                        failures.add(e);
-                    }
+                    BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), fileName, md.length(), chunkSize, md.checksum());
+                    indexCommitPointFiles.add(snapshotFileInfo);
+                    filesToSnapshot.add(snapshotFileInfo);
                 } else {
                     indexCommitPointFiles.add(fileInfo);
-                    indexLatch.countDown();
                 }
             }
 
             snapshotStatus.files(indexNumberOfFiles, indexTotalFilesSize);
+
+            snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.STARTED);
+
+            final CountDownLatch indexLatch = new CountDownLatch(filesToSnapshot.size());
+
+            for (FileInfo snapshotFileInfo : filesToSnapshot) {
+                try {
+                    snapshotFile(snapshotFileInfo, indexLatch, failures);
+                } catch (IOException e) {
+                    failures.add(e);
+                }
+            }
+
             snapshotStatus.indexVersion(snapshotIndexCommit.getGeneration());
 
             try {
@@ -453,7 +493,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             snapshotStatus.updateStage(IndexShardSnapshotStatus.Stage.FINALIZE);
 
             String commitPointName = snapshotBlobName(snapshotId);
-            BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(), snapshotIndexCommit.getGeneration(), indexCommitPointFiles);
+            BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getSnapshot(),
+                    snapshotIndexCommit.getGeneration(), indexCommitPointFiles, snapshotStatus.startTime(),
+                    // snapshotStatus.startTime() is assigned on the same machine, so it's safe to use with VLong
+                    System.currentTimeMillis() - snapshotStatus.startTime(), indexNumberOfFiles, indexTotalFilesSize);
+            //TODO: The time stored in snapshot doesn't include cleanup time.
             try {
                 byte[] snapshotData = writeSnapshot(snapshot);
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
@@ -506,6 +550,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         @Override
                         public void onCompleted() {
                             IOUtils.closeWhileHandlingException(fIndexInput);
+                            snapshotStatus.addProcessedFile(fileInfo.length());
                             if (counter.decrementAndGet() == 0) {
                                 latch.countDown();
                             }
@@ -514,6 +559,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         @Override
                         public void onFailure(Throwable t) {
                             IOUtils.closeWhileHandlingException(fIndexInput);
+                            snapshotStatus.addProcessedFile(0);
                             failures.add(t);
                             if (counter.decrementAndGet() == 0) {
                                 latch.countDown();
@@ -613,12 +659,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public void restore() {
             logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
-            BlobStoreIndexShardSnapshot snapshot;
-            try {
-                snapshot = readSnapshot(blobContainer.readBlobFully(snapshotBlobName(snapshotId)));
-            } catch (IOException ex) {
-                throw new IndexShardRestoreFailedException(shardId, "failed to read shard snapshot file", ex);
-            }
+            BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
 
             recoveryStatus.updateStage(RecoveryStatus.Stage.INDEX);
             int numberOfFiles = 0;

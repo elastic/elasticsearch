@@ -40,6 +40,7 @@ import org.elasticsearch.rest.action.admin.cluster.snapshots.create.RestCreateSn
 import org.elasticsearch.rest.action.admin.cluster.snapshots.delete.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.snapshots.get.RestGetSnapshotsAction;
 import org.elasticsearch.rest.action.admin.cluster.snapshots.restore.RestRestoreSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.snapshots.status.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.stats.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.tasks.RestPendingClusterTasksAction;
@@ -141,6 +142,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestCreateSnapshotAction.class).asEagerSingleton();
         bind(RestRestoreSnapshotAction.class).asEagerSingleton();
         bind(RestDeleteSnapshotAction.class).asEagerSingleton();
+        bind(RestSnapshotsStatusAction.class).asEagerSingleton();
 
         bind(RestIndicesExistsAction.class).asEagerSingleton();
         bind(RestTypesExistsAction.class).asEagerSingleton();

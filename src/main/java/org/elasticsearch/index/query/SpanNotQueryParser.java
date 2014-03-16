@@ -35,6 +35,8 @@ public class SpanNotQueryParser implements QueryParser {
 
     public static final String NAME = "span_not";
 
+    public static final int NOT_SET = -1;
+
     @Inject
     public SpanNotQueryParser() {
     }
@@ -53,9 +55,9 @@ public class SpanNotQueryParser implements QueryParser {
         SpanQuery include = null;
         SpanQuery exclude = null;
 
-        int dist = -1;
-        int pre  = -1;
-        int post = -1;
+        int dist = NOT_SET;
+        int pre  = NOT_SET;
+        int post = NOT_SET;
 
         String queryName = null;
 
@@ -102,14 +104,14 @@ public class SpanNotQueryParser implements QueryParser {
         if (exclude == null) {
             throw new QueryParsingException(parseContext.index(), "spanNot must have [exclude] span query clause");
         }
-        if ((dist != -1 && (pre != -1 || post != -1)) || (pre != -1 && post == -1) || (pre == -1 && post != -1))  {
+        if (dist != NOT_SET && (pre != NOT_SET || post != NOT_SET)) {
             throw new QueryParsingException(parseContext.index(), "spanNot can either use [dist] or [pre] & [post] (or none)");
         }
 
         SpanNotQuery query;
-        if (pre != -1 && post != -1) {
+        if (pre != NOT_SET && post != NOT_SET) {
             query = new SpanNotQuery(include, exclude, pre, post);
-        } else if (dist != -1) {
+        } else if (dist != NOT_SET) {
             query = new SpanNotQuery(include, exclude, dist);
         } else {
             query = new SpanNotQuery(include, exclude);

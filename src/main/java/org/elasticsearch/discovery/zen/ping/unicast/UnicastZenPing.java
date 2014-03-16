@@ -268,10 +268,11 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 sendPingsHandler.executor().execute(new Runnable() {
                     @Override
                     public void run() {
+                        if (sendPingsHandler.isClosed()) {
+                            return;
+                        }
+                        boolean success = false;
                         try {
-                            if (sendPingsHandler.isClosed()) {
-                                return;
-                            }
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), nodeToSend);
@@ -289,10 +290,16 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                                 latch.countDown();
                                 logger.trace("[{}] connect to {} was too long outside of ping window, bailing", sendPingsHandler.id(), node);
                             }
+                            success = true;
                         } catch (ConnectTransportException e) {
-                            // can't connect to the node
+                            // can't connect to the node - this is a more common path!
                             logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), nodeToSend);
-                            latch.countDown();
+                        } catch (Throwable e) {
+                            logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), nodeToSend);
+                        } finally {
+                            if (!success) {
+                                latch.countDown();
+                            }
                         }
                     }
                 });

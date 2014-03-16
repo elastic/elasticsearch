@@ -1,0 +1,20 @@
+[[cat-plugins]]
+== Plugins
+
+The `plugins` command provides a view per node of running plugins. This information *spans nodes*.
+
+[source,shell]
+------------------------------------------------------------------------------
+% curl 'localhost:9200/_cat/plugins?v'
+name    component       version        type isolation url
+Abraxas cloud-azure     2.1.0-SNAPSHOT j    x
+Abraxas lang-groovy     2.0.0          j    x
+Abraxas lang-javascript 2.0.0-SNAPSHOT j    x
+Abraxas marvel          NA             j/s  x         /_plugin/marvel/
+Abraxas lang-python     2.0.0-SNAPSHOT j    x
+Abraxas inquisitor      NA             s              /_plugin/inquisitor/
+Abraxas kopf            0.5.2          s              /_plugin/kopf/
+Abraxas segmentspy      NA             s              /_plugin/segmentspy/
+-------------------------------------------------------------------------------
+
+We can tell quickly how many plugins per node we have and which versions.

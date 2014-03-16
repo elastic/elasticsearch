@@ -37,10 +37,12 @@ import org.elasticsearch.search.suggest.Suggest;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  *
@@ -54,10 +56,24 @@ public class RestSuggestAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_suggest", this);
         controller.registerHandler(POST, "/{index}/_suggest", this);
         controller.registerHandler(GET, "/{index}/_suggest", this);
+        controller.registerHandler(PUT, "/{index}/{type}/_suggest", this);
+        controller.registerHandler(POST, "/{index}/{type}/_suggest", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
+
+        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
+        if (types.length > 0) {
+            try {
+                // type filtering not allowed for suggest
+                channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, restContentBuilder(request)));
+            } catch (IOException e) {
+                logger.error("Failed to send failure response", e);
+            }
+            return;
+         }
+
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         suggestRequest.listenerThreaded(false);

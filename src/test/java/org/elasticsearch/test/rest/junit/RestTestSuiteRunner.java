@@ -42,6 +42,7 @@ import org.elasticsearch.test.rest.section.TestSection;
 import org.elasticsearch.test.rest.spec.RestSpec;
 import org.elasticsearch.test.rest.support.Features;
 import org.elasticsearch.test.rest.support.FileUtils;
+import org.elasticsearch.test.rest.support.PathUtils;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunNotifier;
@@ -207,7 +208,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
         }
 
         try {
-            String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
+            String[] specPaths = PathUtils.resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
             RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
             this.restTestExecutionContext = new RestTestExecutionContext(addresses.toArray(new InetSocketAddress[addresses.size()]), restSpec);
             this.rootDescription = createRootDescription(getRootSuiteTitle());
@@ -228,7 +229,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
      */
     protected List<RestTestCandidate> collectTestCandidates(Description rootDescription) throws InitializationError, IOException {
 
-        String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
+        String[] paths = PathUtils.resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
         Map<String, Set<File>> yamlSuites = FileUtils.findYamlSuites(DEFAULT_TESTS_PATH, paths);
 
         String sectionFilter = System.getProperty(REST_TESTS_SECTION);
@@ -366,15 +367,6 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
             throw new IllegalArgumentException("System property " + SYSPROP_ITERATIONS() + " must be >= 1 but was [" + iterations + "]");
         }
         return iterations;
-    }
-
-    protected static String[] resolvePathsProperty(String propertyName, String defaultValue) {
-        String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
-            return new String[]{defaultValue};
-        } else {
-            return property.split(PATHS_SEPARATOR);
-        }
     }
 
     /**

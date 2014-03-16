@@ -119,6 +119,15 @@ public class RestClient implements Closeable {
      * according to the ignore parameter received as input (which won't get sent to elasticsearch)
      */
     public RestResponse callApi(String apiName, Map<String, String> params, String body) throws IOException, RestException {
+        return callApi(apiName, null, params, body);
+    }
+
+    /**
+     * Calls an api with the provided parameters and body, using the provided HTTP method
+     * @throws RestException if the obtained status code is non ok, unless the specific error code needs to be ignored
+     * according to the ignore parameter received as input (which won't get sent to elasticsearch)
+     */
+    public RestResponse callApi(String apiName, String method, Map<String, String> params, String body) throws IOException, RestException {
 
         List<Integer> ignores = Lists.newArrayList();
         Map<String, String> requestParams = null;
@@ -136,7 +145,7 @@ public class RestClient implements Closeable {
             }
         }
 
-        HttpRequestBuilder httpRequestBuilder = callApiBuilder(apiName, requestParams, body);
+        HttpRequestBuilder httpRequestBuilder = callApiBuilder(apiName, method, requestParams, body);
         logger.debug("calling api [{}]", apiName);
         HttpResponse httpResponse = httpRequestBuilder.execute();
 
@@ -168,7 +177,7 @@ public class RestClient implements Closeable {
         }
     }
 
-    private HttpRequestBuilder callApiBuilder(String apiName, Map<String, String> params, String body) {
+    private HttpRequestBuilder callApiBuilder(String apiName, String method, Map<String, String> params, String body) {
 
         //create doesn't exist in the spec but is supported in the clients (index with op_type=create)
         boolean indexCreateApi = "create".equals(apiName);
@@ -207,9 +216,14 @@ public class RestClient implements Closeable {
             httpRequestBuilder.addParam("op_type", "create");
         }
 
-        //the http method is randomized (out of the available ones with the chosen api)
-        return httpRequestBuilder.method(RandomizedTest.randomFrom(restApi.getSupportedMethods(pathParts.keySet())))
-                .path(RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts)));
+        if (method != null) {
+            //explicitly use the provided http method
+            return httpRequestBuilder.method(method).path(RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts)));
+        } else {
+            //the http method is randomized (out of the available ones with the chosen api)
+            return httpRequestBuilder.method(RandomizedTest.randomFrom(restApi.getSupportedMethods(pathParts.keySet())))
+                    .path(RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts)));
+        }
     }
 
     private RestApi restApi(String apiName) {

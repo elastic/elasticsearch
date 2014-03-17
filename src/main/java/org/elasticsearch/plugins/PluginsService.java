@@ -38,6 +38,7 @@ import org.elasticsearch.index.CloseableIndexComponent;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -88,8 +89,8 @@ public class PluginsService extends AbstractComponent {
         // first we load all the default plugins from the settings
         String[] defaultPluginsClasses = settings.getAsArray("plugin.types");
         for (String pluginClass : defaultPluginsClasses) {
-            Plugin plugin = PluginUtils.loadPlugin(pluginClass, settings, settings.getClassLoader());
-            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), hasSite(plugin.name()), true, PluginInfo.VERSION_NOT_AVAILABLE, false);
+            Plugin plugin = loadPlugin(pluginClass, settings);
+            PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), hasSite(plugin.name()), true, PluginInfo.VERSION_NOT_AVAILABLE);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from settings [{}]", pluginInfo);
             }
@@ -97,7 +98,8 @@ public class PluginsService extends AbstractComponent {
         }
 
         // now, find all the ones that are in the classpath
-        tupleBuilder.addAll(loadPlugins());
+        loadPluginsIntoClassLoader();
+        tupleBuilder.addAll(loadPluginsFromClasspath(settings));
         this.plugins = tupleBuilder.build();
 
         // We need to build a List of jvm and site plugins for checking mandatory plugins
@@ -315,110 +317,103 @@ public class PluginsService extends AbstractComponent {
         return cachedPluginsInfo;
     }
 
-    private List<Tuple<PluginInfo,Plugin>> loadPlugins() {
-        File pluginsFile = environment.pluginsFile();
-        if (!isAccessibleDirectory(pluginsFile, logger)) {
-            return Collections.emptyList();
+    private void loadPluginsIntoClassLoader() {
+        File pluginsDirectory = environment.pluginsFile();
+        if (!isAccessibleDirectory(pluginsDirectory, logger)) {
+            return;
         }
 
-        List<Tuple<PluginInfo, Plugin>> pluginData = Lists.newArrayList();
-
-        boolean defaultIsolation = settings.getAsBoolean("plugins.isolation", Boolean.FALSE);
-        ClassLoader esClassLoader = settings.getClassLoader();
+        ClassLoader classLoader = settings.getClassLoader();
+        Class classLoaderClass = classLoader.getClass();
         Method addURL = null;
-        boolean discoveredAddUrl = false;
-
-        File[] pluginsFiles = pluginsFile.listFiles();
-
-        if (pluginsFiles != null) {
-            for (File pluginRoot : pluginsFiles) {
-                if (isAccessibleDirectory(pluginRoot, logger)) {
-                    try {
-                        logger.trace("--- adding plugin [" + pluginRoot.getAbsolutePath() + "]");
-                        // check isolation
-                        List<File> pluginClassPath = PluginUtils.pluginClassPathAsFiles(pluginRoot);
-                        List<URL> pluginProperties = PluginUtils.lookupPluginProperties(pluginClassPath);
-                        boolean isolated = PluginUtils.lookupIsolation(pluginProperties, defaultIsolation);
-
-                        if (isolated) {
-                            logger.trace("--- creating isolated space for plugin [" + pluginRoot.getAbsolutePath() + "]");
-                            PluginClassLoader pcl = new PluginClassLoader(PluginUtils.convertFileToUrl(pluginClassPath), esClassLoader);
-                            pluginData.addAll(loadPlugin(pluginClassPath, pluginProperties, pcl, true));
-                        } else {
-                            if (!discoveredAddUrl) {
-                                discoveredAddUrl = true;
-                                Class<?> esClassLoaderClass = esClassLoader.getClass();
-
-                                while (!esClassLoaderClass.equals(Object.class)) {
-                                    try {
-                                        addURL = esClassLoaderClass.getDeclaredMethod("addURL", URL.class);
-                                        addURL.setAccessible(true);
-                                        break;
-                                    } catch (NoSuchMethodException e) {
-                                        // no method, try the parent
-                                        esClassLoaderClass = esClassLoaderClass.getSuperclass();
-                                    }
-                                }
-                            }
-
-                            if (addURL == null) {
-                                logger.debug("failed to find addURL method on classLoader [" + esClassLoader + "] to add methods");
-                            }
-                            else {
-                                for (File file : pluginClassPath) {
-                                    addURL.invoke(esClassLoader, file.toURI().toURL());
-                                }
-                                pluginData.addAll(loadPlugin(pluginClassPath, pluginProperties, esClassLoader, false));
-                            }
-                        }
-                    } catch (Throwable e) {
-                        logger.warn("failed to add plugin [" + pluginRoot.getAbsolutePath() + "]", e);
-                    }
-                }
+        while (!classLoaderClass.equals(Object.class)) {
+            try {
+                addURL = classLoaderClass.getDeclaredMethod("addURL", URL.class);
+                addURL.setAccessible(true);
+                break;
+            } catch (NoSuchMethodException e) {
+                // no method, try the parent
+                classLoaderClass = classLoaderClass.getSuperclass();
             }
-        } else {
-            logger.debug("failed to list plugins from {}. Check your right access.", pluginsFile.getAbsolutePath());
+        }
+        if (addURL == null) {
+            logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
+            return;
         }
 
-        return pluginData;
+        for (File plugin : pluginsDirectory.listFiles()) {
+            // We check that subdirs are directories and readable
+            if (!isAccessibleDirectory(plugin, logger)) {
+                continue;
+            }
+
+            logger.trace("--- adding plugin [{}]", plugin.getAbsolutePath());
+
+            try {
+                // add the root
+                addURL.invoke(classLoader, plugin.toURI().toURL());
+                // gather files to add
+                List<File> libFiles = Lists.newArrayList();
+                if (plugin.listFiles() != null) {
+                    libFiles.addAll(Arrays.asList(plugin.listFiles()));
+                }
+                File libLocation = new File(plugin, "lib");
+                if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
+                    libFiles.addAll(Arrays.asList(libLocation.listFiles()));
+                }
+
+                // if there are jars in it, add it as well
+                for (File libFile : libFiles) {
+                    if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
+                        continue;
+                    }
+                    addURL.invoke(classLoader, libFile.toURI().toURL());
+                }
+            } catch (Throwable e) {
+                logger.warn("failed to add plugin [" + plugin + "]", e);
+            }
+        }
     }
 
-    private Collection<? extends Tuple<PluginInfo, Plugin>> loadPlugin(List<File> pluginClassPath, List<URL> properties, ClassLoader classLoader, boolean isolation) throws Exception {
-        List<Tuple<PluginInfo, Plugin>> plugins = Lists.newArrayList();
+    private ImmutableList<Tuple<PluginInfo,Plugin>> loadPluginsFromClasspath(Settings settings) {
+        ImmutableList.Builder<Tuple<PluginInfo, Plugin>> plugins = ImmutableList.builder();
 
-        Enumeration<URL> entries = Collections.enumeration(properties);
-        while (entries.hasMoreElements()) {
-            URL pluginUrl = entries.nextElement();
-            Properties pluginProps = new Properties();
-            InputStream is = null;
-            try {
-                is = pluginUrl.openStream();
-                pluginProps.load(is);
-                String pluginClassName = pluginProps.getProperty("plugin");
-                if (pluginClassName == null) {
-                    throw new IllegalArgumentException("No plugin class specified");
+        // Trying JVM plugins: looking for es-plugin.properties files
+        try {
+            Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(ES_PLUGIN_PROPERTIES);
+            while (pluginUrls.hasMoreElements()) {
+                URL pluginUrl = pluginUrls.nextElement();
+                Properties pluginProps = new Properties();
+                InputStream is = null;
+                try {
+                    is = pluginUrl.openStream();
+                    pluginProps.load(is);
+                    String pluginClassName = pluginProps.getProperty("plugin");
+                    String pluginVersion = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
+                    Plugin plugin = loadPlugin(pluginClassName, settings);
+
+                    // Is it a site plugin as well? Does it have also an embedded _site structure
+                    File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
+                    boolean isSite = isAccessibleDirectory(siteFile, logger);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("found a jvm plugin [{}], [{}]{}",
+                                plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
+                    }
+
+                    PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), isSite, true, pluginVersion);
+
+                    plugins.add(new Tuple<>(pluginInfo, plugin));
+                } catch (Throwable e) {
+                    logger.warn("failed to load plugin from [" + pluginUrl + "]", e);
+                } finally {
+                    IOUtils.closeWhileHandlingException(is);
                 }
-                String pluginVersion = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
-                Plugin plugin = PluginUtils.loadPlugin(pluginClassName, settings, classLoader);
-
-                // Is it a site plugin as well? Does it have also an embedded _site structure
-                File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
-                boolean isSite = isAccessibleDirectory(siteFile, logger);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("found a jvm plugin [{}], [{}]{}",
-                            plugin.name(), plugin.description(), isSite ? ": with _site structure" : "");
-                }
-
-                PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), isSite, true, pluginVersion, isolation);
-                plugins.add(new Tuple<>(pluginInfo, plugin));
-            } catch (Throwable e) {
-                logger.warn("failed to load plugin from [" + pluginUrl + "]", e);
-            } finally {
-                IOUtils.closeWhileHandlingException(is);
             }
+        } catch (IOException e) {
+            logger.warn("failed to find jvm plugins from classpath", e);
         }
 
-        return plugins;
+        return plugins.build();
     }
 
     private ImmutableList<Tuple<PluginInfo,Plugin>> loadSitePlugins() {
@@ -471,7 +466,7 @@ public class PluginsService extends AbstractComponent {
                         logger.trace("found a site plugin name [{}], version [{}], description [{}]",
                                 name, version, description);
                     }
-                    sitePlugins.add(new Tuple<PluginInfo, Plugin>(new PluginInfo(name, description, true, false, version, false), null));
+                    sitePlugins.add(new Tuple<PluginInfo, Plugin>(new PluginInfo(name, description, true, false, version), null));
                 }
             }
         }
@@ -493,5 +488,28 @@ public class PluginsService extends AbstractComponent {
 
         File sitePluginDir = new File(pluginsFile, name + "/_site");
         return isAccessibleDirectory(sitePluginDir, logger);
+    }
+
+    private Plugin loadPlugin(String className, Settings settings) {
+        try {
+            Class<? extends Plugin> pluginClass = (Class<? extends Plugin>) settings.getClassLoader().loadClass(className);
+            Plugin plugin;
+            try {
+                plugin = pluginClass.getConstructor(Settings.class).newInstance(settings);
+            } catch (NoSuchMethodException e) {
+                try {
+                    plugin = pluginClass.getConstructor().newInstance();
+                } catch (NoSuchMethodException e1) {
+                    throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
+                            "have either an empty default constructor or a single argument constructor accepting a " +
+                            "Settings instance");
+                }
+            }
+
+            return plugin;
+
+        } catch (Throwable e) {
+            throw new ElasticsearchException("Failed to load plugin class [" + className + "]", e);
+        }
     }
 }

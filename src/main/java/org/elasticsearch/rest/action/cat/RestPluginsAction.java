@@ -84,7 +84,6 @@ public class RestPluginsAction extends AbstractCatAction {
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
         table.addCell("type", "alias:t;desc:type (j for JVM, s for Site)");
-        table.addCell("isolation", "alias:i;desc:isolation");
         table.addCell("url", "alias:u;desc:url for site plugins");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
         table.endHeaders();
@@ -118,7 +117,6 @@ public class RestPluginsAction extends AbstractCatAction {
                     }
                 }
                 table.addCell(type);
-                table.addCell(pluginInfo.isIsolation() ? "x" : "");
                 table.addCell(pluginInfo.getUrl());
                 table.addCell(pluginInfo.getDescription());
                 table.endRow();

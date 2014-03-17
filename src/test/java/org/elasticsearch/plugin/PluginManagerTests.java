@@ -47,7 +47,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -250,7 +250,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
-        assumeTrue(isDownloadServiceWorking("http://download.elasticsearch.org/"));
+        assumeTrue(isDownloadServiceWorking("http://download.elasticsearch.org/", "elasticsearch/ci-test.txt"));
         singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
     }
 
@@ -263,7 +263,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithMavenCentral() throws IOException {
-        assumeTrue(isDownloadServiceWorking("http://search.maven.org/"));
+        assumeTrue(isDownloadServiceWorking("http://search.maven.org/", "/"));
         singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/1.5.0", null);
     }
 
@@ -276,17 +276,20 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     @Network
     public void testInstallPluginWithGithub() throws IOException {
-        assumeTrue(isDownloadServiceWorking("https://github.com/"));
+        assumeTrue(isDownloadServiceWorking("https://github.com/", "/"));
         singlePluginInstallAndRemove("elasticsearch/kibana", null);
     }
 
-    private boolean isDownloadServiceWorking(String url) {
+    private boolean isDownloadServiceWorking(String url, String resource) {
         HttpClient client = new HttpClient(url);
         try {
-            client.request("/");
+            if (client.request(resource).errorCode() != 200) {
+                logger.warn("[{}{}] download service is not working. Disabling current test.", url, resource);
+                return false;
+            }
             return true;
         } catch (Throwable t) {
-            logger.warn("[{}] download service is not working. Disabling current test.", url);
+            logger.warn("[{}{}] download service is not working. Disabling current test.", url, resource);
         }
         return false;
     }

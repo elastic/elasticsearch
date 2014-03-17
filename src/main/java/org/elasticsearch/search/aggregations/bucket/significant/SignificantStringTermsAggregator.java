@@ -84,7 +84,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             bucketOrds.get(i, spare.termBytes);
             spare.subsetDf = bucketDocCount(i);
             spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(topReader, spare.termBytes);
+            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
             assert spare.subsetDf <= spare.supersetDf;
             // During shard-local down-selection we use subset/superset stats 

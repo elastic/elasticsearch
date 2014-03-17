@@ -40,11 +40,13 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
 
     private Set<CustomSerialMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomSerialMergeScheduler>();
+    private final int maxMergeCycles;
 
     @Inject
     public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(shardId, indexSettings, threadPool);
-        logger.trace("using [serial] merge scheduler");
+        this.maxMergeCycles = componentSettings.getAsInt("max_merge_cycles", 5);
+        logger.trace("using [serial] merge scheduler, max_merge_cycles [{}]", maxMergeCycles);
     }
 
     @Override
@@ -77,7 +79,7 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
         private final SerialMergeSchedulerProvider provider;
 
         public CustomSerialMergeScheduler(ESLogger logger, SerialMergeSchedulerProvider provider) {
-            super(logger);
+            super(logger, provider.maxMergeCycles);
             this.provider = provider;
         }
 

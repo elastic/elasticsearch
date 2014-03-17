@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -56,12 +55,6 @@ import static org.hamcrest.Matchers.*;
  */
 @ClusterScope(scope = Scope.TEST, numNodes = 0)
 public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
-
-    protected void setMinimumMasterNodes(int n) {
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
-                .get().isAcknowledged());
-    }
 
     @Slow
     @Test

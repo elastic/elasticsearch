@@ -63,7 +63,9 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private BytesRefHash cachedTermOrds;
     private BigArrays bigArrays;
 
-      public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig,  int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
+    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, int requiredSize,
+            int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
+
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -89,9 +91,8 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
             return false;
         } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
             return true;
-        } else {
-            return hasParentBucketAggregator(parent.parent());
         }
+        return hasParentBucketAggregator(parent.parent());
     }
 
     @Override
@@ -132,10 +133,9 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
             if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 assert includeExclude == null;
-                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this );
-            } else {
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
+                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
             }
+            return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
         }
 
         if (includeExclude != null) {
@@ -144,19 +144,18 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
         }
 
         if (valuesSource instanceof NumericValuesSource) {
-            
+
             if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
-              throw new UnsupportedOperationException("No support for examining floating point numerics");
+                throw new UnsupportedOperationException("No support for examining floating point numerics");
             }
-            return new SignificantLongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent,this);
+            return new SignificantLongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
         }
 
         throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +
                 "]. It can only be applied to numeric or string fields.");
     }
 
-    // Many child aggs may ask for the same docFreq information so here we cache docFreq
-    // values for these terms.
+    // Many child aggs may ask for the same docFreq information so here we cache docFreq values for these terms.
     // TODO this should be re-factored into a more generic system for efficiently checking frequencies of things
     // In future we may need to a) check the frequency in a set other than the index e.g. a subset and b) check
     // the frequency of an entity other than an a single indexed term e.g. a numeric range.
@@ -179,10 +178,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
         return result;
     }
 
-    
-
-    // Many child aggs may ask for the same docFreq information so cache docFreq
-    // values for these terms
+    // Many child aggs may ask for the same docFreq information so cache docFreq values for these terms
     public long getBackgroundFrequency(IndexReader topReader, long term) {
         BytesRef indexedVal = mapper.indexedValueForSearch(term);
         return getBackgroundFrequency(topReader, indexedVal);

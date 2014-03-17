@@ -40,6 +40,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
     protected Map<String, Bucket> bucketMap;
     protected long subsetSize;
     protected long supersetSize;
+
     protected InternalSignificantTerms() {} // for serialization
 
     // TODO updateScore call in constructor to be cleaned up as part of adding pluggable scoring algos
@@ -58,39 +59,39 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         }
 
         @Override
-        public long getSubsetDf(){
+        public long getSubsetDf() {
             return subsetDf;
         }
 
         @Override
-        public long getSupersetDf(){
+        public long getSupersetDf() {
             return supersetDf;
         }
 
         @Override
-        public long getSupersetSize(){
+        public long getSupersetSize() {
             return supersetSize;
         }
 
         @Override
-        public long getSubsetSize(){
+        public long getSubsetSize() {
             return subsetSize;
         }
-        
+
         /**
          * Calculates the significance of a term in a sample against a background of
          * normal distributions by comparing the changes in frequency. This is the heart
-         * of the significant terms feature. 
-         * 
+         * of the significant terms feature.
+         * <p/>
          * TODO - allow pluggable scoring implementations
-         * 
-         * @param subsetFreq The frequency of the term in the selected sample
-         * @param subsetSize The size of the selected sample (typically number of docs)
+         *
+         * @param subsetFreq   The frequency of the term in the selected sample
+         * @param subsetSize   The size of the selected sample (typically number of docs)
          * @param supersetFreq The frequency of the term in the superset from which the sample was taken
          * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
          * @return a "significance" score
          */
-        public static final double getSampledTermSignificance(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
+        public static double getSampledTermSignificance(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
             if ((subsetSize == 0) || (supersetSize == 0)) {
                 // avoid any divide by zero issues
                 return 0;
@@ -125,7 +126,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
 
         public void updateScore() {
             score = getSampledTermSignificance(subsetDf, subsetSize, supersetDf, supersetSize);
-        }          
+        }
 
         @Override
         public long getDocCount() {
@@ -161,7 +162,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         @Override
         public double getSignificanceScore() {
             return score;
-        }        
+        }
     }
 
     protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, Collection<Bucket> buckets) {

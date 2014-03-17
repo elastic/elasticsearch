@@ -37,18 +37,19 @@ import java.util.Collections;
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
-            long estimatedBucketCount,  int requiredSize, int shardSize, long minDocCount,
-            AggregationContext aggregationContext, Aggregator parent,SignificantTermsAggregatorFactory termsAggFactory) {
+              long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
+              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+
         super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
     }
 
     protected long numCollectedDocs;
-    private SignificantTermsAggregatorFactory termsAggFactory;
+    private final SignificantTermsAggregatorFactory termsAggFactory;
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        super.collect(doc,owningBucketOrdinal);
+        super.collect(doc, owningBucketOrdinal);
         numCollectedDocs++;
     }
 
@@ -65,7 +66,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantLongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.capacity(); ++i) {
+        for (long i = 0; i < bucketOrds.capacity(); i++) {
             final long ord = bucketOrds.id(i);
             if (ord < 0) {
                 // slot is not allocated
@@ -81,10 +82,8 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(topReader, spare.term);
             spare.supersetSize = supersetSize;
             assert spare.subsetDf <= spare.supersetDf;
-            // During shard-local down-selection we use subset/superset stats
-            // that are for this shard only
-            // Back at the central reducer these properties will be updated with
-            // global stats
+            // During shard-local down-selection we use subset/superset stats that are for this shard only
+            // Back at the central reducer these properties will be updated with global stats
             spare.updateScore();
 
             spare.bucketOrd = ord;
@@ -92,23 +91,22 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
+        for (int i = ordered.size() - 1; i >= 0; i--) {
             final SignificantLongTerms.Bucket bucket = (SignificantLongTerms.Bucket) ordered.pop();
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
         return new SignificantLongTerms(subsetSize, supersetSize, name, valuesSource.formatter(), requiredSize, minDocCount,
                 Arrays.asList(list));
-  }
+    }
 
     @Override
     public SignificantLongTerms buildEmptyAggregation() {
-        // We need to account for the significance of a miss in our global stats
-        // - provide corpus size as context
+        // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantLongTerms(0, supersetSize, name,  valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantLongTerms(0, supersetSize, name, valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override

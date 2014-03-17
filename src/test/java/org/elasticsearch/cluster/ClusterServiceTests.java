@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -533,7 +534,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(testService1.master(), is(true));
 
         String node_1 = cluster().startNode(settings);
-        ClusterService clusterService2 = cluster().getInstance(ClusterService.class, node_1);
+        final ClusterService clusterService2 = cluster().getInstance(ClusterService.class, node_1);
         MasterAwareService testService2 = cluster().getInstance(MasterAwareService.class, node_1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
@@ -556,10 +557,13 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 .put("discovery.type", "zen")
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
-        Thread.sleep(200);
 
         // there should not be any master as the minimum number of required eligible masters is not met
-        assertThat(clusterService2.state().nodes().masterNode(), is(nullValue()));
+        awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                return clusterService2.state().nodes().masterNode() == null;
+            }
+        });
         assertThat(testService2.master(), is(false));
 
 

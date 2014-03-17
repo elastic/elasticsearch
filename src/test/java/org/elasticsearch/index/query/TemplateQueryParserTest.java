@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
@@ -58,13 +60,15 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     private Injector injector;
     private QueryParseContext context;
-    
+
     @Before
-    public void setup() {
-        Settings settings = ImmutableSettings.Builder.EMPTY_SETTINGS;
+    public void setup() throws IOException {
+        String scriptPath = this.getClass().getResource("config").getPath();
+        Settings settings = ImmutableSettings.settingsBuilder().put("path.conf", scriptPath).build();
 
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
+                new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new CacheRecyclerModule(settings),
                 new CodecModule(settings),
@@ -97,6 +101,18 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         String templateString = "{\"template\": {"
                 + "\"query\":{\"match_{{template}}\": {}},"
                 + "\"params\":{\"template\":\"all\"}}" + "}";
+
+        XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
+        context.reset(templateSourceParser);
+
+        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        Query query = parser.parse(context);
+        assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
+    }
+
+    @Test
+    public void testParserCanExtractTemplateNames() throws Exception {
+        String templateString = "{ \"template\": { \"query\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } } ";
 
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);

@@ -125,7 +125,8 @@ public final class InternalNode implements Node {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
         tuple = new Tuple<Settings, Environment>(TribeService.processSettings(tuple.v1()), tuple.v2());
 
-        Version version = Version.CURRENT;
+        // The only place we can actually fake the version a node is running on:
+        Version version = pSettings.getAsVersion("tests.mock.version", Version.CURRENT);
 
         ESLogger logger = Loggers.getLogger(Node.class, tuple.v1().get("name"));
         logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());

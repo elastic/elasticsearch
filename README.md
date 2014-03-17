@@ -5,28 +5,13 @@ The AWS Cloud plugin allows to use AWS EC2 API for the unicast discovery mechani
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.0.0.RC1`.
 
+* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/master).
+* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/1.x).
+
 |      AWS Cloud Plugin      |    elasticsearch    | Release date |
 |----------------------------|---------------------|:------------:|
-| 2.0.0-SNAPSHOT (master)    | 1.0.0.RC1 -> master |              |
+| 2.0.0-SNAPSHOT             | 1.0.0.RC1 -> master |  XXXX-XX-XX  |
 | 2.0.0.RC1                  | 1.0.0.RC1 -> master |  2014-01-15  |
-| 1.17.0-SNAPSHOT (1.x)      | 0.90.4 -> 0.90      |              |
-| 1.16.0                     | 0.90.4 -> 0.90      |  2013-11-26  |
-| 1.15.0                     | 0.90.4 -> 0.90      |  2013-09-16  |
-| 1.14.0                     | 0.90.3              |  2013-08-09  |
-| 1.13.0                     | broken              |  2013-08-09  |
-| 1.12.0                     | 0.90 -> 0.90.2      |  2013-05-31  |
-| 1.11.0                     | 0.90 -> 0.90.2      |  2013-02-26  |
-| 1.10.0                     | 0.19                |  2012-12-05  |
-| 1.9.0                      | 0.19                |  2012-08-25  |
-| 1.8.0                      | 0.19                |  2012-06-27  |
-| 1.7.0                      | 0.19                |  2012-06-20  |
-| 1.6.0                      | 0.19                |  2012-06-01  |
-| 1.5.0                      | 0.19                |  2012-03-07  |
-| 1.4.0                      | 0.19                |  2012-03-03  |
-| 1.3.0                      | 0.19                |  2012-02-07  |
-| 1.2.0                      | 0.18                |  2012-01-02  |
-| 1.1.0                      | 0.18                |  2012-01-02  |
-| 1.0.0                      | 0.18                |  2011-12-05  |
 
 ## Generic Configuration
 

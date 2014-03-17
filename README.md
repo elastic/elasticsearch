@@ -10,6 +10,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |     Azure Cloud Plugin      |    elasticsearch    | Release date |
 |-----------------------------|---------------------|:------------:|
+| 2.2.0-SNAPSHOT              | 1.0 -> master       |  XXXX-XX-XX  |
 | 2.1.0                       | 1.0 -> master       |  2014-03-17  |
 | 2.0.0                       | 1.0 -> master       |  2014-02-14  |
 

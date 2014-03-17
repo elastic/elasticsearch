@@ -851,7 +851,7 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/etc/systemd/system/</directory>
+                            <directory>/usr/lib/systemd/system/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
                             <sources>
@@ -877,7 +877,7 @@
                             </sources>
                         </mapping>
                         <mapping>
-                            <directory>/etc/tmpfiles.d/</directory>
+                            <directory>/usr/lib/tmpfiles.d/</directory>
                             <configuration>true</configuration>
                             <sources>
                                 <source>

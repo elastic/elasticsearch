@@ -1246,7 +1246,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPercolateSorting_unsupportedField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", "level", "type=integer")
+                .addMapping("my-type", "field", "type=string")
+                .addMapping(PercolatorService.TYPE_NAME, "level", "type=integer", "query", "type=object,enabled=false")
                 .get();
         ensureGreen();
 

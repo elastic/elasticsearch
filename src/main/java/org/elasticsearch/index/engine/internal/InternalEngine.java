@@ -674,7 +674,13 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public boolean possibleMergeNeeded() {
-        return this.possibleMergeNeeded;
+        IndexWriter writer = this.indexWriter;
+        if (writer == null) {
+            return false;
+        }
+        // a merge scheduler might bail without going through all its pending merges
+        // so make sure we also check if there are pending merges
+        return this.possibleMergeNeeded || writer.hasPendingMerges();
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
@@ -68,6 +70,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     private String routing;
     @Nullable
     private String preference;
+
+    private BytesReference templateSource;
+    private boolean templateSourceUnsafe;
+    private String templateName;
+    private Map<String, String> templateParams = Collections.emptyMap();
 
     private BytesReference source;
     private boolean sourceUnsafe;
@@ -122,6 +129,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (extraSource != null && extraSourceUnsafe) {
             extraSource = extraSource.copyBytesArray();
             extraSourceUnsafe = false;
+        }
+        if (templateSource != null && templateSourceUnsafe) {
+            templateSource = templateSource.copyBytesArray();
+            templateSourceUnsafe = false;
         }
     }
 
@@ -328,6 +339,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     }
 
     /**
+     * The search source template to execute.
+     */
+    public BytesReference templateSource() {
+        return templateSource;
+    }
+
+    /**
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
@@ -393,6 +411,52 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         this.extraSource = source;
         this.extraSourceUnsafe = unsafe;
         return this;
+    }
+
+    /**
+     * Allows to provide template as source.
+     */
+    public SearchRequest templateSource(BytesReference template, boolean unsafe) {
+        this.templateSource = template;
+        this.templateSourceUnsafe = unsafe;
+        return this;
+    }
+
+    /**
+     * The template of the search request.
+     */
+    public SearchRequest templateSource(String source) {
+        this.source = new BytesArray(source);
+        this.sourceUnsafe = false;
+        return this;
+    }
+
+    /**
+     * The name of the stored template
+     */
+    public void templateName(String name) {
+        this.templateName = name;
+    }
+
+    /**
+     * Template parameters used for rendering
+     */
+    public void templateParams(Map<String, String> params) {
+        this.templateParams = params;
+    }
+
+    /**
+     * The name of the stored template
+     */
+    public String templateName() {
+        return templateName;
+    }
+
+    /**
+     * Template parameters used for rendering
+     */
+    public Map<String, String> templateParams() {
+        return templateParams;
     }
 
     /**
@@ -471,6 +535,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            templateSourceUnsafe = false;
+            templateSource = in.readBytesReference();
+            templateName =  in.readOptionalString();
+            if (in.readBoolean()) {
+                templateParams = (Map<String, String>) in.readGenericValue();
+            }
+        }
     }
 
     @Override
@@ -497,5 +570,16 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         out.writeBytesReference(extraSource);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
+
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeBytesReference(templateSource);
+            out.writeOptionalString(templateName);
+
+            boolean existTemplateParams = templateParams != null;
+            out.writeBoolean(existTemplateParams);
+            if (existTemplateParams) {
+                out.writeGenericValue(templateParams);
+            }
+        }
     }
 }

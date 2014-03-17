@@ -86,6 +86,16 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
     }
 
     @Test
+    public void testBasicQuerySanities() {
+        Query childQuery = new TermQuery(new Term("field", "value"));
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
+        Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE);
+        QueryUtils.check(query);
+    }
+
+    @Test
     public void testSimple() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

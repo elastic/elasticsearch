@@ -1314,13 +1314,6 @@
             <value>true</value>
           </property>
         </activation>
-        <dependencies>
-          <dependency>
-            <groupId>org.codehaus.mojo</groupId>
-              <artifactId>findbugs-maven-plugin</artifactId>
-              <version>2.5.3</version>
-          </dependency>
-        </dependencies>
         <build>
           <plugins>
             <plugin>

@@ -79,7 +79,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.term = bucketOrds.key(i);
             spare.subsetDf = bucketDocCount(ord);
             spare.subsetSize = subsetSize;
-            spare.supersetDf = termsAggFactory.getBackgroundFrequency(topReader, spare.term);
+            spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
             spare.supersetSize = supersetSize;
             assert spare.subsetDf <= spare.supersetDf;
             // During shard-local down-selection we use subset/superset stats that are for this shard only

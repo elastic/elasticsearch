@@ -958,9 +958,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", ZenDiscovery.this.electMaster.minimumMasterNodes());
+            int minimumMasterNodes = settings.getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
+                    ZenDiscovery.this.electMaster.minimumMasterNodes());
             if (minimumMasterNodes != ZenDiscovery.this.electMaster.minimumMasterNodes()) {
-                logger.info("updating discovery.zen.minimum_master_nodes from [{}] to [{}]", ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
+                logger.info("updating {} from [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
+                        ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
                 handleMinimumMasterNodesChanged(minimumMasterNodes);
             }
         }

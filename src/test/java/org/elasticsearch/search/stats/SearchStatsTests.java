@@ -91,12 +91,13 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
         refresh();
         int iters = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
+            SearchResponse searchResponse = cluster().clientNodeClient().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
             assertHitCount(searchResponse, docsTest1 + docsTest2);
             assertAllSuccessful(searchResponse);
         }
 
         IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        logger.debug("###### indices search stats: " + indicesStats.getTotal().getSearch());
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0l));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0l));

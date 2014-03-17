@@ -19,7 +19,7 @@ governing permissions and limitations under the License. -->
     <version>2.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Elasticsearch Azure cloud plugin</name>
-    <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.</description>
+    <description>The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism and add Azure storage repositories.</description>
     <url>https://github.com/elasticsearch/elasticsearch-cloud-azure/</url>
     <inceptionYear>2013</inceptionYear>
     <licenses>

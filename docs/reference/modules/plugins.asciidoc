@@ -142,20 +142,6 @@ bin/plugin --install mobz/elasticsearch-head --timeout 1m
 bin/plugin --install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
-added[1.1.0]
-[float]
-==== Plugins isolation
-
-Since Elasticsearch 1.1, by default, each plugin is loaded in _isolation_ (in its dedicated `ClassLoader`) to avoid class clashes between the various plugins and their associated libraries. The default can be changed through the `plugins.isolation` property in `elasticsearch.yml`, by setting it to `false`:
-
-[source,js]
---------------------------------------------------
-plugins.isolation: false
---------------------------------------------------
-
-Do note that each plugin can specify its _mandatory_ isolation through the `isolation` property in its `es-plugin.properties` configuration. In this (rare) case, the plugin setting is used, overwriting whatever default used by Elasticsearch.
-
-
 [float]
 [[known-plugins]]
 === Known Plugins

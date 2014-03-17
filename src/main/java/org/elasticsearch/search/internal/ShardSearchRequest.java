@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.search.Scroll.readScroll;
 
@@ -68,6 +70,9 @@ public class ShardSearchRequest extends TransportRequest {
 
     private BytesReference source;
     private BytesReference extraSource;
+    private BytesReference templateSource;
+    private String templateName;
+    private Map<String, String> templateParams;
 
     private long nowInMillis;
 
@@ -82,6 +87,9 @@ public class ShardSearchRequest extends TransportRequest {
         this.searchType = searchRequest.searchType();
         this.source = searchRequest.source();
         this.extraSource = searchRequest.extraSource();
+        this.templateSource = searchRequest.templateSource();
+        this.templateName = searchRequest.templateName();
+        this.templateParams = searchRequest.templateParams();
         this.scroll = searchRequest.scroll();
         this.types = searchRequest.types();
 
@@ -130,6 +138,18 @@ public class ShardSearchRequest extends TransportRequest {
     public ShardSearchRequest extraSource(BytesReference extraSource) {
         this.extraSource = extraSource;
         return this;
+    }
+
+    public BytesReference templateSource() {
+        return this.templateSource;
+    }
+
+    public String templateName() {
+        return templateName;
+    }
+
+    public Map<String, String> templateParams() {
+        return templateParams;
     }
 
     public ShardSearchRequest nowInMillis(long nowInMillis) {
@@ -185,6 +205,14 @@ public class ShardSearchRequest extends TransportRequest {
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
+
+        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+            templateSource = in.readBytesReference();
+            templateName = in.readOptionalString();
+            if (in.readBoolean()) {
+                templateParams = (Map<String, String>) in.readGenericValue();
+            }
+        }
     }
 
     @Override
@@ -205,5 +233,15 @@ public class ShardSearchRequest extends TransportRequest {
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
         out.writeVLong(nowInMillis);
+
+        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+            out.writeBytesReference(templateSource);
+            out.writeOptionalString(templateName);
+            boolean existTemplateParams = templateParams != null;
+            out.writeBoolean(existTemplateParams);
+            if (existTemplateParams) {
+                out.writeGenericValue(templateParams);
+            }
+        }
     }
 }

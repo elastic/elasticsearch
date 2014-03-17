@@ -55,12 +55,18 @@ public class RestSearchAction extends BaseRestHandler {
     @Inject
     public RestSearchAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET, "/_search", this);
+        controller.registerHandler(GET,  "/_search", this);
         controller.registerHandler(POST, "/_search", this);
-        controller.registerHandler(GET, "/{index}/_search", this);
+        controller.registerHandler(GET,  "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
-        controller.registerHandler(GET, "/{index}/{type}/_search", this);
+        controller.registerHandler(GET,  "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
+        controller.registerHandler(GET,  "/_search/template", this);
+        controller.registerHandler(POST, "/_search/template", this);
+        controller.registerHandler(GET,  "/{index}/_search/template", this);
+        controller.registerHandler(POST, "/{index}/_search/template", this);
+        controller.registerHandler(GET,  "/{index}/{type}/_search/template", this);
+        controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override
@@ -121,16 +127,29 @@ public class RestSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
+        // add content/source as template if template flag is set
+        boolean isTemplateRequest = request.path().endsWith("/template");
         if (request.hasContent()) {
-            searchRequest.source(request.content(), request.contentUnsafe());
+            if (isTemplateRequest) {
+                searchRequest.templateSource(request.content(), request.contentUnsafe());
+            } else {
+                searchRequest.source(request.content(), request.contentUnsafe());
+            }
         } else {
             String source = request.param("source");
             if (source != null) {
-                searchRequest.source(source);
+                if (isTemplateRequest) {
+                    searchRequest.templateSource(source);
+                } else {
+                    searchRequest.source(source);
+                }
             }
         }
+
         // add extra source based on the request parameters
-        searchRequest.extraSource(parseSearchSource(request));
+        if (!isTemplateRequest) {
+            searchRequest.extraSource(parseSearchSource(request));
+        }
 
         searchRequest.searchType(request.param("search_type"));
 

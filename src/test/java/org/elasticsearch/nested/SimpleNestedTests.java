@@ -375,7 +375,12 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")
-                        .startObject("nested2").field("type", "nested").endObject()
+                        .startObject("nested2").field("type", "nested")
+                            .startObject("properties")
+                                .startObject("field2_1").field("type", "string").endObject()
+                                .startObject("field2_2").field("type", "long").endObject()
+                            .endObject()
+                        .endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject()));
 

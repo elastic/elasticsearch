@@ -10,6 +10,8 @@ include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
 
+include::bucket/significantterms-aggregation.asciidoc[]
+
 include::bucket/range-aggregation.asciidoc[]
 
 include::bucket/daterange-aggregation.asciidoc[]

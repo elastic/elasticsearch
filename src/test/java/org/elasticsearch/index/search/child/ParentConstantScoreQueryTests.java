@@ -25,10 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.search.NotFilter;
@@ -67,6 +64,16 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
     @AfterClass
     public static void after() throws IOException {
         SearchContext.removeCurrent();
+    }
+
+    @Test
+    public void testBasicQuerySanities() {
+        Query parentQuery = new TermQuery(new Term("field", "value"));
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
+        Filter childrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        Query query = new ParentConstantScoreQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
+        QueryUtils.check(query);
     }
 
     @Test

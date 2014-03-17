@@ -90,14 +90,9 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk</artifactId>
-            <version>1.3.32</version>
+            <version>1.7.3</version>
             <scope>compile</scope>
             <exclusions>
-                <!-- We need to exclude httpclient, since it pulls the wrong version -->
-                <exclusion>
-                    <groupId>org.apache.httpcomponents</groupId>
-                    <artifactId>httpclient</artifactId>
-                </exclusion>
                 <!-- jackson is optional -->
                 <exclusion>
                     <groupId>org.codehaus.jackson</groupId>
@@ -108,13 +103,6 @@
                     <artifactId>jackson-mapper-asl</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-
-        <!-- We need to explicitly set the http client version since aws-java-sdk pulls the wrong version -->
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>4.1.1</version>
         </dependency>
 
         <!-- We need to explicitly set the common codec version since aws-java-sdk pulls the wrong version -->

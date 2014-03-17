@@ -94,7 +94,6 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
     }
 
     @Override
-    @edu.umd.cs.findbugs.annotations.SuppressWarnings("NP_NULL_ON_SOME_PATH")
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (snapshot == null) {

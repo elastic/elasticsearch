@@ -26,12 +26,11 @@ import java.io.IOException;
 
 /**
  * Creates an aggregation that finds interesting or unusual occurrences of terms in a result set.
- * 
- * This feature is marked as experimental, and may be subject to change in the future.  If you 
+ * <p/>
+ * This feature is marked as experimental, and may be subject to change in the future.  If you
  * use this feature, please let us know your experience with it!
  */
 public class SignificantTermsBuilder extends AggregationBuilder<SignificantTermsBuilder> {
-
 
     private String field;
     private int requiredSize = SignificantTermsParser.DEFAULT_REQUIRED_SIZE;
@@ -51,16 +50,16 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.requiredSize = requiredSize;
         return this;
     }
+
     public SignificantTermsBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;
     }
+
     public SignificantTermsBuilder minDocCount(int minDocCount) {
         this.minDocCount = minDocCount;
         return this;
     }
-
-    
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

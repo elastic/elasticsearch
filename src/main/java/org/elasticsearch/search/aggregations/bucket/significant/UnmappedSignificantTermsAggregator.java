@@ -34,9 +34,11 @@ public class UnmappedSignificantTermsAggregator extends Aggregator {
 
     private final int requiredSize;
     private final long minDocCount;
-    private SignificantTermsAggregatorFactory termsAggFactory;
+    private final SignificantTermsAggregatorFactory termsAggFactory;
 
-    public UnmappedSignificantTermsAggregator(String name, int requiredSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+    public UnmappedSignificantTermsAggregator(String name, int requiredSize, long minDocCount, AggregationContext aggregationContext,
+            Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+
         super(name, BucketAggregationMode.PER_BUCKET, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
@@ -71,5 +73,5 @@ public class UnmappedSignificantTermsAggregator extends Aggregator {
     protected void doRelease() {
         Releasables.release(termsAggFactory);
     }
-    
+
 }

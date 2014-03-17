@@ -46,11 +46,11 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
 
-    private final int maxMergeCycles;
+    private final int maxMergeAtOnce;
 
-    public TrackingSerialMergeScheduler(ESLogger logger, int maxMergeCycles) {
+    public TrackingSerialMergeScheduler(ESLogger logger, int maxMergeAtOnce) {
         this.logger = logger;
-        this.maxMergeCycles = maxMergeCycles;
+        this.maxMergeAtOnce = maxMergeAtOnce;
     }
 
     public long totalMerges() {
@@ -93,7 +93,7 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
     @Override
     synchronized public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
         int cycle = 0;
-        while (cycle++ < maxMergeCycles) {
+        while (cycle++ < maxMergeAtOnce) {
             MergePolicy.OneMerge merge = writer.getNextMerge();
             if (merge == null)
                 break;

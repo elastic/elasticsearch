@@ -43,7 +43,7 @@ import java.util.*;
  */
 public class CategoryContextMapping extends ContextMapping {
 
-    protected static final String TYPE = "field";
+    protected static final String TYPE = "category";
 
     private static final String FIELD_FIELDNAME = "path";
     private static final String DEFAULT_FIELDNAME = "_type";

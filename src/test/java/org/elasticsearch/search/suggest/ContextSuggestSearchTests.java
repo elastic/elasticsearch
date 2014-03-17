@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -247,6 +248,63 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertPrefixSuggestions(1, "w", "Whitemane, Aelfyre");
         assertPrefixSuggestions(2, "w", "Whitemane, Kofi");
     }
+
+    @Test
+    public void testTypeCategoryIsActuallyCalledCategory() throws Exception {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject().startObject(TYPE).startObject("properties")
+                .startObject("suggest_field").field("type", "completion")
+                .startObject("context").startObject("color").field("type", "category").endObject().endObject()
+                .endObject()
+                .endObject().endObject().endObject();
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+        ensureYellow();
+        XContentBuilder doc1 = jsonBuilder();
+        doc1.startObject().startObject("suggest_field")
+                .field("input", "backpack_red")
+                .startObject("context").field("color", "red", "all_colors").endObject()
+                .endObject().endObject();
+        XContentBuilder doc2 = jsonBuilder();
+        doc2.startObject().startObject("suggest_field")
+                .field("input", "backpack_green")
+                .startObject("context").field("color", "green", "all_colors").endObject()
+                .endObject().endObject();
+
+        client().prepareIndex(INDEX, TYPE, "1")
+                .setSource(doc1).execute()
+                .actionGet();
+        client().prepareIndex(INDEX, TYPE, "2")
+                .setSource(doc2).execute()
+                .actionGet();
+
+        refresh();
+        getBackpackSuggestionAndCompare("all_colors", "backpack_red", "backpack_green");
+        getBackpackSuggestionAndCompare("red", "backpack_red");
+        getBackpackSuggestionAndCompare("green", "backpack_green");
+        getBackpackSuggestionAndCompare("not_existing_color");
+
+    }
+
+    private void getBackpackSuggestionAndCompare(String contextValue, String... expectedText) {
+        Set<String> expected = Sets.newHashSet(expectedText);
+        CompletionSuggestionBuilder context = new CompletionSuggestionBuilder("suggestion").field("suggest_field").text("back").size(10).addContextField("color", contextValue);
+        SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
+        SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
+        Suggest suggest = suggestResponse.getSuggest();
+        assertEquals(suggest.size(), 1);
+        for (Suggestion<? extends Entry<? extends Option>> s : suggest) {
+            CompletionSuggestion suggestion = (CompletionSuggestion) s;
+            for (CompletionSuggestion.Entry entry : suggestion) {
+                List<CompletionSuggestion.Entry.Option> options = entry.getOptions();
+                assertEquals(options.size(), expectedText.length);
+                for (CompletionSuggestion.Entry.Option option : options) {
+                    assertTrue(expected.contains(option.getText().string()));
+                    expected.remove(option.getText().string());
+                }
+            }
+        }
+    }
+
 
     @Test
     public void testBasic() throws Exception {

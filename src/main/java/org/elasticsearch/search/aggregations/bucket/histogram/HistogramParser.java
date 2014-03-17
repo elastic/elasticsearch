@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -39,6 +40,8 @@ import java.util.Map;
  */
 public class HistogramParser implements Aggregator.Parser {
 
+    static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
+
     @Override
     public String type() {
         return InternalHistogram.TYPE.name();
@@ -59,6 +62,7 @@ public class HistogramParser implements Aggregator.Parser {
         long interval = -1;
         boolean assumeSorted = false;
         String format = null;
+        ExtendedBounds extendedBounds = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -109,6 +113,22 @@ public class HistogramParser implements Aggregator.Parser {
                             order = resolveOrder(currentFieldName, asc);
                         }
                     }
+                } else if (EXTENDED_BOUNDS.match(currentFieldName)) {
+                    extendedBounds = new ExtendedBounds();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            if ("min".equals(currentFieldName)) {
+                                extendedBounds.min = parser.longValue(true);
+                            } else if ("max".equals(currentFieldName)) {
+                                extendedBounds.max = parser.longValue(true);
+                            } else {
+                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                            }
+                        }
+                    }
+
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -122,6 +142,11 @@ public class HistogramParser implements Aggregator.Parser {
         }
         Rounding rounding = new Rounding.Interval(interval);
 
+        if (extendedBounds != null) {
+            // with numeric histogram, we can process here and fail fast if the bounds are invalid
+            extendedBounds.processAndValidate(aggregationName, context, null);
+        }
+
         if (script != null) {
             config.script(context.scriptService().search(context.lookup(), scriptLang, script, scriptParams));
         }
@@ -132,13 +157,13 @@ public class HistogramParser implements Aggregator.Parser {
         }
 
         if (field == null) {
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
@@ -148,7 +173,7 @@ public class HistogramParser implements Aggregator.Parser {
             config.formatter(new ValueFormatter.Number.Pattern(format));
         }
 
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
 
     }
 

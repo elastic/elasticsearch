@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 
@@ -34,6 +35,8 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private Object interval;
     private Histogram.Order order;
     private Long minDocCount;
+    private Object extendedBoundsMin;
+    private Object extendedBoundsMax;
     private String preZone;
     private String postZone;
     private boolean preZoneAdjustLargeInterval;
@@ -101,6 +104,24 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
         return this;
     }
 
+    public DateHistogramBuilder extendedBounds(Long min, Long max) {
+        extendedBoundsMin = min;
+        extendedBoundsMax = max;
+        return this;
+    }
+
+    public DateHistogramBuilder extendedBounds(String min, String max) {
+        extendedBoundsMin = min;
+        extendedBoundsMax = max;
+        return this;
+    }
+
+    public DateHistogramBuilder extendedBounds(DateTime min, DateTime max) {
+        extendedBoundsMin = min;
+        extendedBoundsMax = max;
+        return this;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (interval == null) {
@@ -146,6 +167,17 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         if (format != null) {
             builder.field("format", format);
+        }
+
+        if (extendedBoundsMin != null || extendedBoundsMax != null) {
+            builder.startObject(DateHistogramParser.EXTENDED_BOUNDS.getPreferredName());
+            if (extendedBoundsMin != null) {
+                builder.field("min", extendedBoundsMin);
+            }
+            if (extendedBoundsMax != null) {
+                builder.field("max", extendedBoundsMax);
+            }
+            builder.endObject();
         }
 
         return builder;

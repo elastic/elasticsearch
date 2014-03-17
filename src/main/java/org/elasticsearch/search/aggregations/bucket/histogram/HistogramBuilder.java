@@ -33,6 +33,8 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
     private Long interval;
     private Histogram.Order order;
     private Long minDocCount;
+    private Long extendedBoundsMin;
+    private Long extendedBoundsMax;
 
     /**
      * Constructs a new histogram aggregation builder.
@@ -76,6 +78,12 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
         return this;
     }
 
+    public HistogramBuilder extendedBounds(Long min, Long max) {
+        extendedBoundsMin = min;
+        extendedBoundsMax = max;
+        return this;
+    }
+
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
         if (interval == null) {
@@ -92,6 +100,16 @@ public class HistogramBuilder extends ValuesSourceAggregationBuilder<HistogramBu
             builder.field("min_doc_count", minDocCount);
         }
 
+        if (extendedBoundsMin != null || extendedBoundsMax != null) {
+            builder.startObject(HistogramParser.EXTENDED_BOUNDS.getPreferredName());
+            if (extendedBoundsMin != null) {
+                builder.field("min", extendedBoundsMin);
+            }
+            if (extendedBoundsMax != null) {
+                builder.field("max", extendedBoundsMax);
+            }
+            builder.endObject();
+        }
         return builder;
     }
 

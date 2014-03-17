@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
@@ -123,22 +124,43 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     static class EmptyBucketInfo {
+
         final Rounding rounding;
         final InternalAggregations subAggregations;
+        final ExtendedBounds bounds;
 
         EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations) {
+            this(rounding, subAggregations, null);
+        }
+
+        EmptyBucketInfo(Rounding rounding, InternalAggregations subAggregations, ExtendedBounds bounds) {
             this.rounding = rounding;
             this.subAggregations = subAggregations;
+            this.bounds = bounds;
         }
 
         public static EmptyBucketInfo readFrom(StreamInput in) throws IOException {
-            return new EmptyBucketInfo(Rounding.Streams.read(in), InternalAggregations.readAggregations(in));
+            Rounding rounding = Rounding.Streams.read(in);
+            InternalAggregations aggs = InternalAggregations.readAggregations(in);
+            if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
+                if (in.readBoolean()) {
+                    return new EmptyBucketInfo(rounding, aggs, ExtendedBounds.readFrom(in));
+                }
+            }
+            return new EmptyBucketInfo(rounding, aggs);
         }
 
         public static void writeTo(EmptyBucketInfo info, StreamOutput out) throws IOException {
             Rounding.Streams.write(info.rounding, out);
             info.subAggregations.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
+                out.writeBoolean(info.bounds != null);
+                if (info.bounds != null) {
+                    info.bounds.writeTo(out);
+                }
+            }
         }
+
     }
 
     static class Factory<B extends InternalHistogram.Bucket> {
@@ -222,27 +244,65 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 return histo;
             }
 
-
             CollectionUtil.introSort(histo.buckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
             List<B> list = order.asc ? histo.buckets : Lists.reverse(histo.buckets);
-            B prevBucket = null;
+            B lastBucket = null;
             ListIterator<B> iter = list.listIterator();
+
+            // we need to fill the gaps with empty buckets
             if (minDocCount == 0) {
-                // we need to fill the gaps with empty buckets
+                ExtendedBounds bounds = emptyBucketInfo.bounds;
+
+                // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+                if (bounds != null) {
+                    B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
+                    if (firstBucket == null) {
+                        if (bounds.min != null && bounds.max != null) {
+                            long key = bounds.min;
+                            long max = bounds.max;
+                            while (key <= max) {
+                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                                key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                            }
+                        }
+                    } else {
+                        if (bounds.min != null) {
+                            long key = bounds.min;
+                            while (key < firstBucket.key) {
+                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                                key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                            }
+                        }
+                    }
+                }
+
+                // now adding the empty buckets within the actual data,
+                // e.g. if the data series is [1,2,3,7] there are 3 empty buckets that will be created for 4,5,6
                 while (iter.hasNext()) {
                     // look ahead on the next bucket without advancing the iter
                     // so we'll be able to insert elements at the right position
                     B nextBucket = list.get(iter.nextIndex());
                     nextBucket.aggregations.reduce(reduceContext.bigArrays());
-                    if (prevBucket != null) {
-                        long key = emptyBucketInfo.rounding.nextRoundingValue(prevBucket.key);
+                    if (lastBucket != null) {
+                        long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
                         while (key != nextBucket.key) {
                             iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
                             key = emptyBucketInfo.rounding.nextRoundingValue(key);
                         }
                     }
-                    prevBucket = iter.next();
+                    lastBucket = iter.next();
                 }
+
+                // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
+                if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+                    long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
+                    long max = bounds.max;
+                    while (key <= max) {
+                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                        key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                    }
+                }
+
             } else {
                 while (iter.hasNext()) {
                     InternalHistogram.Bucket bucket = iter.next();
@@ -290,18 +350,57 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         if (minDocCount == 0) {
             CollectionUtil.introSort(reducedBuckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
             List<B> list = order.asc ? reducedBuckets : Lists.reverse(reducedBuckets);
-            B prevBucket = null;
+            B lastBucket = null;
+            ExtendedBounds bounds = emptyBucketInfo.bounds;
             ListIterator<B> iter = list.listIterator();
+
+            // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+            if (bounds != null) {
+                B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
+                if (firstBucket == null) {
+                    if (bounds.min != null && bounds.max != null) {
+                        long key = bounds.min;
+                        long max = bounds.max;
+                        while (key <= max) {
+                            iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                            key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                        }
+                    }
+                } else {
+                    if (bounds.min != null) {
+                        long key = bounds.min;
+                        if (key < firstBucket.key) {
+                            while (key < firstBucket.key) {
+                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                                key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // now adding the empty buckets within the actual data,
+            // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
             while (iter.hasNext()) {
                 B nextBucket = list.get(iter.nextIndex());
-                if (prevBucket != null) {
-                    long key = emptyBucketInfo.rounding.nextRoundingValue(prevBucket.key);
+                if (lastBucket != null) {
+                    long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
                     while (key != nextBucket.key) {
                         iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
                         key = emptyBucketInfo.rounding.nextRoundingValue(key);
                     }
                 }
-                prevBucket = iter.next();
+                lastBucket = iter.next();
+            }
+
+            // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
+            if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+                long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
+                long max = bounds.max;
+                while (key <= max) {
+                    iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
+                    key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                }
             }
 
             if (order != InternalOrder.KEY_ASC && order != InternalOrder.KEY_DESC) {

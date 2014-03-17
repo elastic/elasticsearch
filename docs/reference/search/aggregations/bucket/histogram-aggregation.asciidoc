@@ -112,6 +112,54 @@ Response:
 
 <1> No documents were found that belong in this bucket, yet it is still returned with zero `doc_count`.
 
+[[search-aggregations-bucket-histogram-aggregation-extended-bounds]]
+By default the date_/histogram returns all the buckets within the range of the data itself, that is, the documents with
+the smallest values (on which with histogram) will determine the min bucket (the bucket with the smallest key) and the
+documents with the highest values will determine the max bucket (the bucket with the highest key). Often, when when
+requesting empty buckets (`"min_doc_count" : 0`), this causes a confusion, specifically, when the data is also filtered.
+
+To understand why, let's look at an example:
+
+Lets say the you're filtering your request to get all docs with values between `0` and `500`, in addition you'd like
+to slice the data per price using a histogram with an interval of `50`. You also specify `"min_doc_count" : 0` as you'd
+like to get all buckets even the empty ones. If it happens that all products (documents) have prices higher than `100`,
+the first bucket you'll get will be the one with `100` as its key. This is confusing, as many times, you'd also like
+to get those buckets between `0 - 100`.
+
+With `extended_bounds` setting, you now can "force" the histogram aggregation to start building buckets on a specific
+`min` values and also keep on building buckets up to a `max` value (even if there are no documents anymore). Using
+`extended_bounds` only makes sense when `min_doc_count` is 0 (the empty buckets will never be returned if `min_doc_count`
+is greater than 0).
+
+Note that (as the name suggest) `extended_bounds` is **not** filtering buckets. Meaning, if the `extended_bounds.min` is higher
+than the values extracted from the documents, the documents will still dictate what the first bucket will be (and the
+same goes for the `extended_bounds.max` and the last bucket). For filtering buckets, one should nest the histogram aggregation
+under a range `filter` aggregation with the appropriate `from`/`to` settings.
+
+Example:
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "filtered" : { "range" : { "price" : { "to" : "500" } } }
+    },
+    "aggs" : {
+        "prices" : {
+            "histogram" : {
+                "field" : "price",
+                "interval" : 50,
+                "min_doc_count" : 0,
+                "extended_bounds" : {
+                    "min" : 0,
+                    "max" : 500
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
 ==== Order
 
 By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controled

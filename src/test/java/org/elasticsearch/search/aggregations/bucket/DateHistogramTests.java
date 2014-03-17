@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -32,6 +34,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -59,6 +62,19 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     private DateTime date(String date) {
         return DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date);
+    }
+
+    private static String format(DateTime date, String pattern) {
+        return DateTimeFormat.forPattern(pattern).print(date);
+    }
+
+    private IndexRequestBuilder indexDoc(String idx, DateTime date, int value) throws Exception {
+        return client().prepareIndex(idx, "type").setSource(jsonBuilder()
+                .startObject()
+                .field("date", date)
+                .field("value", value)
+                .startArray("dates").value(date).value(date.plusMonths(1).plusDays(1)).endArray()
+                .endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
@@ -1063,5 +1079,118 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         bucket = histo.getBucketByKey("2014-03-11T02:00:00");
         assertThat(bucket, Matchers.notNullValue());
         assertThat(bucket.getDocCount(), equalTo(3l));
+    }
+
+    @Override
+    public Settings indexSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        return builder.build();
+    }
+
+    @Test
+    public void singleValueField_WithExtendedBounds() throws Exception {
+
+        String pattern = "yyyy-MM-dd";
+        // we're testing on days, so the base must be rounded to a day
+        int interval = randomIntBetween(1, 2); // in days
+        long intervalMillis = interval * 24 * 60 * 60 * 1000;
+        DateTime base = new DateTime(DateTimeZone.UTC).dayOfMonth().roundFloorCopy();
+        DateTime baseKey = new DateTime(intervalMillis * (base.getMillis() / intervalMillis), DateTimeZone.UTC);
+
+        createIndex("idx2");
+        int numOfBuckets = randomIntBetween(3, 6);
+        int emptyBucketIndex = randomIntBetween(1, numOfBuckets - 2); // should be in the middle
+
+        long[] docCounts = new long[numOfBuckets];
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        for (int i = 0; i < numOfBuckets; i++) {
+            if (i == emptyBucketIndex) {
+                docCounts[i] = 0;
+            } else {
+                int docCount = randomIntBetween(1, 3);
+                for (int j = 0; j < docCount; j++) {
+                    DateTime date = baseKey.plusDays(i * interval + randomIntBetween(0, interval - 1));
+                    builders.add(indexDoc("idx2", date, j));
+                }
+                docCounts[i] = docCount;
+            }
+        }
+        indexRandom(true, builders);
+        ensureSearchable("idx2");
+
+        DateTime lastDataBucketKey = baseKey.plusDays((numOfBuckets - 1) * interval);
+
+        // randomizing the number of buckets on the min bound
+        // (can sometimes fall within the data range, but more frequently will fall before the data range)
+        int addedBucketsLeft = randomIntBetween(0, numOfBuckets);
+        DateTime boundsMinKey;
+        if (frequently()) {
+            boundsMinKey = baseKey.minusDays(addedBucketsLeft * interval);
+        } else {
+            boundsMinKey = baseKey.plus(addedBucketsLeft * interval);
+            addedBucketsLeft = 0;
+        }
+        DateTime boundsMin = boundsMinKey.plusDays(randomIntBetween(0, interval - 1));
+
+        // randomizing the number of buckets on the max bound
+        // (can sometimes fall within the data range, but more frequently will fall after the data range)
+        int addedBucketsRight = randomIntBetween(0, numOfBuckets);
+        int boundsMaxKeyDelta = addedBucketsRight * interval;
+        if (rarely()) {
+            addedBucketsRight = 0;
+            boundsMaxKeyDelta = -boundsMaxKeyDelta;
+        }
+        DateTime boundsMaxKey = lastDataBucketKey.plusDays(boundsMaxKeyDelta);
+        DateTime boundsMax = boundsMaxKey.plusDays(randomIntBetween(0, interval - 1));
+
+        // it could be that the random bounds.min we chose ended up greater than bounds.max - this should
+        // trigger an error
+        boolean invalidBoundsError = boundsMin.isAfter(boundsMax);
+
+        // constructing the newly expected bucket list
+        int bucketsCount = numOfBuckets + addedBucketsLeft + addedBucketsRight;
+        long[] extendedValueCounts = new long[bucketsCount];
+        System.arraycopy(docCounts, 0, extendedValueCounts, addedBucketsLeft, docCounts.length);
+
+        SearchResponse response = null;
+        try {
+            response = client().prepareSearch("idx2")
+                    .addAggregation(dateHistogram("histo")
+                            .field("date")
+                            .interval(DateHistogram.Interval.days(interval))
+                            .minDocCount(0)
+                            .extendedBounds(boundsMin, boundsMax)
+                            .format(pattern))
+                    .execute().actionGet();
+
+            if (invalidBoundsError) {
+                fail("Expected an exception to be thrown when bounds.min is greater than bounds.max");
+                return;
+            }
+
+        } catch (Exception e) {
+            if (invalidBoundsError) {
+                // expected
+                return;
+            } else {
+                throw e;
+            }
+        }
+        assertSearchResponse(response);
+
+        DateHistogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(bucketsCount));
+
+        DateTime key = baseKey.isBefore(boundsMinKey) ? baseKey : boundsMinKey;
+        for (int i = 0; i < bucketsCount; i++) {
+            DateHistogram.Bucket bucket = histo.getBucketByKey(format(key, pattern));
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsDate(), equalTo(key));
+            assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
+            key = key.plusDays(interval);
+        }
     }
 }

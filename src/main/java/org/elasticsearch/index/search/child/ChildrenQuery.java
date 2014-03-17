@@ -130,6 +130,18 @@ public class ChildrenQuery extends Query {
     }
 
     @Override
+    public Query clone() {
+        ChildrenQuery q = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter,
+                originalChildQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
+        q.setBoost(getBoost());
+        if (q.rewrittenChildQuery != null) {
+            q.rewrittenChildQuery = rewrittenChildQuery.clone();
+            q.rewriteIndexReader = rewriteIndexReader;
+        }
+        return q;
+    }
+
+    @Override
     public void extractTerms(Set<Term> terms) {
         rewrittenChildQuery.extractTerms(terms);
     }

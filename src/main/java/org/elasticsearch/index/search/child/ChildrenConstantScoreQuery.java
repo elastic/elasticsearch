@@ -87,6 +87,18 @@ public class ChildrenConstantScoreQuery extends Query {
     }
 
     @Override
+    public Query clone() {
+        ChildrenConstantScoreQuery q = new ChildrenConstantScoreQuery(parentChildIndexFieldData, originalChildQuery.clone(),
+                parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+        q.setBoost(getBoost());
+        if (q.rewrittenChildQuery != null) {
+            q.rewrittenChildQuery = rewrittenChildQuery.clone();
+            q.rewriteIndexReader = rewriteIndexReader;
+        }
+        return q;
+    }
+
+    @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
         BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());

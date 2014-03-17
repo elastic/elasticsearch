@@ -76,6 +76,18 @@ public class ParentConstantScoreQuery extends Query {
     }
 
     @Override
+    public Query clone() {
+        ParentConstantScoreQuery q = new ParentConstantScoreQuery(parentChildIndexFieldData, originalParentQuery,
+                parentType, childrenFilter);
+        q.setBoost(getBoost());
+        if (q.rewrittenParentQuery != null) {
+            q.rewrittenParentQuery = rewrittenParentQuery.clone();
+            q.rewriteIndexReader = rewriteIndexReader;
+        }
+        return q;
+    }
+
+    @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
         BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());

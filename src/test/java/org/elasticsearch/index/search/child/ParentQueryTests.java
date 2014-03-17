@@ -67,6 +67,16 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
     }
 
     @Test
+    public void testBasicQuerySanities() {
+        Query parentQuery = new TermQuery(new Term("field", "value"));
+        ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
+        ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
+        Filter childrenFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "child"));
+        Query query = new ParentQuery(parentChildIndexFieldData, parentQuery, "parent", childrenFilter);
+        QueryUtils.check(query);
+    }
+
+    @Test
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

@@ -107,6 +107,20 @@ public class TopChildrenQuery extends Query {
     }
 
     @Override
+    public Query clone() {
+        TopChildrenQuery q = new TopChildrenQuery(
+                parentChildIndexFieldData, originalChildQuery.clone(), childType, parentType,
+                scoreType, factor, incrementalFactor, cacheRecycler, nonNestedDocsFilter
+        );
+        q.setBoost(getBoost());
+        if (q.rewrittenChildQuery != null) {
+            q.rewrittenChildQuery = rewrittenChildQuery.clone();
+            q.rewriteIndexReader = rewriteIndexReader;
+        }
+        return q;
+    }
+
+    @Override
     public void extractTerms(Set<Term> terms) {
         rewrittenChildQuery.extractTerms(terms);
     }

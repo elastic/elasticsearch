@@ -237,25 +237,25 @@ are presented unstemmed, highlighted, with the right case, in the right order an
 
 === Limitations
 
-===== Single _background_ comparison base 
+==== Single _background_ comparison base
 The above examples show how to select the _foreground_ set for analysis using a query or parent aggregation to filter but currently there is no means of specifying
 a _background_ set other than the index from which all results are ultimately drawn. Sometimes it may prove useful to use a different
 background set as the basis for comparisons e.g. to first select the tweets for the TV show "XFactor" and then look
 for significant terms in a subset of that content which is from this week. 
 
-===== Significant terms must be indexed values
+==== Significant terms must be indexed values
 Unlike the terms aggregation it is currently not possible to use script-generated terms for counting purposes.
 Because of the way the significant_terms aggregation must consider both _foreground_ and _background_ frequencies
 it would be prohibitively expensive to use a script on the entire index to obtain background frequencies for comparisons.
 Also DocValues are not supported as sources of term data for similar reasons.
 
-===== No analysis of floating point fields
+==== No analysis of floating point fields
 Floating point fields are currently not supported as the subject of significant_terms analysis.
 While integer or long fields can be used to represent concepts like bank account numbers or category numbers which
 can be interesting to track, floating point fields are usually used to represent quantities of something. 
 As such, individual floating point terms are not useful for this form of frequency analysis. 
 
-===== Use as a parent aggregation
+==== Use as a parent aggregation
 If there is the equivalent of a `match_all` query or no query criteria providing a subset of the index the significant_terms aggregation should not be used as the 
 top-most aggregation - in this scenario the _foreground_ set is exactly the same as the _background_ set and
 so there is no difference in document frequencies to observe and from which to make sensible suggestions.
@@ -266,7 +266,7 @@ it can be inefficient and costly in terms of RAM to embed large child aggregatio
 aggregation that later discards many candidate terms. It is advisable in these cases to perform two searches - the first to provide a rationalized list of
 significant_terms and then add this shortlist of terms to a second query to go back and fetch the required child aggregations.  
  
-===== Approximate counts 
+==== Approximate counts
 The counts of how many documents contain a term provided in results are based on summing the samples returned from each shard and
 as such may be:
 

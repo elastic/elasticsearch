@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -75,6 +76,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -516,6 +518,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             assertThat(actionGet.getStatus(), equalTo(status));
         }
         return actionGet.getStatus();
+    }
+
+    /**
+     * Sets the cluster's minimum master node and make sure the response is acknowledge.
+     * Note: this doesn't guaranty the new settings is in effect, just that it has been received bu all nodes.
+     */
+    public void setMinimumMasterNodes(int n) {
+        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                .get().isAcknowledged());
     }
 
     /**

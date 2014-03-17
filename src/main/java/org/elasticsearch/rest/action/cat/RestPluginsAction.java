@@ -120,7 +120,6 @@ public class RestPluginsAction extends AbstractCatAction {
                     }
                 }
                 table.addCell(type);
-                table.addCell(pluginInfo.isIsolation() ? "x" : "");
                 table.addCell(pluginInfo.getUrl());
                 table.addCell(pluginInfo.getDescription());
                 table.endRow();

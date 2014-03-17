@@ -28,13 +28,13 @@ import java.util.Collection;
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 
 
-      static abstract class Bucket implements MultiBucketsAggregation.Bucket {
+    static abstract class Bucket implements MultiBucketsAggregation.Bucket {
 
         long subsetDf;
         long subsetSize;
         long supersetDf;
         long supersetSize;
-        
+
         Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize) {
             super();
             this.subsetDf = subsetDf;
@@ -46,24 +46,24 @@ public interface SignificantTerms extends MultiBucketsAggregation, Iterable<Sign
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(SignificantTerms.Bucket other);
-        
+
         public abstract double getSignificanceScore();
-        
-        public long getSubsetDf(){
+
+        public long getSubsetDf() {
             return subsetDf;
         }
 
-        public long getSupersetDf(){
+        public long getSupersetDf() {
             return supersetDf;
         }
 
-        public long getSupersetSize(){
+        public long getSupersetSize() {
             return supersetSize;
         }
 
-        public long getSubsetSize(){
+        public long getSubsetSize() {
             return subsetSize;
-        }        
+        }
 
     }
 

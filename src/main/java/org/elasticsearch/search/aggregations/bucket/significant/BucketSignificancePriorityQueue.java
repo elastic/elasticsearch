@@ -23,13 +23,12 @@ import org.apache.lucene.util.PriorityQueue;
 
 public class BucketSignificancePriorityQueue extends PriorityQueue<SignificantTerms.Bucket> {
 
-
     public BucketSignificancePriorityQueue(int size) {
         super(size);
     }
 
     @Override
     protected boolean lessThan(SignificantTerms.Bucket o1, SignificantTerms.Bucket o2) {
-        return  o1.getSignificanceScore() < o2.getSignificanceScore();
+        return o1.getSignificanceScore() < o2.getSignificanceScore();
     }
 }

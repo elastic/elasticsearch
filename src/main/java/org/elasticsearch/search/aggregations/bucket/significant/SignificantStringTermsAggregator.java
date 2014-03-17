@@ -45,22 +45,24 @@ import java.util.Collections;
 public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected long numCollectedDocs;
-    protected SignificantTermsAggregatorFactory termsAggFactory;
-    
+    protected final SignificantTermsAggregatorFactory termsAggFactory;
+
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
-            IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-        super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext,
-                parent);
-        this.termsAggFactory=termsAggFactory;
+            IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
+            SignificantTermsAggregatorFactory termsAggFactory) {
+
+        super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize,
+                minDocCount, includeExclude, aggregationContext, parent);
+        this.termsAggFactory = termsAggFactory;
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        super.collect(doc,owningBucketOrdinal);
+        super.collect(doc, owningBucketOrdinal);
         numCollectedDocs++;
     }
-  
+
     @Override
     public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
@@ -96,7 +98,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; --i) {
+        for (int i = ordered.size() - 1; i >= 0; i--) {
             final SignificantStringTerms.Bucket bucket = (SignificantStringTerms.Bucket) ordered.pop();
             // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
             bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
@@ -109,12 +111,11 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     @Override
     public SignificantStringTerms buildEmptyAggregation() {
-        // We need to account for the significance of a miss in our global stats
-        // - provide corpus size as context
+        // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket> emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override
@@ -132,8 +133,9 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         private Ordinals.Docs ordinals;
         private LongArray ordinalToBucket;
 
-        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource,  
-                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent,SignificantTermsAggregatorFactory termsAggFactory) {
+        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource,
+                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
+                Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
             super(name, factories, valuesSource, esitmatedBucketCount, requiredSize, shardSize, minDocCount, null, aggregationContext, parent, termsAggFactory);
             this.valuesSource = valuesSource;
         }
@@ -161,8 +163,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             for (int i = 0; i < valuesCount; ++i) {
                 final long ord = ordinals.nextOrd();
                 long bucketOrd = ordinalToBucket.get(ord);
-                if (bucketOrd < 0) { // unlikely condition on a low-cardinality
-                                     // field
+                if (bucketOrd < 0) { // unlikely condition on a low-cardinality field
                     final BytesRef bytes = bytesValues.getValueByOrd(ord);
                     final int hash = bytesValues.currentValueHash();
                     assert hash == bytes.hashCode();
@@ -176,11 +177,11 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
                 collectBucket(doc, bucketOrd);
             }
         }
-        
+
         @Override
         public void doRelease() {
             Releasables.release(bucketOrds, termsAggFactory, ordinalToBucket);
-        }        
+        }
 
     }
 

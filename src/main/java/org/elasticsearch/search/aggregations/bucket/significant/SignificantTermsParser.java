@@ -46,16 +46,17 @@ import java.util.regex.Pattern;
  */
 public class SignificantTermsParser implements Aggregator.Parser {
 
+    public static final int DEFAULT_REQUIRED_SIZE = 10;
+    public static final int DEFAULT_SHARD_SIZE = 0;
+
+    //Typically need more than one occurrence of something for it to be statistically significant
+    public static final int DEFAULT_MIN_DOC_COUNT = 3;
+
     @Override
     public String type() {
         return SignificantStringTerms.TYPE.name();
     }
 
-    public static final int DEFAULT_REQUIRED_SIZE=10;
-    public static final int DEFAULT_SHARD_SIZE=0;
-    //Typically need more than one occurrence of something for it to be statistically significant
-    public static final int DEFAULT_MIN_DOC_COUNT = 3;
-    
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
@@ -68,7 +69,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         String exclude = null;
         int excludeFlags = 0; // 0 means no flags
         String executionHint = null;
-        long minDocCount = DEFAULT_MIN_DOC_COUNT; 
+        long minDocCount = DEFAULT_MIN_DOC_COUNT;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -100,7 +101,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                  if ("include".equals(currentFieldName)) {
+                if ("include".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -149,7 +150,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
             //some of the things we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms at that early stage.
             shardSize = 2 * BucketUtils.suggestShardSideQueueSize(requiredSize, context.numberOfShards());
-            
+
         }
 
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
@@ -159,11 +160,10 @@ public class SignificantTermsParser implements Aggregator.Parser {
 
         IncludeExclude includeExclude = null;
         if (include != null || exclude != null) {
-            Pattern includePattern =  include != null ? Pattern.compile(include, includeFlags) : null;
+            Pattern includePattern = include != null ? Pattern.compile(include, includeFlags) : null;
             Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
             includeExclude = new IncludeExclude(includePattern, excludePattern);
         }
-
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
@@ -205,9 +205,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
         config.fieldContext(new FieldContext(field, indexFieldData));
         // We need values to be unique to be able to run terms aggs efficiently
         config.ensureUnique(true);
-        
+
         return new SignificantTermsAggregatorFactory(aggregationName, config, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
     }
-
 
 }

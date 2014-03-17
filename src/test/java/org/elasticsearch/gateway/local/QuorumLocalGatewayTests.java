@@ -40,9 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -128,6 +126,8 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
         cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
         cluster().startNode(settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 2).build());
+        // we are shutting down nodes - make sure we don't have 2 clusters if we test network
+        setMinimumMasterNodes(2);
 
         logger.info("--> indexing...");
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
@@ -146,9 +146,6 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2l);
         }
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put("discovery.zen.minimum_master_nodes", 2)) // we are shutting down nodes - make sure we don't have 2 clusters if we test network
-                .get();
         logger.info("--> restart all nodes");
         cluster().fullRestart(new RestartCallback() {
             @Override

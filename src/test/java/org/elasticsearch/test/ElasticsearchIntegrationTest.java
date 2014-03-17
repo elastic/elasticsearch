@@ -58,6 +58,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -87,6 +88,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -114,8 +116,7 @@ import static org.hamcrest.Matchers.equalTo;
  * <pre>
  *
  * @ClusterScope(scope=Scope.TEST) public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
- * @Test
- * public void testMethod() {}
+ * @Test public void testMethod() {}
  * }
  * </pre>
  * <p/>
@@ -129,8 +130,7 @@ import static org.hamcrest.Matchers.equalTo;
  *  <pre>
  * @ClusterScope(scope=Scope.SUITE, numNodes=3)
  * public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
- * @Test
- * public void testMethod() {}
+ * @Test public void testMethod() {}
  * }
  * </pre>
  * <p/>
@@ -186,7 +186,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             GLOBAL_CLUSTER = new TestCluster(masterSeed, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed));
         }
     }
-    
+
     @Before
     public final void before() throws IOException {
         assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;
@@ -611,6 +611,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             assertThat(actionGet.getStatus(), equalTo(status));
         }
         return actionGet.getStatus();
+    }
+
+    /**
+     * Sets the cluster's minimum master node and make sure the response is acknowledge.
+     * Note: this doesn't guaranty the new settings is in effect, just that it has been received bu all nodes.
+     */
+    public void setMinimumMasterNodes(int n) {
+        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                .get().isAcknowledged());
     }
 
     /**

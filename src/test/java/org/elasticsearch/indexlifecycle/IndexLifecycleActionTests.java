@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -53,8 +54,14 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope = Scope.TEST, numNodes = 0)
 public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
+
+    protected void setMinimumMasterNodes(int n) {
+        assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                .get().isAcknowledged());
+    }
 
     @Slow
     @Test
@@ -105,9 +112,8 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-
+        setMinimumMasterNodes(2);
         final String node2 = getLocalNodeId(server_2);
-
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
         client().admin().cluster().prepareReroute().execute().actionGet();
@@ -177,9 +183,6 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         assertThat(routingNodeEntry3.numberOfShardsWithState(INITIALIZING), equalTo(0));
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(7));
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put("discovery.zen.minimum_master_nodes", 2)) // we are shutting down a node - make sure we don't have 2 clusters if we test network
-                .get();
         logger.info("Closing server1");
         // kill the first server
         cluster().stopRandomNode(TestCluster.nameFilter(server_1));
@@ -233,7 +236,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         assertThat(nodeId, not(nullValue()));
         return nodeId;
     }
-    
+
     @Slow
     @Nightly
     @Test
@@ -277,7 +280,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-
+        setMinimumMasterNodes(2);
         final String node2 = getLocalNodeId(server_2);
 
         // explicitly call reroute, so shards will get relocated to the new node (we delay it in ES in case other nodes join)
@@ -344,9 +347,6 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         assertThat(routingNodeEntry3.numberOfShardsWithState(INITIALIZING), equalTo(0));
         assertThat(routingNodeEntry3.numberOfShardsWithState(STARTED), equalTo(3));
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put("discovery.zen.minimum_master_nodes", 2)) // we are shutting down a node - make sure we don't have 2 clusters if we test network
-                .get();
         logger.info("Closing server1");
         // kill the first server
         cluster().stopRandomNode(TestCluster.nameFilter(server_1));
@@ -399,7 +399,7 @@ public class IndexLifecycleActionTests extends ElasticsearchIntegrationTest {
         assertThat(routingNodeEntry3.isEmpty(), equalTo(true));
     }
 
-    private void assertNodesPresent(RoutingNodes routingNodes, String...nodes) {
+    private void assertNodesPresent(RoutingNodes routingNodes, String... nodes) {
         final Set<String> keySet = Sets.newHashSet(Iterables.transform(routingNodes, new Function<RoutingNode, String>() {
             @Override
             public String apply(RoutingNode input) {

@@ -26,7 +26,9 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -42,9 +44,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -60,6 +61,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.IndicesWarmer.WarmerContext;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -73,6 +75,7 @@ import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -81,6 +84,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
@@ -499,6 +503,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             context.scroll(request.scroll());
 
+            parseTemplate(request);
             parseSource(context, request.source());
             parseSource(context, request.extraSource());
 
@@ -565,6 +570,36 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private void cleanContext(SearchContext context) {
         SearchContext.removeCurrent();
+    }
+
+    private void parseTemplate(ShardSearchRequest request) {
+        if (hasLength(request.templateName())) {
+            ExecutableScript executable = this.scriptService.executable("mustache", request.templateName(), request.templateParams());
+            BytesReference processedQuery = (BytesReference) executable.run();
+            request.source(processedQuery);
+        } else {
+            if (request.templateSource() == null || request.templateSource().length() == 0) {
+                return;
+            }
+
+            XContentParser parser = null;
+            try {
+                parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
+
+                TemplateQueryParser.TemplateContext templateContext = TemplateQueryParser.parse(parser, "template", "params");
+                if (!hasLength(templateContext.template())) {
+                    throw new ElasticsearchParseException("Template must have [template] field configured");
+                }
+
+                ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.params());
+                BytesReference processedQuery = (BytesReference) executable.run();
+                request.source(processedQuery);
+            } catch (IOException e) {
+                logger.error("Error trying to parse template: ", e);
+            } finally {
+                IOUtils.closeWhileHandlingException(parser);
+            }
+        }
     }
 
     private void parseSource(SearchContext context, BytesReference source) throws SearchParseException {

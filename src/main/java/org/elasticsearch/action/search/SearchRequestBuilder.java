@@ -982,6 +982,30 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * template stuff
+     */
+
+    public SearchRequestBuilder setTemplateName(String templateName) {
+        request.templateName(templateName);
+        return this;
+    }
+
+    public SearchRequestBuilder setTemplateParams(Map<String,String> templateParams) {
+        request.templateParams(templateParams);
+        return this;
+    }
+
+    public SearchRequestBuilder setTemplateSource(String source) {
+        request.templateSource(source);
+        return this;
+    }
+
+    public SearchRequestBuilder setTemplateSource(BytesReference source) {
+        request.templateSource(source, true);
+        return this;
+    }
+
+    /**
      * Sets the source builder to be used with this request. Note, any operations done
      * on this require builder before are discarded as this internal builder replaces
      * what has been built up until this point.

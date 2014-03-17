@@ -25,12 +25,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -45,20 +43,14 @@ public class TemplateQueryParser implements QueryParser {
     public static final String QUERY = "query";
     /** Name of query parameter containing the template parameters. */
     public static final String PARAMS = "params";
-    /** This is what we are registered with for query executions. */
+
     private final ScriptService scriptService;
 
-    /**
-     * @param scriptService will automatically be wired by Guice
-     * */
     @Inject
     public TemplateQueryParser(ScriptService scriptService) {
         this.scriptService = scriptService;
     }
 
-    /**
-     * @return a list of names this query is registered under.
-     * */
     @Override
     public String[] names() {
         return new String[] {NAME};
@@ -68,46 +60,8 @@ public class TemplateQueryParser implements QueryParser {
     @Nullable
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        
-        
-        String template = "";
-        Map<String, Object> vars = new HashMap<String, Object>();
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (QUERY.equals(currentFieldName)) {
-                if (token == XContentParser.Token.START_OBJECT && ! parser.hasTextCharacters()) {
-                    // when called with un-escaped json string
-                    XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
-                    builder.copyCurrentStructure(parser);
-                    template = builder.string();
-                } else {
-                    // when called with excaped json string or when called with filename
-                    template = parser.text();
-                }
-            } else if (PARAMS.equals(currentFieldName)) {
-                XContentParser.Token innerToken;
-                String key = null;
-                while ((innerToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    // parsing template parameter map
-                    if (innerToken == XContentParser.Token.FIELD_NAME) {
-                        key = parser.currentName();
-                    } else {
-                        if (key != null) {
-                            vars.put(key, parser.text());
-                        } else {
-                            throw new IllegalStateException("Template parameter key must not be null.");
-                        }
-                        key = null;
-                    }
-                }
-            }
-        }
-
-        ExecutableScript executable = this.scriptService.executable("mustache", template, vars);
+        TemplateContext templateContext = parse(parser, QUERY, PARAMS);
+        ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.params());
         BytesReference querySource = (BytesReference) executable.run();
 
         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
@@ -119,6 +73,49 @@ public class TemplateQueryParser implements QueryParser {
             return result;
         } finally {
             qSourceParser.close();
+        }
+    }
+
+    public static TemplateContext parse(XContentParser parser, String templateFieldname, String paramsFieldname) throws IOException {
+        Map<String, Object> params = null;
+        String templateNameOrTemplateContent = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (templateFieldname.equals(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                    XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+                    builder.copyCurrentStructure(parser);
+                    templateNameOrTemplateContent = builder.string();
+                } else {
+                    templateNameOrTemplateContent = parser.text();
+                }
+            } else if (paramsFieldname.equals(currentFieldName)) {
+                params = parser.map();
+            }
+        }
+
+        return new TemplateContext(templateNameOrTemplateContent, params);
+    }
+
+    public static class TemplateContext {
+        private Map<String, Object> params;
+        private String template;
+
+        public TemplateContext(String templateName, Map<String, Object> params) {
+            this.params = params;
+            this.template = templateName;
+        }
+
+        public Map<String, Object> params() {
+            return params;
+        }
+
+        public String template() {
+            return template;
         }
     }
 }

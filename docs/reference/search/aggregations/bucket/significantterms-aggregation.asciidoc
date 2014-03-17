@@ -202,8 +202,7 @@ Rare vs common is essentially a precision vs recall balance and so the absolute 
 **********************************
 
 
-
-=== Use on free-text fields
+==== Use on free-text fields
 
 The significant_terms aggregation can be used effectively on tokenized free-text fields to suggest:
 
@@ -234,28 +233,27 @@ free-text field and use them in a `terms` query on the same field with a `highli
 are presented unstemmed, highlighted, with the right case, in the right order and with some context, their significance/meaning is more readily apparent.
 ============
 
+==== Limitations
 
-=== Limitations
-
-==== Single _background_ comparison base
+===== Single _background_ comparison base
 The above examples show how to select the _foreground_ set for analysis using a query or parent aggregation to filter but currently there is no means of specifying
 a _background_ set other than the index from which all results are ultimately drawn. Sometimes it may prove useful to use a different
 background set as the basis for comparisons e.g. to first select the tweets for the TV show "XFactor" and then look
 for significant terms in a subset of that content which is from this week. 
 
-==== Significant terms must be indexed values
+===== Significant terms must be indexed values
 Unlike the terms aggregation it is currently not possible to use script-generated terms for counting purposes.
 Because of the way the significant_terms aggregation must consider both _foreground_ and _background_ frequencies
 it would be prohibitively expensive to use a script on the entire index to obtain background frequencies for comparisons.
 Also DocValues are not supported as sources of term data for similar reasons.
 
-==== No analysis of floating point fields
+===== No analysis of floating point fields
 Floating point fields are currently not supported as the subject of significant_terms analysis.
 While integer or long fields can be used to represent concepts like bank account numbers or category numbers which
 can be interesting to track, floating point fields are usually used to represent quantities of something. 
 As such, individual floating point terms are not useful for this form of frequency analysis. 
 
-==== Use as a parent aggregation
+===== Use as a parent aggregation
 If there is the equivalent of a `match_all` query or no query criteria providing a subset of the index the significant_terms aggregation should not be used as the 
 top-most aggregation - in this scenario the _foreground_ set is exactly the same as the _background_ set and
 so there is no difference in document frequencies to observe and from which to make sensible suggestions.
@@ -266,7 +264,7 @@ it can be inefficient and costly in terms of RAM to embed large child aggregatio
 aggregation that later discards many candidate terms. It is advisable in these cases to perform two searches - the first to provide a rationalized list of
 significant_terms and then add this shortlist of terms to a second query to go back and fetch the required child aggregations.  
  
-==== Approximate counts
+===== Approximate counts
 The counts of how many documents contain a term provided in results are based on summing the samples returned from each shard and
 as such may be:
 
@@ -276,11 +274,10 @@ as such may be:
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
 However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels. 
 
+==== Parameters
 
-=== Parameters
 
-
-==== Size & Shard Size
+===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
 default, the node coordinating the search process will request each shard to provide its own top term buckets
@@ -302,7 +299,7 @@ will cause extra network traffic and RAM usage so this is  quality/cost trade of
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
 
-==== Minimum document count
+===== Minimum document count
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
@@ -328,7 +325,7 @@ WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to 
          default value of 3 is used to provide a minimum weight-of-evidence.
 
 
-==== Filtering Values
+===== Filtering Values
 
 It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and
 `exclude` parameters which are based on regular expressions. This functionality mirrors the features
@@ -392,7 +389,7 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CA
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CHARACTER_CLASS[`UNICODE_CHARACTER_CLASS`] and
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]
 
-==== Execution hint
+===== Execution hint
 
 There are two mechanisms by which terms aggregations can be executed: either by using field values directly in order to aggregate
 data per-bucket (`map`), or by using ordinals of the field values instead of the values themselves (`ordinals`). Although the

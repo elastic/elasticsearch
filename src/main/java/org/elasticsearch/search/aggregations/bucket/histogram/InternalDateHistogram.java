@@ -69,6 +69,11 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         public DateTime getKeyAsDate() {
             return new DateTime(key, DateTimeZone.UTC);
         }
+
+        @Override
+        public String toString() {
+            return getKey();
+        }
     }
 
     static class Factory extends InternalHistogram.Factory<InternalDateHistogram.Bucket> {

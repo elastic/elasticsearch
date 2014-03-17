@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
@@ -47,6 +48,8 @@ import java.util.Map;
  *
  */
 public class DateHistogramParser implements Aggregator.Parser {
+
+    static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
 
     private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
 
@@ -87,6 +90,7 @@ public class DateHistogramParser implements Aggregator.Parser {
         Map<String, Object> scriptParams = null;
         boolean keyed = false;
         long minDocCount = 1;
+        ExtendedBounds extendedBounds = null;
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
         boolean preZoneAdjustLargeInterval = false;
@@ -162,6 +166,32 @@ public class DateHistogramParser implements Aggregator.Parser {
                             //TODO should we throw an error if the value is not "asc" or "desc"???
                         }
                     }
+                } else if (EXTENDED_BOUNDS.match(currentFieldName)) {
+                    extendedBounds = new ExtendedBounds();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                            if ("min".equals(currentFieldName)) {
+                                extendedBounds.minAsStr = parser.text();
+                            } else if ("max".equals(currentFieldName)) {
+                                extendedBounds.maxAsStr = parser.text();
+                            } else {
+                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                            }
+                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                            if ("min".equals(currentFieldName)) {
+                                extendedBounds.min = parser.longValue();
+                            } else if ("max".equals(currentFieldName)) {
+                                extendedBounds.max = parser.longValue();
+                            } else {
+                                throw new SearchParseException(context, "Unknown extended_bounds key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                            }
+                        } else {
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                        }
+                    }
+
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -209,17 +239,21 @@ public class DateHistogramParser implements Aggregator.Parser {
             if (searchScript != null) {
                 ValueParser valueParser = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
                 config.parser(valueParser);
-                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
+                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
             }
 
             // falling back on the get field data context
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
+            if (format == null) {
+                config.formatter(new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER));
+            }
+            config.parser(new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT)));
+            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
         }
 
         if (!(mapper instanceof DateFieldMapper)) {
@@ -228,7 +262,11 @@ public class DateHistogramParser implements Aggregator.Parser {
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, InternalDateHistogram.FACTORY);
+        if (format == null) {
+            config.formatter(new ValueFormatter.DateTime(((DateFieldMapper) mapper).dateTimeFormatter()));
+        }
+        config.parser(new ValueParser.DateMath(new DateMathParser(((DateFieldMapper) mapper).dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT)));
+        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
     }
 
     private static InternalOrder resolveOrder(String key, boolean asc) {

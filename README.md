@@ -396,7 +396,7 @@ Integrations tests in this plugin require working Azure configuration and theref
 To enable tests prepare a config file elasticsearch.yml with the following content:
 
 ```
-  repositories:
+  cloud:
       azure:
           account: "YOUR-AZURE-STORAGE-NAME"
           key: "YOUR-AZURE-STORAGE-KEY"

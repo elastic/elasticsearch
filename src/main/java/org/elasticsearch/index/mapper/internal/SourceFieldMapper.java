@@ -341,6 +341,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                 }
             }
         }
+        if (!source.hasArray()) {
+            source = source.toBytesArray();
+        }
         assert source.hasArray();
         fields.add(new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length()));
     }

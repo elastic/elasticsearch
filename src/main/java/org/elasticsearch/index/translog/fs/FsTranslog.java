@@ -350,6 +350,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             out.seek(size);
 
             BytesReference ref = out.bytes();
+            // TODO: pass teh BytesReference to the FsTranslogFile and have them optimize writing
+            if (!ref.hasArray()) {
+                ref = ref.toBytesArray();
+            }
             byte[] refBytes = ref.array();
             int refBytesOffset = ref.arrayOffset();
             Location location = current.add(refBytes, refBytesOffset, size);

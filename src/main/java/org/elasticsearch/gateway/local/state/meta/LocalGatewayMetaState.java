@@ -356,7 +356,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             try {
                 fos = new FileOutputStream(stateFile);
                 BytesReference bytes = builder.bytes();
-                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                bytes.writeTo(fos);
                 fos.getChannel().force(true);
                 fos.close();
                 wroteAtLeastOnce = true;
@@ -412,7 +412,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             try {
                 fos = new FileOutputStream(stateFile);
                 BytesReference bytes = builder.bytes();
-                fos.write(bytes.array(), bytes.arrayOffset(), bytes.length());
+                bytes.writeTo(fos);
                 fos.getChannel().force(true);
                 fos.close();
                 wroteAtLeastOnce = true;

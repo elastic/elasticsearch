@@ -120,9 +120,9 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
             // make sure the cluster state is green, and all has been recovered
             assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForNodes(">=2").execute().actionGet().isTimedOut(), equalTo(false));
 
-            logger.info("--> waiting for 10000 docs to be indexed ...");
+            logger.info("--> waiting for 15000 docs to be indexed ...");
             waitForDocs(15000);
-            logger.info("--> 10000 docs indexed");
+            logger.info("--> 15000 docs indexed");
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
             stop.set(true);
@@ -470,12 +470,23 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     }
 
     private void waitForDocs(final long numDocs) throws InterruptedException {
-        assertThat(awaitBusy(new Predicate<Object>() {
+        final long[] lastKnownCount = {-1};
+        long lastStartCount = -1;
+        Predicate<Object> testDocs = new Predicate<Object>() {
             public boolean apply(Object o) {
-                long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                logger.debug("[{}] docs visible for search. waiting for [{}]", count, numDocs);
-                return count > numDocs;
+                lastKnownCount[0] = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
+                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount[0], numDocs);
+                return lastKnownCount[0] > numDocs;
             }
-        }, 5, TimeUnit.MINUTES), equalTo(true)); // not really relevant here we just have to wait some time
+        };
+        // 5 minutes seems like a long time but while relocating,    indexing threads can wait for up to ~1m before retrying when
+        // they first try to index into a shard which is not STARTED.
+        while (!awaitBusy(testDocs, 5, TimeUnit.MINUTES)) {
+            if (lastStartCount == lastKnownCount[0]) {
+                // we didn't make any progress
+                fail("failed to reach " + numDocs + "docs");
+            }
+            lastStartCount = lastKnownCount[0];
+        }
     }
 }

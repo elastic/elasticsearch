@@ -105,7 +105,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
-            return XContentHelper.convertToMap(source.array(), source.arrayOffset(), source.length(), true).v2();
+            return XContentHelper.convertToMap(source, true).v2();
         }
 
         public boolean isNull() {

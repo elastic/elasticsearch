@@ -337,7 +337,7 @@ public class GeolocationContextMapping extends ContextMapping {
                         precision = new int[] { parsePrecision(parser) };
                     }
                 } else if (FIELD_VALUE.equals(fieldName)) {
-                    if(lat == Double.NaN && lon == Double.NaN) {
+                    if(Double.isNaN(lat) && Double.isNaN(lon)) {
                         point = GeoPoint.parse(parser);
                     } else {
                         throw new ElasticsearchParseException("only lat/lon or [" + FIELD_VALUE + "] is allowed");
@@ -348,7 +348,7 @@ public class GeolocationContextMapping extends ContextMapping {
             }
 
             if (point == null) {
-                if (lat == Double.NaN || lon == Double.NaN) {
+                if (Double.isNaN(lat) || Double.isNaN(lon)) {
                     throw new ElasticsearchParseException("location is missing");
                 } else {
                     point = new GeoPoint(lat, lon);

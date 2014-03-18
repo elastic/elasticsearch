@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.geo;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -91,5 +92,29 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(doc.rootDoc().getField("point.lon"), nullValue());
         MatcherAssert.assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
         MatcherAssert.assertThat(doc.rootDoc().get("point"), notNullValue());
+    }
+
+    @Test
+    public void testGeoHashPrecisionAsInteger() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", 10).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        FieldMapper mapper = defaultMapper.mappers().smartName("point").mapper();
+        assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
+        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
+        assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));
+    }
+
+    @Test
+    public void testGeoHashPrecisionAsLength() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash_precision", "5m").endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+        FieldMapper mapper = defaultMapper.mappers().smartName("point").mapper();
+        assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
+        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
+        assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));
     }
 }

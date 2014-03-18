@@ -32,7 +32,7 @@ PUT services/service/_mapping
                 "context": {
                     "color": { <1>
                         "type": "category",
-                        "path": "color_field"
+                        "path": "color_field",
                         "default": ["red", "green", "blue"]
                     },
                     "location": { <2>

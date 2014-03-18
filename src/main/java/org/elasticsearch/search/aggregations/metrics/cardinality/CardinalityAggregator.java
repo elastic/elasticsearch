@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -93,7 +94,10 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
         if (bytesValues instanceof BytesValues.WithOrdinals) {
             BytesValues.WithOrdinals values = (BytesValues.WithOrdinals) bytesValues;
             final long maxOrd = values.ordinals().getMaxOrd();
-            if (maxOrd <= reader.reader().maxDoc()) {
+            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
+            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+            // only use ordinals if they don't increase memory usage by more than 25%
+            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
                 return new OrdinalsCollector(counts, values, bigArrays);
             }
         }
@@ -194,6 +198,15 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
     }
 
     private static class OrdinalsCollector implements Collector {
+
+        private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
+
+        /**
+         * Return an approximate memory overhead per bucket for this collector.
+         */
+        public static long memoryOverhead(long maxOrd) {
+            return RamUsageEstimator.NUM_BYTES_OBJECT_REF + SHALLOW_FIXEDBITSET_SIZE + (maxOrd + 7) / 8; // 1 bit per ord
+        }
 
         private final BigArrays bigArrays;
         private final BytesValues.WithOrdinals values;

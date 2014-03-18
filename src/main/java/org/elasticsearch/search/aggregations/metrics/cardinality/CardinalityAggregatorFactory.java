@@ -64,8 +64,8 @@ final class CardinalityAggregatorFactory extends ValueSourceAggregatorFactory<Va
     private int defaultPrecision(Aggregator parent) {
         int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
         while (parent != null) {
-            if (parent.bucketAggregationMode() == BucketAggregationMode.MULTI_BUCKETS) {
-                // if the parent is a multi-bucket aggregator, we substract 5 to the precision,
+            if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
+                // if the parent is a per-bucket aggregator, we substract 5 to the precision,
                 // which will effectively divide the memory usage of each counter by 32
                 precision -= 5;
             }

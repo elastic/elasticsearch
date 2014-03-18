@@ -75,6 +75,13 @@ public final class HyperLogLogPlusPlus implements Releasable {
         return precision;
     }
 
+    /**
+     * Return the expected per-bucket memory usage for the given precision.
+     */
+    public static long memoryUsage(int precision) {
+        return 1L << precision;
+    }
+
     // these static tables come from the appendix of the paper
     private static final double[][] RAW_ESTIMATE_DATA = {
         // precision 4

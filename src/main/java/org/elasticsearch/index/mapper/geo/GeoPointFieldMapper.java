@@ -226,7 +226,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 } else if (fieldName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(fieldNode));
                 } else if (fieldName.equals("geohash_precision")) {
-                    builder.geoHashPrecision(XContentMapValues.nodeIntegerValue(fieldNode));
+                    if (fieldNode instanceof Integer) {
+                        builder.geoHashPrecision(XContentMapValues.nodeIntegerValue(fieldNode));
+                    } else {
+                        builder.geoHashPrecision(GeoUtils.geoHashLevelsForPrecision(fieldNode.toString()));
+                    }
                 } else if (fieldName.equals("validate")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
@@ -450,6 +454,10 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
     public StringFieldMapper geoHashStringMapper() {
         return this.geohashMapper;
+    }
+
+    int geoHashPrecision() {
+        return geoHashPrecision;
     }
 
     public boolean isEnableLatLon() {

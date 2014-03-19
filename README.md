@@ -11,12 +11,12 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |   Attachment Mapper Plugin  | elasticsearch         |  Tika  | Release date |
 |-----------------------------|-----------------------|--------|:------------:|
-| 2.0.0-SNAPSHOT              | 1.0.0.RC1 -> master   |  1.4   |  XXXX-XX-XX  |
+| 2.0.0-SNAPSHOT              | 1.0.0.RC1 -> master   |  1.5   |  XXXX-XX-XX  |
 | 2.0.0.RC1                   | 1.0.0.RC1 -> master   |  1.4   |  2014-01-15  |
 
 
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
-microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.4/formats.html)).
+microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.5/formats.html)).
 
 The `attachment` type is provided as a plugin extension. The plugin is a simple zip file that can be downloaded and placed under `$ES_HOME/plugins` location. It will be automatically detected and the `attachment` type will be added.
 

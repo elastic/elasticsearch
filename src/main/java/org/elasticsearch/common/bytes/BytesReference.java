@@ -24,6 +24,7 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.GatheringByteChannel;
 
 /**
  * A reference to bytes.
@@ -94,6 +95,11 @@ public interface BytesReference {
      * Writes the bytes directly to the output stream.
      */
     void writeTo(OutputStream os) throws IOException;
+
+    /**
+     * Writes the bytes directly to the channel.
+     */
+    void writeTo(GatheringByteChannel channel) throws IOException;
 
     /**
      * Returns the bytes as a single byte array.

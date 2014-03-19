@@ -19,10 +19,7 @@
 
 package org.elasticsearch.common.bytes;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Arrays;
-
+import com.google.common.base.Charsets;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -31,7 +28,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
-import com.google.common.base.Charsets;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.GatheringByteChannel;
+import java.util.Arrays;
 
 public class BytesArray implements BytesReference {
 
@@ -104,6 +105,11 @@ public class BytesArray implements BytesReference {
     @Override
     public void writeTo(OutputStream os) throws IOException {
         os.write(bytes, offset, length);
+    }
+
+    @Override
+    public void writeTo(GatheringByteChannel channel) throws IOException {
+        channel.write(ByteBuffer.wrap(bytes, offset, length()));
     }
 
     @Override

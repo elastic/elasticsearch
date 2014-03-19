@@ -17,14 +17,14 @@ tokens, Elasticsearch will split on characters that don't belong to any
 of these classes. |`[]` (Keep all characters)
 |=======================================================================
 
-`token_chars` accepts the following character classes: 
+`token_chars` accepts the following character classes:
 
 [horizontal]
 `letter`::      for example `a`, `b`, `ï` or `京`
 `digit`::       for example `3` or `7`
-`whitespace`::  for example `" "` or `"\n"` 
+`whitespace`::  for example `" "` or `"\n"`
 `punctuation`:: for example `!` or `"`
-`symbol`::      for example `$` or `â`
+`symbol`::      for example `$` or `√`
 
 [float]
 ==== Example

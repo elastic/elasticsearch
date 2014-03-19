@@ -22,14 +22,14 @@ of these classes. |`[]` (Keep all characters)
 |=======================================================================
 
 
-`token_chars` accepts the following character classes: 
+`token_chars` accepts the following character classes:
 
 [horizontal]
 `letter`::      for example `a`, `b`, `ï` or `京`
 `digit`::       for example `3` or `7`
-`whitespace`::  for example `" "` or `"\n"` 
+`whitespace`::  for example `" "` or `"\n"`
 `punctuation`:: for example `!` or `"`
-`symbol`::      for example `$` or `â`
+`symbol`::      for example `$` or `√`
 
 [float]
 ==== Example
@@ -65,16 +65,16 @@ of these classes. |`[]` (Keep all characters)
 ==== `side` deprecated
 
 There used to be a `side` parameter up to `0.90.1` but it is now deprecated. In
-order to emulate the behavior of `"side" : "BACK"` a 
-<<analysis-reverse-tokenfilter,`reverse` token filter>>  should be used together 
-with the <<analysis-edgengram-tokenfilter,`edgeNGram` token filter>>. The 
-`edgeNGram` filter must be enclosed in `reverse` filters like this: 
+order to emulate the behavior of `"side" : "BACK"` a
+<<analysis-reverse-tokenfilter,`reverse` token filter>>  should be used together
+with the <<analysis-edgengram-tokenfilter,`edgeNGram` token filter>>. The
+`edgeNGram` filter must be enclosed in `reverse` filters like this:
 
 [source,js]
 --------------------------------------------------
     "filter" : ["reverse", "edgeNGram", "reverse"]
 --------------------------------------------------
 
-which essentially reverses the token, builds front `EdgeNGrams` and reverses 
+which essentially reverses the token, builds front `EdgeNGrams` and reverses
 the ngram again. This has the same effect as the previous `"side" : "BACK"` setting.
- 
+

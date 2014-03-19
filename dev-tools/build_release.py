@@ -43,7 +43,7 @@ from os.path import dirname, abspath
  The script takes over almost all
  steps necessary for a release from a high level point of view it does the following things:
 
-  - run prerequisite checks ie. check for Java 1.6 being present or S3 credentials available as env variables
+  - run prerequisite checks ie. check for S3 credentials available as env variables
   - detect the version to release from the specified branch (--branch) or the current branch
   - creates a release branch & updates pom.xml and README.md to point to a release version rather than a snapshot
   - builds the artifacts
@@ -109,18 +109,6 @@ def java_exe():
     path = JAVA_HOME
     return 'export JAVA_HOME="%s" PATH="%s/bin:$PATH" JAVACMD="%s/bin/java"' % (path, path, path)
 
-def verify_java_version(version):
-    s = os.popen('%s; java -version 2>&1' % java_exe()).read()
-    if s.find(' version "%s.' % version) == -1:
-        raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
-
-# Verifies the java version. We guarantee that we run with Java 1.6
-# If 1.6 is not available fail the build!
-def verify_mvn_java_version(version, mvn):
-    s = os.popen('%s; %s --version 2>&1' % (java_exe(), mvn)).read()
-    if s.find('Java version: %s' % version) == -1:
-        raise RuntimeError('got wrong java version for %s %s:\n%s' % (mvn, version, s))
-
 # Returns the hash of the current git HEAD revision
 def get_head_hash():
     return os.popen(' git rev-parse --verify HEAD 2>&1').read().strip()
@@ -132,9 +120,6 @@ def get_tag_hash(tag):
 # Returns the name of the current branch
 def get_current_branch():
     return os.popen('git rev-parse --abbrev-ref HEAD  2>&1').read().strip()
-
-verify_java_version('1.6') # we require to build with 1.6
-verify_mvn_java_version('1.6', MVN)
 
 # Utility that returns the name of the release branch for a given version
 def release_branch(version):
@@ -218,7 +203,7 @@ def add_version_snapshot(readme_file, release, snapshot):
         # If we find pattern, we copy the line and replace its content
         if line.find(pattern) >= 0:
             return line.replace(pattern, replacement).replace('%s' % (datetime.datetime.now().strftime("%Y-%m-%d")),
-                                                           'XXXX-XX-XX')+line
+                                                              'XXXX-XX-XX')+line
         else:
             return line
     process_file(readme_file, callback)
@@ -356,15 +341,15 @@ def format_issues_html(issues, title='Fix'):
     if len(issues) > 0:
         response += '<h2>%s</h2>\n<ul>\n' % title
         for issue in issues:
-            response += '</li>[<a href="%s">%s</a>] - %s\n' % (issue.html_url, issue.number, issue.title)
+            response += '<li>[<a href="%s">%s</a>] - %s\n' % (issue.html_url, issue.number, issue.title)
         response += '</ul>\n'
 
     return response
 
 def get_github_repository(reponame,
-                      login=env.get('GITHUB_LOGIN', None),
-                      password=env.get('GITHUB_PASSWORD', None),
-                      key=env.get('GITHUB_KEY', None)):
+                          login=env.get('GITHUB_LOGIN', None),
+                          password=env.get('GITHUB_PASSWORD', None),
+                          key=env.get('GITHUB_KEY', None)):
     if login:
         g = github3.login(login, password)
     elif key:

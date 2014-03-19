@@ -26,6 +26,8 @@ import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.GatheringByteChannel;
+import java.nio.channels.WritableByteChannel;
 
 /**
  */
@@ -60,6 +62,11 @@ public class ChannelBufferBytesReference implements BytesReference {
     @Override
     public void writeTo(OutputStream os) throws IOException {
         buffer.getBytes(buffer.readerIndex(), os, length());
+    }
+
+    @Override
+    public void writeTo(GatheringByteChannel channel) throws IOException {
+        buffer.getBytes(buffer.readerIndex(), channel, length());
     }
 
     @Override

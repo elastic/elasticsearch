@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
@@ -60,12 +61,12 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         return lastWrittenPosition.get();
     }
 
-    public Translog.Location add(byte[] data, int from, int size) throws IOException {
-        long position = lastPosition.getAndAdd(size);
-        raf.channel().write(ByteBuffer.wrap(data, from, size), position);
-        lastWrittenPosition.getAndAdd(size);
+    public Translog.Location add(BytesReference data) throws IOException {
+        long position = lastPosition.getAndAdd(data.length());
+        data.writeTo(raf.channel());
+        lastWrittenPosition.getAndAdd(data.length());
         operationCounter.incrementAndGet();
-        return new Translog.Location(id, position, size);
+        return new Translog.Location(id, position, data.length());
     }
 
     public byte[] read(Translog.Location location) throws IOException {

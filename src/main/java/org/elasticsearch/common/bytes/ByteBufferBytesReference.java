@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.channels.GatheringByteChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
@@ -81,6 +82,11 @@ public class ByteBufferBytesReference implements BytesReference {
                 os.write(tmp);
             }
         }
+    }
+
+    @Override
+    public void writeTo(GatheringByteChannel channel) throws IOException {
+        channel.write(buffer);
     }
 
     @Override

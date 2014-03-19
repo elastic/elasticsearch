@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
@@ -61,7 +62,7 @@ public interface FsTranslogFile {
 
     long translogSizeInBytes();
 
-    Translog.Location add(byte[] data, int from, int size) throws IOException;
+    Translog.Location add(BytesReference data) throws IOException;
 
     byte[] read(Translog.Location location) throws IOException;
 

@@ -63,7 +63,7 @@ public class ChildrenQuery extends Query {
     private final String childType;
     private final Filter parentFilter;
     private final ScoreType scoreType;
-    private final Query originalChildQuery;
+    private Query originalChildQuery;
     private final int shortCircuitParentDocSet;
     private final Filter nonNestedDocsFilter;
 
@@ -131,12 +131,10 @@ public class ChildrenQuery extends Query {
 
     @Override
     public Query clone() {
-        ChildrenQuery q = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter,
-                originalChildQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
-        q.setBoost(getBoost());
+        ChildrenQuery q = (ChildrenQuery) super.clone();
+        q.originalChildQuery = originalChildQuery.clone();
         if (q.rewrittenChildQuery != null) {
             q.rewrittenChildQuery = rewrittenChildQuery.clone();
-            q.rewriteIndexReader = rewriteIndexReader;
         }
         return q;
     }

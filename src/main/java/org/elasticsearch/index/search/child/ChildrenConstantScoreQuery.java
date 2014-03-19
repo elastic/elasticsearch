@@ -51,7 +51,7 @@ import java.util.Set;
 public class ChildrenConstantScoreQuery extends Query {
 
     private final ParentChildIndexFieldData parentChildIndexFieldData;
-    private final Query originalChildQuery;
+    private Query originalChildQuery;
     private final String parentType;
     private final String childType;
     private final Filter parentFilter;
@@ -88,12 +88,10 @@ public class ChildrenConstantScoreQuery extends Query {
 
     @Override
     public Query clone() {
-        ChildrenConstantScoreQuery q = new ChildrenConstantScoreQuery(parentChildIndexFieldData, originalChildQuery.clone(),
-                parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
-        q.setBoost(getBoost());
+        ChildrenConstantScoreQuery q = (ChildrenConstantScoreQuery) super.clone();
+        q.originalChildQuery = originalChildQuery.clone();
         if (q.rewrittenChildQuery != null) {
             q.rewrittenChildQuery = rewrittenChildQuery.clone();
-            q.rewriteIndexReader = rewriteIndexReader;
         }
         return q;
     }

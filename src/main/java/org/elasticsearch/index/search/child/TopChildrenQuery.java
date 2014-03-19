@@ -69,7 +69,7 @@ public class TopChildrenQuery extends Query {
     private final ScoreType scoreType;
     private final int factor;
     private final int incrementalFactor;
-    private final Query originalChildQuery;
+    private Query originalChildQuery;
     private final Filter nonNestedDocsFilter;
 
     // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
@@ -108,14 +108,10 @@ public class TopChildrenQuery extends Query {
 
     @Override
     public Query clone() {
-        TopChildrenQuery q = new TopChildrenQuery(
-                parentChildIndexFieldData, originalChildQuery.clone(), childType, parentType,
-                scoreType, factor, incrementalFactor, cacheRecycler, nonNestedDocsFilter
-        );
-        q.setBoost(getBoost());
+        TopChildrenQuery q = (TopChildrenQuery) super.clone();
+        q.originalChildQuery = originalChildQuery.clone();
         if (q.rewrittenChildQuery != null) {
             q.rewrittenChildQuery = rewrittenChildQuery.clone();
-            q.rewriteIndexReader = rewriteIndexReader;
         }
         return q;
     }

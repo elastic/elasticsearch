@@ -5,21 +5,14 @@ The mapper attachments plugin adds the `attachment` type to Elasticsearch using 
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/2.0.0.RC1`.
 
+* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/master).
+* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/1.x).
+
+
 |   Attachment Mapper Plugin  | elasticsearch         |  Tika  | Release date |
 |-----------------------------|-----------------------|--------|:------------:|
-| 2.0.0-SNAPSHOT (master)     | 1.0.0.RC1 -> master   |  1.4   |              |
+| 2.0.0-SNAPSHOT              | 1.0.0.RC1 -> master   |  1.4   |  XXXX-XX-XX  |
 | 2.0.0.RC1                   | 1.0.0.RC1 -> master   |  1.4   |  2014-01-15  |
-| 1.10.0-SNAPSHOT (1.x)       | 0.90.3 -> 0.90        |  1.4   |              |
-| 1.9.0                       | 0.90.3 -> 0.90        |  1.4   |  2013-08-20  |
-| 1.8.0                       | 0.90.3 -> 0.90        |  1.2   |  2013-08-07  |
-| 1.7.0                       | 0.90.0 -> 0.90.2      |  1.2   |  2013-02-26  |
-| 1.6.0                       | 0.19 -> 0.20          |  1.2   |  2012-09-28  |
-| 1.5.0                       | 0.19 -> 0.20          |  1.2   |  2012-09-19  |
-| 1.4.0                       | 0.19 -> 0.20          |  1.1   |  2012-03-25  |
-| 1.3.0                       | 0.19 -> 0.20          |  1.0   |  2012-03-07  |
-| 1.2.0                       | 0.19 -> 0.20          |  1.0   |  2012-02-15  |
-| 1.1.0                       | 0.19 -> 0.20          |  1.0   |  2012-02-07  |
-| 1.0.0                       | 0.18                  |  0.10  |  2011-12-05  |
 
 
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,

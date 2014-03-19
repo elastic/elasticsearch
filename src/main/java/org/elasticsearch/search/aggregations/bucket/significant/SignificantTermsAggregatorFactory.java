@@ -66,6 +66,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private BytesRefHash cachedTermOrds;
     private BigArrays bigArrays;
     private TermsEnum termsEnum;
+    int numberOfAggregatorsCreated=0;
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, int requiredSize,
             int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
@@ -100,24 +101,31 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         
-        if (termsEnum == null) {
-            SearchContext searchContext = aggregationContext.searchContext();
-            ContextIndexSearcher searcher = searchContext.searcher();
+        numberOfAggregatorsCreated++;
+        switch (numberOfAggregatorsCreated) {
+        case 1:
+            // Setup a termsEnum for use by first aggregator
             try {
+                SearchContext searchContext = aggregationContext.searchContext();
+                ContextIndexSearcher searcher = searchContext.searcher();
                 Terms terms = MultiFields.getTerms(searcher.getIndexReader(), indexedFieldName);
                 if (terms != null) {
                     termsEnum = terms.iterator(null);
-                    if (parent != null) {
-                        // potentially >1 Signif terms agg looking up the same
-                        // terms - create a caching wrapper for termsEnum
-                        termsEnum = new FrequencyCachingTermsEnumWrapper(termsEnum, searchContext.bigArrays(), true, false);
-                    }
-                }
+                } 
             } catch (IOException e) {
                 throw new ElasticsearchException("IOException loading background document frequency info", e);
             }
+            break;
+        case 2:
+            // When we have > 1 agg we have possibility of duplicate term frequency lookups and so introduce a cache
+            // in the form of a wrapper around the plain termsEnum created for use with the first agg
+            if (termsEnum != null) {
+                SearchContext searchContext = aggregationContext.searchContext();
+                termsEnum = new FrequencyCachingTermsEnumWrapper(termsEnum, searchContext.bigArrays(), true, false);
+            }
+            break;
         }
-
+        
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
         if (estimatedBucketCount < 0) {
             // there isn't an estimation available.. 50 should be a good start
@@ -177,6 +185,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) {
+        assert termsEnum !=null; // having failed to find a field in the index we don't expect any calls for frequencies
         long result = 0;
         try {
             if (termsEnum.seekExact(termBytes)) {
@@ -221,16 +230,16 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
         private boolean cacheTotalFreqs;
         private long currentTermOrd;
 
-        public FrequencyCachingTermsEnumWrapper(TermsEnum delegate, BigArrays bigArrays, boolean cacheDocFreqs, boolean cacheTotalFreqs) throws IOException {
+        public FrequencyCachingTermsEnumWrapper(TermsEnum delegate, BigArrays bigArrays, boolean cacheDocFreqs, boolean cacheTotalFreqs)  {
             super(delegate);
             this.bigArrays = bigArrays;
             this.cacheDocFreqs = cacheDocFreqs;
             this.cacheTotalFreqs = cacheTotalFreqs;
             if (cacheDocFreqs) {
-                termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, true);
+                termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
             }
             if (cacheTotalFreqs) {
-                termTotalFreqs = bigArrays.newLongArray(INITIAL_NUM_TERM_FREQS_CACHED, true);
+                termTotalFreqs = bigArrays.newLongArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
             }
             cachedTermOrds = new BytesRefHash(INITIAL_NUM_TERM_FREQS_CACHED, bigArrays);
         }
@@ -269,11 +278,13 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
         @Override
         public long totalTermFreq() throws IOException {
+            assert cacheTotalFreqs;
             return currentTermTotalFreq;
         }
 
         @Override
         public int docFreq() throws IOException {
+            assert cacheDocFreqs;
             return currentTermDocFreq;
         }
 

@@ -52,7 +52,7 @@ import java.util.Set;
 public class ParentQuery extends Query {
 
     private final ParentChildIndexFieldData parentChildIndexFieldData;
-    private final Query originalParentQuery;
+    private Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
 
@@ -122,11 +122,10 @@ public class ParentQuery extends Query {
 
     @Override
     public Query clone() {
-        ParentQuery q = new ParentQuery(parentChildIndexFieldData, originalParentQuery, parentType, childrenFilter);
-        q.setBoost(getBoost());
+        ParentQuery q = (ParentQuery) super.clone();
+        q.originalParentQuery = originalParentQuery.clone();
         if (q.rewrittenParentQuery != null) {
             q.rewrittenParentQuery = rewrittenParentQuery.clone();
-            q.rewriteIndexReader = rewriteIndexReader;
         }
         return q;
     }

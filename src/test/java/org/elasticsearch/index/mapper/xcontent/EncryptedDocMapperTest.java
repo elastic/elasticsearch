@@ -47,7 +47,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedLast() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null, null);
+        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), ImmutableSettings.EMPTY, new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
@@ -80,7 +80,7 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleDocsEncryptedFirst() throws IOException {
-        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null, null);
+        DocumentMapperParser mapperParser = new DocumentMapperParser(new Index("test"), ImmutableSettings.EMPTY, new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");

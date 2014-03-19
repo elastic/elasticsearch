@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.xcontent;
 
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -42,7 +43,7 @@ public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
 
     @Before
     public void setupMapperParser() {
-        mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null, null);
+        mapperParser = new DocumentMapperParser(new Index("test"), ImmutableSettings.EMPTY, new AnalysisService(new Index("test")), null, null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 

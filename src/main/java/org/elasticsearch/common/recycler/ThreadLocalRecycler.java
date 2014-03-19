@@ -31,7 +31,7 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
     private final CloseableThreadLocal<Stack<T>> threadLocal = new CloseableThreadLocal<Stack<T>>() {
         @Override
         protected Stack<T> initialValue() {
-            return new Stack<T>(stackLimit, Thread.currentThread());
+            return new Stack<T>(stackLimit);
         }
     };
 
@@ -81,7 +81,6 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
 
         @Override
         public void release() {
-            assert Thread.currentThread() == stack.thread;
             if (value == null) {
                 throw new ElasticSearchIllegalStateException("recycler entry already released...");
             }
@@ -95,18 +94,16 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
     static final class Stack<T> {
 
         final int stackLimit;
-        final Thread thread;
         private T[] elements;
         private int size;
 
         @SuppressWarnings({"unchecked", "SuspiciousArrayCast"})
-        Stack(int stackLimit, Thread thread) {
+        Stack(int stackLimit) {
             this.stackLimit = stackLimit;
-            this.thread = thread;
             elements = newArray(stackLimit < 10 ? stackLimit : 10);
         }
 
-        T pop() {
+        synchronized T pop() {
             int size = this.size;
             if (size == 0) {
                 return null;
@@ -118,7 +115,7 @@ public class ThreadLocalRecycler<T> extends Recycler<T> {
             return ret;
         }
 
-        void push(T o) {
+        synchronized void push(T o) {
             int size = this.size;
             if (size == elements.length) {
                 if (size >= stackLimit) {

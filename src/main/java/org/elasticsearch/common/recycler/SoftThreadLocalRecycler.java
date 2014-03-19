@@ -46,7 +46,7 @@ public class SoftThreadLocalRecycler<T> extends Recycler<T> {
         SoftReference<ThreadLocalRecycler.Stack<T>> ref = threadLocal.get();
         ThreadLocalRecycler.Stack<T> stack = (ref == null) ? null : ref.get();
         if (stack == null) {
-            stack = new ThreadLocalRecycler.Stack<T>(stackLimit, Thread.currentThread());
+            stack = new ThreadLocalRecycler.Stack<T>(stackLimit);
             threadLocal.set(new SoftReference<ThreadLocalRecycler.Stack<T>>(stack));
         }
 

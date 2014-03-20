@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      features: disabled
+      features: regex 
 
 ---
 "Test cat recovery output":
@@ -27,5 +27,13 @@ setup:
       cat.recovery: {}
   - match:
       $body: >
-              /^(index1\s+\d+\s+\d+\s+(gateway|replica|snapshot|relocating)\s+(init|index|start|translog|finalize|done)\s+([a-zA-Z_0-9/.])+\s+([a-zA-Z_0-9/.])+\s+([a-zA-Z_0-9/.])+\s+([a-zA-Z_0-9/.])+\s+\d+\s+\d+\.\d+\%\s+\d+\s+\d+\.\d+\%\s+\n?){1,}$/
+              /^(index1 \s+ \d+ \s+ \d+ \s+
+                 (gateway|replica|snapshot|relocating) \s+
+                 (init|index|start|translog|finalize|done) \s+
+                 ([\w/.-])+ \s+ 
+                 ([\w/.-])+ \s+ 
+                 ([\w/.-])+ \s+
+                 ([\w/.-])+ \s+
+                 \d+ \s+ \d+\.\d+\% \s+ \d+ \s+ \d+\.\d+\% \s+ \n?)
+               {1,}$/
 

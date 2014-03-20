@@ -400,7 +400,7 @@ defaults to `true` or to the parent `object` type setting.
 ==== Binary
 
 The binary type is a base64 representation of binary data that can be
-stored in the index. The field is stored by default and not indexed at
+stored in the index. The field is not stored by default and not indexed at
 all.
 
 [source,js]
@@ -424,6 +424,9 @@ binary type:
 |Attribute |Description
 |`index_name` |The name of the field that will be stored in the index.
 Defaults to the property/field name.
+|`store` |Set to `true` to store actual field in the index, `false` to not
+store it. Defaults to `false` (note, the JSON document itself is stored,
+and it can be retrieved from it).
 |=======================================================================
 
 [float]

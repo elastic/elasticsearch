@@ -36,6 +36,7 @@
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
+        <tests.topn>5</tests.topn>
     </properties>
 
     <dependencies>
@@ -401,7 +402,7 @@
                                         showStatusIgnored="true"
                                         showSuiteSummary="true"
                                         timestamps="false"/>
-                                <report-execution-times file="${basedir}/.local-execution-hints.log"/>
+                                <report-execution-times historyLength="20" file="${basedir}/.local-execution-hints.log"/>
                             </listeners>
                             <assertions>
                                 <enable/>
@@ -470,6 +471,37 @@
                                 <java.security.policy>${basedir}/dev-tools/tests.policy</java.security.policy>
                             </systemProperties>
                         </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>1.7</version>
+                <executions>
+                    <execution>
+                        <id>tests</id>
+                        <phase>test</phase>
+                        <configuration>
+                            <target>
+                                <property name="runtime_classpath" refid="maven.runtime.classpath"/>
+                                <property name="test_classpath" refid="maven.test.classpath"/>
+                                <property name="plugin_classpath" refid="maven.plugin.classpath"/>
+                                <taskdef resource="com/carrotsearch/junit4/antlib.xml">
+                                    <classpath>
+                                        <pathelement path="${plugin_classpath}"/>
+                                        <pathelement path="${runtime_classpath}"/>
+                                        <pathelement path="${test_classpath}"/>
+                                    </classpath>
+                                </taskdef>
+                                <tophints max="${tests.topn}">
+                                    <file file="${basedir}/.local-execution-hints.log" />
+                                </tophints>
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
                     </execution>
                 </executions>
             </plugin>

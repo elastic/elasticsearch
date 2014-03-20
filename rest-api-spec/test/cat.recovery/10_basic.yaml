@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      features: regex
+      features: disabled
 
 ---
 "Test cat recovery output":

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway.local;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
+@Slow
 public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndexStateTests.class);

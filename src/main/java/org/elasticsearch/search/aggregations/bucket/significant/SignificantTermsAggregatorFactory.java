@@ -102,29 +102,27 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         
         numberOfAggregatorsCreated++;
-        switch (numberOfAggregatorsCreated) {
-        case 1:
+        if (numberOfAggregatorsCreated == 1) {
             // Setup a termsEnum for use by first aggregator
             try {
                 SearchContext searchContext = aggregationContext.searchContext();
                 ContextIndexSearcher searcher = searchContext.searcher();
                 Terms terms = MultiFields.getTerms(searcher.getIndexReader(), indexedFieldName);
-                //terms can be null if the choice of field is not found in this index
+                // terms can be null if the choice of field is not found in this index
                 if (terms != null) {
                     termsEnum = terms.iterator(null);
-                } 
+                }
             } catch (IOException e) {
                 throw new ElasticsearchException("IOException loading background document frequency info", e);
             }
-            break;
-        case 2:
-            // When we have > 1 agg we have possibility of duplicate term frequency lookups and so introduce a cache
-            // in the form of a wrapper around the plain termsEnum created for use with the first agg
+        } else if (numberOfAggregatorsCreated == 2) {
+            // When we have > 1 agg we have possibility of duplicate term frequency lookups and 
+            // so introduce a cache in the form of a wrapper around the plain termsEnum created
+            // for use with the first agg
             if (termsEnum != null) {
                 SearchContext searchContext = aggregationContext.searchContext();
                 termsEnum = new FrequencyCachingTermsEnumWrapper(termsEnum, searchContext.bigArrays(), true, false);
             }
-            break;
         }
         
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();

@@ -1,5 +1,5 @@
 {
-  "search-template": {
+  "search_template": {
     "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-search.html",
     "methods": ["GET", "POST"],
     "url": {

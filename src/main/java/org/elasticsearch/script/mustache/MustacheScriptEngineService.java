@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.script.mustache;
 
-import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.Mustache;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -79,7 +78,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
      * */
     public Object compile(String template) {
         /** Factory to generate Mustache objects from. */
-        return (new DefaultMustacheFactory()).compile(new FastStringReader(template), "query-template");
+        return (new JsonEscapingMustacheFactory()).compile(new FastStringReader(template), "query-template");
     }
 
     /**

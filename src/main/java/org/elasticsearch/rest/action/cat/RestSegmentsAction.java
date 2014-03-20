@@ -20,17 +20,17 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.segments.*;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -51,19 +51,40 @@ public class RestSegmentsAction extends AbstractCatAction {
     @Override
     void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
-        indicesSegmentsRequest.indices(indices);
 
-        client.admin().indices().segments(indicesSegmentsRequest, new ActionListener<IndicesSegmentResponse>() {
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+
+        client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
             @Override
-            public void onResponse(final IndicesSegmentResponse indicesSegmentResponse) {
-                final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
-                try {
-                    Table tab = buildTable(request, indicesSegments);
-                    channel.sendResponse(RestTable.buildResponse(tab, request, channel));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
+            public void onResponse(final ClusterStateResponse clusterStateResponse) {
+                final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
+                indicesSegmentsRequest.indices(indices);
+
+                client.admin().indices().segments(indicesSegmentsRequest, new ActionListener<IndicesSegmentResponse>() {
+                    @Override
+                    public void onResponse(final IndicesSegmentResponse indicesSegmentResponse) {
+                        final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
+                        try {
+                            Table tab = buildTable(request, clusterStateResponse, indicesSegments);
+                            channel.sendResponse(RestTable.buildResponse(tab, request, channel));
+                        } catch (Throwable e) {
+                            onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        try {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                        } catch (IOException e1) {
+                            logger.error("Failed to send failure response", e1);
+                        }
+                    }
+                });
+
             }
 
             @Override
@@ -89,9 +110,9 @@ public class RestSegmentsAction extends AbstractCatAction {
         table.startHeaders();
         table.addCell("index", "default:true;alias:i,idx;desc:index name");
         table.addCell("shard", "default:true;alias:s,sh;desc:shard name");
+        table.addCell("prirep", "alias:p,pr,primaryOrReplica;default:true;desc:primary or replica");
+        table.addCell("ip", "default:true;desc:ip of node where it lives");
         table.addCell("segment", "default:true;alias:seg;desc:segment name");
-        table.addCell("num.committed", "default:true;alias:nc,numCommitted;text-align:right;desc:number of committed segments in shard");
-        table.addCell("num.searchable", "default:true;alias:alias:numSearchable,ns;text-align:right;desc:number of searchable segmewnts in shard");
         table.addCell("generation", "default:true;alias:g,gen;text-align:right;desc:segment generation");
         table.addCell("docs.count", "default:true;alias:dc,docsCount;text-align:right;desc:number of docs in segment");
         table.addCell("docs.deleted", "default:true;alias:dd,docsDeleted;text-align:right;desc:number of deleted docs in segment");
@@ -105,8 +126,10 @@ public class RestSegmentsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(final RestRequest request, Map<String, IndexSegments> indicesSegments) {
+    private Table buildTable(final RestRequest request, ClusterStateResponse state, Map<String, IndexSegments> indicesSegments) {
         Table table = getTableWithHeader(request);
+
+        DiscoveryNodes nodes = state.getState().nodes();
 
         for (IndexSegments indexSegments : indicesSegments.values()) {
             Map<Integer, IndexShardSegments> shards = indexSegments.getShards();
@@ -122,9 +145,9 @@ public class RestSegmentsAction extends AbstractCatAction {
 
                         table.addCell(shardSegment.getIndex());
                         table.addCell(shardSegment.getShardId());
+                        table.addCell(shardSegment.getShardRouting().primary() ? "p" : "r");
+                        table.addCell(nodes.get(shardSegment.getShardRouting().currentNodeId()).getHostAddress());
                         table.addCell(segment.getName());
-                        table.addCell(shardSegment.getNumberOfCommitted());
-                        table.addCell(shardSegment.getNumberOfSearch());
                         table.addCell(segment.getGeneration());
                         table.addCell(segment.getNumDocs());
                         table.addCell(segment.getDeletedDocs());

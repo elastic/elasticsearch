@@ -92,7 +92,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
-                                } else if (token == XContentParser.Token.VALUE_STRING) {
+                                } else if (token.isValue()) {
                                     if ("index".equals(currentFieldName)) {
                                         index = parser.text();
                                     } else if ("alias".equals(currentFieldName)) {

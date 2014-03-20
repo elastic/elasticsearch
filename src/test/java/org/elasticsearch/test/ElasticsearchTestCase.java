@@ -257,7 +257,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     public static Version getPreviousVersion() {
         Version version = SORTED_VERSIONS.get(1);
-        assert version.before(Version.CURRENT);
+        assert version.before(Version.CURRENT) : "Version: " + version + " should be before: " + Version.CURRENT + " but wasn't";
         return version;
     }
 

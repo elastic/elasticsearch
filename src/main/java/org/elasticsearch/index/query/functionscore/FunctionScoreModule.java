@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.factor.FactorParser;
+import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionParser;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionParser;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionParser;
@@ -44,6 +45,7 @@ public class FunctionScoreModule extends AbstractModule {
         registerParser(LinearDecayFunctionParser.class);
         registerParser(ExponentialDecayFunctionParser.class);
         registerParser(RandomScoreFunctionParser.class);
+        registerParser(FieldValueFactorFunctionParser.class);
     }
 
     public void registerParser(Class<? extends ScoreFunctionParser> parser) {

@@ -20,6 +20,7 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -565,6 +566,10 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
     }
 
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47 : "See comments in testDfsSearchType";
+    }
+
     @Test
     public void testDfsSearchType() throws Exception {
         assertAcked(prepareCreate("test")
@@ -583,16 +588,22 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))))).get();
+                // Enable this again when upgraded to Lucene 4.7.1
+//                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))))).get();
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(matchAllQuery())))).get();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*"))))).execute()
+                // Enable this again when upgraded to Lucene 4.7.1
+//                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(matchAllQuery())))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
+                // Enable this again when upgraded to Lucene 4.7.1
+//                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(matchAllQuery())))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }

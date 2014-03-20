@@ -270,18 +270,26 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public ParsedFilter parseInnerFilter(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
-        Filter filter = context.parseInnerFilter();
-        if (filter == null) {
-            return null;
+        try {
+            Filter filter = context.parseInnerFilter();
+            if (filter == null) {
+                return null;
+            }
+            return new ParsedFilter(filter, context.copyNamedFilters());
+        } finally {
+            context.reset(null);
         }
-        return new ParsedFilter(filter, context.copyNamedFilters());
     }
 
     @Nullable
     public Query parseInnerQuery(XContentParser parser) throws IOException {
         QueryParseContext context = cache.get();
         context.reset(parser);
-        return context.parseInnerQuery();
+        try {
+            return context.parseInnerQuery();
+        } finally {
+            context.reset(null);
+        }
     }
 
     /**
@@ -315,14 +323,18 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     private ParsedQuery parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
         parseContext.reset(parser);
-        if (strict) {
-            parseContext.parseFlags(EnumSet.of(ParseField.Flag.STRICT));
+        try {
+            if (strict) {
+                parseContext.parseFlags(EnumSet.of(ParseField.Flag.STRICT));
+            }
+            Query query = parseContext.parseInnerQuery();
+            if (query == null) {
+                query = Queries.newMatchNoDocsQuery();
+            }
+            return new ParsedQuery(query, parseContext.copyNamedFilters());
+        } finally {
+            parseContext.reset(null);
         }
-        Query query = parseContext.parseInnerQuery();
-        if (query == null) {
-            query = Queries.newMatchNoDocsQuery();
-        }
-        return new ParsedQuery(query, parseContext.copyNamedFilters());
     }
 
     private void add(Map<String, FilterParser> map, FilterParser filterParser) {

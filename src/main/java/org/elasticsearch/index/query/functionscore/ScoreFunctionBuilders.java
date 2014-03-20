@@ -21,6 +21,7 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
+import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
@@ -76,5 +77,9 @@ public class ScoreFunctionBuilders {
 
     public static RandomScoreFunctionBuilder randomFunction(long seed) {
         return (new RandomScoreFunctionBuilder()).seed(seed);
+    }
+
+    public static FieldValueFactorFunctionBuilder fieldValueFactorFunction(String fieldName) {
+        return new FieldValueFactorFunctionBuilder(fieldName);
     }
 }

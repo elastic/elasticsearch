@@ -246,6 +246,46 @@ In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.
 
+===== Field Value factor
+The `field_value_factor` function allows you to use a field from a document to
+influence the score. It's similar to using the `script_score` function, however,
+it avoids the overhead of scripting. If used on a multi-valued field, only the
+first value of the field is used in calculations.
+
+As an example, imagine you have a document indexed with a numeric `popularity`
+field and wish in influence the score of a document with this field, an example
+doing so would look like:
+
+[source,js]
+--------------------------------------------------
+"field_value_factor": {
+  "field": "popularity",
+  "factor": 1.2,
+  "modifier": "sqrt"
+}
+--------------------------------------------------
+
+Which will translate into the following forumla for scoring:
+
+`sqrt(1.2 * doc['popularity'].value)`
+
+There are a number of options for the `field_value_factor` function:
+
+[cols="<,<",options="header",]
+|=======================================================================
+| Parameter |Description
+|`field` |Field to be extracted from the document.
+|`factor` |Optional factor to multiply the field value with, defaults to 1.
+|`modifier` |Modifier to apply to the field value, can be one of: `none`, `log`,
+ `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
+ Defaults to `none`.
+|=======================================================================
+
+Keep in mind that taking the log() of 0, or the square root of a negative number
+is an illegal operation, and an exception will be thrown. Be sure to limit the
+values of the field with a range filter to avoid this, or use `log1p` and
+`ln1p`.
+
 ==== Detailed example
 
 Suppose you are searching for a hotel in a certain town. Your budget is
@@ -487,5 +527,3 @@ becomes:
     "score_mode": "first"
 }
 --------------------------------------------------
-
-

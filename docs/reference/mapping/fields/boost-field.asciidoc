@@ -56,8 +56,8 @@ any field the document:
                 }
             },
             "functions": [{
-                "script_score": { <2>
-                    "script": "doc['my_boost_field'].value"
+                "field_value_factor": { <2>
+                    "field": "my_boost_field"
                 }
             }],
             "score_mode": "multiply"
@@ -66,7 +66,5 @@ any field the document:
 }
 --------------------------------------------------
 <1> The original query, now wrapped in a `function_score` query.
-<2> This script returns the value in `my_boost_field`, which is then
+<2> This function returns the value in `my_boost_field`, which is then
     multiplied by the query `_score` for each document.
-
-

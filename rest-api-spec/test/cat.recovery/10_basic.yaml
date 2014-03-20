@@ -1,4 +1,9 @@
 ---
+setup:
+  - skip:
+      features: regex
+
+---
 "Test cat recovery output":
 
   - do:

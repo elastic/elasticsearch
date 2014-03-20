@@ -483,6 +483,8 @@
                         <id>tests</id>
                         <phase>test</phase>
                         <configuration>
+                            <skip>${skipTests}</skip> <!-- don't run if we skip the tests -->
+                            <failOnError>false</failOnError>
                             <target>
                                 <property name="runtime_classpath" refid="maven.runtime.classpath"/>
                                 <property name="test_classpath" refid="maven.test.classpath"/>

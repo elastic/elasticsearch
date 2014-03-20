@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(scope=Scope.TEST, numNodes=0)
+@Slow
 public class IndexGatewayTests extends ElasticsearchIntegrationTest {
 
     private String storeType;
@@ -83,7 +84,6 @@ public class IndexGatewayTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testSnapshotOperations() throws Exception {
         cluster().startNode(nodeSettings(0));
 
@@ -356,13 +356,11 @@ public class IndexGatewayTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Slow
     public void testRandom() {
         testLoad(randomBoolean());
     }
 
     @Test
-    @Slow
     public void testIndexActions() throws Exception {
         cluster().startNode(nodeSettings(0));
 

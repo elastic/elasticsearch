@@ -49,6 +49,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @ClusterScope(numNodes = 0, scope = Scope.TEST)
+@Slow
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     private ImmutableSettings.Builder settingsBuilder() {

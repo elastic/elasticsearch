@@ -1226,14 +1226,14 @@
                   <exclude>src/test/java/org/elasticsearch/search/aggregations/metrics/GroupTree.java</exclude>
                 </excludes>
               </configuration>
-                <executions>
-                    <execution>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
+              <executions>
+                <execution>
+                  <phase>compile</phase>
+                  <goals>
+                    <goal>check</goal>
+                  </goals>
+                </execution>
+              </executions>
             </plugin>
           </plugins>
         </build>
@@ -1267,7 +1267,7 @@
             <version>0.6.4.201312101107</version>
             <scope>test</scope>
           </dependency>
-        </dependencies>        
+        </dependencies>
         <build>
           <plugins>
             <plugin>
@@ -1292,7 +1292,7 @@
                   <id>default-check</id>
                   <goals>
                     <goal>check</goal>
-                  </goals>                  
+                  </goals>
                 </execution>
               </executions>
               <configuration>
@@ -1333,7 +1333,7 @@
             <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-pmd-plugin</artifactId>
-              <version>3.0.1</version>
+              <version>3.1</version>
               <configuration>
                 <rulesets>
                   <ruleset>${basedir}/dev-tools/pmd/custom.xml</ruleset>
@@ -1364,6 +1364,9 @@
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-project-info-reports-plugin</artifactId>
               <version>2.7</version>
+              <configuration>
+                <dependencyLocationsEnabled>false</dependencyLocationsEnabled>
+              </configuration>
               <reportSets>
                 <reportSet>
                   <reports>

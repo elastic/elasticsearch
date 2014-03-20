@@ -60,5 +60,15 @@ public class VersionTests extends ElasticsearchTestCase {
             assertThat(version.luceneVersion, sameInstance(Version.fromId(version.id).luceneVersion));
         }
     }
+    @Test
+    public void testCURRENTIsLatest() {
+        final int iters = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            Version version = randomVersion();
+            if (version != Version.CURRENT) {
+                assertThat("Version: " + version + " should be before: " + Version.CURRENT + " but wasn't", version.before(Version.CURRENT), is(true));
+            }
+        }
+    }
 
 }

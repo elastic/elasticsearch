@@ -10,7 +10,7 @@ formats supported, as well as complete custom one.
 
 The parsing of dates uses http://joda-time.sourceforge.net/[Joda]. The
 default date parsing used if no format is specified is
-http://joda-time.sourceforge.net/api-release/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser[ISODateTimeFormat.dateOptionalTimeParser]().
+http://joda-time.sourceforge.net/api-release/org/joda/time/format/ISODateTimeFormat.html#dateOptionalTimeParser()[ISODateTimeFormat.dateOptionalTimeParser].
 
 An extension to the format allow to define several formats using `||`
 separator. This allows to define less strict formats that can be used,

@@ -12,7 +12,7 @@
         index:  test
         type:   testtype
         id:     2
-        body:   { "text": "value2" }
+        body:   { "text": "value2 value3" }
   - do:
       indices.refresh: {}
 
@@ -39,3 +39,10 @@
         body: { "query": { "template": { "query": "{\"match_{{template}}\": {}}", "params" : { "template" : "all" } } } }
 
   - match: { hits.total: 2 }
+
+  - do:
+      search:
+        body: { "query": { "template": { "query": "{\"query_string\": { \"query\" : \"{{query}}\" }}", "params" : { "query" : "text:\"value2 value3\"" } } } }
+
+
+  - match: { hits.total: 1 }

@@ -19,8 +19,12 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.spatial4j.core.context.jts.JtsSpatialContext;
+import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.jts.JtsGeometry;
+import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -32,10 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.shape.Shape;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.GeometryFactory;
 import java.io.IOException;
 import java.util.*;
 
@@ -636,9 +636,9 @@ public abstract class ShapeBuilder implements ToXContent {
             LineStringBuilder shell = parseLineString(coordinates.children.get(0));
             PolygonBuilder polygon = new PolygonBuilder(shell.points);
             for (int i = 1; i < coordinates.children.size(); i++) {
-                polygon.hole(parseLineString(coordinates.children.get(i)));
+                polygon.hole(parseLineString(coordinates.children.get(i))).close();
             }
-            return polygon;
+            return polygon.close();
         }
 
         protected static MultiPolygonBuilder parseMultiPolygon(CoordinateNode coordinates) {

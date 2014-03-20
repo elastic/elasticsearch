@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -53,7 +52,6 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
-        ElasticsearchAssertions.assertHitCount(response, 1);
         // assumption: We have a set of relevant doc ids
         Set<String> relevant = Sets.newHashSet("1");
 

@@ -30,7 +30,7 @@ public interface DateHistogram extends Histogram {
     static interface Bucket extends Histogram.Bucket {
 
         /**
-         * @return the key as a date construct.
+         * @return the key as a date construct (in UTC timezone).
          */
         DateTime getKeyAsDate();
 

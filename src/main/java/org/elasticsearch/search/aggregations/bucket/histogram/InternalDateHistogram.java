@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.List;
@@ -66,7 +67,7 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
 
         @Override
         public DateTime getKeyAsDate() {
-            return new DateTime(key);
+            return new DateTime(key, DateTimeZone.UTC);
         }
     }
 

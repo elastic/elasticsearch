@@ -52,26 +52,16 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch().setQuery(query)
                 .execute().actionGet();
-        // assumption: We have a set of relevant doc ids
-        Set<String> relevant = Sets.newHashSet("1");
 
+        Set<String> relevant = Sets.newHashSet("1");
         SearchHit[] hits = response.getHits().getHits();
-        // computation for precision at 5
-        int good = 0;
-        int bad = 0;
-        for (int i = 0; (i < 5 && i < hits.length); i++) {
-            if (relevant.contains(hits[i].getId())) {
-                good++;
-            } else {
-                bad++;
-            }
-        }
-        assertEquals(1, 1);
-        client().close();
-//        PrecisionAtQueryBuilder builder = new PrecisionAtQueryBuilder(
-//                "{\"match_{{template}}\": {}}\"");
-//        PrecisionAtResponse sr = client().execute(builder.request()); 
-//        ElasticsearchAssertions.assertHitCount(sr, 2);
+
+        assertEquals(1, (new PrecisionAtN(5)).evaluate(relevant, hits), 0.00001);
+
     }
+//  PrecisionAtQueryBuilder builder = new PrecisionAtQueryBuilder(
+//  "{\"match_{{template}}\": {}}\"");
+//PrecisionAtResponse sr = client().execute(builder.request()); 
+//ElasticsearchAssertions.assertHitCount(sr, 2);
 
 }

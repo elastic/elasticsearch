@@ -60,9 +60,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
-        ContextIndexSearcher searcher = context.searchContext().searcher();
-        IndexReader topReader = searcher.getIndexReader();
-        long supersetSize = topReader.numDocs();
+        long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);

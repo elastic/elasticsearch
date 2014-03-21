@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -30,8 +31,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
@@ -60,6 +61,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
         String field = null;
+        Filter filter = null;
         int requiredSize = DEFAULT_REQUIRED_SIZE;
         int shardSize = DEFAULT_SHARD_SIZE;
         String format = null;
@@ -100,6 +102,18 @@ public class SignificantTermsParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
+                // TODO not sure if code below is the best means to declare a filter for 
+                // defining an alternative background stats context.
+                // In trial runs it becomes obvious that the choice of background does have to  
+                // be a strict superset of the foreground subset otherwise the significant terms algo
+                // immediately singles out the odd terms that are in the foreground but not represented
+                // in the background. So a better approach may be to use a designated parent agg as the  
+                // background because parent aggs are always guaranteed to be a superset whereas arbitrary
+                // filters defined by end users and parsed below are not.
+//                if ("background_context".equals(currentFieldName)) {
+//                    filter = context.queryParserService().parseInnerFilter(parser).filter();
+//                } else
+
                 if ("include".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -168,7 +182,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         if (mapper == null) {
             ValuesSourceConfig<?> config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
             config.unmapped(true);
-            return new SignificantTermsAggregatorFactory(aggregationName, config, null, null, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+            return new SignificantTermsAggregatorFactory(aggregationName, config, null, null, requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
@@ -205,7 +219,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         // We need values to be unique to be able to run terms aggs efficiently
         config.ensureUnique(true);
 
-        return new SignificantTermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+        return new SignificantTermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
     }
 
 }

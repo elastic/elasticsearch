@@ -75,6 +75,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
             if (spare == null) {
                 spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null);
+                termsAggFactory.buildTermsEnum(context);
             }
             spare.term = bucketOrds.key(i);
             spare.subsetDf = bucketDocCount(ord);

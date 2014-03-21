@@ -259,23 +259,26 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public final void after() throws IOException {
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
-            Scope currentClusterScope = getCurrentClusterScope();
-            if (currentClusterScope == Scope.TEST) {
-                clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
-            } else {
-                MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
-                assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
-                        .persistentSettings().getAsMap().size(), equalTo(0));
-                assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
-                        .transientSettings().getAsMap().size(), equalTo(0));
-
+            final Scope currentClusterScope = getCurrentClusterScope();
+            try {
+                if (currentClusterScope != Scope.TEST) {
+                    MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
+                    assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(), metaData
+                            .persistentSettings().getAsMap().size(), equalTo(0));
+                    assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
+                            .transientSettings().getAsMap().size(), equalTo(0));
+                }
+                wipeIndices("_all"); // wipe after to make sure we fail in the test that didn't ack the delete
+                wipeTemplates();
+                wipeRepositories();
+                ensureAllSearchersClosed();
+                ensureAllFilesClosed();
+                ensureEstimatedStats();
+            } finally {
+                if (currentClusterScope == Scope.TEST) {
+                    clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
+                }
             }
-            wipeIndices("_all"); // wipe after to make sure we fail in the test that didn't ack the delete
-            wipeTemplates();
-            wipeRepositories();
-            ensureAllSearchersClosed();
-            ensureAllFilesClosed();
-            ensureEstimatedStats();
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {

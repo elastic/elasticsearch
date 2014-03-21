@@ -27,6 +27,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -53,5 +54,7 @@ public class BlockClusterStatsTests extends ElasticsearchIntegrationTest {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().get();
         assertThat(clusterStateResponse.getState().blocks().global(), hasSize(0));
         assertThat(clusterStateResponse.getState().blocks().indices().size(), is(0));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                ImmutableSettings.settingsBuilder().put("cluster.blocks.read_only", false).build()).get());
     }
 }

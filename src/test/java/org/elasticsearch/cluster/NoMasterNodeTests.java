@@ -125,5 +125,8 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
+
+        cluster().startNode(settings);
+        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 }

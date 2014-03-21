@@ -27,10 +27,13 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.HashSet;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -135,6 +138,35 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);
     }    
+    
+    @Test
+    public void nestedAggs() throws Exception {
+        String[][] expectedKeywordsByCategory={
+                { "paul", "weller", "jam", "style", "council" },                
+                { "paul", "smith" },
+                { "craig", "kelly", "terje", "haakonsen", "burton" }};
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .addAggregation(new TermsBuilder("myCategories").field("fact_category").minDocCount(2)
+                        .subAggregation(
+                                   new SignificantTermsBuilder("mySignificantTerms").field("description")
+                                   .minDocCount(2)))
+                .execute()
+                .actionGet();
+        Terms topCategoryTerms = response.getAggregations().get("myCategories");
+        for (org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket topCategory : topCategoryTerms.getBuckets()) {
+            SignificantTerms topTerms = topCategory.getAggregations().get("mySignificantTerms");
+            HashSet<String> foundTopWords = new HashSet<String>();
+            for (Bucket topTerm : topTerms) {
+                foundTopWords.add(topTerm.getKey());
+            }
+            String[] expectedKeywords = expectedKeywordsByCategory[Integer.parseInt(topCategory.getKey()) - 1];
+            for (String expectedKeyword : expectedKeywords) {
+                assertTrue(expectedKeyword + " missing from category keywords", foundTopWords.contains(expectedKeyword));
+            }
+        }
+    }    
+
 
     @Test
     public void partiallyUnmapped() throws Exception {

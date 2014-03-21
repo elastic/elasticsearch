@@ -18,18 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.index.FilterAtomicReader.FilterTermsEnum;
-import org.apache.lucene.util.Bits;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
+import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
@@ -40,7 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueParser;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -52,7 +48,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     public static final String EXECUTION_HINT_VALUE_MAP = "map";
     public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
-    static final int INITIAL_NUM_TERM_FREQS_CACHED = 512;
 
     private final int requiredSize;
     private final int shardSize;
@@ -61,15 +56,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final String executionHint;
     private String indexedFieldName;
     private FieldMapper mapper;
-    private IntArray termDocFreqs;
-    private BytesRefHash cachedTermOrds;
-    private BigArrays bigArrays;
-    private TermsEnum termsEnum;
+    private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated = 0;
+    private Filter filter;
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, ValueFormatter formatter, ValueParser parser,
-            int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
-
+            int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint, Filter filter) {
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig, formatter, parser);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -80,7 +72,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             this.indexedFieldName = config.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
-        bigArrays = SearchContext.current().bigArrays();
+        this.filter = filter;
     }
 
     @Override
@@ -105,31 +97,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-        
         numberOfAggregatorsCreated++;
-        if (numberOfAggregatorsCreated == 1) {
-            // Setup a termsEnum for use by first aggregator
-            try {
-                SearchContext searchContext = aggregationContext.searchContext();
-                ContextIndexSearcher searcher = searchContext.searcher();
-                Terms terms = MultiFields.getTerms(searcher.getIndexReader(), indexedFieldName);
-                // terms can be null if the choice of field is not found in this index
-                if (terms != null) {
-                    termsEnum = terms.iterator(null);
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchException("IOException loading background document frequency info", e);
-            }
-        } else if (numberOfAggregatorsCreated == 2) {
-            // When we have > 1 agg we have possibility of duplicate term frequency lookups and 
-            // so introduce a cache in the form of a wrapper around the plain termsEnum created
-            // for use with the first agg
-            if (termsEnum != null) {
-                SearchContext searchContext = aggregationContext.searchContext();
-                termsEnum = new FrequencyCachingTermsEnumWrapper(termsEnum, searchContext.bigArrays(), true, false);
-            }
-        }
-        
+
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
         if (estimatedBucketCount < 0) {
             // there isn't an estimation available.. 50 should be a good start
@@ -188,8 +157,35 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 "]. It can only be applied to numeric or string fields.");
     }
 
+    /**
+     * Creates the TermsEnum (if not already created) and must be called before any calls to getBackgroundFrequency
+     * @param context The aggregation context 
+     * @return The number of documents in the index (after an optional filter might have been applied)
+     */
+    public long prepareBackground(AggregationContext context) {
+        if (termsEnum != null) {
+            // already prepared - return 
+            return termsEnum.getNumDocs();
+        }
+        SearchContext searchContext = context.searchContext();
+        IndexReader reader = searchContext.searcher().getIndexReader();
+        try {
+            if (numberOfAggregatorsCreated == 1) {
+                // Setup a termsEnum for sole use by one aggregator
+                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, DocsEnum.FLAG_NONE, filter);
+            } else {
+                // When we have > 1 agg we have possibility of duplicate term frequency lookups 
+                // and so use a TermsEnum that caches results of all term lookups
+                termsEnum = new FreqTermsEnum(reader, indexedFieldName, true, false, filter, searchContext.bigArrays());
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build terms enumeration", e);
+        }
+        return termsEnum.getNumDocs();
+    }
+
     public long getBackgroundFrequency(BytesRef termBytes) {
-        assert termsEnum !=null; // having failed to find a field in the index we don't expect any calls for frequencies
+        assert termsEnum != null; // having failed to find a field in the index we don't expect any calls for frequencies
         long result = 0;
         try {
             if (termsEnum.seekExact(termBytes)) {
@@ -218,116 +214,4 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         }
         return true;
     }
-
-    // A specialist TermsEnum wrapper for use in the repeated look-ups of frequency stats.
-    // TODO factor out as a utility class to replace similar org.elasticsearch.search.suggest.phrase.WordScorer.FrequencyCachingTermsEnumWrapper
-    // This implementation is likely to produce less garbage than WordScorer's impl but will need benchmarking/testing for that use case. 
-    static class FrequencyCachingTermsEnumWrapper extends FilterTermsEnum implements Releasable {
-
-        int currentTermDocFreq = 0;
-        long currentTermTotalFreq = 0;
-        private IntArray termDocFreqs;
-        private LongArray termTotalFreqs;
-        private BytesRefHash cachedTermOrds;
-        protected BigArrays bigArrays;
-        private boolean cacheDocFreqs;
-        private boolean cacheTotalFreqs;
-        private long currentTermOrd;
-
-        public FrequencyCachingTermsEnumWrapper(TermsEnum delegate, BigArrays bigArrays, boolean cacheDocFreqs, boolean cacheTotalFreqs)  {
-            super(delegate);
-            this.bigArrays = bigArrays;
-            this.cacheDocFreqs = cacheDocFreqs;
-            this.cacheTotalFreqs = cacheTotalFreqs;
-            if (cacheDocFreqs) {
-                termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
-            }
-            if (cacheTotalFreqs) {
-                termTotalFreqs = bigArrays.newLongArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
-            }
-            cachedTermOrds = new BytesRefHash(INITIAL_NUM_TERM_FREQS_CACHED, bigArrays);
-        }
-
-        @Override
-        public boolean seekExact(BytesRef text) throws IOException {
-            currentTermDocFreq = 0;
-            currentTermTotalFreq = 0;
-            currentTermOrd = cachedTermOrds.add(text);
-            if (currentTermOrd < 0) { // already seen, initialize instance data with the cached frequencies
-                currentTermOrd = -1 - currentTermOrd;
-                if (cacheDocFreqs) {
-                    currentTermDocFreq = termDocFreqs.get(currentTermOrd);
-                }
-                if (cacheTotalFreqs) {
-                    currentTermTotalFreq = termTotalFreqs.get(currentTermOrd);
-                }
-                return true;
-            } else { // cache miss - pre-emptively read and cache the required frequency values
-                if (in.seekExact(text)) {
-                    if (cacheDocFreqs) {
-                        currentTermDocFreq = in.docFreq();
-                        termDocFreqs = bigArrays.grow(termDocFreqs, currentTermOrd + 1);
-                        termDocFreqs.set(currentTermOrd, currentTermDocFreq);
-                    }
-                    if (cacheTotalFreqs) {
-                        currentTermTotalFreq = in.totalTermFreq();
-                        termTotalFreqs = bigArrays.grow(termTotalFreqs, currentTermOrd + 1);
-                        termTotalFreqs.set(currentTermOrd, currentTermTotalFreq);
-                    }
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public long totalTermFreq() throws IOException {
-            assert cacheTotalFreqs;
-            return currentTermTotalFreq;
-        }
-
-        @Override
-        public int docFreq() throws IOException {
-            assert cacheDocFreqs;
-            return currentTermDocFreq;
-        }
-
-        @Override
-        public void seekExact(long ord) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        public SeekStatus seekCeil(BytesRef text) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public BytesRef next() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean release() throws ElasticsearchException {
-            try {
-                Releasables.release(cachedTermOrds, termDocFreqs, termTotalFreqs);
-            } finally {
-                cachedTermOrds = null;
-                termDocFreqs = null;
-                termTotalFreqs = null;
-            }
-            return true;
-        }
-
-    }
-    
 }

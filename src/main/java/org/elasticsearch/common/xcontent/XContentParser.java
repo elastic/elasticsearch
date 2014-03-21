@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.Map;
 
 /**
@@ -166,7 +167,9 @@ public interface XContentParser extends Closeable {
     float floatValue(boolean coerce) throws IOException;
 
     double doubleValue(boolean coerce) throws IOException;
-    
+
+    BigDecimal decimalValue(boolean coerce) throws IOException;
+
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -176,6 +179,8 @@ public interface XContentParser extends Closeable {
     float floatValue() throws IOException;
 
     double doubleValue() throws IOException;
+
+    BigDecimal decimalValue() throws IOException;
 
     /**
      * returns true if the current value is boolean in nature.

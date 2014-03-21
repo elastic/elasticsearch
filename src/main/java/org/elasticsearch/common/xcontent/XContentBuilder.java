@@ -476,13 +476,18 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder field(String name, BigDecimal value) throws IOException {
-        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
+        field(name);
+        generator.writeNumber(value);
+        return this;
     }
 
     public XContentBuilder field(XContentBuilderString name, BigDecimal value) throws IOException {
-        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
+        field(name);
+        generator.writeNumber(value);
+        return this;
     }
 
+    // TODO: Consider deprecating / removing ?
     public XContentBuilder field(String name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
         field(name);
         if (toDouble) {
@@ -497,6 +502,7 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    // TODO: Consider deprecating / removing ?
     public XContentBuilder field(XContentBuilderString name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
         field(name);
         if (toDouble) {
@@ -1127,6 +1133,8 @@ public final class XContentBuilder implements BytesStream {
             generator.writeNumber(((Float) value).floatValue());
         } else if (type == Double.class) {
             generator.writeNumber(((Double) value).doubleValue());
+        } else if (type == BigDecimal.class) {
+            generator.writeNumber((BigDecimal) value);
         } else if (type == Short.class) {
             generator.writeNumber(((Short) value).shortValue());
         } else if (type == Boolean.class) {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 
 /**
  *
@@ -65,6 +66,8 @@ public interface XContentGenerator {
     void writeNumber(double d) throws IOException;
 
     void writeNumber(float f) throws IOException;
+
+    void writeNumber(BigDecimal bd) throws IOException;
 
     void writeBoolean(boolean state) throws IOException;
 

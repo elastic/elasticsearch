@@ -24,6 +24,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -38,7 +39,9 @@ public abstract class AbstractXContentParser implements XContentParser {
     // references to this policy decision throughout the codebase and find
     // and change any code that needs to apply an alternative policy.
     public static final boolean DEFAULT_NUMBER_COEERCE_POLICY = true;
-    
+    // TODO Obviously not the way to do it - question is how this should be configured?
+    public static final boolean ALL_FLOATING_POINT_NUMBERS_AS_BIG_DECIMAL = true;
+
     private static void checkCoerceString(boolean coeerce, Class<? extends Number> clazz) {
         if (!coeerce) {
             //Need to throw type IllegalArgumentException as current catch logic in 
@@ -187,6 +190,23 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract double doDoubleValue() throws IOException;
 
     @Override
+    public BigDecimal decimalValue() throws IOException {
+        return decimalValue(DEFAULT_NUMBER_COEERCE_POLICY);
+    }
+
+    @Override
+    public BigDecimal decimalValue(boolean coerce) throws IOException {
+        Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            checkCoerceString(coerce, BigDecimal.class);
+            return new BigDecimal(text());
+        }
+        return doDecimalValue();
+    }
+
+    protected abstract BigDecimal doDecimalValue() throws IOException;
+
+    @Override
     public String textOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
@@ -298,9 +318,17 @@ public abstract class AbstractXContentParser implements XContentParser {
             } else if (numberType == XContentParser.NumberType.LONG) {
                 return parser.longValue();
             } else if (numberType == XContentParser.NumberType.FLOAT) {
-                return parser.floatValue();
+                if (ALL_FLOATING_POINT_NUMBERS_AS_BIG_DECIMAL) {
+                    return parser.decimalValue();
+                } else {
+                    return  parser.floatValue();
+                }
             } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                return parser.doubleValue();
+                if (ALL_FLOATING_POINT_NUMBERS_AS_BIG_DECIMAL) {
+                    return parser.decimalValue();
+                } else {
+                    return parser.doubleValue();
+                }
             }
         } else if (t == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue();

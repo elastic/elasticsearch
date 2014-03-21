@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 
 /**
  *
@@ -176,6 +177,10 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public double doDoubleValue() throws IOException {
         return parser.getDoubleValue();
+    }
+    @Override
+    public BigDecimal doDecimalValue() throws IOException {
+        return parser.getDecimalValue();
     }
 
     @Override

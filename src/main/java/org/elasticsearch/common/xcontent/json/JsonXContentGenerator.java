@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
 
 /**
  *
@@ -129,6 +130,11 @@ public class JsonXContentGenerator implements XContentGenerator {
     @Override
     public void writeNumber(float f) throws IOException {
         generator.writeNumber(f);
+    }
+
+    @Override
+    public void writeNumber(BigDecimal bd) throws IOException {
+        generator.writeNumber(bd);
     }
 
     @Override

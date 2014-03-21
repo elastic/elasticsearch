@@ -79,6 +79,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null);
+                termsAggFactory.buildTermsEnum(context);
             }
 
             bucketOrds.get(i, spare.termBytes);

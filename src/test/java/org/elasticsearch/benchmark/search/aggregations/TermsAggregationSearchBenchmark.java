@@ -38,6 +38,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -266,9 +267,9 @@ public class TermsAggregationSearchBenchmark {
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
 
         System.out.println("------------------ SUMMARY -------------------------------");
-        System.out.format("%25s%10s%10s\n", "name", "took", "millis");
+        System.out.format(Locale.ENGLISH, "%25s%10s%10s\n", "name", "took", "millis");
         for (StatsResult stat : stats) {
-            System.out.format("%25s%10s%10d\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT));
+            System.out.format(Locale.ENGLISH, "%25s%10s%10d\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT));
         }
         System.out.println("------------------ SUMMARY -------------------------------");
 

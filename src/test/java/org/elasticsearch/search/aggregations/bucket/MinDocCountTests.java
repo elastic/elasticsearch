@@ -42,6 +42,8 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+
 
 public class MinDocCountTests extends ElasticsearchIntegrationTest {
 
@@ -273,6 +275,8 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                         .size(cardinality + randomInt(10))
                         .minDocCount(0))
                 .execute().actionGet();
+        assertAllSuccessful(allTermsResponse);
+
         final Terms allTerms = allTermsResponse.getAggregations().get("terms");
         assertEquals(cardinality, allTerms.getBuckets().size());
 
@@ -289,6 +293,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                             .shardSize(cardinality + randomInt(10))
                             .minDocCount(minDocCount))
                     .execute().actionGet();
+            assertAllSuccessful(response);
             assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
         }
 

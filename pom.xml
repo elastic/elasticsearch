@@ -1022,7 +1022,7 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.4</version>
+                <version>1.4.1</version>
 
                 <executions>
                     <execution>

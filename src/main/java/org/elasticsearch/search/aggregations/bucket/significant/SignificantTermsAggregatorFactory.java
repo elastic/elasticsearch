@@ -164,12 +164,17 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
                 // terms can be null if the choice of field is not found in this index
                 if (terms != null) {
                     termsEnum = terms.iterator(null);
-                } else {
-                    // When we have > 1 agg we have possibility of duplicate term frequency lookups and
-                    // so introduce a cache in the form of a wrapper around the plain termsEnum created
-                    // for use with the first agg
-                    termsEnum = new FreqTermsEnum(searchContext.searcher().getIndexReader(), indexedFieldName, true, false, null, context.searchContext().bigArrays());
                 }
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to build terms enumeration", e);
+            }
+        } else {
+            try {
+                // When we have > 1 agg we have possibility of duplicate term frequency lookups and
+                // so introduce a cache in the form of a wrapper around the plain termsEnum created
+                // for use with the first agg
+                SearchContext searchContext = context.searchContext();
+                termsEnum = new FreqTermsEnum(searchContext.searcher().getIndexReader(), indexedFieldName, true, false, null, context.searchContext().bigArrays());
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to build terms enumeration", e);
             }

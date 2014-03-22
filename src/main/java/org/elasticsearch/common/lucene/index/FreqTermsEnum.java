@@ -62,7 +62,9 @@ public class FreqTermsEnum extends TermsEnum implements Releasable {
         }
     }
 
-    static final int INITIAL_NUM_TERM_FREQS_CACHED = 512;
+    private final static int NOT_FOUND = -2;
+
+    private static final int INITIAL_NUM_TERM_FREQS_CACHED = 512;
 
     private final boolean docFreq;
     private final boolean totalTermFreq;
@@ -142,13 +144,13 @@ public class FreqTermsEnum extends TermsEnum implements Releasable {
             boolean found = true;
             if (docFreq) {
                 currentDocFreq = termDocFreqs.get(currentTermOrd);
-                if (currentDocFreq == -2) {
+                if (currentDocFreq == NOT_FOUND) {
                     found = false;
                 }
             }
             if (totalTermFreq) {
                 currentTotalTermFreq = termsTotalFreqs.get(currentTermOrd);
-                if (currentTotalTermFreq == -2) {
+                if (currentTotalTermFreq == NOT_FOUND) {
                     found = false;
                 }
             }
@@ -166,7 +168,9 @@ public class FreqTermsEnum extends TermsEnum implements Releasable {
             found = true;
             if (anEnum.bits == null) {
                 docFreq += anEnum.termsEnum.docFreq();
-                totalTermFreq += anEnum.termsEnum.totalTermFreq();
+                if (this.totalTermFreq) {
+                    totalTermFreq += anEnum.termsEnum.totalTermFreq();
+                }
             } else {
                 DocsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.docs(anEnum.bits, anEnum.docsEnum, this.totalTermFreq ? DocsEnum.FLAG_FREQS : DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
@@ -181,7 +185,7 @@ public class FreqTermsEnum extends TermsEnum implements Releasable {
         current = found ? text : null;
         if (this.docFreq) {
             if (!found) {
-                docFreq = -2; // -2 is used to indicate not found
+                docFreq = NOT_FOUND;
             }
             currentDocFreq = docFreq;
             termDocFreqs = bigArrays.grow(termDocFreqs, currentTermOrd + 1);
@@ -189,7 +193,7 @@ public class FreqTermsEnum extends TermsEnum implements Releasable {
         }
         if (this.totalTermFreq) {
             if (!found) {
-                totalTermFreq = -2; // -2 is used to indicate not found
+                totalTermFreq = NOT_FOUND;
             } else if (totalTermFreq < 0) {
                 // no freqs really..., blast
                 totalTermFreq = -1;

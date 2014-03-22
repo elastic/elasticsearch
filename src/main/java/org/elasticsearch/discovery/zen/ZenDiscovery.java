@@ -437,15 +437,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             // not started, ignore a node failure
             return;
         }
+        final int prevMinimumMasterNode = ZenDiscovery.this.electMaster.minimumMasterNodes();
+        ZenDiscovery.this.electMaster.minimumMasterNodes(minimumMasterNodes);
         if (!master) {
-            // nothing to do here...
+            // We only set the new value. If the master doesn't see enough nodes it will revoke it's mastership.
             return;
         }
         clusterService.submitStateUpdateTask("zen-disco-minimum_master_nodes_changed", Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final int prevMinimumMasterNode = ZenDiscovery.this.electMaster.minimumMasterNodes();
-                ZenDiscovery.this.electMaster.minimumMasterNodes(minimumMasterNodes);
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes on change of minimum_master_nodes from [" + prevMinimumMasterNode + "] to [" + minimumMasterNodes + "]");

@@ -31,6 +31,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.Locale;
+
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -78,7 +80,7 @@ public class ScrollSearchBenchmark {
                 }
                 int indexedDocs = counter - 1;
                 if (indexedDocs % 100000 == 0) {
-                     System.out.printf("--> Indexed %d so far\n", indexedDocs);
+                     System.out.printf(Locale.ENGLISH, "--> Indexed %d so far\n", indexedDocs);
                 }
                 bulkRequestBuilder.get();
             }
@@ -91,7 +93,7 @@ public class ScrollSearchBenchmark {
         }
 
         client.admin().indices().prepareRefresh(indexName).get();
-        System.out.printf("--> Number of docs in index: %d\n", client.prepareCount().get().getCount());
+        System.out.printf(Locale.ENGLISH, "--> Number of docs in index: %d\n", client.prepareCount().get().getCount());
 
         Long counter = numDocs;
         SearchResponse searchResponse = client.prepareSearch(indexName)
@@ -100,16 +102,16 @@ public class ScrollSearchBenchmark {
                 .setScroll("10m").get();
 
         if (searchResponse.getHits().getTotalHits() != numDocs) {
-            System.err.printf("Expected total hits [%d] but got [%d]\n", numDocs, searchResponse.getHits().getTotalHits());
+            System.err.printf(Locale.ENGLISH, "Expected total hits [%d] but got [%d]\n", numDocs, searchResponse.getHits().getTotalHits());
         }
 
         if (searchResponse.getHits().hits().length != requestSize) {
-            System.err.printf("Expected hits length [%d] but got [%d]\n", requestSize, searchResponse.getHits().hits().length);
+            System.err.printf(Locale.ENGLISH, "Expected hits length [%d] but got [%d]\n", requestSize, searchResponse.getHits().hits().length);
         }
 
         for (SearchHit hit : searchResponse.getHits()) {
             if (!hit.sortValues()[0].equals(counter--)) {
-                System.err.printf("Expected sort value [%d] but got [%s]\n", counter + 1, hit.sortValues()[0]);
+                System.err.printf(Locale.ENGLISH, "Expected sort value [%d] but got [%s]\n", counter + 1, hit.sortValues()[0]);
             }
         }
         String scrollId = searchResponse.getScrollId();
@@ -121,30 +123,30 @@ public class ScrollSearchBenchmark {
             sumTimeSpent += (System.currentTimeMillis() - timeSpent);
             scrollRequestCounter++;
             if (searchResponse.getHits().getTotalHits() != numDocs) {
-                System.err.printf("Expected total hits [%d] but got [%d]\n", numDocs, searchResponse.getHits().getTotalHits());
+                System.err.printf(Locale.ENGLISH, "Expected total hits [%d] but got [%d]\n", numDocs, searchResponse.getHits().getTotalHits());
             }
             if (scrollRequestCounter % 20 == 0) {
                 long avgTimeSpent = sumTimeSpent / 20;
                 JvmStats.Mem mem = JvmStats.jvmStats().mem();
-                System.out.printf("Cursor location=%d, avg time spent=%d ms\n", (requestSize * scrollRequestCounter), (avgTimeSpent));
-                System.out.printf("heap max=%s, used=%s, percentage=%d\n", mem.getHeapMax(), mem.getHeapUsed(), mem.getHeapUsedPrecent());
+                System.out.printf(Locale.ENGLISH, "Cursor location=%d, avg time spent=%d ms\n", (requestSize * scrollRequestCounter), (avgTimeSpent));
+                System.out.printf(Locale.ENGLISH, "heap max=%s, used=%s, percentage=%d\n", mem.getHeapMax(), mem.getHeapUsed(), mem.getHeapUsedPrecent());
                 sumTimeSpent = 0;
             }
             if (searchResponse.getHits().hits().length == 0) {
                 break;
             }
             if (searchResponse.getHits().hits().length != requestSize) {
-                System.err.printf("Expected hits length [%d] but got [%d]\n", requestSize, searchResponse.getHits().hits().length);
+                System.err.printf(Locale.ENGLISH, "Expected hits length [%d] but got [%d]\n", requestSize, searchResponse.getHits().hits().length);
             }
             for (SearchHit hit : searchResponse.getHits()) {
                 if (!hit.sortValues()[0].equals(counter--)) {
-                    System.err.printf("Expected sort value [%d] but got [%s]\n", counter + 1, hit.sortValues()[0]);
+                    System.err.printf(Locale.ENGLISH, "Expected sort value [%d] but got [%s]\n", counter + 1, hit.sortValues()[0]);
                 }
             }
             scrollId = searchResponse.getScrollId();
         }
         if (counter != 0) {
-            System.err.printf("Counter should be 0 because scroll has been consumed\n");
+            System.err.printf(Locale.ENGLISH, "Counter should be 0 because scroll has been consumed\n");
         }
 
         for (Node node : nodes) {

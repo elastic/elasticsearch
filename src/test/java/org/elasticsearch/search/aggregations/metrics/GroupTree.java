@@ -22,10 +22,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -366,10 +363,10 @@ public class GroupTree implements Iterable<GroupTree.Group> {
 
     public void print(int depth) {
         for (int i = 0; i < depth; i++) {
-            System.out.printf("| ");
+            System.out.print("| ");
         }
         int imbalance = Math.abs((left != null ? left.depth : 1) - (right != null ? right.depth : 1));
-        System.out.printf("%s%s, %d, %d, %d\n", (imbalance > 1 ? "* " : "") + (right != null && leaf.compareTo(right.first()) != 0 ? "+ " : ""), leaf, size, count, this.depth);
+        System.out.printf(Locale.ENGLISH, "%s%s, %d, %d, %d\n", (imbalance > 1 ? "* " : "") + (right != null && leaf.compareTo(right.first()) != 0 ? "+ " : ""), leaf, size, count, this.depth);
         if (left != null) {
             left.print(depth + 1);
             right.print(depth + 1);

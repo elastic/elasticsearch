@@ -653,7 +653,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMatchQueryNumeric() throws Exception {
-        createIndex("test");
+        assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("long", 1l, "double", 1.0d),

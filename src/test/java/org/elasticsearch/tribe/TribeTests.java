@@ -23,8 +23,10 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -33,8 +35,11 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,39 +50,180 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class TribeTests extends ElasticsearchIntegrationTest {
 
-    private TestCluster cluster2;
+    private static TestCluster cluster2;
+
     private Node tribeNode;
     private Client tribeClient;
 
-    @Before
-    public void setupSecondCluster() {
+    @BeforeClass
+    public static void setupSecondCluster() throws Exception {
+        ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new TestCluster(randomLong(), 2, 2, cluster().getClusterName() + "-2");
-        cluster2.beforeTest(getRandom(), getPerTestTransportClientRatio());
+        cluster2 = new TestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()));
+        cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumNodes(2);
+    }
 
-        Settings settings = ImmutableSettings.builder()
+    @AfterClass
+    public static void tearDownSecondCluster() {
+        if (cluster2 != null) {
+            cluster2.afterTest();
+            cluster2.close();
+        }
+    }
+
+    @After
+    public void tearDownTribeNode() {
+        if (cluster2 != null) {
+            cluster2.client().admin().indices().prepareDelete("_all").execute().actionGet();
+        }
+        if (tribeNode != null) {
+            tribeNode.close();
+        }
+    }
+
+    private void setupTribeNode(Settings settings) {
+        Settings merged = ImmutableSettings.builder()
                 .put("tribe.t1.cluster.name", cluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
                 .put("tribe.blocks.read", false)
+                .put(settings)
                 .build();
 
         tribeNode = NodeBuilder.nodeBuilder()
-                .settings(settings)
+                .settings(merged)
                 .node();
         tribeClient = tribeNode.client();
     }
 
-    @After
-    public void tearDownSecondCluster() {
-        tribeNode.close();
-        cluster2.afterTest();
-        cluster2.close();
+    @Test
+    public void testGlobalReadWriteBlocks() throws Exception {
+        logger.info("create 2 indices, test1 on t1, and test2 on t2");
+        cluster().client().admin().indices().prepareCreate("test1").get();
+        cluster2.client().admin().indices().prepareCreate("test2").get();
+
+
+        setupTribeNode(ImmutableSettings.builder()
+                .put("tribe.blocks.write", true)
+                .put("tribe.blocks.metadata", true)
+                .build());
+
+        logger.info("wait till tribe has the same nodes as the 2 clusters");
+        awaitSameNodeCounts();
+        // wait till the tribe node connected to the cluster, by checking if the index exists in the cluster state
+        logger.info("wait till test1 and test2 exists in the tribe node state");
+        awaitIndicesInClusterState("test1", "test2");
+
+        try {
+            tribeClient.prepareIndex("test1", "type1", "1").setSource("field1", "value1").execute().actionGet();
+            fail("cluster block should be thrown");
+        } catch (ClusterBlockException e) {
+            // all is well!
+        }
+        try {
+            tribeClient.admin().indices().prepareOptimize("test1").execute().actionGet();
+            fail("cluster block should be thrown");
+        } catch (ClusterBlockException e) {
+            // all is well!
+        }
+        try {
+            tribeClient.admin().indices().prepareOptimize("test2").execute().actionGet();
+            fail("cluster block should be thrown");
+        } catch (ClusterBlockException e) {
+            // all is well!
+        }
+    }
+
+    @Test
+    public void testIndexWriteBlocks() throws Exception {
+        logger.info("create 2 indices, test1 on t1, and test2 on t2");
+        cluster().client().admin().indices().prepareCreate("test1").get();
+        cluster().client().admin().indices().prepareCreate("block_test1").get();
+        cluster2.client().admin().indices().prepareCreate("test2").get();
+        cluster2.client().admin().indices().prepareCreate("block_test2").get();
+
+        setupTribeNode(ImmutableSettings.builder()
+                .put("tribe.blocks.write.indices", "block_*")
+                .build());
+        logger.info("wait till tribe has the same nodes as the 2 clusters");
+        awaitSameNodeCounts();
+        // wait till the tribe node connected to the cluster, by checking if the index exists in the cluster state
+        logger.info("wait till test1 and test2 exists in the tribe node state");
+        awaitIndicesInClusterState("test1", "test2", "block_test1", "block_test2");
+
+        tribeClient.prepareIndex("test1", "type1", "1").setSource("field1", "value1").get();
+        try {
+            tribeClient.prepareIndex("block_test1", "type1", "1").setSource("field1", "value1").get();
+            fail("cluster block should be thrown");
+        } catch (ClusterBlockException e) {
+            // all is well!
+        }
+
+        tribeClient.prepareIndex("test2", "type1", "1").setSource("field1", "value1").get();
+        try {
+            tribeClient.prepareIndex("block_test2", "type1", "1").setSource("field1", "value1").get();
+            fail("cluster block should be thrown");
+        } catch (ClusterBlockException e) {
+            // all is well!
+        }
+    }
+
+    @Test
+    public void testOnConflictDrop() throws Exception {
+        logger.info("create 2 indices, test1 on t1, and test2 on t2");
+        cluster().client().admin().indices().prepareCreate("conflict").get();
+        cluster2.client().admin().indices().prepareCreate("conflict").get();
+        cluster().client().admin().indices().prepareCreate("test1").get();
+        cluster2.client().admin().indices().prepareCreate("test2").get();
+
+        setupTribeNode(ImmutableSettings.builder()
+                .put("tribe.on_conflict", "drop")
+                .build());
+
+        logger.info("wait till tribe has the same nodes as the 2 clusters");
+        awaitSameNodeCounts();
+
+        // wait till the tribe node connected to the cluster, by checking if the index exists in the cluster state
+        logger.info("wait till test1 and test2 exists in the tribe node state");
+        awaitIndicesInClusterState("test1", "test2");
+
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().hasIndex("conflict"), equalTo(false));
+    }
+
+    @Test
+    public void testOnConflictPrefer() throws Exception {
+        testOnConflictPrefer(randomBoolean() ? "t1" : "t2");
+    }
+
+    private void testOnConflictPrefer(String tribe) throws Exception {
+        logger.info("testing preference for tribe {}", tribe);
+
+        logger.info("create 2 indices, test1 on t1, and test2 on t2");
+        cluster().client().admin().indices().prepareCreate("conflict").get();
+        cluster2.client().admin().indices().prepareCreate("conflict").get();
+        cluster().client().admin().indices().prepareCreate("test1").get();
+        cluster2.client().admin().indices().prepareCreate("test2").get();
+
+        setupTribeNode(ImmutableSettings.builder()
+                .put("tribe.on_conflict", "prefer_" + tribe)
+                .build());
+        logger.info("wait till tribe has the same nodes as the 2 clusters");
+        awaitSameNodeCounts();
+        // wait till the tribe node connected to the cluster, by checking if the index exists in the cluster state
+        logger.info("wait till test1 and test2 exists in the tribe node state");
+        awaitIndicesInClusterState("test1", "test2", "conflict");
+
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test1").getSettings().get(TribeService.TRIBE_NAME), equalTo("t1"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("test2").getSettings().get(TribeService.TRIBE_NAME), equalTo("t2"));
+        assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get(TribeService.TRIBE_NAME), equalTo(tribe));
     }
 
     @Test
     public void testTribeOnOneCluster() throws Exception {
+        setupTribeNode(ImmutableSettings.EMPTY);
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         cluster().client().admin().indices().prepareCreate("test1").get();
         cluster2.client().admin().indices().prepareCreate("test2").get();
@@ -85,14 +231,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
 
         // wait till the tribe node connected to the cluster, by checking if the index exists in the cluster state
         logger.info("wait till test1 and test2 exists in the tribe node state");
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().get().getState();
-                return tribeState.getMetaData().hasIndex("test1") && tribeState.getMetaData().hasIndex("test2") &&
-                        tribeState.getRoutingTable().hasIndex("test1") && tribeState.getRoutingTable().hasIndex("test2");
-            }
-        });
+        awaitIndicesInClusterState("test1", "test2");
 
         logger.info("wait till tribe has the same nodes as the 2 clusters");
         awaitSameNodeCounts();
@@ -157,6 +296,24 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         logger.info("stop a node, make sure its reflected");
         cluster2.stopRandomNode();
         awaitSameNodeCounts();
+    }
+
+    private void awaitIndicesInClusterState(final String... indices) throws Exception {
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                ClusterState tribeState = tribeNode.client().admin().cluster().prepareState().get().getState();
+                for (String index : indices) {
+                    if (!tribeState.getMetaData().hasIndex(index)) {
+                        return false;
+                    }
+                    if (!tribeState.getRoutingTable().hasIndex(index)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
     }
 
     private void awaitSameNodeCounts() throws Exception {

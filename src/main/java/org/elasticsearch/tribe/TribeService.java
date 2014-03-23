@@ -22,23 +22,28 @@ package org.elasticsearch.tribe;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.NodeBuilder;
@@ -47,6 +52,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -104,6 +110,13 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     public static final String TRIBE_NAME = "tribe.name";
 
     private final ClusterService clusterService;
+    private final String[] blockIndicesWrite;
+    private final String[] blockIndicesRead;
+    private final String[] blockIndicesMetadata;
+
+    private static final String ON_CONFLICT_ANY = "any", ON_CONFLICT_DROP = "drop", ON_CONFLICT_PREFER = "prefer_";
+    private final String onConflict;
+    private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
     private final List<InternalNode> nodes = Lists.newCopyOnWriteArrayList();
 
@@ -113,6 +126,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         this.clusterService = clusterService;
         Map<String, Settings> nodesSettings = Maps.newHashMap(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
+        nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
@@ -123,6 +137,9 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             nodes.add((InternalNode) NodeBuilder.nodeBuilder().settings(sb).client(true).build());
         }
 
+        String[] blockIndicesWrite = Strings.EMPTY_ARRAY;
+        String[] blockIndicesRead = Strings.EMPTY_ARRAY;
+        String[] blockIndicesMetadata = Strings.EMPTY_ARRAY;
         if (!nodes.isEmpty()) {
             // remove the initial election / recovery blocks since we are not going to have a
             // master elected in this single tribe  node local "cluster"
@@ -131,13 +148,21 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             if (settings.getAsBoolean("tribe.blocks.write", false)) {
                 clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
             }
+            blockIndicesWrite = settings.getAsArray("tribe.blocks.write.indices", Strings.EMPTY_ARRAY);
             if (settings.getAsBoolean("tribe.blocks.metadata", false)) {
                 clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
             }
+            blockIndicesMetadata = settings.getAsArray("tribe.blocks.metadata.indices", Strings.EMPTY_ARRAY);
+            blockIndicesRead = settings.getAsArray("tribe.blocks.read.indices", Strings.EMPTY_ARRAY);
             for (InternalNode node : nodes) {
                 node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
             }
         }
+        this.blockIndicesMetadata = blockIndicesMetadata;
+        this.blockIndicesRead = blockIndicesRead;
+        this.blockIndicesWrite = blockIndicesWrite;
+
+        this.onConflict = settings.get("tribe.on_conflict", ON_CONFLICT_ANY);
     }
 
     @Override
@@ -255,6 +280,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     }
 
                     // -- merge metadata
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     MetaData.Builder metaData = MetaData.builder(currentState.metaData());
                     RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
                     // go over existing indices, and see if they need to be removed
@@ -264,8 +290,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                             IndexMetaData tribeIndex = tribeState.metaData().index(index.index());
                             if (tribeIndex == null) {
                                 logger.info("[{}] removing index [{}]", tribeName, index.index());
-                                metaData.remove(index.index());
-                                routingTable.remove(index.index());
+                                removeIndex(blocks, metaData, routingTable, index);
                             } else {
                                 // always make sure to update the metadata and routing table, in case
                                 // there are changes in them (new mapping, shards moving from initializing to started)
@@ -277,16 +302,62 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     }
                     // go over tribe one, and see if they need to be added
                     for (IndexMetaData tribeIndex : tribeState.metaData()) {
-                        if (!currentState.metaData().hasIndex(tribeIndex.index())) {
+                        // if there is no routing table yet, do nothing with it...
+                        IndexRoutingTable table = tribeState.routingTable().index(tribeIndex.index());
+                        if (table == null) {
+                            continue;
+                        }
+                        if (!currentState.metaData().hasIndex(tribeIndex.index()) && !droppedIndices.contains(tribeIndex.index())) {
                             // a new index, add it, and add the tribe name as a setting
                             logger.info("[{}] adding index [{}]", tribeName, tribeIndex.index());
-                            Settings tribeSettings = ImmutableSettings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
-                            metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
-                            routingTable.add(tribeState.routingTable().index(tribeIndex.index()));
+                            addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
+                        } else {
+                            String existingFromTribe = currentState.metaData().index(tribeIndex.index()).getSettings().get(TRIBE_NAME);
+                            if (!tribeName.equals(existingFromTribe)) {
+                                // we have a potential conflict on index names, decide what to do...
+                                if (ON_CONFLICT_ANY.equals(onConflict)) {
+                                    // we chose any tribe, carry on
+                                } else if (ON_CONFLICT_DROP.equals(onConflict)) {
+                                    // drop the indices, there is a conflict
+                                    logger.info("[{}] dropping index [{}] due to conflict with [{}]", tribeName, tribeIndex.index(), existingFromTribe);
+                                    removeIndex(blocks, metaData, routingTable, tribeIndex);
+                                    droppedIndices.add(tribeIndex.index());
+                                } else if (onConflict.startsWith(ON_CONFLICT_PREFER)) {
+                                    // on conflict, prefer a tribe...
+                                    String preferredTribeName = onConflict.substring(ON_CONFLICT_PREFER.length());
+                                    if (tribeName.equals(preferredTribeName)) {
+                                        // the new one is hte preferred one, replace...
+                                        logger.info("[{}] adding index [{}], preferred over [{}]", tribeName, tribeIndex.index(), existingFromTribe);
+                                        removeIndex(blocks, metaData, routingTable, tribeIndex);
+                                        addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
+                                    } // else: either the existing one is the preferred one, or we haven't seen one, carry on
+                                }
+                            }
                         }
                     }
 
-                    return ClusterState.builder(currentState).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+                    return ClusterState.builder(currentState).blocks(blocks).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
+                }
+
+                private void removeIndex(ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData index) {
+                    metaData.remove(index.index());
+                    routingTable.remove(index.index());
+                    blocks.removeIndexBlocks(index.index());
+                }
+
+                private void addNewIndex(ClusterState tribeState, ClusterBlocks.Builder blocks, MetaData.Builder metaData, RoutingTable.Builder routingTable, IndexMetaData tribeIndex) {
+                    Settings tribeSettings = ImmutableSettings.builder().put(tribeIndex.settings()).put(TRIBE_NAME, tribeName).build();
+                    metaData.put(IndexMetaData.builder(tribeIndex).settings(tribeSettings));
+                    routingTable.add(tribeState.routingTable().index(tribeIndex.index()));
+                    if (Regex.simpleMatch(blockIndicesMetadata, tribeIndex.index())) {
+                        blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_METADATA_BLOCK);
+                    }
+                    if (Regex.simpleMatch(blockIndicesRead, tribeIndex.index())) {
+                        blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_READ_BLOCK);
+                    }
+                    if (Regex.simpleMatch(blockIndicesWrite, tribeIndex.index())) {
+                        blocks.addIndexBlock(tribeIndex.index(), IndexMetaData.INDEX_WRITE_BLOCK);
+                    }
                 }
 
                 @Override

@@ -36,7 +36,7 @@ indexing, etc.
 However, there are a few exceptions:
 
 * The merged view cannot handle indices with the same name in multiple
-  clusters. It will pick one of them and discard the other.
+  clusters. By default it will pick one of them, see later for on_conflict options.
 
 * Master level read operations (eg <<cluster-state>>, <<cluster-health>>)
   will automatically execute with a local flag set to true since there is
@@ -55,4 +55,22 @@ tribe:
         write:    true
         metadata: true
 --------------------------------
+
+coming[1.2.0]
+
+The tribe node can also configure blocks on indices explicitly:
+
+[source,yaml]
+--------------------------------
+tribe:
+    blocks:
+        indices.write: hk*,ldn*
+--------------------------------
+
+coming[1.2.0]
+
+When there is a conflict and multiple clusters hold the same index, by default
+the tribe node will pick one of them. This can be configured using the `tribe.on_conflict`
+setting. It defaults to `any`, but can be set to `drop` (drop indices that have
+a conflict), or `prefer_[tribeName]` to prefer the index from a specific tribe.
 

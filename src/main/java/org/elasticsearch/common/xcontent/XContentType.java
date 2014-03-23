@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -84,7 +85,26 @@ public enum XContentType {
         public XContent xContent() {
             return YamlXContent.yamlXContent;
         }
-    };
+    },
+    /**
+     * A CBOR based content type.
+     */
+    CBOR(3) {
+        @Override
+        public String restContentType() {
+            return "application/cbor";
+        }
+
+        @Override
+        public String shortName() {
+            return "cbor";
+        }
+
+        @Override
+        public XContent xContent() {
+            return CborXContent.cborXContent;
+        }
+    },;
 
     public static XContentType fromRestContentType(String contentType) {
         if (contentType == null) {
@@ -100,6 +120,10 @@ public enum XContentType {
 
         if ("application/yaml".equals(contentType) || "yaml".equalsIgnoreCase(contentType)) {
             return YAML;
+        }
+
+        if ("application/cbor".equals(contentType) || "cbor".equalsIgnoreCase(contentType)) {
+            return CBOR;
         }
 
         return null;

@@ -233,6 +233,13 @@
         </dependency>
 
         <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-cbor</artifactId>
+            <version>2.3.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
             <version>3.9.0.Final</version>
@@ -554,6 +561,7 @@
                             <include>com.fasterxml.jackson.core:jackson-core</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
+                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-cbor</include>
                             <include>joda-time:joda-time</include>
                             <include>org.joda:joda-convert</include>
                             <include>io.netty:netty</include>

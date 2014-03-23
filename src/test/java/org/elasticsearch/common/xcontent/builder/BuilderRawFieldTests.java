@@ -52,6 +52,11 @@ public class BuilderRawFieldTests extends ElasticsearchTestCase {
         testRawField(XContentType.YAML);
     }
 
+    @Test
+    public void testCborRawField() throws IOException {
+        testRawField(XContentType.CBOR);
+    }
+
     private void testRawField(XContentType type) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(type);
         builder.startObject();

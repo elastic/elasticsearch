@@ -157,6 +157,8 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 if (retrying) {
                     listener.onFailure(new MasterNotDiscoveredException());
                 } else {
+                    logger.debug("no known master node, scheduling a retry");
+
                     clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                         @Override
                         public void postAdded() {
@@ -212,12 +214,14 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 public void handleException(final TransportException exp) {
                     if (exp.unwrapCause() instanceof ConnectTransportException) {
                         // we want to retry here a bit to see if a new master is elected
+                        logger.debug("connection exception while trying to forward request to master node [{}], scheduling a retry. Error: [{}]",
+                                nodes.masterNode(), exp.getDetailedMessage());
                         clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                             @Override
                             public void postAdded() {
                                 ClusterState clusterStateV2 = clusterService.state();
-                                if (!clusterState.nodes().masterNodeId().equals(clusterStateV2.nodes().masterNodeId())) {
-                                    // master changes while adding the listener, try here
+                                if (clusterState.version() != clusterStateV2.version()) {
+                                    // something changed while adding, try again
                                     clusterService.remove(this);
                                     innerExecute(request, listener, false);
                                 }

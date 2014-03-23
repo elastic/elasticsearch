@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHits;
@@ -109,6 +110,12 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
                                         equalTo((long) (sh.getHits().length)));
                                 // this is the more critical but that we hit the actual hit array has a different size than the
                                 // actual number of hits.
+                            }
+                        } catch (SearchPhaseExecutionException ex) {
+                            // it's possible that all shards fail if we have a small number of shards.
+                            // with replicas this should not happen
+                            if (numberOfReplicas == 1 || !ex.getMessage().contains("all shards failed")) {
+                                thrownExceptions.add(ex);
                             }
                         } catch (Throwable t) {
                             if (!criticalException) {

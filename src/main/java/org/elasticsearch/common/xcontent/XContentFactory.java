@@ -19,11 +19,13 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -83,6 +85,20 @@ public class XContentFactory {
     }
 
     /**
+     * Returns a content builder using CBOR format ({@link org.elasticsearch.common.xcontent.XContentType#CBOR}.
+     */
+    public static XContentBuilder cborBuilder() throws IOException {
+        return contentBuilder(XContentType.CBOR);
+    }
+
+    /**
+     * Constructs a new cbor builder that will output the result into the provided output stream.
+     */
+    public static XContentBuilder cborBuilder(OutputStream os) throws IOException {
+        return new XContentBuilder(CborXContent.cborXContent, os);
+    }
+
+    /**
      * Constructs a xcontent builder that will output the result into the provided output stream.
      */
     public static XContentBuilder contentBuilder(XContentType type, OutputStream outputStream) throws IOException {
@@ -92,6 +108,8 @@ public class XContentFactory {
             return smileBuilder(outputStream);
         } else if (type == XContentType.YAML) {
             return yamlBuilder(outputStream);
+        } else if (type == XContentType.CBOR) {
+            return cborBuilder(outputStream);
         }
         throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
     }
@@ -106,6 +124,8 @@ public class XContentFactory {
             return SmileXContent.contentBuilder();
         } else if (type == XContentType.YAML) {
             return YamlXContent.contentBuilder();
+        } else if (type == XContentType.CBOR) {
+            return CborXContent.contentBuilder();
         }
         throw new ElasticsearchIllegalArgumentException("No matching content type for " + type);
     }
@@ -136,6 +156,8 @@ public class XContentFactory {
         if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
             return XContentType.YAML;
         }
+
+        // CBOR is not supported
 
         for (int i = 0; i < length; i++) {
             char c = content.charAt(i);
@@ -209,6 +231,9 @@ public class XContentFactory {
                 return XContentType.YAML;
             }
         }
+        if (first == (CBORConstants.BYTE_OBJECT_INDEFINITE & 0xff)){
+            return XContentType.CBOR;
+        }
         for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
             int val = si.read();
             if (val == -1) {
@@ -253,6 +278,9 @@ public class XContentFactory {
         }
         if (length > 2 && first == '-' && bytes.get(1) == '-' && bytes.get(2) == '-') {
             return XContentType.YAML;
+        }
+        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE){
+            return XContentType.CBOR;
         }
         for (int i = 0; i < length; i++) {
             if (bytes.get(i) == '{') {

@@ -161,7 +161,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
                 if (!w.successfullyClosed()) {
                     if (w.closeException() == null) {
                         w.close();
-                        if (w.closeException() == null) {
+                        if (w.closeException() != null) {
                             throw w.closeException();
                         }
                     } else {

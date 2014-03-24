@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgBuilder;
@@ -91,6 +92,10 @@ public class AggregationBuilders {
 
     public static NestedBuilder nested(String name) {
         return new NestedBuilder(name);
+    }
+
+    public static ReverseNestedBuilder reverseNested(String name) {
+        return new ReverseNestedBuilder(name);
     }
 
     public static GeoDistanceBuilder geoDistance(String name) {

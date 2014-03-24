@@ -106,6 +106,7 @@ public class IndexUpdateByQueryResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         index = in.readString();
         totalHits = in.readVLong();
         updated = in.readVLong();
@@ -114,7 +115,7 @@ public class IndexUpdateByQueryResponse extends ActionResponse {
             int shardId = in.readVInt();
             BulkItemResponse[] responses = new BulkItemResponse[in.readVInt()];
             for (int j = 0; j < responses.length; j++) {
-                responses[i] = BulkItemResponse.readBulkItem(in);
+                responses[j] = BulkItemResponse.readBulkItem(in);
             }
             responsesByShard.put(shardId, responses);
         }
@@ -128,6 +129,7 @@ public class IndexUpdateByQueryResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeString(index);
         out.writeVLong(totalHits);
         out.writeVLong(updated);

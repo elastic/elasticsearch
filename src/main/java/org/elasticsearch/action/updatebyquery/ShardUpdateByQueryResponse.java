@@ -93,6 +93,7 @@ public class ShardUpdateByQueryResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVInt(shardId);
         out.writeVInt(totalHits);
         out.writeVInt(updated);
@@ -105,6 +106,7 @@ public class ShardUpdateByQueryResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         shardId = in.readVInt();
         totalHits = in.readVInt();
         updated = in.readVInt();

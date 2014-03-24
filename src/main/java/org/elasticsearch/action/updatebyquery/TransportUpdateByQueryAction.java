@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.support.IgnoreIndices;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -81,7 +81,7 @@ public class TransportUpdateByQueryAction extends TransportAction<UpdateByQueryR
     protected void doExecute(UpdateByQueryRequest request, ActionListener<UpdateByQueryResponse> listener) {
         long startTime = System.currentTimeMillis();
         MetaData metaData = clusterService.state().metaData();
-        String[] concreteIndices = metaData.concreteIndices(request.indices(), IgnoreIndices.MISSING, true);
+        String[] concreteIndices = metaData.concreteIndices(request.indices(), IndicesOptions.lenient());
         Map<String, Set<String>> routingMap = metaData.resolveSearchRouting(request.routing(), request.indices());
         if (concreteIndices.length == 1) {
             doExecuteIndexRequest(request, metaData, concreteIndices[0], routingMap, new SingleIndexUpdateByQueryActionListener(startTime, listener));

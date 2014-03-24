@@ -116,6 +116,7 @@ public class UpdateByQueryResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
         tookInMillis = in.readVLong();
         totalHits = in.readVLong();
         updated = in.readVLong();
@@ -128,6 +129,7 @@ public class UpdateByQueryResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeVLong(tookInMillis);
         out.writeVLong(totalHits);
         out.writeVLong(updated);

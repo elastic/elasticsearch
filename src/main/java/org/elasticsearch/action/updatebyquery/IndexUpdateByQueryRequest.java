@@ -20,27 +20,15 @@
 package org.elasticsearch.action.updatebyquery;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**

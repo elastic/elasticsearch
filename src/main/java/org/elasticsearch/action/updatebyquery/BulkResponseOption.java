@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.updatebyquery;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  * Specifies how bulk responses that have been created based on the documents that have matched with the update query
@@ -66,7 +66,7 @@ public enum BulkResponseOption {
         } else if (id == 2) {
             return ALL;
         } else {
-            throw new ElasticSearchIllegalArgumentException("No type match for [" + id + "]");
+            throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
         }
     }
 
@@ -81,7 +81,7 @@ public enum BulkResponseOption {
         } else if ("all".equals(type)) {
             return ALL;
         }
-        throw new ElasticSearchIllegalArgumentException("no response type match for [" + type + "], should be either `none`, `failed` or `all`");
+        throw new ElasticsearchIllegalArgumentException("no response type match for [" + type + "], should be either `none`, `failed` or `all`");
     }
 
 }

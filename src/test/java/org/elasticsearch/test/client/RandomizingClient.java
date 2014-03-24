@@ -51,6 +51,9 @@ import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.action.updatebyquery.UpdateByQueryRequest;
+import org.elasticsearch.action.updatebyquery.UpdateByQueryRequestBuilder;
+import org.elasticsearch.action.updatebyquery.UpdateByQueryResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
@@ -411,6 +414,21 @@ public class RandomizingClient implements InternalClient {
     @Override
     public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
         delegate.clearScroll(request, listener);
+    }
+
+    @Override
+    public void updateByQuery(UpdateByQueryRequest request, ActionListener<UpdateByQueryResponse> listener) {
+        delegate.updateByQuery(request, listener);
+    }
+
+    @Override
+    public ActionFuture<UpdateByQueryResponse> updateByQuery(UpdateByQueryRequest request) {
+        return delegate.updateByQuery(request);
+    }
+
+    @Override
+    public UpdateByQueryRequestBuilder prepareUpdateByQuery() {
+        return delegate.prepareUpdateByQuery();
     }
 
     @Override

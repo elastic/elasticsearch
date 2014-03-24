@@ -54,6 +54,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
 
     private AtomicReaderContext reader;
     private Scorer scorer;
+    private boolean scoreDocsInOrder = false;
 
     public AggregationContext(SearchContext searchContext) {
         this.searchContext = searchContext;
@@ -97,6 +98,14 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
         for (ScorerAware scorerAware : scorerAwares) {
             scorerAware.setScorer(scorer);
         }
+    }
+
+    public boolean scoreDocsInOrder() {
+        return scoreDocsInOrder;
+    }
+
+    public void ensureScoreDocsInOrder() {
+        this.scoreDocsInOrder = true;
     }
 
     /** Get a value source given its configuration and the depth of the aggregator in the aggregation tree. */

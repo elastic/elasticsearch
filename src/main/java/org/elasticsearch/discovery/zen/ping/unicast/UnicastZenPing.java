@@ -240,7 +240,14 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         DiscoveryNodes discoNodes = nodesProvider.nodes();
         pingRequest.pingResponse = new PingResponse(discoNodes.localNode(), discoNodes.masterNode(), clusterName);
 
-        List<DiscoveryNode> nodesToPing = newArrayList(nodes);
+        HashSet<DiscoveryNode> nodesToPing = new HashSet<>(Arrays.asList(nodes));
+        for (PingResponse temporalResponse : temporalResponses) {
+            // Only send pings to nodes that have the same cluster name.
+            if (clusterName.equals(temporalResponse.clusterName())) {
+                nodesToPing.add(temporalResponse.target());
+            }
+        }
+
         for (UnicastHostsProvider provider : hostsProviders) {
             nodesToPing.addAll(provider.buildDynamicNodes());
         }

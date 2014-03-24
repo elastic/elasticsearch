@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import java.io.*;
 
 /**
- * A JSON based content implementation using Jackson.
+ * A Smile based content implementation using Jackson.
  */
 public class SmileXContent implements XContent {
 
@@ -100,6 +100,6 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(smileFactory.createParser(reader));
+        return new SmileXContentParser(smileFactory.createParser(reader));
     }
 }

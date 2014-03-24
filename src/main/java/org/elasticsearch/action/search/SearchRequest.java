@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -59,8 +58,6 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see SearchResponse
  */
 public class SearchRequest extends ActionRequest<SearchRequest> {
-
-    private static final XContentType contentType = Requests.CONTENT_TYPE;
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -266,7 +263,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * The source of the search request.
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         this.sourceUnsafe = false;
         return this;
     }
@@ -286,7 +283,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public SearchRequest source(Map source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {
@@ -353,14 +350,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             extraSource = null;
             return this;
         }
-        this.extraSource = sourceBuilder.buildAsBytes(contentType);
+        this.extraSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         this.extraSourceUnsafe = false;
         return this;
     }
 
     public SearchRequest extraSource(Map extraSource) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {

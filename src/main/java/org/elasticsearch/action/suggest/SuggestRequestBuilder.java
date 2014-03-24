@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -86,7 +87,7 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
     @Override
     protected void doExecute(ActionListener<SuggestResponse> listener) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(SuggestRequest.contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
             request.suggest(builder.bytes());
         } catch (IOException e) {

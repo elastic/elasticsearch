@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -53,8 +52,6 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.action.search.SearchResponse
  */
 public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
-
-    private static final XContentType contentType = Requests.CONTENT_TYPE;
 
     private String index;
 
@@ -345,7 +342,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     public MoreLikeThisRequest searchSource(Map searchSource) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             builder.map(searchSource);
             return searchSource(builder);
         } catch (IOException e) {

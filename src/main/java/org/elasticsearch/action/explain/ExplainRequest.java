@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
@@ -37,8 +36,6 @@ import java.io.IOException;
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
 public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> {
-
-    private static final XContentType contentType = Requests.CONTENT_TYPE;
 
     private String type = "_all";
     private String id;
@@ -115,7 +112,7 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
     }
 
     public ExplainRequest source(QuerySourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         this.sourceUnsafe = false;
         return this;
     }

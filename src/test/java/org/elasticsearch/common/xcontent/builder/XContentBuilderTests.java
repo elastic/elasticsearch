@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.builder;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
@@ -78,6 +80,34 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         generator.flush();
         // we get a space at the start here since it thinks we are not in the root object (fine, we will ignore it in the real code we use)
         assertThat(writer.toStringTrim(), equalTo("{\"test\":\"value\"}"));
+    }
+
+    @Test
+    public void testRaw() throws IOException {
+        {
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            xContentBuilder.startObject();
+            xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.endObject();
+            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"foo\":{\"test\":\"value\"}}"));
+        }
+        {
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            xContentBuilder.startObject();
+            xContentBuilder.field("test", "value");
+            xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.endObject();
+            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
+        }
+        {
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            xContentBuilder.startObject();
+            xContentBuilder.field("test", "value");
+            xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.field("test1", "value1");
+            xContentBuilder.endObject();
+            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+        }
     }
 
     @Test

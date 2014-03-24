@@ -81,6 +81,8 @@ include::search/uri-request.asciidoc[]
 
 include::search/request-body.asciidoc[]
 
+include::search/search-template.asciidoc[]
+
 include::search/facets.asciidoc[]
 
 include::search/aggregations.asciidoc[]

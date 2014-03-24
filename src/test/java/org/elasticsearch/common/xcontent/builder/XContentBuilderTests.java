@@ -94,6 +94,14 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
             xContentBuilder.startObject();
+            xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.endObject();
+            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
+        }
+        {
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            xContentBuilder.startObject();
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
             xContentBuilder.endObject();
@@ -107,6 +115,16 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
             assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+        }
+        {
+            XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
+            xContentBuilder.startObject();
+            xContentBuilder.field("test", "value");
+            xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}"));
+            xContentBuilder.field("test1", "value1");
+            xContentBuilder.endObject();
+            assertThat(xContentBuilder.bytes().toUtf8(), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
         }
     }
 

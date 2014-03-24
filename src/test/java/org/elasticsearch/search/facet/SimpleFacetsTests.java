@@ -109,7 +109,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.COUNT)
                 .setFacets(new BytesArray(
-                        "{\"facet1\":{\"terms\":{\"field\":\"tag\"},\"facet_filter\":{ }}}").array())
+                        "{\"facet1\":{\"terms\":{\"field\":\"tag\"},\"facet_filter\":{ }}}"))
                 .get();
 
         assertHitCount(searchResponse, 1l);

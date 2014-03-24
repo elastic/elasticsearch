@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.date.InternalDateRange;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
+import org.elasticsearch.search.aggregations.bucket.nested.InternalReverseNested;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
@@ -85,5 +86,6 @@ public class TransportAggregationModule extends AbstractModule {
         InternalDateHistogram.registerStream();
         InternalGeoDistance.registerStream();
         InternalNested.registerStream();
+        InternalReverseNested.registerStream();
     }
 }

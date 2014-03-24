@@ -40,6 +40,7 @@ import java.io.IOException;
  */
 public class NestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
+    private final String nestedPath;
     private final Aggregator parentAggregator;
     private Filter parentFilter;
     private final Filter childFilter;
@@ -49,29 +50,21 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
 
     public NestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parentAggregator) {
         super(name, factories, aggregationContext, parentAggregator);
+        this.nestedPath = nestedPath;
         this.parentAggregator = parentAggregator;
         MapperService.SmartNameObjectMapper mapper = aggregationContext.searchContext().smartNameObjectMapper(nestedPath);
         if (mapper == null) {
-            throw new AggregationExecutionException("facet nested path [" + nestedPath + "] not found");
+            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] not found");
         }
         ObjectMapper objectMapper = mapper.mapper();
         if (objectMapper == null) {
-            throw new AggregationExecutionException("facet nested path [" + nestedPath + "] not found");
+            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] not found");
         }
         if (!objectMapper.nested().isNested()) {
-            throw new AggregationExecutionException("facet nested path [" + nestedPath + "] is not nested");
+            throw new AggregationExecutionException("[nested] nested path [" + nestedPath + "] is not nested");
         }
 
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
-    }
-
-    private NestedAggregator findClosestNestedAggregator(Aggregator parent) {
-        for (; parent != null; parent = parent.parent()) {
-            if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
-            }
-        }
-        return null;
     }
 
     @Override
@@ -133,6 +126,19 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalNested(name, 0, buildEmptySubAggregations());
+    }
+
+    public String getNestedPath() {
+        return nestedPath;
+    }
+
+    static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
+        for (; parent != null; parent = parent.parent()) {
+            if (parent instanceof NestedAggregator) {
+                return (NestedAggregator) parent;
+            }
+        }
+        return null;
     }
 
     public static class Factory extends AggregatorFactory {

@@ -62,7 +62,6 @@ public class FuzzinessTests extends ElasticsearchTestCase {
                 assertThat(parse.asDouble(), closeTo((double) floatValue, 0.000001));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
-
             {
                 XContent xcontent = XContentType.JSON.xContent();
                 Integer intValue = frequently() ? randomIntBetween(0, 2) : randomIntBetween(0, 100);
@@ -79,12 +78,12 @@ public class FuzzinessTests extends ElasticsearchTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
                 Fuzziness parse = Fuzziness.parse(parser);
-                assertThat(parse.asInt(), equalTo(intValue));
-                assertThat((int) parse.asShort(), equalTo(intValue));
-                assertThat((int) parse.asByte(), equalTo(intValue));
-                assertThat(parse.asLong(), equalTo((long) intValue));
+                assertThat(parse.asInt(), equalTo(value.intValue()));
+                assertThat((int) parse.asShort(), equalTo(value.intValue()));
+                assertThat((int) parse.asByte(), equalTo(value.intValue()));
+                assertThat(parse.asLong(), equalTo(value.longValue()));
                 if (value.intValue() >= 1) {
-                    assertThat(parse.asDistance(), equalTo(Math.min(2, intValue)));
+                    assertThat(parse.asDistance(), equalTo(Math.min(2, value.intValue())));
                 }
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                 if (intValue.equals(value)) {

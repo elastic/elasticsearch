@@ -20,6 +20,7 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.UnsafeUtils;
 import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
@@ -40,32 +41,49 @@ public interface BytesReference {
             if (a.length() != b.length()) {
                 return false;
             }
-            if (!a.hasArray()) {
-                a = a.toBytesArray();
+
+            if (a.hasArray() && b.hasArray()) {
+                // court-circuit to compare several bytes at once
+                return UnsafeUtils.equals(a.array(), a.arrayOffset(), b.array(), b.arrayOffset(), a.length());
+            } else {
+                return slowBytesEquals(a, b);
             }
-            if (!b.hasArray()) {
-                b = b.toBytesArray();
-            }
-            int bUpTo = b.arrayOffset();
-            final byte[] aArray = a.array();
-            final byte[] bArray = b.array();
-            final int end = a.arrayOffset() + a.length();
-            for (int aUpTo = a.arrayOffset(); aUpTo < end; aUpTo++, bUpTo++) {
-                if (aArray[aUpTo] != bArray[bUpTo]) {
+        }
+
+        // pkg-private for testing
+        static boolean slowBytesEquals(BytesReference a, BytesReference b) {
+            assert a.length() == b.length();
+            for (int i = 0, end = a.length(); i < end; ++i) {
+                if (a.get(i) != b.get(i)) {
                     return false;
                 }
             }
+
             return true;
         }
 
         public static int bytesHashCode(BytesReference a) {
-            if (!a.hasArray()) {
-                a = a.toBytesArray();
+            if (a.hasArray()) {
+                return hashCode(a.array(), a.arrayOffset(), a.length());
+            } else {
+                return slowHashCode(a);
             }
-            int result = 0;
-            final int end = a.arrayOffset() + a.length();
-            for (int i = a.arrayOffset(); i < end; i++) {
-                result = 31 * result + a.array()[i];
+        }
+
+        // pkg-private for testing
+        static int hashCode(byte[] array, int offset, int length) {
+            int result = 1;
+            for (int i = offset, end = offset + length; i < end; ++i) {
+                result = 31 * result + array[i];
+            }
+            return result;
+        }
+
+        // pkg-private for testing
+        static int slowHashCode(BytesReference a) {
+            int result = 1;
+            for (int i = 0, end = a.length(); i < end; ++i) {
+                result = 31 * result + a.get(i);
             }
             return result;
         }

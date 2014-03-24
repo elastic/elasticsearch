@@ -389,10 +389,6 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`null_value` |When there is a (JSON) null value for the field, use the
 `null_value` as the field value. Defaults to not adding the field at
 all.
-
-|`include_in_all` |Should the field be included in the `_all` field (if
-enabled). If `index` is set to `no` this defaults to `false`, otherwise,
-defaults to `true` or to the parent `object` type setting.
 |=======================================================================
 
 [float]

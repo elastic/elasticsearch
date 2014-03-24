@@ -36,9 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -224,6 +222,18 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return;
         }
         fields.add(new Field(names.indexName(), value ? "T" : "F", fieldType));
+    }
+
+    @Override
+    public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        super.merge(mergeWith, mergeContext);
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
+
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.nullValue = ((BooleanFieldMapper) mergeWith).nullValue;
+        }
     }
 
     @Override

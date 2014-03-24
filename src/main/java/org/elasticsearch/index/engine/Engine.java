@@ -126,8 +126,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
     void optimize(Optimize optimize) throws EngineException;
 
-    <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException;
-
     /**
      * Snapshots the index and returns a handle to it. Will always try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.
@@ -159,11 +157,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         void phase2(Translog.Snapshot snapshot) throws ElasticsearchException;
 
         void phase3(Translog.Snapshot snapshot) throws ElasticsearchException;
-    }
-
-    static interface SnapshotHandler<T> {
-
-        T snapshot(SnapshotIndexCommit snapshotIndexCommit, Translog.Snapshot translogSnapshot) throws EngineException;
     }
 
     static interface Searcher extends Releasable {

@@ -44,7 +44,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
@@ -317,19 +316,6 @@ public class Requests {
      */
     public static OptimizeRequest optimizeRequest(String... indices) {
         return new OptimizeRequest(indices);
-    }
-
-    /**
-     * Creates a gateway snapshot indices request.
-     *
-     * @param indices The indices the gateway snapshot will be performed on. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The gateway snapshot request
-     * @see org.elasticsearch.client.IndicesAdminClient#gatewaySnapshot(org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest)
-     * @deprecated Use snapshot/restore API instead
-     */
-    @Deprecated
-    public static GatewaySnapshotRequest gatewaySnapshotRequest(String... indices) {
-        return new GatewaySnapshotRequest(indices);
     }
 
     /**

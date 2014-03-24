@@ -12,9 +12,9 @@ When the cluster first starts up, the state will be read from the
 gateway and applied.
 
 The gateway set on the node level will automatically control the index
-gateway that will be used. For example, if the `fs` gateway is used,
+gateway that will be used. For example, if the `local` gateway is used,
 then automatically, each index created on the node will also use its own
-respective index level `fs` gateway. In this case, if an index should
+respective index level `local` gateway. In this case, if an index should
 not persist its state, it should be explicitly set to `none` (which is
 the only other value it can be set to).
 
@@ -68,8 +68,3 @@ will be recovered once the settings has been reached.
 
 include::gateway/local.asciidoc[]
 
-include::gateway/fs.asciidoc[]
-
-include::gateway/hadoop.asciidoc[]
-
-include::gateway/s3.asciidoc[]

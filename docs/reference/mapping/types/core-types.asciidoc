@@ -427,6 +427,9 @@ Defaults to the property/field name.
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
+|`compress` |Set to `true` to compress the binary value.
+|`compress_threshold` |Minimal binary value size that compress operation
+should be performed. Defaults to `-1`
 |=======================================================================
 
 [float]

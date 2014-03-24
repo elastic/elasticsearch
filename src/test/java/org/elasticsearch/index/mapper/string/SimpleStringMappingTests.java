@@ -24,12 +24,15 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.mahout.math.Arrays;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper.MergeFlags;
+import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -317,6 +320,47 @@ public class SimpleStringMappingTests extends ElasticsearchTestCase {
             }
         }
         return null;
+    }
+
+    @Test
+    public void testDisableNorms() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "1234")
+                .endObject()
+                .bytes());
+
+        IndexableFieldType fieldType = doc.rootDoc().getField("field").fieldType();
+        assertEquals(false, fieldType.omitNorms());
+
+        String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
+                .endObject().endObject().endObject().endObject().string();
+        MergeResult mergeResult = defaultMapper.merge(MapperTestUtils.newParser().parse(updatedMapping), MergeFlags.mergeFlags().simulate(false));
+        assertFalse(Arrays.toString(mergeResult.conflicts()), mergeResult.hasConflicts());
+
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "1234")
+                .endObject()
+                .bytes());
+
+        fieldType = doc.rootDoc().getField("field").fieldType();
+        assertEquals(true, fieldType.omitNorms());
+
+        updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
+                .endObject().endObject().endObject().endObject().string();
+        mergeResult = defaultMapper.merge(MapperTestUtils.newParser().parse(updatedMapping), MergeFlags.mergeFlags());
+        assertTrue(mergeResult.hasConflicts());
+        assertEquals(1, mergeResult.conflicts().length);
+        assertTrue(mergeResult.conflicts()[0].contains("cannot enable norms"));
     }
 
 }

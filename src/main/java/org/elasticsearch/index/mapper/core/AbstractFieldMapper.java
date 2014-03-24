@@ -264,7 +264,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     protected final Names names;
     protected float boost;
-    protected final FieldType fieldType;
+    protected FieldType fieldType;
     private final boolean docValues;
     protected final NamedAnalyzer indexAnalyzer;
     protected NamedAnalyzer searchAnalyzer;
@@ -579,8 +579,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             // when the doc_values field data format is configured
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different " + TypeParsers.DOC_VALUES + " values");
         }
-        if (this.fieldType().omitNorms() != fieldMergeWith.fieldType.omitNorms()) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different `norms.enabled` values");
+        if (this.fieldType().omitNorms() && !fieldMergeWith.fieldType.omitNorms()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] cannot enable norms (`norms.enabled`)");
         }
         if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
@@ -620,6 +620,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
+            this.fieldType = new FieldType(this.fieldType);
+            this.fieldType.setOmitNorms(fieldMergeWith.fieldType.omitNorms());
+            this.fieldType.freeze();
             this.boost = fieldMergeWith.boost;
             this.normsLoading = fieldMergeWith.normsLoading;
             this.copyTo = fieldMergeWith.copyTo;

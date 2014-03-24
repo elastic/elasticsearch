@@ -300,9 +300,8 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        generator.writeRaw(", \"");
-        generator.writeRaw(fieldName);
-        generator.writeRaw("\" : ");
+        generator.writeFieldName(fieldName);
+        generator.writeRaw(':');
         flush();
         content.writeTo(bos);
     }

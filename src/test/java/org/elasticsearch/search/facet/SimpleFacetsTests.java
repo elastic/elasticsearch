@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
-
     private int numRuns = -1;
 
     protected int numberOfRuns() {
@@ -87,7 +86,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.COUNT)
                 .setFacets(new BytesArray(
-                        "{\"facet1\":{\"filter\":{ }}}").array())
+                        "{\"facet1\":{\"filter\":{ }}}"))
                 .get();
 
         assertHitCount(searchResponse, 1l);

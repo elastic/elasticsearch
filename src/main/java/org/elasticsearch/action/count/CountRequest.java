@@ -33,7 +33,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,8 +50,6 @@ import java.util.Map;
  * @see org.elasticsearch.client.Requests#countRequest(String...)
  */
 public class CountRequest extends BroadcastOperationRequest<CountRequest> {
-
-    private static final XContentType contentType = Requests.CONTENT_TYPE;
 
     public static final float DEFAULT_MIN_SCORE = -1f;
 
@@ -123,7 +120,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      * The source to execute.
      */
     public CountRequest source(QuerySourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         this.sourceUnsafe = false;
         return this;
     }
@@ -133,7 +130,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      */
     public CountRequest source(Map querySource) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             builder.map(querySource);
             return source(builder);
         } catch (IOException e) {

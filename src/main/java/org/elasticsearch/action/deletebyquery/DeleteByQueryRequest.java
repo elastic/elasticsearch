@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,8 +53,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#deleteByQuery(DeleteByQueryRequest)
  */
 public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<DeleteByQueryRequest> {
-
-    private static final XContentType contentType = Requests.CONTENT_TYPE;
 
     private BytesReference source;
     private boolean sourceUnsafe;
@@ -98,7 +95,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * The source to execute.
      */
     public DeleteByQueryRequest source(QuerySourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(contentType);
+        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         this.sourceUnsafe = false;
         return this;
     }
@@ -118,7 +115,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      */
     public DeleteByQueryRequest source(Map source) {
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
             builder.map(source);
             return source(builder);
         } catch (IOException e) {

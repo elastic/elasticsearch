@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.store.MockDirectoryWrapper;
@@ -28,11 +31,13 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
@@ -220,14 +225,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     @BeforeClass
-    public static void registerMockDirectoryHooks() throws Exception {
+    public static void setBeforeClass() throws Exception {
         closeAfterSuite(new Closeable() {
             @Override
             public void close() throws IOException {
                 ensureAllFilesClosed();
             }
         });
-
         closeAfterSuite(new Closeable() {
             @Override
             public void close() throws IOException {
@@ -236,11 +240,15 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         });
         defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
+        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
+        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
     }
 
     @AfterClass
-    public static void resetUncaughtExceptionHandler() {
+    public static void resetAfterClass() {
         Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
+        Requests.CONTENT_TYPE = XContentType.SMILE;
+        Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
     public static boolean maybeDocValues() {

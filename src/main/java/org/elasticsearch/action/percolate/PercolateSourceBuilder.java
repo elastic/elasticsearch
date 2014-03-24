@@ -21,6 +21,7 @@ package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
@@ -262,7 +263,7 @@ public class PercolateSourceBuilder implements ToXContent {
         }
 
         public DocBuilder setDoc(Map doc) {
-            return setDoc(doc, PercolateRequest.contentType);
+            return setDoc(doc, Requests.CONTENT_TYPE);
         }
 
         public DocBuilder setDoc(Map doc, XContentType contentType) {

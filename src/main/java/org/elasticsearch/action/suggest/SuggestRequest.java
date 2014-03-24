@@ -47,8 +47,6 @@ import org.elasticsearch.common.xcontent.XContentType;
  */
 public final class SuggestRequest extends BroadcastOperationRequest<SuggestRequest> {
 
-    static final XContentType contentType = Requests.CONTENT_TYPE;
-    
     @Nullable
     private String routing;
 

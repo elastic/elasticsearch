@@ -17,10 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster;
+package org.elasticsearch.discovery;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @LuceneTestCase.Slow
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
-public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
+public class ZenUnicastDiscoveryTestsSpecificNodes extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("discovery.zen:TRACE")

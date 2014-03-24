@@ -29,19 +29,15 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope=Scope.SUITE, numNodes=2)
-public class DiscoveryTests extends ElasticsearchIntegrationTest {
+@ClusterScope(scope=Scope.TEST, numNodes=2)
+public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder()
                 .put("discovery.zen.ping.multicast.enabled", false)
-                        // Can't use this, b/c at the moment all node will only ping localhost:9300 and the shared
-                        // cluster will be running there, which leads of no node joining, because the cluster name
-                        // isn't equal.
-//                .put("discovery.zen.ping.unicast.hosts", "localhost")
-                .put("discovery.zen.ping.unicast.hosts", "localhost:25300,localhost:25301")
-                .put("transport.tcp.port", "25300-25400")
+                .put("discovery.zen.ping.unicast.hosts", "localhost")
+                .put("transport.tcp.port", "25300-25400") // Need to use custom tcp port range otherwise we collide with the shared cluster
                 .put(super.nodeSettings(nodeOrdinal)).build();
     }
     

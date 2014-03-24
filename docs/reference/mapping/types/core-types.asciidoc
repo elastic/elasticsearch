@@ -238,7 +238,7 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
 Automatically set to `true` when the fielddata format is `doc_values`.
 
-|`precision_step` |The precision step (influences the number of terms 
+|`precision_step` |The precision step (influences the number of terms
 generated for each number value). Defaults to `16` for `long`, `double`,
 `8` for `short`, `integer`, `float`, and `2147483647` for `byte`.
 
@@ -348,7 +348,7 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
 Automatically set to `true` when the fielddata format is `doc_values`.
 
-|`precision_step` |The precision step (influences the number of terms 
+|`precision_step` |The precision step (influences the number of terms
 generated for each number value). Defaults to `16`.
 
 |`boost` |The boost value. Defaults to `1.0`.
@@ -439,16 +439,38 @@ all.
 The following table lists all the attributes that can be used with the
 binary type:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Attribute |Description
-|`index_name` |The name of the field that will be stored in the index.
-Defaults to the property/field name.
-|`store` |Set to `true` to store actual field in the index, `false` to not
-store it. Defaults to `false` (note, the JSON document itself is stored,
-and it can be retrieved from it).
-|`doc_values` |Set to `true` to store field values in a column-stride fashion.
-|=======================================================================
+[horizontal]
+
+`index_name`::
+
+    The name of the field that will be stored in the index. Defaults to the
+    property/field name.
+
+`store`::
+
+    Set to `true` to store actual field in the index, `false` to not store it.
+    Defaults to `false` (note, the JSON document itself is already stored, so
+    the binary field can be retrieved from there).
+
+`doc_values`::
+
+    Set to `true` to store field values in a column-stride fashion.
+
+`compress`::
+
+    Set to `true` to compress the stored binary value.
+
+`compress_threshold`::
+
+    Compression will only be applied to stored binary fields that are greater
+    than this size. Defaults to `-1`
+
+NOTE: Enabling compression on stored binary fields only makes sense on large
+and highly-compressible values. Otherwise per-field compression is usually not
+worth doing as the space savings do not compensate for the overhead of the
+compression format. Normally, you should not configure any compression and
+just rely on the block compression of stored fields (which is enabled by
+default and can't be disabled).
 
 [float]
 [[fielddata-filters]]
@@ -621,7 +643,7 @@ property, as this example shows:
    "book":{
       "properties":{
          "title":{
-            "type":"string", "similarity":"BM25" 
+            "type":"string", "similarity":"BM25"
          }
       }
    }

@@ -43,11 +43,19 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
                 .setSource("text", "value1").get();
         client().prepareIndex("test", "testtype").setId("2")
                 .setSource("text", "value2").get();
+        client().prepareIndex("test", "testtype").setId("3")
+                .setSource("text", "value2").get();
+        client().prepareIndex("test", "testtype").setId("4")
+                .setSource("text", "value2").get();
+        client().prepareIndex("test", "testtype").setId("5")
+                .setSource("text", "value2").get();
+        client().prepareIndex("test", "testtype").setId("6")
+                .setSource("text", "value2").get();
         refresh();
     }
 
     @Test
-    public void testPrecisionAtOne() throws IOException, InterruptedException, ExecutionException {
+    public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
         MatchQueryBuilder query = new MatchQueryBuilder("text", "value1");
 
         SearchResponse response = client().prepareSearch().setQuery(query)
@@ -57,11 +65,29 @@ public class PrecisionAtRequestTest extends ElasticsearchIntegrationTest {
         SearchHit[] hits = response.getHits().getHits();
 
         assertEquals(1, (new PrecisionAtN(5)).evaluate(relevant, hits), 0.00001);
-
     }
-//  PrecisionAtQueryBuilder builder = new PrecisionAtQueryBuilder(
-//  "{\"match_{{template}}\": {}}\"");
-//PrecisionAtResponse sr = client().execute(builder.request()); 
-//ElasticsearchAssertions.assertHitCount(sr, 2);
+    
+    @Test
+    public void testPrecisionAtFiveIgnoreOneResult() throws IOException, InterruptedException, ExecutionException {
+        MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
 
+        SearchResponse response = client().prepareSearch().setQuery(query)
+                .execute().actionGet();
+
+        Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
+        SearchHit[] hits = response.getHits().getHits();
+
+        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(relevant, hits), 0.00001);
+    }
+
+
+    /** TODO change PrecisionAt bound classes to support generic qa metrics - hint: Naming etc.*/
+    @Test
+    public void testPrecisionAction() {
+      MatchQueryBuilder query = new MatchQueryBuilder("text", "value2");
+      Set<String> relevant = Sets.newHashSet("2", "3", "4", "5");
+      PrecisionAtQueryBuilder builder = (new PrecisionAtQueryBuilder(client())).setQuery(query.buildAsBytes()).addRelevantDocs(relevant);
+      PrecisionAtResponse sr = client().execute(PrecisionAtAction.INSTANCE, builder.request()).actionGet(); 
+      
+    }
 }

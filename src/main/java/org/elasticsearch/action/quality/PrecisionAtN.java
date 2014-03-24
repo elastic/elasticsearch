@@ -52,6 +52,9 @@ public class PrecisionAtN implements RankedListQualityMetric {
                 good++;
             }
         }
+
+        if (hits.length < n)
+            return ((double) good) / hits.length;
         return ((double) good) / n;
     }
 }

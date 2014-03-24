@@ -21,12 +21,13 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
 
 public class PrecisionAtRequestBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
 
-    protected PrecisionAtRequestBuilder(InternalGenericClient client, PrecisionAtRequest request) {
-        super(client, request);
+    protected PrecisionAtRequestBuilder(Client client) {
+        super((InternalClient) client, new PrecisionAtRequest());
     }
 
     @Override

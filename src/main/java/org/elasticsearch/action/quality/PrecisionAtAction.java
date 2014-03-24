@@ -24,18 +24,21 @@ import org.elasticsearch.client.Client;
 
 public class PrecisionAtAction extends Action<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtRequestBuilder> {
 
-    protected PrecisionAtAction(String name) {
-        super(name);
+    public static final PrecisionAtAction INSTANCE = new PrecisionAtAction();
+    public static final String NAME = "precision_at";
+
+    private PrecisionAtAction() {
+        super(NAME);
     }
 
     @Override
     public PrecisionAtRequestBuilder newRequestBuilder(Client client) {
-        return null;
+        return new PrecisionAtRequestBuilder(client);
     }
 
     @Override
     public PrecisionAtResponse newResponse() {
-        return null;
+        return new PrecisionAtResponse();
     }
 
 }

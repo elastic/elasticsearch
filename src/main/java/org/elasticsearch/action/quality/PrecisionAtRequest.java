@@ -21,12 +21,48 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
+
+    /** TODO move the following to a metric specific context - need move writing and reading too then. */
+
+    /** IDs of documents considered relevant for this query. */
+    private Set<String> relevantDocs = new HashSet<String>();
+    /** QueryBuilder to run against search index and generate hits to compare against relevantDocs. */
+    private BytesReference query;
 
     @Override
     public ActionRequestValidationException validate() {
         return null;
     }
 
+    public void queryBuilder(BytesReference query) {
+        this.query = query;
+    }
+
+    public void relevantDocs(Set<String> relevant) {
+        this.relevantDocs.addAll(relevant);
+    }
+    
+    @SuppressWarnings("unchecked")
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        query = in.readBytesReference();
+        relevantDocs = (Set<String>) in.readGenericValue();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBytesReference(query);
+        out.writeGenericValue(relevantDocs);
+    }
 }

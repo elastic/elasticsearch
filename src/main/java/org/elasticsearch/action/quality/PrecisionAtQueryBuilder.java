@@ -21,16 +21,33 @@ package org.elasticsearch.action.quality;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.common.bytes.BytesReference;
+
+import java.util.Set;
 
 public class PrecisionAtQueryBuilder extends ActionRequestBuilder<PrecisionAtRequest, PrecisionAtResponse, PrecisionAtQueryBuilder> {
-
-    protected PrecisionAtQueryBuilder(InternalGenericClient client, PrecisionAtRequest request) {
-        super(client, request);
+    
+    protected PrecisionAtQueryBuilder(Client client) {
+        super((InternalClient) client, new PrecisionAtRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<PrecisionAtResponse> listener) {
     }
 
+    public PrecisionAtQueryBuilder setQuery(BytesReference query) {
+        request.queryBuilder(query);
+        return this;
+    }
+
+    public PrecisionAtQueryBuilder addRelevantDocs(Set<String> relevant) {
+        request.relevantDocs(relevant);
+        return this;
+    }
+    
+    public PrecisionAtRequest request() {
+        return request;
+    }
 }

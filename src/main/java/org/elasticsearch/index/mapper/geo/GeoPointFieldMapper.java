@@ -394,8 +394,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
     private final StringFieldMapper geohashMapper;
 
-    private final boolean validateLon;
-    private final boolean validateLat;
+    private boolean validateLon;
+    private boolean validateLat;
 
     private final boolean normalizeLon;
     private final boolean normalizeLat;
@@ -613,7 +613,38 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         super.merge(mergeWith, mergeContext);
-        // TODO: geo-specific properties
+        if (!this.getClass().equals(mergeWith.getClass())) {
+            return;
+        }
+        GeoPointFieldMapper fieldMergeWith = (GeoPointFieldMapper) mergeWith;
+
+        if (this.enableLatLon != fieldMergeWith.enableLatLon) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different lat_lon");
+        }
+        if (this.enableGeoHash != fieldMergeWith.enableGeoHash) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash");
+        }
+        if (this.geoHashPrecision != fieldMergeWith.geoHashPrecision) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_precision");
+        }
+        if (this.enableGeohashPrefix != fieldMergeWith.enableGeohashPrefix) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different geohash_prefix");
+        }
+        if (this.normalizeLat != fieldMergeWith.normalizeLat) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lat");
+        }
+        if (this.normalizeLon != fieldMergeWith.normalizeLon) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
+        }
+        if (this.precisionStep != fieldMergeWith.precisionStep) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
+        }
+
+
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.validateLat = fieldMergeWith.validateLat;
+            this.validateLon = fieldMergeWith.validateLon;
+        }
     }
 
     @Override

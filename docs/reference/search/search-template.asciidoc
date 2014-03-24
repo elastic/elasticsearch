@@ -1,0 +1,206 @@
+[[search-template]]
+== Search Template
+
+coming[1.1.0]
+
+Using a query template allows to use the mustache language to pre render search requests,
+before they are executed and fill existing templates with template parameters.
+
+You can use the `/_search/template` endpoint for that.
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+    "template" : {
+      "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
+      "size" : {{my_size}}
+    },
+    "params" : {
+        "my_field" : "foo",
+        "my_value" : "bar",
+        "my_size" : 5
+    }
+}
+------------------------------------------
+
+
+For more information on how Mustache templating and what kind of templating you
+can do with it check out the http://mustache.github.io/mustache.5.html[online
+documentation of the mustache project].
+
+[float]
+==== More template examples
+
+[float]
+===== Filling in a query string with a single value
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+    "template": {
+        "query": {
+            "match": {
+                "title": "{{query_string}}"
+            }
+        }
+    },
+    "params": {
+        "query_string": "search for these words"
+    }
+}
+------------------------------------------
+
+[float]
+===== Passing an array of strings
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+  "template": {
+    "query": {
+      "terms": {
+        "status": [
+          "{{#status}}",
+          "{{.}}",
+          "{{/status}}"
+        ]
+      }
+    }
+  },
+  "params": {
+    "status": [ "pending", "published" ]
+  }
+}
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+"query": {
+  "terms": {
+    "status": [ "pending", "published" ]
+  }
+}
+------------------------------------------
+
+[float]
+===== Default values
+
+A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
+
+[source,js]
+------------------------------------------
+{
+  "template": {
+    "query": {
+      "range": {
+        "line_no": {
+          "gte": "{{start}}",
+          "lte": "{{end}}{{^end}}20{{/end}}"
+        }
+      }
+    }
+  },
+  "params": { ... }
+}
+------------------------------------------
+
+When `params` is `{ "start": 10, "end": 15 }` this query would be rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "range": {
+        "line_no": {
+            "gte": "10",
+            "lte": "15"
+        }
+  }
+}
+------------------------------------------
+
+But when `params` is `{ "start": 10 }` this query would use the default value
+for `end`:
+
+[source,js]
+------------------------------------------
+{
+    "range": {
+        "line_no": {
+            "gte": "10",
+            "lte": "20"
+        }
+    }
+}
+------------------------------------------
+
+[float]
+===== Conditional clauses
+
+Conditional clauses cannot be expressed using the JSON form of the template.
+Instead, the template *must* be passed as a string.  For instance, let's say
+we wanted to run a `match` query on the `line` field, and optionally wanted
+to filter by line numbers, where `start` and `end` are optional.
+
+The `params` would look like:
+[source,js]
+------------------------------------------
+{
+    "params": {
+        "text":      "words to search for",
+        "line_no": { <1>
+            "start": 10, <1>
+            "end":   20  <1>
+        }
+    }
+}
+------------------------------------------
+<1> All three of these elements are optional.
+
+We could write the query as:
+
+[source,js]
+------------------------------------------
+{
+    "filtered": {
+      "query": {
+        "match": {
+          "line": "{{text}}" <1>
+        }
+      },
+      "filter": {
+        {{#line_no}} <2>
+          "range": {
+            "line_no": {
+              {{#start}} <3>
+                "gte": "{{start}}" <4>
+                {{#end}},{{/end}} <5>
+              {{/start}} <3>
+              {{#end}} <6>
+                "lte": "{{end}}" <7>
+              {{/end}} </6>
+            }
+          }
+        {{/line_no}} <2>
+      }
+    }
+}
+------------------------------------------
+<1> Fill in the value of param `text`
+<2> Include the `range` filter only if `line_no` is specified
+<3> Include the `gte` clause only if `line_no.start` is specified
+<4> Fill in the value of param `line_no.start`
+<5> Add a comma after the `gte` clause only if `line_no.start`
+    AND `line_no.end` are specified
+<6> Include the `lte` clause only if `line_no.end` is specified
+<7> Fill in the value of param `line_no.end`
+
+As written above, this template is not valid JSON because it includes the
+_section_ markers like `{{#line_no}}`.  For this reason, the template
+can only be written as a string.
+

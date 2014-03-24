@@ -112,6 +112,7 @@ all.
 
 |`norms.enabled` |Boolean value if norms should be enabled or not. Defaults
 to `true` for `analyzed` fields, and to `false` for `not_analyzed` fields.
+See the <<norms,section about norms>>.
 
 |`norms.loading` |Describes how norms should be loaded, possible values are
 `eager` and `lazy` (default). It is possible to change the default value to
@@ -165,6 +166,27 @@ Otherwise, the structure would interpret "message" as a value of type
 "object". The key `_value` (or `value`) in the inner document specifies
 the real string content that should eventually be indexed. The `_boost`
 (or `boost`) key specifies the per field document boost (here 2.0).
+
+[float]
+[[norms]]
+===== Norms
+
+Norms store various normalization factors that are later used (at query time)
+in order to compute the score of a document relatively to a query.
+
+Although useful for scoring, norms also require quite a lot of memory
+(typically in the order of one byte per document per field in your index,
+even for documents that don't have this specific field). As a consequence, if
+you don't need scoring on a specific field, it is highly recommended to disable
+norms on it. In  particular, this is the case for fields that are used solely
+for filtering or aggregations.
+
+In case you would like to disable norms after the fact, it is possible to do so
+by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
+norms won't be removed instantly, but as your index will receive new insertions
+or updates, and segments get merged. Any score computation on a field that got
+norms removed might return inconsistent results since some documents won't have
+norms anymore while other documents might still have norms.
 
 [float]
 [[number]]

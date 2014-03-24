@@ -30,7 +30,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.local.LocalGatewayAllocator;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.internal.InternalEngine;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.LogDocMergePolicyProvider;
@@ -67,7 +66,6 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_READ);
         indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_WRITE);
         indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_METADATA);
-        indexDynamicSettings.addDynamicSetting(IndexShardGatewayService.INDEX_GATEWAY_SNAPSHOT_INTERVAL, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(IndicesTTLService.INDEX_TTL_DISABLE_PURGE);
         indexDynamicSettings.addDynamicSetting(InternalIndexShard.INDEX_REFRESH_INTERVAL, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(LocalGatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS);

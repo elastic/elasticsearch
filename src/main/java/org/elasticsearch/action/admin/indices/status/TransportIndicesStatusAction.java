@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
@@ -231,37 +230,6 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                         gatewayRecoveryState.getIndex().totalByteCount(), gatewayRecoveryState.getIndex().reusedByteCount(), gatewayRecoveryState.getIndex().recoveredByteCount(), gatewayRecoveryState.getTranslog().currentTranslogOperations());
             }
         }
-
-        if (request.snapshot) {
-            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
-            SnapshotStatus snapshotStatus = gatewayService.snapshotStatus();
-            if (snapshotStatus != null) {
-                GatewaySnapshotStatus.Stage stage;
-                switch (snapshotStatus.stage()) {
-                    case DONE:
-                        stage = GatewaySnapshotStatus.Stage.DONE;
-                        break;
-                    case FAILURE:
-                        stage = GatewaySnapshotStatus.Stage.FAILURE;
-                        break;
-                    case TRANSLOG:
-                        stage = GatewaySnapshotStatus.Stage.TRANSLOG;
-                        break;
-                    case FINALIZE:
-                        stage = GatewaySnapshotStatus.Stage.FINALIZE;
-                        break;
-                    case INDEX:
-                        stage = GatewaySnapshotStatus.Stage.INDEX;
-                        break;
-                    default:
-                        stage = GatewaySnapshotStatus.Stage.NONE;
-                        break;
-                }
-                shardStatus.gatewaySnapshotStatus = new GatewaySnapshotStatus(stage, snapshotStatus.startTime(), snapshotStatus.time(),
-                        snapshotStatus.index().totalSize(), snapshotStatus.translog().expectedNumberOfOperations());
-            }
-        }
-
         return shardStatus;
     }
 

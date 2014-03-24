@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
@@ -81,7 +80,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count("test1", "test2"), true);
         verify(clearCache("test1", "test2"), true);
         verify(_flush("test1", "test2"),true);
-        verify(gatewatSnapshot("test1", "test2"), true);
         verify(segments("test1", "test2"), true);
         verify(stats("test1", "test2"), true);
         verify(status("test1", "test2"), true);
@@ -106,7 +104,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count("test1", "test2").setIndicesOptions(options), true);
         verify(clearCache("test1", "test2").setIndicesOptions(options), true);
         verify(_flush("test1", "test2").setIndicesOptions(options),true);
-        verify(gatewatSnapshot("test1", "test2").setIndicesOptions(options), true);
         verify(segments("test1", "test2").setIndicesOptions(options), true);
         verify(stats("test1", "test2").setIndicesOptions(options), true);
         verify(status("test1", "test2").setIndicesOptions(options), true);
@@ -131,7 +128,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count("test1", "test2").setIndicesOptions(options), false);
         verify(clearCache("test1", "test2").setIndicesOptions(options), false);
         verify(_flush("test1", "test2").setIndicesOptions(options), false);
-        verify(gatewatSnapshot("test1", "test2").setIndicesOptions(options), false);
         verify(segments("test1", "test2").setIndicesOptions(options), false);
         verify(stats("test1", "test2").setIndicesOptions(options), false);
         verify(status("test1", "test2").setIndicesOptions(options), false);
@@ -158,7 +154,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count("test1", "test2").setIndicesOptions(options), false);
         verify(clearCache("test1", "test2").setIndicesOptions(options), false);
         verify(_flush("test1", "test2").setIndicesOptions(options),false);
-        verify(gatewatSnapshot("test1", "test2").setIndicesOptions(options), false);
         verify(segments("test1", "test2").setIndicesOptions(options), false);
         verify(stats("test1", "test2").setIndicesOptions(options), false);
         verify(status("test1", "test2").setIndicesOptions(options), false);
@@ -217,7 +212,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count(indices), false);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(gatewatSnapshot(indices), false);
         verify(segments(indices), true);
         verify(stats(indices), false);
         verify(status(indices), false);
@@ -243,7 +237,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count(indices).setIndicesOptions(options), false);
         verify(clearCache(indices).setIndicesOptions(options), false);
         verify(_flush(indices).setIndicesOptions(options),false);
-        verify(gatewatSnapshot(indices).setIndicesOptions(options), false);
         verify(segments(indices).setIndicesOptions(options), false);
         verify(stats(indices).setIndicesOptions(options), false);
         verify(status(indices).setIndicesOptions(options), false);
@@ -272,7 +265,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count(indices), false, 1);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(gatewatSnapshot(indices), false);
         verify(segments(indices), false);
         verify(stats(indices), false);
         verify(status(indices), false);
@@ -298,7 +290,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count(indices), false, 1);
         verify(clearCache(indices), false);
         verify(_flush(indices),false);
-        verify(gatewatSnapshot(indices), false);
         verify(segments(indices), true);
         verify(stats(indices), false);
         verify(status(indices), false);
@@ -324,7 +315,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(count(indices).setIndicesOptions(options), false, 1);
         verify(clearCache(indices).setIndicesOptions(options), false);
         verify(_flush(indices).setIndicesOptions(options),false);
-        verify(gatewatSnapshot(indices).setIndicesOptions(options), false);
         verify(segments(indices).setIndicesOptions(options), false);
         verify(stats(indices).setIndicesOptions(options), false);
         verify(status(indices).setIndicesOptions(options), false);
@@ -772,10 +762,6 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
     private static FlushRequestBuilder _flush(String... indices) {
         return client().admin().indices().prepareFlush(indices);
-    }
-
-    private static GatewaySnapshotRequestBuilder gatewatSnapshot(String... indices) {
-        return client().admin().indices().prepareGatewaySnapshot(indices);
     }
 
     private static IndicesSegmentsRequestBuilder segments(String... indices) {

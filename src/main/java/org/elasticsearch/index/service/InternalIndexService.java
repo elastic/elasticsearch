@@ -408,12 +408,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             // ignore
         }
         try {
-            shardInjector.getInstance(IndexShardGatewayService.class).snapshotOnClose();
-        } catch (Throwable e) {
-            logger.debug("failed to snapshot index shard gateway on close", e);
-            // ignore
-        }
-        try {
             shardInjector.getInstance(IndexShardGatewayService.class).close();
         } catch (Throwable e) {
             logger.debug("failed to close index shard gateway", e);

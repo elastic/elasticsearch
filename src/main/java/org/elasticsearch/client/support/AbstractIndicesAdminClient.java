@@ -64,10 +64,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotAction;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
@@ -317,21 +313,6 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public FlushRequestBuilder prepareFlush(String... indices) {
         return new FlushRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(final GatewaySnapshotRequest request) {
-        return execute(GatewaySnapshotAction.INSTANCE, request);
-    }
-
-    @Override
-    public void gatewaySnapshot(final GatewaySnapshotRequest request, final ActionListener<GatewaySnapshotResponse> listener) {
-        execute(GatewaySnapshotAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices) {
-        return new GatewaySnapshotRequestBuilder(this).setIndices(indices);
     }
 
     @Override

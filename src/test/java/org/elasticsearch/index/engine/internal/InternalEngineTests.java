@@ -40,7 +40,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommitExistsMatcher;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
@@ -75,7 +74,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
@@ -594,64 +593,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         searchResult.release();
     }
 
-    @Test
-    public void testSimpleSnapshot() throws Exception {
-        // create a document
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
-        engine.create(new Engine.Create(null, newUid("1"), doc1));
-
-        final ExecutorService executorService = Executors.newCachedThreadPool();
-
-        engine.snapshot(new Engine.SnapshotHandler<Void>() {
-            @Override
-            public Void snapshot(final SnapshotIndexCommit snapshotIndexCommit1, final Translog.Snapshot translogSnapshot1) {
-                MatcherAssert.assertThat(snapshotIndexCommit1, SnapshotIndexCommitExistsMatcher.snapshotIndexCommitExists());
-                assertThat(translogSnapshot1.hasNext(), equalTo(true));
-                Translog.Create create1 = (Translog.Create) translogSnapshot1.next();
-                assertThat(create1.source().toBytesArray(), equalTo(B_1.toBytesArray()));
-                assertThat(translogSnapshot1.hasNext(), equalTo(false));
-
-                Future<Object> future = executorService.submit(new Callable<Object>() {
-                    @Override
-                    public Object call() throws Exception {
-                        engine.flush(new Engine.Flush());
-                        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
-                        engine.create(new Engine.Create(null, newUid("2"), doc2));
-                        engine.flush(new Engine.Flush());
-                        ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
-                        engine.create(new Engine.Create(null, newUid("3"), doc3));
-                        return null;
-                    }
-                });
-
-                try {
-                    future.get();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    assertThat(e.getMessage(), false, equalTo(true));
-                }
-
-                MatcherAssert.assertThat(snapshotIndexCommit1, SnapshotIndexCommitExistsMatcher.snapshotIndexCommitExists());
-
-                engine.snapshot(new Engine.SnapshotHandler<Void>() {
-                    @Override
-                    public Void snapshot(SnapshotIndexCommit snapshotIndexCommit2, Translog.Snapshot translogSnapshot2) throws EngineException {
-                        MatcherAssert.assertThat(snapshotIndexCommit1, SnapshotIndexCommitExistsMatcher.snapshotIndexCommitExists());
-                        MatcherAssert.assertThat(snapshotIndexCommit2, SnapshotIndexCommitExistsMatcher.snapshotIndexCommitExists());
-                        assertThat(snapshotIndexCommit2.getSegmentsFileName(), not(equalTo(snapshotIndexCommit1.getSegmentsFileName())));
-                        assertThat(translogSnapshot2.hasNext(), equalTo(true));
-                        Translog.Create create3 = (Translog.Create) translogSnapshot2.next();
-                        assertThat(create3.source().toBytesArray(), equalTo(B_3.toBytesArray()));
-                        assertThat(translogSnapshot2.hasNext(), equalTo(false));
-                        return null;
-                    }
-                });
-                return null;
-            }
-        });
-
-        engine.close();
-    }
 
     @Test
     public void testSimpleRecover() throws Exception {

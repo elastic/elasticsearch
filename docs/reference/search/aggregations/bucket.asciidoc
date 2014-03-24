@@ -8,6 +8,8 @@ include::bucket/missing-aggregation.asciidoc[]
 
 include::bucket/nested-aggregation.asciidoc[]
 
+include::bucket/reverse-nested-aggregation.asciidoc[]
+
 include::bucket/terms-aggregation.asciidoc[]
 
 include::bucket/significantterms-aggregation.asciidoc[]

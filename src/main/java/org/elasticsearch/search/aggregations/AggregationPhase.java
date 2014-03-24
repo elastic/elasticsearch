@@ -165,7 +165,7 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public boolean acceptsDocsOutOfOrder() {
-            return true;
+            return !aggregationContext.scoreDocsInOrder();
         }
 
         @Override

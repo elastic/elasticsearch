@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.json;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.base.GeneratorBase;
 import com.fasterxml.jackson.core.io.SerializedString;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -36,9 +37,16 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     protected final JsonGenerator generator;
     private boolean writeLineFeedAtEnd;
+    private final GeneratorBase base;
 
     public JsonXContentGenerator(JsonGenerator generator) {
         this.generator = generator;
+        if (generator instanceof GeneratorBase) {
+            base = (GeneratorBase) generator;
+        } else {
+            base = null;
+        }
+
     }
 
     @Override
@@ -253,29 +261,29 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        generator.writeRaw(", \"");
-        generator.writeRaw(fieldName);
-        generator.writeRaw("\" : ");
+        generator.writeFieldName(fieldName);
+        generator.writeRaw(':');
         flush();
         bos.write(content);
+        finishWriteRaw();
     }
 
     @Override
     public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        generator.writeRaw(", \"");
-        generator.writeRaw(fieldName);
-        generator.writeRaw("\" : ");
+        generator.writeFieldName(fieldName);
+        generator.writeRaw(':');
         flush();
         bos.write(content, offset, length);
+        finishWriteRaw();
     }
 
     @Override
     public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
-        generator.writeRaw(", \"");
-        generator.writeRaw(fieldName);
-        generator.writeRaw("\" : ");
+        generator.writeFieldName(fieldName);
+        generator.writeRaw(':');
         flush();
         Streams.copy(content, bos);
+        finishWriteRaw();
     }
 
     @Override
@@ -304,6 +312,14 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeRaw(':');
         flush();
         content.writeTo(bos);
+        finishWriteRaw();
+    }
+
+    private void finishWriteRaw() {
+        assert base != null : "JsonGenerator should be of instance GeneratorBase but was: " + generator.getClass();
+        if (base != null) {
+            base.getOutputContext().writeValue();
+        }
     }
 
     @Override

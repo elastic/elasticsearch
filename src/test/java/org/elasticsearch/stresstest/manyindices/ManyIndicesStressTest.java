@@ -62,8 +62,6 @@ public class ManyIndicesStressTest {
             logger.info("DONE  index [{}] ...", i);
         }
 
-        node.client().admin().indices().prepareGatewaySnapshot().execute().actionGet();
-
         logger.info("closing node...");
         node.close();
         logger.info("node closed");

@@ -600,17 +600,6 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException {
-        IndexShardState state = this.state; // one time volatile read
-        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
-        if (state == IndexShardState.POST_RECOVERY || state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return engine.snapshot(snapshotHandler);
-        } else {
-            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
-        }
-    }
-
-    @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine

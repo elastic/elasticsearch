@@ -195,8 +195,6 @@ public class FullRestartStressTest {
                 bulk.execute().actionGet();
             }
 
-            client.client().admin().indices().prepareGatewaySnapshot().execute().actionGet();
-
             client.close();
             for (Node node : nodes) {
                 File[] nodeDatas = ((InternalNode) node).injector().getInstance(NodeEnvironment.class).nodeDataLocations();

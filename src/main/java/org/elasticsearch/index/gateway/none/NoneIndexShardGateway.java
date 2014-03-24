@@ -25,7 +25,6 @@ import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.index.gateway.SnapshotStatus;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -82,36 +81,6 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     }
 
     @Override
-    public SnapshotStatus snapshot(Snapshot snapshot) {
-        return null;
-    }
-
-    @Override
-    public SnapshotStatus lastSnapshotStatus() {
-        return null;
-    }
-
-    @Override
-    public SnapshotStatus currentSnapshotStatus() {
-        return null;
-    }
-
-    @Override
-    public boolean requiresSnapshot() {
-        return false;
-    }
-
-    @Override
-    public boolean requiresSnapshotScheduling() {
-        return false;
-    }
-
-    @Override
     public void close() {
-    }
-
-    @Override
-    public SnapshotLock obtainSnapshotLock() throws Exception {
-        return NO_SNAPSHOT_LOCK;
     }
 }

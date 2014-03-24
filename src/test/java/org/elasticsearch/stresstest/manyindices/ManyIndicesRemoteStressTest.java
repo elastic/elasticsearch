@@ -66,8 +66,6 @@ public class ManyIndicesRemoteStressTest {
             logger.info("DONE  index [{}]", i);
         }
 
-        client.admin().indices().prepareGatewaySnapshot().execute().actionGet();
-
         logger.info("closing node...");
         if (node != null) {
             node.close();

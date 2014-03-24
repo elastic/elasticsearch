@@ -53,9 +53,6 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequest;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRequestBuilder;
-import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
@@ -492,36 +489,6 @@ public interface IndicesAdminClient {
      * Deletes mapping definition for a type into one or more indices.
      */
     DeleteMappingRequestBuilder prepareDeleteMapping(String... indices);
-
-    /**
-     * Explicitly perform gateway snapshot for one or more indices.
-     *
-     * @param request The gateway snapshot request
-     * @return The result future
-     * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
-     * @deprecated Use snapshot/restore API instead
-     */
-    @Deprecated
-    ActionFuture<GatewaySnapshotResponse> gatewaySnapshot(GatewaySnapshotRequest request);
-
-    /**
-     * Explicitly perform gateway snapshot for one or more indices.
-     *
-     * @param request  The gateway snapshot request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#gatewaySnapshotRequest(String...)
-     * @deprecated Use snapshot/restore API instead
-     */
-    @Deprecated
-    void gatewaySnapshot(GatewaySnapshotRequest request, ActionListener<GatewaySnapshotResponse> listener);
-
-    /**
-     * Explicitly perform gateway snapshot for one or more indices.
-     *
-     * @deprecated Use snapshot/restore API instead
-     */
-    @Deprecated
-    GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices);
 
     /**
      * Allows to add/remove aliases from indices.

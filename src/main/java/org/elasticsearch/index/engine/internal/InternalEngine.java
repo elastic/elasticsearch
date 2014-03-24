@@ -1005,27 +1005,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
     }
 
-    @Override
-    public <T> T snapshot(SnapshotHandler<T> snapshotHandler) throws EngineException {
-        SnapshotIndexCommit snapshotIndexCommit = null;
-        Translog.Snapshot translogSnapshot = null;
-        rwl.readLock().lock();
-        try {
-            snapshotIndexCommit = deletionPolicy.snapshot();
-            translogSnapshot = translog.snapshot();
-        } catch (Throwable e) {
-            Releasables.releaseWhileHandlingException(snapshotIndexCommit);
-            throw new SnapshotFailedEngineException(shardId, e);
-        } finally {
-            rwl.readLock().unlock();
-        }
-
-        try {
-            return snapshotHandler.snapshot(snapshotIndexCommit, translogSnapshot);
-        } finally {
-            Releasables.release(snapshotIndexCommit, translogSnapshot);
-        }
-    }
 
     @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {

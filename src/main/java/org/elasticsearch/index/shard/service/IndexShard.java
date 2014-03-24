@@ -146,8 +146,6 @@ public interface IndexShard extends IndexShardComponent {
 
     void optimize(Engine.Optimize optimize) throws ElasticsearchException;
 
-    <T> T snapshot(Engine.SnapshotHandler<T> snapshotHandler) throws EngineException;
-
     SnapshotIndexCommit snapshotIndex() throws EngineException;
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;

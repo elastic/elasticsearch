@@ -1,7 +1,7 @@
 [[query-dsl-template-query]]
 === Template Query
 
-coming[1.1.0]
+added[1.1.0]
 
 A query that accepts a query template and a map of key/value pairs to fill in
 template parameters.

@@ -37,7 +37,7 @@ to `true`. Note, a merge can potentially be a very heavy operation, so
 it might make sense to run it set to `false`.
 
 `force`:: Force a merge operation, even if there is a single segment in the
-shard with no deletions. coming[1.1.0]
+shard with no deletions. added[1.1.0]
 
 [float]
 [[optimize-multi-index]]

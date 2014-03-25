@@ -20,7 +20,7 @@ equivalents, if one exists.  Example:
 }
 --------------------------------------------------
 
-coming[1.1.0]
+added[1.1.0]
 Accepts `preserve_original` setting which defaults to false but if true
 will keep the oringal token as well as emit the folded token.  For
 example:

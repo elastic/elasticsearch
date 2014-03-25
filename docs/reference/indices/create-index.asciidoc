@@ -109,7 +109,7 @@ curl -XPUT localhost:9200/test -d '{
 [[create-index-aliases]]
 === Aliases
 
-coming[1.1.0]
+added[1.1.0]
 
 The create index API allows also to provide a set of <<indices-aliases,aliases>>:
 

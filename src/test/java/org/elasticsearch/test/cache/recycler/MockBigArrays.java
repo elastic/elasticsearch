@@ -289,8 +289,8 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public void get(long index, int len, BytesRef ref) {
-            in.get(index, len, ref);
+        public boolean get(long index, int len, BytesRef ref) {
+            return in.get(index, len, ref);
         }
 
         @Override

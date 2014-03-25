@@ -65,7 +65,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     }
 
     @Override
-    public void get(long index, int len, BytesRef ref) {
+    public boolean get(long index, int len, BytesRef ref) {
         assert index + len <= size();
         int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
@@ -73,6 +73,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
             ref.bytes = pages[pageIndex];
             ref.offset = indexInPage;
             ref.length = len;
+            return false;
         } else {
             ref.bytes = new byte[len];
             ref.offset = 0;
@@ -84,6 +85,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
                 System.arraycopy(pages[pageIndex], 0, ref.bytes, ref.length, copyLength);
                 ref.length += copyLength;
             } while (ref.length < len);
+            return true;
         }
     }
 

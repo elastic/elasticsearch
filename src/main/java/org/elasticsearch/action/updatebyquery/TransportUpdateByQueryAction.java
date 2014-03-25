@@ -1,11 +1,11 @@
 /*
- * Licensed to ElasticSearch and Shay Banon under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
  *    http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -375,7 +375,7 @@ public class TransportUpdateByQueryAction extends TransportAction<UpdateByQueryR
             }
 
             void handleException(Throwable e, ShardRouting shard) {
-                logger.debug("[{}][{}] error while executing update by query shard request", e, request.index(), shard.id());
+                logger.error("[{}][{}] error while executing update by query shard request", e, request.index(), shard.id());
                 String failure = ExceptionsHelper.detailedMessage(e);
                 shardResponses.set(indexCounter.getAndIncrement(), new ShardUpdateByQueryResponse(shard.id(), failure));
                 if (indexCounter.get() == numberOfExpectedShardResponses) {

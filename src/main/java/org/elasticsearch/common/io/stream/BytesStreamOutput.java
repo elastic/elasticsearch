@@ -153,7 +153,9 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
     @Override
     public BytesReference bytes() {
-        return new PagedBytesReference(bigarrays, bytes, count);
+        BytesRef bref = new BytesRef();
+        bytes.get(0, count, bref);
+        return new BytesArray(bref, false);
     }
 
     private void ensureCapacity(int offset) {

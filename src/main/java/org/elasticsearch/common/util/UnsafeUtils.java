@@ -80,9 +80,12 @@ public enum UnsafeUtils {
     }
 
     /**
-     * Compare <code>b1[o1:o1+len)</code>against <code>b1[o2:o2+len)</code>.
+     * Compare <code>b1[offset1:offset1+length)</code>against <code>b1[offset2:offset2+length)</code>.
      */
-    public static boolean equals(byte[] b1, int o1, byte[] b2, int o2, int len) {
+    public static boolean equals(byte[] b1, int offset1, byte[] b2, int offset2, int length) {
+        int o1 = offset1;
+        int o2 = offset2;
+        int len = length;
         while (len >= 8) {
             if (readLong(b1, o1) != readLong(b2, o2)) {
                 return false;

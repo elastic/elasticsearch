@@ -620,7 +620,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
-            this.fieldType = fieldMergeWith.fieldType;
+            this.fieldType = new FieldType(this.fieldType);
+            this.fieldType.setOmitNorms(fieldMergeWith.fieldType.omitNorms());
+            this.fieldType.freeze();
             this.boost = fieldMergeWith.boost;
             this.normsLoading = fieldMergeWith.normsLoading;
             this.copyTo = fieldMergeWith.copyTo;

@@ -20,9 +20,11 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
@@ -36,8 +38,55 @@ import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource
  */
 public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
-    public static final String EXECUTION_HINT_VALUE_MAP = "map";
-    public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
+    public enum ExecutionMode {
+        MAP(new ParseField("map")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                    InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                    AggregationContext aggregationContext, Aggregator parent) {
+                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+            }
+
+        },
+        ORDINALS(new ParseField("ordinals")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                    InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                    AggregationContext aggregationContext, Aggregator parent) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new StringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
+        };
+
+        public static ExecutionMode fromString(String value) {
+            for (ExecutionMode mode : values()) {
+                if (mode.parseField.match(value)) {
+                    return mode;
+                }
+            }
+            throw new ElasticsearchIllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+        }
+
+        private final ParseField parseField;
+
+        ExecutionMode(ParseField parseField) {
+            this.parseField = parseField;
+        }
+
+        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                InternalOrder order, int requiredSize, int shardSize, long minDocCount,
+                IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent);
+
+        @Override
+        public String toString() {
+            return parseField.getPreferredName();
+        }
+    }
 
     private final InternalOrder order;
     private final int requiredSize;
@@ -113,31 +162,30 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
 
         if (valuesSource instanceof BytesValuesSource) {
-            if (executionHint != null && !executionHint.equals(EXECUTION_HINT_VALUE_MAP) && !executionHint.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
-                throw new ElasticsearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
+            ExecutionMode execution = null;
+            if (executionHint != null) {
+                execution = ExecutionMode.fromString(executionHint);
             }
-            String execution = executionHint;
+
+            // In some cases, using ordinals is just not supported: override it
             if (!(valuesSource instanceof BytesValuesSource.WithOrdinals)) {
-                execution = EXECUTION_HINT_VALUE_MAP;
+                execution = ExecutionMode.MAP;
             } else if (includeExclude != null) {
-                execution = EXECUTION_HINT_VALUE_MAP;
+                execution = ExecutionMode.MAP;
             }
+
             if (execution == null) {
+                // Let's try to use a good default
                 if ((valuesSource instanceof BytesValuesSource.WithOrdinals)
                         && shouldUseOrdinals(parent, valuesSource, aggregationContext)) {
-                    execution = EXECUTION_HINT_VALUE_ORDINALS;
+                    execution = ExecutionMode.ORDINALS;
                 } else {
-                    execution = EXECUTION_HINT_VALUE_MAP;
+                    execution = ExecutionMode.MAP;
                 }
             }
             assert execution != null;
 
-            if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
-                assert includeExclude == null;
-                return new StringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
-            } else {
-                return new StringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
-            }
+            return execution.create(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
         }
 
         if (includeExclude != null) {

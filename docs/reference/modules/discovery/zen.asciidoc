@@ -158,5 +158,5 @@ updates its own cluster state and replies to the master node, which waits for
 all nodes to respond, up to a timeout, before going ahead processing the next
 updates in the queue. The `discovery.zen.publish_timeout` is set by default
 to 30 seconds and can be changed dynamically through the
-<<cluster-update-settings,cluster update settings api>> coming[1.1.0, The
+<<cluster-update-settings,cluster update settings api>> added[1.1.0, The
 setting existed before but wasn't dynamic].

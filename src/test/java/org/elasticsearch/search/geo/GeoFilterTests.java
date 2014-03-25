@@ -54,9 +54,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
@@ -470,8 +468,8 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         String geohash = randomhash(10);
         logger.info("Testing geohash_cell filter for [{}]", geohash);
 
-        Collection<? extends CharSequence> neighbors = GeoHashUtils.neighbors(geohash);
-        Collection<? extends CharSequence> parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length() - 1));
+        List<String> neighbors = GeoHashUtils.neighbors(geohash);
+        List<String> parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length() - 1));
 
         logger.info("Neighbors {}", neighbors);
         logger.info("Parent Neighbors {}", parentNeighbors);
@@ -484,18 +482,16 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
 
         // index neighbors
-        Iterator<? extends CharSequence> iterator = neighbors.iterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("pin", iterator.next()).execute().actionGet();
+        for (int i = 0; i < neighbors.size(); i++) {
+            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("pin", neighbors.get(i)).execute().actionGet();
         }
 
         // Index parent cell
         client().prepareIndex("locations", "location", "p").setCreate(true).setSource("pin", geohash.substring(0, geohash.length() - 1)).execute().actionGet();
 
         // index neighbors
-        iterator = parentNeighbors.iterator();
-        for (int i = 0; iterator.hasNext(); i++) {
-            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("pin", iterator.next()).execute().actionGet();
+        for (int i = 0; i < parentNeighbors.size(); i++) {
+            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("pin", parentNeighbors.get(i)).execute().actionGet();
         }
 
         client().admin().indices().prepareRefresh("locations").execute().actionGet();
@@ -535,24 +531,24 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNeighbors() {
         // Simple root case
-        assertThat(GeoHashUtils.addNeighbors("7", new ArrayList<String>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
+        assertThat(GeoHashUtils.neighbors("7"), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
 
         // Root cases (Outer cells)
-        assertThat(GeoHashUtils.addNeighbors("0", new ArrayList<String>()), containsInAnyOrder("1", "2", "3", "p", "r"));
-        assertThat(GeoHashUtils.addNeighbors("b", new ArrayList<String>()), containsInAnyOrder("8", "9", "c", "x", "z"));
-        assertThat(GeoHashUtils.addNeighbors("p", new ArrayList<String>()), containsInAnyOrder("n", "q", "r", "0", "2"));
-        assertThat(GeoHashUtils.addNeighbors("z", new ArrayList<String>()), containsInAnyOrder("8", "b", "w", "x", "y"));
+        assertThat(GeoHashUtils.neighbors("0"), containsInAnyOrder("1", "2", "3", "p", "r"));
+        assertThat(GeoHashUtils.neighbors("b"), containsInAnyOrder("8", "9", "c", "x", "z"));
+        assertThat(GeoHashUtils.neighbors("p"), containsInAnyOrder("n", "q", "r", "0", "2"));
+        assertThat(GeoHashUtils.neighbors("z"), containsInAnyOrder("8", "b", "w", "x", "y"));
 
         // Root crossing dateline
-        assertThat(GeoHashUtils.addNeighbors("2", new ArrayList<String>()), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
-        assertThat(GeoHashUtils.addNeighbors("r", new ArrayList<String>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
+        assertThat(GeoHashUtils.neighbors("2"), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
+        assertThat(GeoHashUtils.neighbors("r"), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(GeoHashUtils.addNeighbors("dk", new ArrayList<String>()), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+        assertThat(GeoHashUtils.neighbors("dk"), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(GeoHashUtils.addNeighbors("d5", new ArrayList<String>()), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(GeoHashUtils.addNeighbors("d0", new ArrayList<String>()), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
+        assertThat(GeoHashUtils.neighbors("d5"), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(GeoHashUtils.neighbors("d0"), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {

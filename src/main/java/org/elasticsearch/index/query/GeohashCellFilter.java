@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -72,7 +71,7 @@ public class GeohashCellFilter {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<CharSequence> geohashes) {
+    public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<String> geohashes) {
         if (fieldMapper.geoHashStringMapper() == null) {
             throw new ElasticsearchIllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
@@ -255,7 +254,7 @@ public class GeohashCellFilter {
             }
 
             if (neighbors) {
-                return create(parseContext, geoMapper, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                return create(parseContext, geoMapper, geohash, GeoHashUtils.neighbors(geohash));
             } else {
                 return create(parseContext, geoMapper, geohash, null);
             }

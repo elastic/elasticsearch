@@ -20,8 +20,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.List;
 
 
 /**
@@ -114,30 +113,13 @@ public class GeoHashUtils {
     /**
      * Calculate all neighbors of a given geohash cell.
      *
-     * @param geohash Geohash of the defined cell
+     * @param geohash Geohash of the defines cell
      * @return geohashes of all neighbor cells
      */
-    public static Collection<? extends CharSequence> neighbors(String geohash) {
-        return addNeighbors(geohash, geohash.length(), new ArrayList<CharSequence>(8));
+    public static List<String> neighbors(String geohash) {
+        return addNeighbors(geohash, geohash.length(), new ArrayList<String>(8));
     }
 
-    /**
-     * Create an {@link Iterable} which allows to iterate over the cells that
-     * contain a given geohash
-     *   
-     * @param geohash Geohash of a cell
-     * 
-     * @return {@link Iterable} of path
-     */
-    public static Iterable<String> path(final String geohash) {
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return new GeohashPathIterator(geohash);
-            }
-        };
-    }
-    
     /**
      * Calculate the geohash of a neighbor of a geohash
      *
@@ -182,7 +164,7 @@ public class GeoHashUtils {
             final int yLimit = ((level % 2) == 0) ? 3 : 7;
 
             // if the defined neighbor has the same parent a the current cell
-            // encode the cell directly. Otherwise find the cell next to this
+            // encode the cell direcly. Otherwise find the cell next to this
             // cell recursively. Since encoding wraps around within a cell
             // it can be encoded here.
             if (nx >= 0 && nx <= xLimit && ny >= 0 && ny < yLimit) {
@@ -202,24 +184,14 @@ public class GeoHashUtils {
      * Add all geohashes of the cells next to a given geohash to a list.
      *
      * @param geohash   Geohash of a specified cell
-     * @param neighbors list to add the neighbors to
-     * @return the given list
-     */
-    public static final <E extends Collection<? super String>> E addNeighbors(String geohash, E neighbors) {
-        return addNeighbors(geohash, geohash.length(), neighbors);
-    }
-    
-    /**
-     * Add all geohashes of the cells next to a given geohash to a list.
-     *
-     * @param geohash   Geohash of a specified cell
      * @param length    level of the given geohash
      * @param neighbors list to add the neighbors to
      * @return the given list
      */
-    public static final <E extends Collection<? super String>> E addNeighbors(String geohash, int length, E neighbors) {
+    private static final List<String> addNeighbors(String geohash, int length, List<String> neighbors) {
         String south = neighbor(geohash, length, 0, -1);
         String north = neighbor(geohash, length, 0, +1);
+
         if (north != null) {
             neighbors.add(neighbor(north, length, -1, 0));
             neighbors.add(north);

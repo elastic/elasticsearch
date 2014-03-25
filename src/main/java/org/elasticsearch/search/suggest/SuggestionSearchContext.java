@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.search.suggest;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 /**
  */
 public class SuggestionSearchContext {
@@ -48,7 +49,7 @@ public class SuggestionSearchContext {
         private int shardSize = -1;
         private int shardId;
         private String index;
-        
+
         public BytesRef getText() {
             return text;
         }
@@ -60,7 +61,7 @@ public class SuggestionSearchContext {
         public SuggestionContext(Suggester suggester) {
             this.suggester = suggester;
         }
-
+        
         public Suggester<SuggestionContext> getSuggester() {
             return this.suggester;
         }
@@ -119,5 +120,7 @@ public class SuggestionSearchContext {
             return shardId;
         }
     }
+
+   
 
 }

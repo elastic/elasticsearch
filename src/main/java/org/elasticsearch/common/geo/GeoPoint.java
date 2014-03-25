@@ -23,22 +23,12 @@ package org.elasticsearch.common.geo;
 /**
  *
  */
-public final class GeoPoint {
+public class GeoPoint {
 
     private double lat;
     private double lon;
 
     public GeoPoint() {
-    }
-
-    /**
-     * Create a new Geopointform a string. This String must either be a geohash
-     * or a lat-lon tuple.
-     *   
-     * @param value String to create the point from
-     */
-    public GeoPoint(String value) {
-        this.resetFromString(value);
     }
 
     public GeoPoint(double lat, double lon) {

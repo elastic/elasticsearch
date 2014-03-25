@@ -3,10 +3,8 @@
 
 coming[1.1.0]
 
-Using a query template allows to use the mustache language to pre render search requests,
+The `/_search/template` endpoint allows to use the mustache language to pre render search requests,
 before they are executed and fill existing templates with template parameters.
-
-You can use the `/_search/template` endpoint for that.
 
 [source,js]
 ------------------------------------------
@@ -14,7 +12,7 @@ GET /_search/template
 {
     "template" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
-      "size" : {{my_size}}
+      "size" : "{{my_size}}"
     },
     "params" : {
         "my_field" : "foo",
@@ -204,3 +202,22 @@ As written above, this template is not valid JSON because it includes the
 _section_ markers like `{{#line_no}}`.  For this reason, the template
 can only be written as a string.
 
+[float]
+===== Pre-registered template
+
+You can register search templates by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
+In order to execute the stored template, reference it by it's name under the `template` key:
+
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+    "template": "storedTemplate" <1>,
+    "params": {
+        "query_string": "search for these words"
+    }
+}
+------------------------------------------
+
+<1> Name of the the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.

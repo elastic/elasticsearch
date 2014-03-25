@@ -144,6 +144,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                 }
                 if (success) {
                     estimator.afterLoad(estimatedTermsEnum, data.getMemorySizeInBytes());
+                } else {
+                    estimator.afterLoad(estimatedTermsEnum, 0);
                 }
             }
         }

@@ -38,8 +38,10 @@ public interface ByteArray extends BigArray {
 
     /**
      * Get a reference to a slice.
+     * 
+     * @return <code>true</code> when a byte[] was materialized, <code>false</code> otherwise.
      */
-    public abstract void get(long index, int len, BytesRef ref);
+    public abstract boolean get(long index, int len, BytesRef ref);
 
     /**
      * Bulk set.

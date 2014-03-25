@@ -911,6 +911,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 return;
             }
 
+            context.setWithinMultiFields();
+
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
 
@@ -920,6 +922,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             context.path().remove();
             context.path().pathType(origPathType);
+
+            context.clearWithinMultiFields();
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge

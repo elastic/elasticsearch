@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -279,5 +281,25 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
             assertThat(bytesStreamOutput.size(), equalTo(0));
         }
 
+    }
+
+    @Test
+    public void testMultiField() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject()
+                .field("_id", "1")
+                .field("foo")
+                    .startObject()
+                        .field("bar", "Elasticsearch rules!")
+                    .endObject()
+                .endObject();
+
+        Document doc = docMapper.parse(builder.bytes()).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        assertThat(allEntries.fields(), empty());
     }
 }

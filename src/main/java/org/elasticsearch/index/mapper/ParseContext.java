@@ -156,6 +156,7 @@ public class ParseContext {
     private boolean mappingsModified = false;
     private boolean withinNewMapper = false;
     private boolean withinCopyTo = false;
+    private boolean withinMultiFields = false;
 
     private boolean externalValueSet;
 
@@ -235,6 +236,14 @@ public class ParseContext {
 
     public boolean isWithinCopyTo() {
         return withinCopyTo;
+    }
+
+    public void setWithinMultiFields() {
+        this.withinMultiFields = true;
+    }
+
+    public void clearWithinMultiFields() {
+        this.withinMultiFields = false;
     }
 
     public String index() {
@@ -358,6 +367,9 @@ public class ParseContext {
      */
     private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
         if (withinCopyTo) {
+            return false;
+        }
+        if (withinMultiFields) {
             return false;
         }
         if (!docMapper.allFieldMapper().enabled()) {

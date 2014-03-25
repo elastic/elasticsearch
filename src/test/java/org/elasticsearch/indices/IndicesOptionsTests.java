@@ -201,7 +201,9 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
 
         options = IndicesOptions.strict();
         assertAcked(prepareCreate("test2"));
-        ensureYellow();
+        //TODO: temporary work-around for #5531
+        ensureGreen();
+        waitForRelocation();
         verify(snapshot("snap3", "test1", "test2").setIndicesOptions(options), false);
         verify(restore("snap3", "test1", "test2").setIndicesOptions(options), false);
     }
@@ -361,7 +363,9 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(restore("snap2", "foo*", "bar*").setIndicesOptions(options), false);
 
         assertAcked(prepareCreate("barbaz"));
-        ensureYellow();
+        //TODO: temporary work-around for #5531
+        ensureGreen();
+        waitForRelocation();
         options = IndicesOptions.fromOptions(false, false, true, false);
         verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);
         verify(restore("snap3", "foo*", "bar*").setIndicesOptions(options), false);

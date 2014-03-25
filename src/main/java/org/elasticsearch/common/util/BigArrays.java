@@ -127,11 +127,12 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public void get(long index, int len, BytesRef ref) {
+        public boolean get(long index, int len, BytesRef ref) {
             assert indexIsInt(index);
             ref.bytes = array;
             ref.offset = (int) index;
             ref.length = len;
+            return false;
         }
 
         @Override

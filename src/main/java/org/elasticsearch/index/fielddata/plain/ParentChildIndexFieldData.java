@@ -139,13 +139,16 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                 success = true;
                 return data;
             } finally {
-                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                    cursor.value.builder.close();
-                }
-                if (success) {
-                    estimator.afterLoad(estimatedTermsEnum, data.getMemorySizeInBytes());
-                } else {
-                    estimator.afterLoad(estimatedTermsEnum, 0);
+                try {
+                    for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
+                        cursor.value.builder.close();
+                    }
+                } finally {
+                    if (success) {
+                        estimator.afterLoad(estimatedTermsEnum, data.getMemorySizeInBytes());
+                    } else {
+                        estimator.afterLoad(estimatedTermsEnum, 0);
+                    }
                 }
             }
         }

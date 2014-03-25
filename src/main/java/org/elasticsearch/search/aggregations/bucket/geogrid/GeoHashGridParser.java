@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.support.*;
 import org.elasticsearch.search.aggregations.support.geopoints.GeoPointValuesSource;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * Aggregates Geo information into cells determined by geohashes of a given precision.
@@ -129,7 +132,12 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new GeoHashGridAggregator.Unmapped(name, requiredSize, aggregationContext, parent);
+            final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
+            return new NonCollectingAggregator(name, aggregationContext, parent) {
+                public InternalAggregation buildEmptyAggregation() {
+                    return aggregation;
+                }
+            };
         }
 
         @Override

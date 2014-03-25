@@ -71,7 +71,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
         //cleanRepositoryFiles(path);
     }
 
-    //@Test
+    @Test
     public void tstSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);
@@ -81,6 +81,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
                 .setSettings(ImmutableSettings.settingsBuilder()
                 .put("uri", "file://./")
                 .put("path", path)
+                .put("conf", "additional-cfg.xml, conf-2.xml")
                 .put("chunk_size", randomIntBetween(100, 1000))
                 .put("compress", randomBoolean())
                 ).get();

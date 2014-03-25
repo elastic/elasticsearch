@@ -4,7 +4,7 @@ repositories:
         # the path is loaded from higher up (the repository settings)
         path: "tmp/test/snapshot"
         load_defaults: "true"
-        conf_location: "additional-cfg.xml"
+        conf_location: "additional-cfg.xml, conf-2.xml"
         conf.foo: "bar"
         conf.colossal: "rains"
         concurrent_streams: "2"

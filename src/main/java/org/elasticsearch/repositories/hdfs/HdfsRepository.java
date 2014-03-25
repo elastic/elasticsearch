@@ -88,7 +88,9 @@ public class HdfsRepository extends BlobStoreRepository implements Repository {
 
         String confLocation = repositorySettings.settings().get("conf_location", componentSettings.get("conf_location"));
         if (Strings.hasText(confLocation)) {
-            addConfigLocation(cfg, confLocation);
+            for (String entry : Strings.commaDelimitedListToStringArray(confLocation)) {
+                addConfigLocation(cfg, entry.trim());
+            }
         }
 
         Map<String, String> map = componentSettings.getByPrefix("conf.").getAsMap();

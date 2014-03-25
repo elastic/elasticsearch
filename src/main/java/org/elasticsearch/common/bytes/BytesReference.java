@@ -52,6 +52,7 @@ public interface BytesReference {
 
         // pkg-private for testing
         static boolean slowBytesEquals(BytesReference a, BytesReference b) {
+            assert a.length() == b.length();
             for (int i = 0, end = a.length(); i < end; ++i) {
                 if (a.get(i) != b.get(i)) {
                     return false;
@@ -71,7 +72,7 @@ public interface BytesReference {
 
         // pkg-private for testing
         static int hashCode(byte[] array, int offset, int length) {
-            int result = 0;
+            int result = 1;
             for (int i = offset, end = offset + length; i < end; ++i) {
                 result = 31 * result + array[i];
             }
@@ -80,7 +81,7 @@ public interface BytesReference {
 
         // pkg-private for testing
         static int slowHashCode(BytesReference a) {
-            int result = 0;
+            int result = 1;
             for (int i = 0, end = a.length(); i < end; ++i) {
                 result = 31 * result + a.get(i);
             }

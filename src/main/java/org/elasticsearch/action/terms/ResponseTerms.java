@@ -107,19 +107,20 @@ public abstract class ResponseTerms implements Streamable {
         if (indexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData numFieldData = (IndexNumericFieldData) indexFieldData;
             if (numFieldData.getNumericType().isFloatingPoint()) {
-                return new DoublesResponseTerms(collector, numFieldData);
+                return new DoublesResponseTerms(collector, numFieldData, request.maxTermsPerShard());
             } else {
-                return new LongsResponseTerms(collector, numFieldData);
+                return new LongsResponseTerms(collector, numFieldData, request.maxTermsPerShard());
             }
         } else {
             // use bytes or bloom for all non-numeric fields types
             if (request.useBloomFilter()) {
                 BloomResponseTerms bloomTerms =
                         new BloomResponseTerms(collector, indexFieldData, request.bloomFpp(),
-                                request.bloomExpectedInsertions(), request.bloomHashFunctions());
+                                request.bloomExpectedInsertions(), request.bloomHashFunctions(),
+                                request.maxTermsPerShard());
                 return bloomTerms;
             } else {
-                return new BytesResponseTerms(collector, indexFieldData);
+                return new BytesResponseTerms(collector, indexFieldData, request.maxTermsPerShard());
             }
         }
     }
@@ -195,6 +196,13 @@ public abstract class ResponseTerms implements Streamable {
     public abstract Object getTerms();
 
     /**
+     * Returns if the max number of terms has been gathered or not.
+     *
+     * @return true if we have hit the max number of terms, false otherwise.
+     */
+    public abstract boolean isFull();
+
+    /**
      * Process the terms lookup query.
      *
      * @param leaves a list of {@link AtomicReaderContext} the lookup query was executed against.
@@ -207,7 +215,7 @@ public abstract class ResponseTerms implements Streamable {
             load(readerContext);
             DocIdSetIterator iterator = bitSets[i].iterator();
             int docId = 0;
-            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS && !isFull()) {
                 processDoc(docId);
             }
         }
@@ -244,6 +252,7 @@ public abstract class ResponseTerms implements Streamable {
         private transient final IndexFieldData indexFieldData;
         private transient BytesValues values;
         private BloomFilter bloomFilter;
+        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
         private int size = 0;
 
         /**
@@ -263,9 +272,13 @@ public abstract class ResponseTerms implements Streamable {
          * @param numHashFunctions   the number of hash functions to use
          */
         BloomResponseTerms(HitSetCollector collector, IndexFieldData indexFieldData,
-                           Double fpp, Integer expectedInsertions, Integer numHashFunctions) {
+                           Double fpp, Integer expectedInsertions, Integer numHashFunctions, Integer maxTerms) {
             super(collector);
             this.indexFieldData = indexFieldData;
+
+            if (maxTerms != null) {
+                this.maxTerms = maxTerms;
+            }
 
             if (fpp == null) {
                 fpp = 0.03;
@@ -300,7 +313,7 @@ public abstract class ResponseTerms implements Streamable {
         @Override
         protected void processDoc(int docId) {
             final int numVals = values.setDocument(docId);
-            for (int i = 0; i < numVals; i++) {
+            for (int i = 0; i < numVals && !isFull(); i++) {
                 final BytesRef term = values.nextValue();
                 bloomFilter.put(term);
                 size += 1;
@@ -367,6 +380,16 @@ public abstract class ResponseTerms implements Streamable {
         }
 
         /**
+         * Returns if the max number of terms has been gathered or not.
+         *
+         * @return true if we have hit the max number of terms, false otherwise.
+         */
+        @Override
+        public boolean isFull() {
+            return size == maxTerms;
+        }
+
+        /**
          * Deserialize
          *
          * @param in the input
@@ -374,6 +397,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            maxTerms = in.readVInt();
             if (in.readBoolean()) {
                 bloomFilter = BloomFilter.readFrom(in);
             }
@@ -389,6 +413,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(maxTerms);
             if (bloomFilter != null) {
                 out.writeBoolean(true);
                 BloomFilter.writeTo(bloomFilter, out);
@@ -408,9 +433,11 @@ public abstract class ResponseTerms implements Streamable {
     public static class BytesResponseTerms extends ResponseTerms {
 
         private transient final IndexFieldData indexFieldData;
+        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
         private long sizeInBytes;
         private transient BytesValues values;
         private ObjectOpenHashSet<BytesRef> terms;
+
 
         /**
          * Default constructor
@@ -437,10 +464,15 @@ public abstract class ResponseTerms implements Streamable {
          * @param collector      the collector used during the lookup query execution
          * @param indexFieldData the fielddata for the lookup field.
          */
-        BytesResponseTerms(HitSetCollector collector, IndexFieldData indexFieldData) {
+        BytesResponseTerms(HitSetCollector collector, IndexFieldData indexFieldData, Integer maxTerms) {
             super(collector);
+            if (maxTerms != null) {
+                this.maxTerms = maxTerms;
+            }
+
+            int collectorHits = collector.getHits();
             this.indexFieldData = indexFieldData;
-            this.terms = new ObjectOpenHashSet<BytesRef>(optimalSetSize(collector.getHits()));
+            this.terms = new ObjectOpenHashSet<BytesRef>(optimalSetSize(this.maxTerms < collectorHits ? this.maxTerms : collectorHits));
         }
 
         /**
@@ -471,7 +503,7 @@ public abstract class ResponseTerms implements Streamable {
         @Override
         protected void processDoc(int docId) {
             final int numVals = values.setDocument(docId);
-            for (int i = 0; i < numVals; i++) {
+            for (int i = 0; i < numVals && !isFull(); i++) {
                 final BytesRef term = values.nextValue();
                 terms.add(values.copyShared());  // so it is safe to be placed in set
                 sizeInBytes += term.length + 8;  // 8 additional bytes for the 2 ints in a BytesRef
@@ -508,6 +540,17 @@ public abstract class ResponseTerms implements Streamable {
             return Type.BYTES;
         }
 
+
+        /**
+         * Returns if the max number of terms has been gathered or not.
+         *
+         * @return true if we have hit the max number of terms, false otherwise.
+         */
+        @Override
+        public boolean isFull() {
+            return terms.size() == maxTerms;
+        }
+
         /**
          * Deserialize
          *
@@ -517,6 +560,7 @@ public abstract class ResponseTerms implements Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int size = in.readVInt();
+            maxTerms = in.readVInt();
             sizeInBytes = in.readVLong();
             // init set to account large enough to avoid rehashing during insert
             terms = new ObjectOpenHashSet<BytesRef>(optimalSetSize(size));
@@ -535,6 +579,7 @@ public abstract class ResponseTerms implements Streamable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(terms.size());
+            out.writeVInt(maxTerms);
             out.writeVLong(sizeInBytes);
 
             final boolean[] allocated = terms.allocated;
@@ -585,6 +630,7 @@ public abstract class ResponseTerms implements Streamable {
 
         private transient final IndexNumericFieldData indexFieldData;
         private transient LongValues values;
+        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
         private LongOpenHashSet terms;
 
         /**
@@ -612,10 +658,15 @@ public abstract class ResponseTerms implements Streamable {
          * @param collector      the collector used during the lookup query execution
          * @param indexFieldData the fielddata for the lookup field.
          */
-        LongsResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData) {
+        LongsResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData, Integer maxTerms) {
             super(collector);
+            if (maxTerms != null) {
+                this.maxTerms = maxTerms;
+            }
+
+            int collectorHits = collector.getHits();
             this.indexFieldData = indexFieldData;
-            this.terms = new LongOpenHashSet(optimalSetSize(collector.getHits()));
+            this.terms = new LongOpenHashSet(optimalSetSize(this.maxTerms < collectorHits ? this.maxTerms : collectorHits));
         }
 
         /**
@@ -646,7 +697,7 @@ public abstract class ResponseTerms implements Streamable {
         @Override
         protected void processDoc(int docId) {
             final int numVals = values.setDocument(docId);
-            for (int i = 0; i < numVals; i++) {
+            for (int i = 0; i < numVals && !isFull(); i++) {
                 final long term = values.nextValue();
                 terms.add(term);
             }
@@ -679,6 +730,16 @@ public abstract class ResponseTerms implements Streamable {
         }
 
         /**
+         * Returns if the max number of terms has been gathered or not.
+         *
+         * @return true if we have hit the max number of terms, false otherwise.
+         */
+        @Override
+        public boolean isFull() {
+            return terms.size() == maxTerms;
+        }
+
+        /**
          * Deserialize
          *
          * @param in the input
@@ -686,6 +747,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            maxTerms = in.readVInt();
             int size = in.readVInt();
             terms = new LongOpenHashSet(optimalSetSize(size));
             for (int i = 0; i < size; i++) {
@@ -701,6 +763,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(maxTerms);
             out.writeVInt(terms.size());
 
             final boolean[] allocated = terms.allocated;
@@ -751,6 +814,7 @@ public abstract class ResponseTerms implements Streamable {
 
         private transient final IndexNumericFieldData indexFieldData;
         private transient DoubleValues values;
+        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
         private DoubleOpenHashSet terms;
 
         /**
@@ -778,10 +842,15 @@ public abstract class ResponseTerms implements Streamable {
          * @param collector      the collector used during the lookup query execution
          * @param indexFieldData the fielddata for the lookup field.
          */
-        DoublesResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData) {
+        DoublesResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData, Integer maxTerms) {
             super(collector);
+            if (maxTerms != null) {
+                this.maxTerms = maxTerms;
+            }
+
+            int collectorHits = collector.getHits();
             this.indexFieldData = indexFieldData;
-            this.terms = new DoubleOpenHashSet(optimalSetSize(collector.getHits()));
+            this.terms = new DoubleOpenHashSet(optimalSetSize(this.maxTerms < collectorHits ? this.maxTerms : collectorHits));
         }
 
         /**
@@ -812,7 +881,7 @@ public abstract class ResponseTerms implements Streamable {
         @Override
         protected void processDoc(int docId) {
             final int numVals = values.setDocument(docId);
-            for (int i = 0; i < numVals; i++) {
+            for (int i = 0; i < numVals && !isFull(); i++) {
                 final double term = values.nextValue();
                 final long longTerm = Double.doubleToLongBits(term);
                 terms.add(term);
@@ -845,6 +914,11 @@ public abstract class ResponseTerms implements Streamable {
             return Type.DOUBLES;
         }
 
+        @Override
+        public boolean isFull() {
+            return terms.size() == maxTerms;
+        }
+
         /**
          * Deserialize
          *
@@ -853,6 +927,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
+            maxTerms = in.readVInt();
             int size = in.readVInt();
             terms = new DoubleOpenHashSet(optimalSetSize(size));
             for (int i = 0; i < size; i++) {
@@ -868,6 +943,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(maxTerms);
             out.writeVInt(terms.size());
             final boolean[] allocated = terms.allocated;
             final double[] keys = terms.keys;

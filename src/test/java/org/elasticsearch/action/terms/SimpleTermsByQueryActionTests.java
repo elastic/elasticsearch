@@ -43,6 +43,7 @@ public class SimpleTermsByQueryActionTests extends ElasticsearchIntegrationTest 
     public void testTermsByQuery() throws Exception {
         int numShards = randomIntBetween(1, 6);
         int numDocs = randomIntBetween(100, 2000);
+        int maxTermsPerShard = randomIntBetween(1, numDocs / numShards - 1);
 
         logger.info("--> creating index [idx] shards [" + numShards + "]");
         client().admin().indices().prepareCreate("idx").setSettings("index.number_of_shards", numShards, "index.number_of_replicas", 0).execute().actionGet();
@@ -73,6 +74,18 @@ public class SimpleTermsByQueryActionTests extends ElasticsearchIntegrationTest 
             assertThat(bTerms.contains(new BytesRef(Integer.toString(i))), is(true));
         }
 
+        logger.info("--> lookup terms in field [str] with max terms per shard");
+        resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("str")
+                .setFilter(matchAllFilter()).setMaxTermsPerShard(maxTermsPerShard).execute().actionGet();
+
+        ElasticsearchAssertions.assertNoFailures(resp);
+        assertThat(resp.getResponseTerms(), notNullValue());
+        assertThat(resp.getResponseTerms().size(), is(numShards * maxTermsPerShard));
+        assertThat(resp.getResponseTerms() instanceof ResponseTerms.BytesResponseTerms, is(true));
+        assertThat(resp.getResponseTerms().getTerms() instanceof ObjectOpenHashSet, is(true)); // bloom doesn't store terms
+        bTerms = (ObjectOpenHashSet<BytesRef>) resp.getResponseTerms().getTerms();
+        assertThat(bTerms.size(), is(numShards * maxTermsPerShard));
+
         logger.info("--> lookup terms in field [str] with BloomFilter");
         resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("str").setUseBloomFilter(true)
                 .setExpectedInsertions(numDocs).setFilter(matchAllFilter()).execute().actionGet();
@@ -86,6 +99,17 @@ public class SimpleTermsByQueryActionTests extends ElasticsearchIntegrationTest 
         for (int i = 0; i < numDocs; i++) {
             assertThat(bloomFilter.mightContain(new BytesRef(Integer.toString(i))), is(true));
         }
+
+        logger.info("--> lookup terms in field [str] with BloomFilter and max terms per shard");
+        resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("str").setUseBloomFilter(true)
+                .setExpectedInsertions(numDocs).setFilter(matchAllFilter()).setMaxTermsPerShard(maxTermsPerShard)
+                .execute().actionGet();
+
+        ElasticsearchAssertions.assertNoFailures(resp);
+        assertThat(resp.getResponseTerms(), notNullValue());
+        assertThat(resp.getResponseTerms().size(), is(numShards * maxTermsPerShard));
+        assertThat(resp.getResponseTerms() instanceof ResponseTerms.BloomResponseTerms, is(true));
+        assertThat(resp.getResponseTerms().getTerms() instanceof BloomFilter, is(true));
 
         logger.info("--> lookup terms in field [int]");
         resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("int")
@@ -102,6 +126,18 @@ public class SimpleTermsByQueryActionTests extends ElasticsearchIntegrationTest 
             assertThat(lTerms.contains(Long.valueOf(i)), is(true));
         }
 
+        logger.info("--> lookup terms in field [int] with max terms per shard");
+        resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("int")
+                .setFilter(matchAllFilter()).setMaxTermsPerShard(maxTermsPerShard).execute().actionGet();
+
+        ElasticsearchAssertions.assertNoFailures(resp);
+        assertThat(resp.getResponseTerms(), notNullValue());
+        assertThat(resp.getResponseTerms().size(), is(numShards * maxTermsPerShard));
+        assertThat(resp.getResponseTerms() instanceof ResponseTerms.LongsResponseTerms, is(true));
+        assertThat(resp.getResponseTerms().getTerms() instanceof LongOpenHashSet, is(true)); // bloom doesn't store terms
+        lTerms = (LongOpenHashSet) resp.getResponseTerms().getTerms();
+        assertThat(lTerms.size(), is(numShards * maxTermsPerShard));
+
         logger.info("--> lookup terms in field [dbl]");
         resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("dbl")
                 .setFilter(matchAllFilter()).execute().actionGet();
@@ -116,6 +152,18 @@ public class SimpleTermsByQueryActionTests extends ElasticsearchIntegrationTest 
         for (int i = 0; i < numDocs; i++) {
             assertThat(dTerms.contains(Double.valueOf(i)), is(true));
         }
+
+        logger.info("--> lookup terms in field [dbl] with max terms per shard");
+        resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("dbl")
+                .setFilter(matchAllFilter()).setMaxTermsPerShard(maxTermsPerShard).execute().actionGet();
+
+        ElasticsearchAssertions.assertNoFailures(resp);
+        assertThat(resp.getResponseTerms(), notNullValue());
+        assertThat(resp.getResponseTerms().size(), is(numShards * maxTermsPerShard));
+        assertThat(resp.getResponseTerms() instanceof ResponseTerms.DoublesResponseTerms, is(true));
+        assertThat(resp.getResponseTerms().getTerms() instanceof DoubleOpenHashSet, is(true)); // bloom doesn't store terms
+        dTerms = (DoubleOpenHashSet) resp.getResponseTerms().getTerms();
+        assertThat(dTerms.size(), is(numShards * maxTermsPerShard));
 
         logger.info("--> lookup in field [str] with no docs");
         resp = new TermsByQueryRequestBuilder(client()).setIndices("idx").setField("str")

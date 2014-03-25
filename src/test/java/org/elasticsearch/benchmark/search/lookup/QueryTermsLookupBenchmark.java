@@ -98,6 +98,7 @@ public class QueryTermsLookupBenchmark {
         bench.benchHasParentSingleTerm(false);
         bench.benchHasParentMatchAll(false);
         bench.benchHasChildMatchAll(false);
+        bench.benchHasChildMatchAllWithMaxTerms(false);
         bench.benchHasParentRandomTerms(false);
 
         System.gc();
@@ -344,6 +345,60 @@ public class QueryTermsLookupBenchmark {
     }
 
     /**
+     * Search for parent documents but limit each shard to 10k terms
+     * Expect 10k * num_shards parents returned.
+     * <p/>
+     * No bloom test since we can't know exactly how many docs will
+     * be returned considering a duplicate term may exist across
+     * shards thus counting toward maxTermsPerShard but not yielding
+     * any unique hits in the actual query.
+     * <p/>
+     * <p/>
+     * Parent string field = "id"
+     * Parent numeric field = "num"
+     * Child string field = "pid"
+     * Child numeric field = "num"
+     */
+    public void benchHasChildMatchAllWithMaxTerms(boolean cacheLookup) {
+        FilterBuilder lookupFilter = matchAllFilter();
+        QueryBuilder mainQuery = matchAllQuery();
+        int maxTermsPerShard = 10000;
+
+        TermsLookupFilterBuilder stringFilter = termsLookupFilter("id")
+                .index(CHILD_INDEX)
+                .type(CHILD_TYPE)
+                .path("pid")
+                .maxTermsPerShard(maxTermsPerShard)
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
+        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
+                .index(CHILD_INDEX)
+                .type(CHILD_TYPE)
+                .path("num")
+                .maxTermsPerShard(maxTermsPerShard)
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
+        long tookString = 0;
+        long tookNumeric = 0;
+        long tookBloom = 0;
+        long expected = maxTermsPerShard * NUM_SHARDS;
+        warmFieldData("id", "pid");     // for string fields
+        warmFieldData("num", "num");    // for numeric fields
+
+        log("==== HAS CHILD MATCH-ALL (max_terms: " + maxTermsPerShard + " cache: " + cacheLookup + ") ====");
+        for (int i = 0; i < NUM_QUERIES; i++) {
+            tookString += runQuery("string", i, PARENT_INDEX, expected, filteredQuery(mainQuery, stringFilter));
+            tookNumeric += runQuery("numeric", i, PARENT_INDEX, expected, filteredQuery(mainQuery, numericFilter));
+        }
+
+        log("string: " + (tookString / NUM_QUERIES) + "ms avg");
+        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
+        log("");
+    }
+
+    /**
      * Search for children that have a parent with the specified name.
      * Expect NUM_CHILDREN_PER_PARENT since only one parent matching lookup.
      * <p/>
@@ -455,6 +510,7 @@ public class QueryTermsLookupBenchmark {
         log("bloom: " + (tookBloom / NUM_QUERIES) + "ms avg");
         log("");
     }
+
 
     /**
      * Search for children that have a parent with any of the specified names.

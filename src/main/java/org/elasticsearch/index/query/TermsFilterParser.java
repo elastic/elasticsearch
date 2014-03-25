@@ -90,6 +90,7 @@ public class TermsFilterParser implements FilterParser {
         Double lookupBloomFpp = null;
         Integer lookupBloomExpectedInsertions = null;
         Integer lookupBloomHashFunctions = null;
+        Integer lookupMaxTermsPerShard = null;
         boolean lookupCache = true;
 
         CacheKeyFilter.Key cacheKey = null;
@@ -177,6 +178,8 @@ public class TermsFilterParser implements FilterParser {
                             lookupId = parser.text();
                         } else if ("path".equals(currentFieldName)) {
                             lookupPath = parser.text();
+                        } else if ("max_terms_per_shard".equals(currentFieldName) || "maxTermsPerShard".equals(currentFieldName)) {
+                            lookupMaxTermsPerShard = parser.intValue();
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
                         } else if ("cache".equals(currentFieldName)) {
@@ -253,8 +256,15 @@ public class TermsFilterParser implements FilterParser {
             TermsLookup termsLookup;
             if (lookupFilter != null) {
                 final TermsByQueryRequest termsByQueryReq = new TermsByQueryRequest(lookupIndices.toArray(new String[lookupIndices.size()]))
-                        .types(lookupTypes.toArray(new String[lookupTypes.size()])).field(lookupPath)
-                        .routing(lookupRouting).filter(lookupFilter).useBloomFilter(lookupUseBloomFilter);
+                        .types(lookupTypes.toArray(new String[lookupTypes.size()]))
+                        .field(lookupPath)
+                        .routing(lookupRouting)
+                        .filter(lookupFilter)
+                        .useBloomFilter(lookupUseBloomFilter);
+
+                if (lookupMaxTermsPerShard != null) {
+                    termsByQueryReq.maxTermsPerShard(lookupMaxTermsPerShard);
+                }
 
                 if (lookupUseBloomFilter && lookupBloomFpp != null) {
                     termsByQueryReq.bloomFpp(lookupBloomFpp);

@@ -42,6 +42,7 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     private Double bloomFpp;
     private Integer bloomExpectedInsertions;
     private Integer bloomHashFunctions;
+    private Integer maxTermsPerShard;
 
     public TermsLookupFilterBuilder(String name) {
         this.name = name;
@@ -144,6 +145,14 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
+     * Sets the max number of terms to collect per shard.
+     */
+    public TermsLookupFilterBuilder maxTermsPerShard(int maxTermsPerShard) {
+        this.maxTermsPerShard = maxTermsPerShard;
+        return this;
+    }
+
+    /**
      * Sets if the gathered terms should be cached or not
      */
     public TermsLookupFilterBuilder lookupCache(boolean lookupCache) {
@@ -197,6 +206,10 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
 
         if (path != null) {
             builder.field("path", path);
+        }
+
+        if (maxTermsPerShard != null) {
+            builder.field("max_terms_per_shard", maxTermsPerShard);
         }
 
         if (bloomFpp != null || bloomExpectedInsertions != null || bloomHashFunctions != null) {

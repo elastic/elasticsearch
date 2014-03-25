@@ -153,6 +153,14 @@ public class TermsByQueryRequestBuilder extends BroadcastOperationRequestBuilder
     }
 
     /**
+     * The max number of terms collected per shard
+     */
+    public TermsByQueryRequestBuilder setMaxTermsPerShard(int maxTermsPerShard) {
+        request.maxTermsPerShard(maxTermsPerShard);
+        return this;
+    }
+
+    /**
      * Executes the the request
      */
     @Override

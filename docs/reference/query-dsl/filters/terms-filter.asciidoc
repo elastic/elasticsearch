@@ -30,7 +30,7 @@ them in the more compact model that terms filter provides.
 The `execution` option now has the following options :
 
 [horizontal]
-`plain`:: 
+`plain`::
     The default. Works as today. Iterates over all the terms,
     building a bit set matching it, and filtering. The total filter is
     cached.
@@ -38,22 +38,22 @@ The `execution` option now has the following options :
 `fielddata`::
     Generates a terms filters that uses the fielddata cache to
     compare terms.  This execution mode is great to use when filtering
-    on a field that is already loaded into the fielddata cache from 
+    on a field that is already loaded into the fielddata cache from
     faceting, sorting, or index warmers.  When filtering on
     a large number of terms, this execution can be considerably faster
     than the other modes.  The total filter is not cached unless
     explicitly configured to do so.
 
-`bool`:: 
+`bool`::
     Generates a term filter (which is cached) for each term, and
     wraps those in a bool filter. The bool filter itself is not cached as it
     can operate very quickly on the cached term filters.
 
-`and`:: 
+`and`::
     Generates a term filter (which is cached) for each term, and
     wraps those in an and filter. The and filter itself is not cached.
 
-`or`:: 
+`or`::
     Generates a term filter (which is cached) for each term, and
     wraps those in an or filter. The or filter itself is not cached.
     Generally, the `bool` execution mode should be preferred.
@@ -102,25 +102,25 @@ lookup mechanism.
 The terms lookup mechanism supports the following options:
 
 [horizontal]
-`index`:: 
+`index`::
     The index to fetch the term values from. Defaults to the
     current index.
 
-`type`:: 
+`type`::
     The type to fetch the term values from.
 
-`id`:: 
+`id`::
     The id of the document to fetch the term values from.
 
-`path`:: 
+`path`::
     The field specified as path to fetch the actual values for the
     `terms` filter.
 
-`routing`:: 
+`routing`::
     A custom routing value to be used when retrieving the
     external terms doc.
 
-`cache`:: 
+`cache`::
     Whether to cache the filter built from the retrieved document
     (`true` - default) or whether to fetch and rebuild the filter on every
     request (`false`). See "<<query-dsl-terms-filter-lookup-caching,Terms lookup caching>>" below
@@ -148,62 +148,68 @@ over multiple indices, shards, and types.
 The terms lookup by query mechanism supports the following options:
 
 [horizontal]
-`indices` or `index`:: 
+`indices` or `index`::
     One or more indices to execute the lookup query against. Default's
     to all indices if not specified.
 
-`types` or `type`:: 
+`types` or `type`::
     One or more types to execute against.  Default's to all types of
     the configured indices.
 
-`path`:: 
+`path`::
     The field to fetch the actual values from the documents matching
     the lookup query.
 
 `filter`::
     The query filter documents must match for their terms to be collected
     as part of the query lookup.
-    
-`routing`:: 
+
+`max_terms_per_shard`::
+    The maximum number of terms to collect from each shard.  Default's to
+    all terms.
+
+`routing`::
     A custom routing value to be used when executing the lookup query.
 
-`cache`:: 
+`cache`::
     Whether to cache the filter built from the retrieved terms
     (`true` - default) or whether to fetch and rebuild the filter on every
-    request (`false`). See "<<query-dsl-terms-filter-lookup-bloom,Terms lookup caching>>" 
+    request (`false`). See "<<query-dsl-terms-filter-lookup-bloom,Terms lookup caching>>"
     below.
 
 `bloom_filter`::
     Configures the query lookup to gather terms within a bloom filter for
-    more compact term representation at the cost of lookup precision.  See 
+    more compact term representation at the cost of lookup precision.  See
     the "<<query-dsl-terms-filter-lookup-caching,Bloom Filter>>" section below.
-    
-The values for the `terms` filter will be fetched from the `path` field of 
-documents matching the lookup filter.  If the source field is a text based field,
-the cost of gathering a large number of terms can be quite expensive due to
-network latency.  In this situation it is best to use numeric fields or configure
-the lookup to use a "<<query-dsl-terms-filter-lookup-bloom,Bloom Filter>>".
 
-The terms lookup currently only uses the `fielddata` exection mode so proper "<<indices-warmers,Warming>>" is recommended.  Since the filter uses the 
-fielddata cache by default, the resulting filter is not cached unless configured
-to do so.
+The values for the `terms` filter will be fetched from the `path` field of
+documents matching the lookup filter.  If `max_terms_per_shard` is set, then
+the number of terms gathered will be at most `max_terms_per_shard` * NUM_SHARDS.
+If the source field is a text based field, the cost of gathering a large number
+of terms can be quite expensive due to network latency.  In this situation it is
+best to use numeric fields or configure the lookup to use a
+"<<query-dsl-terms-filter-lookup-bloom,Bloom Filter>>".
+
+The terms lookup currently only uses the `fielddata` exection mode so proper "<<indices-warmers,Warming>>" is
+recommended.  Since the filter uses the fielddata cache by default, the resulting filter is not cached unless
+configured to do so.
 
 ["float",id="query-dsl-terms-filter-lookup-bloom"]
 ==== Bloom filter support
 
-When performing a lookup query against a set of text based terms with a high 
+When performing a lookup query against a set of text based terms with a high
 cardinality the cost of transfering these terms over the network can be
 quite expensive resulting in slow response times.  If precision is not
-critical, performance can be considerably better by using a 
+critical, performance can be considerably better by using a
 http://en.wikipedia.org/wiki/Bloom_filter[Bloom Filter]
 for the lookup terms.  To enable the use of the bloom filter, set any of
 the following configuration options on the `bloom_filter` option:
 
 [horizontal]
-`expected_insertions`:: 
-    The expected number of terms to be inserted into the bloom filter.  This 
+`expected_insertions`::
+    The expected number of terms to be inserted into the bloom filter.  This
     value must be greater than 0 and is REQUIRED.
-    
+
 `fpp`::
     The false positive probability.  This is the acceptable percentage of
     terms that can potentially be considered a valid lookup term even though
@@ -214,11 +220,11 @@ the following configuration options on the `bloom_filter` option:
     The number of times a value should be hashed before being inserted into the
     bloom filter.  This value must be between 1 and 255 and by default has an
     optimal value calculated based on the `expected_insertions` and `fpp`.
-    
+
 The optimal bloom filter configuration is very dependent on the number of terms
 gathered from matching documents and the number of terms the filter will actually
 compare against the bloom filter.  For a higher precision (less false positives)
-you can increase the number of `expected_insertions`, lower the `fpp`, or increase 
+you can increase the number of `expected_insertions`, lower the `fpp`, or increase
 the number of `hash_functions`.  As you get a higher precision your response times
 will get slower due to resulting bloom filter getting larger and/or using more CPU
 to calculate the hashes.  Increasing the `fpp` value is typically the only thing
@@ -234,13 +240,13 @@ There is an additional cache involved, which caches the lookup of the
 lookup document to the actual terms. This lookup cache is a LRU cache.
 This cache has the following options:
 
-`indices.cache.filter.terms.size`:: 
+`indices.cache.filter.terms.size`::
     The size of the lookup cache. The default is `10mb`.
 
-`indices.cache.filter.terms.expire_after_access`:: 
+`indices.cache.filter.terms.expire_after_access`::
     The time after the last read an entry should expire. Disabled by default.
 
-`indices.cache.filter.terms.expire_after_write`:: 
+`indices.cache.filter.terms.expire_after_write`::
     The time after the last write an entry should expire. Disabled by default.
 
 All options for the lookup of the documents cache can only be configured
@@ -320,10 +326,10 @@ In which case, the lookup path will be `followers.id`.
 [float]
 ==== Terms lookup by query example
 
-In the following example we are replicating the 
-"<<query-dsl-has-child-filter,HasChild Filter>>" by looking up the 
-"pid" values from children documents with the tag "something" and 
-then filtering only parent documents that have an "id" matching one 
+In the following example we are replicating the
+"<<query-dsl-has-child-filter,HasChild Filter>>" by looking up the
+"pid" values from children documents with the tag "something" and
+then filtering only parent documents that have an "id" matching one
 of the children's "pid" values.
 
 In this example, parents and children are stored in their own indices.

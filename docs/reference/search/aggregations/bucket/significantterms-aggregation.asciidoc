@@ -10,7 +10,7 @@ This feature is marked as experimental, and may be subject to change in the
 future.  If you use this feature, please let us know your experience with it!
 =====
 
-coming[1.1.0]
+added[1.1.0]
 
 
 .Example use cases:

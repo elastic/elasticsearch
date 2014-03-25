@@ -146,7 +146,7 @@ All the disable allocation settings have been deprecated in favour for
 `discovery.zen.minimum_master_nodes`::
      See <<modules-discovery-zen>>
 
-`discovery.zen.publish_timeout` coming[1.1.0, The setting existed before but wasn't dynamic]::
+`discovery.zen.publish_timeout` added[1.1.0, The setting existed before but wasn't dynamic]::
      See <<modules-discovery-zen>>
 
 [float]

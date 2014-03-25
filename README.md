@@ -11,6 +11,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |   Attachment Mapper Plugin  | elasticsearch         |  Tika  | Release date |
 |-----------------------------|-----------------------|--------|:------------:|
+| 2.1.0-SNAPSHOT              | 1.0.0.RC1 -> master   |  1.5   |  XXXX-XX-XX  |
 | 2.0.0                       | 1.0.0.RC1 -> master   |  1.5   |  2014-03-25  |
 | 2.0.0.RC1                   | 1.0.0.RC1 -> master   |  1.4   |  2014-01-15  |
 

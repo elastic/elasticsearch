@@ -38,7 +38,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -61,7 +60,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
 
     public static String randomExecutionHint() {
-        return randomFrom(Arrays.asList(null, TermsAggregatorFactory.EXECUTION_HINT_VALUE_MAP, TermsAggregatorFactory.EXECUTION_HINT_VALUE_ORDINALS));
+        return randomBoolean() ? null : randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
     @Before

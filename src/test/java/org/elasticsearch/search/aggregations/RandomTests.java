@@ -191,8 +191,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         SearchResponse resp = client().prepareSearch("idx")
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.EXECUTION_HINT_VALUE_MAP).size(maxNumTerms).subAggregation(stats("stats").field("num")))
-                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.EXECUTION_HINT_VALUE_ORDINALS).size(maxNumTerms).subAggregation(extendedStats("stats").field("num"))).execute().actionGet();
+                .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num"))).execute().actionGet();
         assertEquals(0, resp.getFailedShards());
 
         final Terms longTerms = resp.getAggregations().get("long");

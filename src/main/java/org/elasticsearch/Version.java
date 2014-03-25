@@ -180,6 +180,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_1_0_3_ID:
+                return V_1_0_3;
             case V_1_0_2_ID:
                 return V_1_0_2;
             case V_1_0_1_ID:

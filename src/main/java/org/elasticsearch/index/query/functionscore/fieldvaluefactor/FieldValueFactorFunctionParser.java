@@ -72,6 +72,10 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
             }
         }
 
+        if (field == null) {
+            throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] required field 'field' missing");
+        }
+
         return new FieldValueFactorFunction(field, boostFactor, modifier, lenient);
     }
 

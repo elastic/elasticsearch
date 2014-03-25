@@ -20,8 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -58,7 +57,13 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        return new UnmappedTermsAggregator(name, order, requiredSize, minDocCount, aggregationContext, parent);
+        final InternalAggregation aggregation = new UnmappedTerms(name, order, requiredSize, minDocCount);
+        return new NonCollectingAggregator(name, aggregationContext, parent) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return aggregation;
+            }
+        };
     }
 
     private static boolean hasParentBucketAggregator(Aggregator parent) {

@@ -61,7 +61,7 @@ repositories
     uri: "hdfs://<host>:<port>/"    # optional - Hadoop file-system URI
     path: "some/path"               # required - path with the file-system where data is stored/loaded
     load_defaults: "true"           # optional - whether to load the default Hadoop configuration (default) or not
-    conf_location: "extra-cfg.xml"  # optional - Hadoop configuration XML to be loaded
+    conf_location: "extra-cfg.xml"  # optional - Hadoop configuration XML to be loaded (use commas for multi values)
     conf.<key> : "<value>"          # optional - 'inlined' key=value added to the Hadoop configuration
     concurrent_streams: 5           # optional - the number of concurrent streams (defaults to 5)
     compress: "false"               # optional - whether to compress the data or not (default)

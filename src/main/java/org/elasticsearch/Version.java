@@ -148,6 +148,8 @@ public class Version implements Serializable {
     public static final Version V_0_90_12 = new Version(V_0_90_12_ID, false, org.apache.lucene.util.Version.LUCENE_46);
     public static final int V_0_90_13_ID = /*00*/901399;
     public static final Version V_0_90_13 = new Version(V_0_90_13_ID, false, org.apache.lucene.util.Version.LUCENE_46);
+    public static final int V_0_90_14_ID = /*00*/901499;
+    public static final Version V_0_90_14 = new Version(V_0_90_14_ID, false, org.apache.lucene.util.Version.LUCENE_46);
 
     public static final int V_1_0_0_Beta1_ID = /*00*/1000001;
     public static final Version V_1_0_0_Beta1 = new Version(V_1_0_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_45);
@@ -163,8 +165,12 @@ public class Version implements Serializable {
     public static final Version V_1_0_1 = new Version(V_1_0_1_ID, false, org.apache.lucene.util.Version.LUCENE_46);
     public static final int V_1_0_2_ID = /*00*/1000299;
     public static final Version V_1_0_2 = new Version(V_1_0_2_ID, false, org.apache.lucene.util.Version.LUCENE_46);
+    public static final int V_1_0_3_ID = /*00*/1000399;
+    public static final Version V_1_0_3 = new Version(V_1_0_3_ID, false, org.apache.lucene.util.Version.LUCENE_46);
     public static final int V_1_1_0_ID = /*00*/1010099;
     public static final Version V_1_1_0 = new Version(V_1_1_0_ID, false, org.apache.lucene.util.Version.LUCENE_47);
+    public static final int V_1_1_1_ID = /*00*/1010199;
+    public static final Version V_1_1_1 = new Version(V_1_1_1_ID, false, org.apache.lucene.util.Version.LUCENE_47);
     public static final int V_1_2_0_ID = /*00*/1020099;
     public static final Version V_1_2_0 = new Version(V_1_2_0_ID, false, org.apache.lucene.util.Version.LUCENE_47);
     public static final int V_2_0_0_ID = /*00*/2000099;
@@ -186,8 +192,12 @@ public class Version implements Serializable {
                 return V_2_0_0;
             case V_1_2_0_ID:
                 return V_1_2_0;
+            case V_1_1_1_ID:
+                return V_1_1_1;
             case V_1_1_0_ID:
                 return V_1_1_0;
+            case V_1_0_3_ID:
+                return V_1_0_3;
             case V_1_0_2_ID:
                 return V_1_0_2;
             case V_1_0_1_ID:
@@ -202,6 +212,8 @@ public class Version implements Serializable {
                 return V_1_0_0_Beta2;
             case V_1_0_0_Beta1_ID:
                 return V_1_0_0_Beta1;
+            case V_0_90_14_ID:
+                return V_0_90_14;
             case V_0_90_13_ID:
                 return V_0_90_13;
             case V_0_90_12_ID:

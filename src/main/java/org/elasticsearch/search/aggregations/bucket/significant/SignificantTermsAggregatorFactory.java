@@ -31,8 +31,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -86,7 +85,13 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        return new UnmappedSignificantTermsAggregator(name, requiredSize, minDocCount, aggregationContext, parent, this);
+        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, requiredSize, minDocCount);
+        return new NonCollectingAggregator(name, aggregationContext, parent) {
+            @Override
+            public InternalAggregation buildEmptyAggregation() {
+                return aggregation;
+            }
+        };
     }
 
     private static boolean hasParentBucketAggregator(Aggregator parent) {

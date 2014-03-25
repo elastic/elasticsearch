@@ -20,12 +20,12 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 
@@ -134,38 +134,6 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     @Override
     public void doRelease() {
         Releasables.release(bucketOrds);
-    }    
-    
-    public static class Unmapped extends Aggregator {
-        private int requiredSize;
-        public Unmapped(String name, int requiredSize, AggregationContext aggregationContext, Aggregator parent) {
-            
-            super(name, BucketAggregationMode.PER_BUCKET, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
-            this.requiredSize=requiredSize;
-        }
-
-        @Override
-        public boolean shouldCollect() {
-            return false;
-        }
-
-        @Override
-        public void setNextReader(AtomicReaderContext reader) {
-        }
-
-        @Override
-        public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        }
-
-        @Override
-        public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) {
-            return (InternalGeoHashGrid) buildEmptyAggregation();
-        }
-
-        @Override
-        public InternalGeoHashGrid buildEmptyAggregation() {
-            return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
-        }
-    }    
+    }
 
 }

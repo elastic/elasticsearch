@@ -22,10 +22,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
@@ -237,7 +234,7 @@ public class RangeAggregator extends BucketsAggregator {
         }.sort(0, ranges.length);
     }
 
-    public static class Unmapped extends Aggregator {
+    public static class Unmapped extends NonCollectingAggregator {
 
         private final List<RangeAggregator.Range> ranges;
         private final boolean keyed;
@@ -254,7 +251,7 @@ public class RangeAggregator extends BucketsAggregator {
                         Aggregator parent,
                         InternalRange.Factory factory) {
 
-            super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 0, aggregationContext, parent);
+            super(name, aggregationContext, parent);
             this.ranges = ranges;
             for (Range range : this.ranges) {
                 range.process(parser, context);
@@ -266,25 +263,7 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public boolean shouldCollect() {
-            return false;
-        }
-
-        @Override
-        public void setNextReader(AtomicReaderContext reader) {
-        }
-
-        @Override
-        public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        }
-
-        @Override
-        public InternalRange buildAggregation(long owningBucketOrdinal) {
-            return buildEmptyAggregation();
-        }
-
-        @Override
-        public InternalRange buildEmptyAggregation() {
+        public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets =
                     new ArrayList<>(ranges.size());

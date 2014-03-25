@@ -30,6 +30,7 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryString;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
@@ -47,38 +48,50 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
                         .startObject("type1")
                         .startObject("properties")
                         .startObject("test")
-                        .field("type", randomFrom(new String[] {"short", "float", "long", "integer", "double"}))
+                        .field("type", randomFrom(new String[]{"short", "float", "long", "integer", "double"}))
+                        .endObject()
+                        .startObject("body")
+                        .field("type", "string")
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()).get());
         ensureYellow();
 
-        client().prepareIndex("test", "type1", "1").setSource("test", 5).get();
-        client().prepareIndex("test", "type1", "2").setSource("test", 7).get();
+        client().prepareIndex("test", "type1", "1").setSource("test", 5, "body", "foo").get();
+        client().prepareIndex("test", "type1", "2").setSource("test", 7, "body", "foo").get();
+        client().prepareIndex("test", "type1", "3").setSource("body", "foo").get();
 
         refresh();
 
         // document 2 scores higher because 7 > 5
         SearchResponse response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("test")))
+                .setQuery(functionScoreQuery(simpleQueryString("foo"), fieldValueFactorFunction("test")))
                 .get();
         assertOrderedSearchHits(response, "2", "1");
 
         // document 1 scores higher because 1/5 > 1/7
         response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(matchAllQuery(),
+                .setQuery(functionScoreQuery(simpleQueryString("foo"),
                         fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL)))
                 .get();
         assertOrderedSearchHits(response, "1", "2");
+
+        // even though doc 3 doesn't have a "test" field, it should be ignored
+        response = client().prepareSearch("test")
+                .setExplain(randomBoolean())
+                .setQuery(functionScoreQuery(matchAllQuery(),
+                        fieldValueFactorFunction("test").ignoreMissing(true)))
+                .get();
+        assertOrderedSearchHits(response, "2", "1", "3");
 
         // n divided by 0 is infinity, which should provoke an exception.
         try {
             response = client().prepareSearch("test")
                     .setExplain(randomBoolean())
-                    .setQuery(functionScoreQuery(matchAllQuery(),
+                    .setQuery(functionScoreQuery(simpleQueryString("foo"),
                             fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).factor(0)))
                     .get();
             assertFailures(response);
@@ -86,15 +99,5 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
             // This is fine, the query will throw an exception if executed
             // locally, instead of just having failures
         }
-
-        // Same case, but with the lenient flag
-        response = client().prepareSearch("test")
-                .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(matchAllQuery(),
-                        fieldValueFactorFunction("test").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).factor(0).lenient(true)))
-                .get();
-        // Order doesn't matter here, only that no exceptions were thrown with the lenient flag.
-        assertNoFailures(response);
-        assertHitCount(response, 2);
     }
 }

@@ -33,7 +33,7 @@ import java.util.Locale;
 public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
     private String field = null;
     private Float factor = null;
-    private Boolean lenient = null;
+    private Boolean ignoreMissing = null;
     private FieldValueFactorFunction.Modifier modifier = null;
 
     public FieldValueFactorFunctionBuilder(String fieldName) {
@@ -55,8 +55,8 @@ public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
         return this;
     }
 
-    public FieldValueFactorFunctionBuilder lenient(boolean lenient) {
-        this.lenient = lenient;
+    public FieldValueFactorFunctionBuilder ignoreMissing(boolean ignoreMissing) {
+        this.ignoreMissing = ignoreMissing;
         return this;
     }
 
@@ -75,8 +75,8 @@ public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
             builder.field("modifier", modifier.toString().toLowerCase(Locale.ROOT));
         }
 
-        if (lenient != null) {
-            builder.field("lenient", lenient);
+        if (ignoreMissing != null) {
+            builder.field("ignore_missing", ignoreMissing);
         }
         builder.endObject();
         return builder;

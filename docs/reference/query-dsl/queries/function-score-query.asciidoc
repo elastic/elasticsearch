@@ -278,9 +278,9 @@ There are a number of options for the `field_value_factor` function:
 |`factor` |Optional factor to multiply the field value with, defaults to 1.
 |`modifier` |Modifier to apply to the field value, can be one of: `none`, `log`,
  `ln`, `square`, `sqrt`, or `reciprocal`. Defaults to `none`.
-|`lenient` |Flag specifying whether to ignore non-numeric results (NaN and
- Infinity), defaults to false, meaning an exception will be thrown on dividing
- by zero or taking the square root of a negative number.
+|`ignore_missing` |Flag specifying whether to return the score unmodified if the
+ field does not exist. Defaults to false, meaning an exception will be thrown if
+ the field is not in the document.
 |=======================================================================
 
 ==== Detailed example

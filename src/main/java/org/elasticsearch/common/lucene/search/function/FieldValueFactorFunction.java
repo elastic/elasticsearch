@@ -40,15 +40,15 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
-    private final boolean lenient;
+    private final boolean ignoreMissing;
     private AtomicReaderContext currentContext;
 
-    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, boolean lenient) {
+    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, boolean ignoreMissing) {
         super(CombineFunction.MULT);
         this.field = field;
         this.boostFactor = boostFactor;
         this.modifier = modifierType;
-        this.lenient = lenient;
+        this.ignoreMissing = ignoreMissing;
     }
 
     @Override
@@ -75,9 +75,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 } else {
                     throw new ElasticsearchException("Invalid data type for field [" + field + "]");
                 }
-                return subQueryScore * Modifier.apply(modifier, val * boostFactor, lenient);
+                return subQueryScore * Modifier.apply(modifier, val * boostFactor);
             } else {
-                return subQueryScore;
+                if (ignoreMissing) {
+                    return subQueryScore;
+                } else {
+                    throw new ElasticsearchException("Invalid data type for field [" + field + "]");
+                }
             }
         }
         throw new ElasticsearchException("Unable to find a fieldmapper for field [" + field + "]");
@@ -108,7 +112,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
         SQRT,
         RECIPROCAL;
 
-        public static double apply(Modifier t, double n, boolean lenient) {
+        public static double apply(Modifier t, double n) {
             if (t == null) {
                 return n;
             }
@@ -134,12 +138,8 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 default: throw new ElasticsearchIllegalArgumentException("Unknown modifier type: [" + t + "]");
             }
             if (Double.isNaN(result) || Double.isInfinite(result)) {
-                if (lenient) {
-                    return 0;
-                } else {
-                    throw new ElasticsearchException("Result of field modification [" + t.toString() +
-                            "(" + n + ")] must be a number");
-                }
+                throw new ElasticsearchException("Result of field modification [" + t.toString() +
+                        "(" + n + ")] must be a number");
             }
             return result;
         }

@@ -101,49 +101,54 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
             TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
             ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
             try {
-                DocsEnum docsEnum = null;
-                for (BytesRef term = estimatedTermsEnum.next(); term != null; term = estimatedTermsEnum.next()) {
-                    // Usually this would be estimatedTermsEnum, but the
-                    // abstract TermsEnum class does not support the .type()
-                    // and .id() methods, so we skip using the wrapped
-                    // TermsEnum and delegate directly to the
-                    // ParentChildFilteredTermsEnum that was originally wrapped
-                    String type = termsEnum.type();
-                    TypeBuilder typeBuilder = typeBuilders.get(type);
-                    if (typeBuilder == null) {
-                        typeBuilders.put(type, typeBuilder = new TypeBuilder(acceptableTransientOverheadRatio, reader));
+                try {
+                    DocsEnum docsEnum = null;
+                    for (BytesRef term = estimatedTermsEnum.next(); term != null; term = estimatedTermsEnum.next()) {
+                        // Usually this would be estimatedTermsEnum, but the
+                        // abstract TermsEnum class does not support the .type()
+                        // and .id() methods, so we skip using the wrapped
+                        // TermsEnum and delegate directly to the
+                        // ParentChildFilteredTermsEnum that was originally wrapped
+                        String type = termsEnum.type();
+                        TypeBuilder typeBuilder = typeBuilders.get(type);
+                        if (typeBuilder == null) {
+                            typeBuilders.put(type, typeBuilder = new TypeBuilder(acceptableTransientOverheadRatio, reader));
+                        }
+
+                        BytesRef id = termsEnum.id();
+                        final long termOrd = typeBuilder.builder.nextOrdinal();
+                        assert termOrd == typeBuilder.termOrdToBytesOffset.size();
+                        typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
+                        docsEnum = estimatedTermsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
+                        for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            typeBuilder.builder.addDoc(docId);
+                        }
                     }
 
-                    BytesRef id = termsEnum.id();
-                    final long termOrd = typeBuilder.builder.nextOrdinal();
-                    assert termOrd == typeBuilder.termOrdToBytesOffset.size();
-                    typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
-                    docsEnum = estimatedTermsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
-                    for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                        typeBuilder.builder.addDoc(docId);
+                    ImmutableOpenMap.Builder<String, PagedBytesAtomicFieldData> typeToAtomicFieldData = ImmutableOpenMap.builder(typeBuilders.size());
+                    for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
+                        final long sizePointer = cursor.value.bytes.getPointer();
+                        PagedBytes.Reader bytesReader = cursor.value.bytes.freeze(true);
+                        final Ordinals ordinals = cursor.value.builder.build(fieldDataType.getSettings());
+
+                        typeToAtomicFieldData.put(
+                                cursor.key,
+                                new PagedBytesAtomicFieldData(bytesReader, sizePointer, cursor.value.termOrdToBytesOffset, ordinals)
+                        );
+                    }
+                    data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
+                } finally {
+                    for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
+                        cursor.value.builder.close();
                     }
                 }
-
-                ImmutableOpenMap.Builder<String, PagedBytesAtomicFieldData> typeToAtomicFieldData = ImmutableOpenMap.builder(typeBuilders.size());
-                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                    final long sizePointer = cursor.value.bytes.getPointer();
-                    PagedBytes.Reader bytesReader = cursor.value.bytes.freeze(true);
-                    final Ordinals ordinals = cursor.value.builder.build(fieldDataType.getSettings());
-
-                    typeToAtomicFieldData.put(
-                            cursor.key,
-                            new PagedBytesAtomicFieldData(bytesReader, sizePointer, cursor.value.termOrdToBytesOffset, ordinals)
-                    );
-                }
-                data = new ParentChildAtomicFieldData(typeToAtomicFieldData.build());
                 success = true;
                 return data;
             } finally {
-                for (ObjectObjectCursor<String, TypeBuilder> cursor : typeBuilders) {
-                    cursor.value.builder.close();
-                }
                 if (success) {
                     estimator.afterLoad(estimatedTermsEnum, data.getMemorySizeInBytes());
+                } else {
+                    estimator.afterLoad(estimatedTermsEnum, 0);
                 }
             }
         }

@@ -42,7 +42,7 @@ GET /_search
 <1> New line characters (`\n`) should be escaped as `\\n` or removed,
     and quotes (`"`) should be escaped as `\\"`.
 
-You can register a template by storing it in the `config/scripts` directory.
+You can register a template by storing it in the `config/scripts` directory, in a file using the `.mustache` extension.
 In order to execute the stored template, reference it by name in the `query`
 parameter:
 
@@ -62,7 +62,7 @@ GET /_search
 }
 
 ------------------------------------------
-<1> Name of the the query template in `config/scripts/`.
+<1> Name of the the query template in `config/scripts/`, i.e., `storedTemplate.mustache`.
 
 Templating is based on Mustache. For simple token substitution all you provide
 is a query containing some variable that you want to substitute and the actual
@@ -95,6 +95,6 @@ which is then turned into:
 }
 ------------------------------------------
 
-There is also a dedicated `template` endpoint, which allows you to specify the template query directly.
-You can use the `/_search/template` endpoint for that. Please see <<search-template>> for more details.
+There is also a dedicated `template` endpoint, allows you to template an entire search request.
+Please see <<search-template>> for more details.
 

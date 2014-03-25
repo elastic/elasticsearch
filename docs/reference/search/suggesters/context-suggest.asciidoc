@@ -1,6 +1,8 @@
 [[suggester-context]]
 == Context Suggester
 
+coming[1.2.0]
+
 The context suggester is an extension to the suggest API of Elasticsearch. Namely the
 suggester system provides a very fast way of searching documents by handling these
 entirely in memory. But this special treatenment does not allow the handling of

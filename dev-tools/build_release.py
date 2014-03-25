@@ -222,6 +222,9 @@ def add_pending_files(*files):
 def commit_release(release):
   run('git commit -m "release [%s]"' % release)
 
+def commit_feature_flags(release):
+    run('git commit -m "Update Documentation Feature Flags [%s]"' % release)
+
 def tag_release(release):
   run('git tag -a v%s -m "Tag release version %s"' % (release, release))
 
@@ -525,10 +528,16 @@ if __name__ == '__main__':
       pending_files = [POM_FILE, VERSION_FILE]
       remove_maven_snapshot(POM_FILE, release_version)
       remove_version_snapshot(VERSION_FILE, release_version)
-      pending_files = pending_files + update_reference_docs(release_version)
       print('  Done removing snapshot version')
       add_pending_files(*pending_files) # expects var args use * to expand
       commit_release(release_version)
+      pending_files = update_reference_docs(release_version)
+      version_head_hash = None
+      # split commits for docs and version to enable easy cherry-picking
+      if pending_files:
+        add_pending_files(*pending_files) # expects var args use * to expand
+        commit_feature_flags(release_version)
+        version_head_hash = get_head_hash()
       print('  Committed release version [%s]' % release_version)
       print(''.join(['-' for _ in range(80)]))
       print('Building Release candidate')
@@ -548,6 +557,9 @@ if __name__ == '__main__':
       merge_tag_push(remote, src_branch, release_version, dry_run)
       print('  publish artifacts to S3 -- dry_run: %s' % dry_run)
       publish_artifacts(artifacts_and_checksum, dry_run=dry_run)
+      cherry_pick_command = '.'
+      if version_head_hash:
+        cherry_pick_command = ' and cherry-pick the documentation changes: \'git cherry-pick %s\' to the development branch' % (version_head_hash)
       pending_msg = """
       Release successful pending steps:
         * create a version tag on github for version 'v%(version)s'
@@ -558,8 +570,9 @@ if __name__ == '__main__':
         * announce the release on the website / blog post
         * tweet about the release
         * announce the release in the google group/mailinglist
+        * Move to a Snapshot version to the current branch for the next point release%(cherry_pick)s
       """
-      print(pending_msg % { 'version' : release_version} )
+      print(pending_msg % { 'version' : release_version, 'cherry_pick' : cherry_pick_command} )
       success = True
     finally:
       if not success:

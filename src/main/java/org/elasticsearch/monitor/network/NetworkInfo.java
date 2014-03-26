@@ -59,6 +59,7 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
     static final class Fields {
         static final XContentBuilderString NETWORK = new XContentBuilderString("network");
         static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
         static final XContentBuilderString PRIMARY_INTERFACE = new XContentBuilderString("primary_interface");
         static final XContentBuilderString ADDRESS = new XContentBuilderString("address");
         static final XContentBuilderString NAME = new XContentBuilderString("name");
@@ -68,7 +69,7 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.NETWORK);
-        builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
         if (primary != NA_INTERFACE) {
             builder.startObject(Fields.PRIMARY_INTERFACE);
             builder.field(Fields.ADDRESS, primary.address());

@@ -40,15 +40,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
-    private final boolean ignoreMissing;
     private AtomicReaderContext currentContext;
 
-    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, boolean ignoreMissing) {
+    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType) {
         super(CombineFunction.MULT);
         this.field = field;
         this.boostFactor = boostFactor;
         this.modifier = modifierType;
-        this.ignoreMissing = ignoreMissing;
     }
 
     @Override
@@ -77,11 +75,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 }
                 return Modifier.apply(modifier, val * boostFactor);
             } else {
-                if (ignoreMissing) {
-                    return 0;
-                } else {
-                    throw new ElasticsearchException("Missing value for field [" + field + "]");
-                }
+                throw new ElasticsearchException("Missing value for field [" + field + "]");
             }
         }
         throw new ElasticsearchException("Unable to find a fieldmapper for field [" + field + "]");

@@ -79,13 +79,16 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
                 .get();
         assertOrderedSearchHits(response, "1", "2");
 
-        // even though doc 3 doesn't have a "test" field, it should be ignored
-        response = client().prepareSearch("test")
-                .setExplain(randomBoolean())
-                .setQuery(functionScoreQuery(matchAllQuery(),
-                        fieldValueFactorFunction("test").ignoreMissing(true)))
-                .get();
-        assertOrderedSearchHits(response, "2", "1", "3");
+        // doc 3 doesn't have a "test" field, so an exception will be thrown
+        try {
+            response = client().prepareSearch("test")
+                    .setExplain(randomBoolean())
+                    .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("test")))
+                    .get();
+            assertFailures(response);
+        } catch (SearchPhaseExecutionException e) {
+            // We are expecting an exception, because 3 has no field
+        }
 
         // n divided by 0 is infinity, which should provoke an exception.
         try {

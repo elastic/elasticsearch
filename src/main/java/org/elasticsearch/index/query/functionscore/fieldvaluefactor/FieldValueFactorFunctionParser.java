@@ -50,7 +50,6 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
 
         String currentFieldName = null;
         String field = null;
-        boolean ignoreMissing = false;
         float boostFactor = 1;
         FieldValueFactorFunction.Modifier modifier = null;
         XContentParser.Token token;
@@ -64,8 +63,6 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                     boostFactor = parser.floatValue();
                 } else if ("modifier".equals(currentFieldName)) {
                     modifier = FieldValueFactorFunction.Modifier.valueOf(parser.text().toUpperCase(Locale.ROOT));
-                } else if ("ignore_missing".equals(currentFieldName)) {
-                    ignoreMissing = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
@@ -76,7 +73,7 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
             throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] required field 'field' missing");
         }
 
-        return new FieldValueFactorFunction(field, boostFactor, modifier, ignoreMissing);
+        return new FieldValueFactorFunction(field, boostFactor, modifier);
     }
 
     @Override

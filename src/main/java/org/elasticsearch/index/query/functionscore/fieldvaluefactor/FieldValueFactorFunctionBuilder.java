@@ -33,7 +33,6 @@ import java.util.Locale;
 public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
     private String field = null;
     private Float factor = null;
-    private Boolean ignoreMissing = null;
     private FieldValueFactorFunction.Modifier modifier = null;
 
     public FieldValueFactorFunctionBuilder(String fieldName) {
@@ -55,11 +54,6 @@ public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
         return this;
     }
 
-    public FieldValueFactorFunctionBuilder ignoreMissing(boolean ignoreMissing) {
-        this.ignoreMissing = ignoreMissing;
-        return this;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
@@ -73,10 +67,6 @@ public class FieldValueFactorFunctionBuilder implements ScoreFunctionBuilder {
 
         if (modifier != null) {
             builder.field("modifier", modifier.toString().toLowerCase(Locale.ROOT));
-        }
-
-        if (ignoreMissing != null) {
-            builder.field("ignore_missing", ignoreMissing);
         }
         builder.endObject();
         return builder;

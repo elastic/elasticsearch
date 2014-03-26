@@ -19,11 +19,14 @@
 
 package org.elasticsearch.test.engine;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.ElasticSearchException;
 import org.apache.lucene.search.XSearcherManager;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,12 +46,10 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,7 +72,7 @@ public final class MockRobinEngine extends RobinEngine implements Engine {
                            CodecService codecService) throws EngineException {
         super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
                 deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
-        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.INDEX_SEED_SETTING, 0l);
+        final long seed = indexSettings.getAsLong(TestCluster.SETTING_INDEX_SEED, 0l);
         random = new Random(seed);
         final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
         wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);

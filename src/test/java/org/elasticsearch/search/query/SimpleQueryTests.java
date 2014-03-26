@@ -74,7 +74,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         SearchHit[] hits = searchResponse.getHits().hits();
         assertThat(hits.length, equalTo(3));
         assertThat(hits[0].score(), allOf(equalTo(hits[1].getScore()), equalTo(hits[2].getScore())));
-        wipeIndices("test");
+        cluster().wipeIndices("test");
 
         assertAcked(client().admin().indices().prepareCreate("test"));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),

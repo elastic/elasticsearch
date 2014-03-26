@@ -63,7 +63,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        wipeIndices("test");
+        cluster().wipeIndices("test");
 
         prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client().prepareIndex("test", "test", "1").setSource("field1", "value1").execute().actionGet();
@@ -178,7 +178,7 @@ public class SimplePercolatorTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> delete the index");
 
-        wipeIndices("test");
+        cluster().wipeIndices("test");
 
         logger.info("--> make sure percoalted queries for it have been deleted as well");
         assertThat(client().prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));

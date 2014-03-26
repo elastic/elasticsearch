@@ -24,25 +24,21 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockRobinEngine;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -253,7 +249,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(ElasticsearchIntegrationTest.INDEX_SEED_SETTING, 0l);
+                final long seed = settings.getAsLong(TestCluster.SETTING_INDEX_SEED, 0l);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

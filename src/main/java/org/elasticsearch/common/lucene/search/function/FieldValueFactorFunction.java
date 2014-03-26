@@ -44,7 +44,6 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final FieldMapper mapper;
     private final IndexFieldData indexFieldData;
     private AtomicFieldData fieldData;
-    private AtomicReaderContext currentContext;
 
     public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType) {
         super(CombineFunction.MULT);

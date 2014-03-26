@@ -115,7 +115,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
 
-        SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()), null,
+        SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()), null,
                 indexShard.acquireSearcher("delete_by_query"), indexService, indexShard, scriptService, cacheRecycler,
                 pageCacheRecycler, bigArrays));
         try {
@@ -138,7 +138,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.request.index());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
 
-        SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()), null,
+        SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()), null,
                 indexShard.acquireSearcher("delete_by_query", IndexShard.Mode.WRITE), indexService, indexShard, scriptService,
                 cacheRecycler, pageCacheRecycler, bigArrays));
         try {

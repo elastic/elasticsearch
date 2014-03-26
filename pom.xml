@@ -52,7 +52,6 @@ governing permissions and limitations under the License. -->
         <google.gce.version>v1beta16-rev1-1.17.0-rc</google.gce.version>
         <google.api.version>1.17.0-rc</google.api.version>
         <lucene.version>4.6.1</lucene.version>
-        <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
@@ -201,7 +200,7 @@ governing permissions and limitations under the License. -->
                             <assertions>
                                 <enable/>
                             </assertions>
-                            <parallelism>${tests.jvms}</parallelism>
+                            <parallelism>1</parallelism>
                             <balancers>
                                 <execution-times>
                                     <fileset dir="${basedir}" includes=".local-execution-hints.log"/>

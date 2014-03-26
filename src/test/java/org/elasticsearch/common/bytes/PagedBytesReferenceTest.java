@@ -57,7 +57,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
     @Test
     public void testGet() {
-        int length = randomInt(PAGE_SIZE * 3);
+        int length = randomIntBetween(1, PAGE_SIZE * 3);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, length / 2);
         int sliceLength = Math.max(1, length - sliceOffset - 1);
@@ -79,7 +79,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int length = randomInt(PAGE_SIZE * 3);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         int sliceOffset = randomIntBetween(0, length / 2);
-        int sliceLength = Math.max(1, length - sliceOffset - 1);
+        int sliceLength = Math.max(0, length - sliceOffset - 1);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         assertEquals(sliceLength, slice.length());
 
@@ -119,9 +119,12 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         assertEquals(origBuf[0], targetBuf[0]);
         si.reset();
 
-        // read an int
-        int i = si.read();
-        assertFalse(i == 0);
+        // read a few few bytes as ints
+        int bytesToRead = randomIntBetween(1, length/2);
+        for (int i = 0; i < bytesToRead; i++) {
+            int b = si.read();
+            assertEquals(pbr.get(i), b);
+        }
         si.reset();
 
         // bulk-read all
@@ -233,7 +236,11 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testToBytesArrayMaterializedPages() {
-        int length = randomIntBetween(PAGE_SIZE, PAGE_SIZE * randomIntBetween(2,5));
+        // we need a length != (n * pagesize) to avoid page sharing at boundaries
+        int length = 0;
+        while ((length % PAGE_SIZE) == 0) {
+            length = randomIntBetween(PAGE_SIZE, PAGE_SIZE * randomIntBetween(2,5));
+        }
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         BytesArray ba = pbr.toBytesArray();
         BytesArray ba2 = pbr.toBytesArray();
@@ -463,9 +470,12 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         BytesReference slice2 = pbr.slice(sliceFrom, sliceLength);
         assertArrayEquals(slice1.toBytes(), slice2.toBytes());
 
-        // test a slice with same offset but different length
-        BytesReference slice3 = pbr.slice(sliceFrom, sliceLength / 2);
-        assertFalse(Arrays.equals(slice1.toBytes(), slice3.toBytes()));
+        // test a slice with same offset but different length,
+        // unless randomized testing gave us a 0-length slice.
+        if (sliceLength > 0) {
+            BytesReference slice3 = pbr.slice(sliceFrom, sliceLength / 2);
+            assertFalse(Arrays.equals(slice1.toBytes(), slice3.toBytes()));
+        }
     }
 
     private BytesReference getRandomizedPagedBytesReference(int length) {

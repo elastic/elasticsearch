@@ -37,7 +37,11 @@ instance ones), for example:
     "type1" : {
         "properties" : {
             "obj1" : {
-                "type" : "nested"
+                "type" : "nested",
+                "properties": {
+                    "name" : {"type": "string", "index": "not_analyzed"},
+                    "count" : {"type": "integer"}
+                }
             }
         }
     }
@@ -46,7 +50,8 @@ instance ones), for example:
 
 The above will cause all `obj1` to be indexed as a nested doc. The
 mapping is similar in nature to setting `type` to `object`, except that
-it's `nested`.
+it's `nested`. Nested object fields can be defined explicitly as in the
+example above or added dynamically in the same way as for the root object.
 
 Note: changing an object type to nested type requires reindexing.
 

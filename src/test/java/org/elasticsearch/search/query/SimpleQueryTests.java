@@ -2295,11 +2295,18 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     public void testMatchPhrasePrefixQuery() {
         createIndex("test1");
         client().prepareIndex("test1", "type1", "1").setSource("field", "Johnnie Walker Black Label").get();
+        client().prepareIndex("test1", "type1", "2").setSource("field", "trying out Elasticsearch").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("field", "Johnnie la").slop(between(2,5)).type(Type.PHRASE_PREFIX)).get();
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field", "trying").type(Type.PHRASE_PREFIX)).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "2");
+        searchResponse = client().prepareSearch().setQuery(matchQuery("field", "try").type(Type.PHRASE_PREFIX)).get();
+        assertHitCount(searchResponse, 1l);
+        assertSearchHits(searchResponse, "2");
     }
 
 }

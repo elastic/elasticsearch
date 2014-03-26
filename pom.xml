@@ -17,6 +17,7 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
     <scm>
         <connection>scm:git:git@github.com:elasticsearch/elasticsearch.git</connection>
         <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch.git</developerConnection>
@@ -30,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.7.0</lucene.version>
+        <lucene.version>4.7.1</lucene.version>
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -1053,7 +1054,6 @@
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
-                                <exclude>org/apache/lucene/queries/XTermsFilter.class</exclude>
                                 <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
 				<exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->

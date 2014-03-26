@@ -251,28 +251,28 @@ public class MatchQuery {
 
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
-            Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            final MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
+            prefixQuery.setMaxExpansions(maxExpansions);
+            prefixQuery.setSlop(phraseSlop);
             if (query instanceof PhraseQuery) {
                 PhraseQuery pq = (PhraseQuery)query;
-                MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
-                prefixQuery.setMaxExpansions(maxExpansions);
                 Term[] terms = pq.getTerms();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.length; i++) {
                     prefixQuery.add(new Term[] {terms[i]}, positions[i]);
                 }
-                prefixQuery.setSlop(phraseSlop);
                 return prefixQuery;
             } else if (query instanceof MultiPhraseQuery) {
                 MultiPhraseQuery pq = (MultiPhraseQuery)query;
-                MultiPhrasePrefixQuery prefixQuery = new MultiPhrasePrefixQuery();
-                prefixQuery.setMaxExpansions(maxExpansions);
                 List<Term[]> terms = pq.getTermArrays();
                 int[] positions = pq.getPositions();
                 for (int i = 0; i < terms.size(); i++) {
                     prefixQuery.add(terms.get(i), positions[i]);
                 }
-                prefixQuery.setSlop(phraseSlop);
+                return prefixQuery;
+            } else if (query instanceof TermQuery) {
+                prefixQuery.add(((TermQuery) query).getTerm());
                 return prefixQuery;
             }
             return query;

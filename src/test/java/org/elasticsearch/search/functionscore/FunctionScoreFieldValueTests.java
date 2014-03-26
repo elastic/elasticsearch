@@ -60,7 +60,7 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test", "type1", "1").setSource("test", 5, "body", "foo").get();
         client().prepareIndex("test", "type1", "2").setSource("test", 7, "body", "foo").get();
-        client().prepareIndex("test", "type1", "3").setSource("body", "foo").get();
+        client().prepareIndex("test", "type1", "3").setSource("body", "bar").get();
 
         refresh();
 

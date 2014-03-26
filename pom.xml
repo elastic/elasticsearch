@@ -16,7 +16,7 @@ governing permissions and limitations under the License. -->
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-gce</artifactId>
-    <version>2.0.1-SNAPSHOT</version>
+    <version>3.0.0-SNAPSHOT</version>
 
     <name>Elasticsearch Google Compute Engine cloud plugin</name>
     <description>The Google Compute Engine (GCE) Cloud plugin allows to use GCE API for the unicast discovery mechanism.</description>
@@ -48,10 +48,10 @@ governing permissions and limitations under the License. -->
     </issueManagement>
 
     <properties>
-        <elasticsearch.version>1.0.1</elasticsearch.version>
+        <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
         <google.gce.version>v1beta16-rev1-1.17.0-rc</google.gce.version>
         <google.api.version>1.17.0-rc</google.api.version>
-        <lucene.version>4.6.1</lucene.version>
+        <lucene.version>4.7.0</lucene.version>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>

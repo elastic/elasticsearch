@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster.routing;
 
 import java.util.List;
+import java.util.ListIterator;
 
 /**
  * A simple {@link ShardsIterator} that iterates a list or sub-list of
@@ -28,76 +29,50 @@ public class PlainShardsIterator implements ShardsIterator {
 
     private final List<ShardRouting> shards;
 
-    private final int size;
-
-    private final int index;
-
-    private final int limit;
-
-    private volatile int counter;
+    private ListIterator<ShardRouting> iterator;
 
     public PlainShardsIterator(List<ShardRouting> shards) {
-        this(shards, 0);
-    }
-
-    public PlainShardsIterator(List<ShardRouting> shards, int index) {
         this.shards = shards;
-        this.size = shards.size();
-        if (size == 0) {
-            this.index = 0;
-        } else {
-            this.index = Math.abs(index % size);
-        }
-        this.counter = this.index;
-        this.limit = this.index + size;
+        this.iterator = shards.listIterator();
     }
 
     @Override
     public void reset() {
-        this.counter = this.index;
+        iterator = shards.listIterator();
     }
 
     @Override
     public int remaining() {
-        return limit - counter;
+        return shards.size() - iterator.nextIndex();
     }
 
     @Override
     public ShardRouting firstOrNull() {
-        if (size == 0) {
+        if (shards.isEmpty()) {
             return null;
         }
-        return shards.get(index);
+        return shards.get(0);
     }
 
     @Override
     public ShardRouting nextOrNull() {
-        if (size == 0) {
-            return null;
-        }
-        int counter = (this.counter);
-        if (counter >= size) {
-            if (counter >= limit) {
-                return null;
-            }
-            this.counter = counter + 1;
-            return shards.get(counter - size);
+        if (iterator.hasNext()) {
+            return iterator.next();
         } else {
-            this.counter = counter + 1;
-            return shards.get(counter);
+            return null;
         }
     }
 
     @Override
     public int size() {
-        return size;
+        return shards.size();
     }
 
     @Override
     public int sizeActive() {
         int count = 0;
-        for (int i = 0; i < size; i++) {
-            if (shards.get(i).active()) {
+        for (ShardRouting shard : shards) {
+            if (shard.active()) {
                 count++;
             }
         }
@@ -107,8 +82,7 @@ public class PlainShardsIterator implements ShardsIterator {
     @Override
     public int assignedReplicasIncludingRelocating() {
         int count = 0;
-        for (int i = 0; i < size; i++) {
-            ShardRouting shard = shards.get(i);
+        for (ShardRouting shard : shards) {
             if (shard.unassigned()) {
                 continue;
             }

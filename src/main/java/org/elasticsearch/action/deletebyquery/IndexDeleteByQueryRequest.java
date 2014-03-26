@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -45,8 +46,11 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
     private Set<String> routing;
     @Nullable
     private String[] filteringAliases;
+    private long nowInMillis;
 
-    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases) {
+    IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases,
+                              long nowInMillis
+    ) {
         this.index = index;
         this.timeout = request.timeout();
         this.source = request.source();
@@ -55,6 +59,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
         this.consistencyLevel = request.consistencyLevel();
         this.routing = routing;
         this.filteringAliases = filteringAliases;
+        this.nowInMillis = nowInMillis;
     }
 
     IndexDeleteByQueryRequest() {
@@ -83,6 +88,10 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
 
     String[] filteringAliases() {
         return filteringAliases;
+    }
+
+    long nowInMillis() {
+        return nowInMillis;
     }
 
     public IndexDeleteByQueryRequest timeout(TimeValue timeout) {
@@ -114,6 +123,11 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
                 filteringAliases[i] = in.readString();
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            nowInMillis = in.readVLong();
+        } else {
+            nowInMillis = System.currentTimeMillis();
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -138,6 +152,9 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
             }
         } else {
             out.writeVInt(0);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeVLong(nowInMillis);
         }
     }
 }

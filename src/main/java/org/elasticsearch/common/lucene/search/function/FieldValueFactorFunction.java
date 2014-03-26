@@ -75,12 +75,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 } else {
                     throw new ElasticsearchException("Invalid data type for field [" + field + "]");
                 }
-                return subQueryScore * Modifier.apply(modifier, val * boostFactor);
+                return Modifier.apply(modifier, val * boostFactor);
             } else {
                 if (ignoreMissing) {
-                    return subQueryScore;
+                    return 0;
                 } else {
-                    throw new ElasticsearchException("Invalid data type for field [" + field + "]");
+                    throw new ElasticsearchException("Missing value for field [" + field + "]");
                 }
             }
         }
@@ -93,9 +93,8 @@ public class FieldValueFactorFunction extends ScoreFunction {
         String modifierStr = modifier != null ? modifier.toString() : "";
         double score = score(docId, subQueryExpl.getValue());
         exp.setValue(CombineFunction.toFloat(score));
-        exp.setDescription("field value function, score=" + score +
-                " product of " + "_score=" + subQueryExpl.getValue() + " * " +
-                modifierStr + "(" + "val * factor=" + boostFactor + ")");
+        exp.setDescription("field value function: " +
+                modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");
         exp.addDetail(subQueryExpl);
         return exp;
     }

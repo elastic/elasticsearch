@@ -267,7 +267,7 @@ doing so would look like:
 
 Which will translate into the following forumla for scoring:
 
-`_score * sqrt(1.2 * doc['popularity'].value)`
+`sqrt(1.2 * doc['popularity'].value)`
 
 There are a number of options for the `field_value_factor` function:
 
@@ -280,8 +280,13 @@ There are a number of options for the `field_value_factor` function:
  `ln`, `square`, `sqrt`, or `reciprocal`. Defaults to `none`.
 |`ignore_missing` |Flag specifying whether to return the score unmodified if the
  field does not exist. Defaults to false, meaning an exception will be thrown if
- the field is not in the document.
+ the field is not in the document. If set to true, 0 is used in place of missing
+ values.
 |=======================================================================
+
+Keep in mind that taking the log() of 0, or the square root of a negative number
+is an illegal operation, and an exception will be thrown. Be sure to limit the
+values of the field with a range query to avoid this.
 
 ==== Detailed example
 

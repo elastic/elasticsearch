@@ -24,6 +24,11 @@ import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.primitives.Longs;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.common.Preconditions;
+
+import java.util.AbstractList;
+import java.util.List;
+import java.util.RandomAccess;
 
 /** Collections-related utility methods. */
 public enum CollectionUtils {
@@ -187,16 +192,64 @@ public enum CollectionUtils {
         }
         return uniqueCount;
     }
-    
+
     /**
      * Checks if the given array contains any elements.
-     * 
+     *
      * @param array The array to check
-     * 
+     *
      * @return false if the array contains an element, true if not or the array is null.
      */
     public static boolean isEmpty(Object[] array) {
         return array == null || array.length == 0;
     }
+
+    /**
+     * Return a rotated view of the given list with the given distance.
+     */
+    public static <T> List<T> rotate(final List<T> list, int distance) {
+        if (list.isEmpty()) {
+            return list;
+        }
+
+        int d = distance % list.size();
+        if (d < 0) {
+            d += list.size();
+        }
+
+        if (d == 0) {
+            return list;
+        }
+
+        return new RotatedList<>(list, d);
+    }
+
+    private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {
+
+        private final List<T> in;
+        private final int distance;
+
+        public RotatedList(List<T> list, int distance) {
+            Preconditions.checkArgument(distance >= 0 && distance < list.size());
+            Preconditions.checkArgument(list instanceof RandomAccess);
+            this.in = list;
+            this.distance = distance;
+        }
+
+        @Override
+        public T get(int index) {
+            int idx = distance + index;
+            if (idx < 0 || idx >= in.size()) {
+                idx -= in.size();
+            }
+            return in.get(idx);
+        }
+
+        @Override
+        public int size() {
+            return in.size();
+        }
+
+    };
 
 }

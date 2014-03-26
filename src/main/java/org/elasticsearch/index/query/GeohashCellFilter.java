@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -40,6 +41,8 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  * A geohash cell filter that filters {@link GeoPoint}s by their geohashes. Basically the a
@@ -61,6 +64,9 @@ public class GeohashCellFilter {
     public static final String NAME = "geohash_cell";
     public static final String NEIGHBORS = "neighbors";
     public static final String PRECISION = "precision";
+
+    private static final double cacheMeters = DistanceUnit.parse("1000km", DistanceUnit.DEFAULT, DistanceUnit.METERS);
+    private static final int cacheLevel = GeoUtils.geoHashLevelsForPrecision(cacheMeters);
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -100,6 +106,9 @@ public class GeohashCellFilter {
         private String geohash;
         private int levels = -1;
         private boolean neighbors;
+        private Boolean cache;
+        private String cacheKey;
+        private String filterName;
 
         public Builder(String field) {
             this(field, null, false);
@@ -155,6 +164,22 @@ public class GeohashCellFilter {
             return this;
         }
 
+        public Builder filterName(String filterName) {
+            this.filterName = filterName;
+            return this;
+        }
+
+        public Builder cache(boolean cache) {
+            this.cache = cache;
+            return this;
+        }
+
+        public Builder cacheKey(String cacheKey) {
+            this.cacheKey = cacheKey;
+            return this;
+        }
+
+
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
@@ -163,6 +188,15 @@ public class GeohashCellFilter {
             }
             if(levels > 0) {
                 builder.field(PRECISION, levels);
+            }
+            if (filterName != null) {
+                builder.field("_name", filterName);
+            }
+            if (cache != null) {
+                builder.field("_cache", cache);
+            }
+            if (cacheKey != null) {
+                builder.field("_cache_key", cacheKey);
             }
             builder.field(field, geohash);
 
@@ -189,6 +223,9 @@ public class GeohashCellFilter {
             String geohash = null;
             int levels = -1;
             boolean neighbors = false;
+            Boolean cache = null;
+            CacheKeyFilter.Key cacheKey = null;
+            String filterName = null;
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
@@ -198,9 +235,8 @@ public class GeohashCellFilter {
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     String field = parser.text();
-
+                    token = parser.nextToken();
                     if (PRECISION.equals(field)) {
-                        token = parser.nextToken();
                         if(token == Token.VALUE_NUMBER) {
                             levels = parser.intValue();
                         } else if(token == Token.VALUE_STRING) {
@@ -208,11 +244,15 @@ public class GeohashCellFilter {
                             levels = GeoUtils.geoHashLevelsForPrecision(meters);
                         }
                     } else if (NEIGHBORS.equals(field)) {
-                        parser.nextToken();
                         neighbors = parser.booleanValue();
+                    } else if ("_cache".equals(field)) {
+                        cache = parser.booleanValue();
+                    } else if ("_cache_key".equals(field) || "_cacheKey".equals(field)) {
+                        cacheKey = new CacheKeyFilter.Key(parser.text());
+                    } else if ("_name".equals(field)) {
+                        filterName = parser.text();
                     } else {
                         fieldName = field;
-                        token = parser.nextToken();
                         if(token == Token.VALUE_STRING) {
                             // A string indicates either a gehash or a lat/lon string
                             String location = parser.text();
@@ -254,11 +294,22 @@ public class GeohashCellFilter {
                 geohash = geohash.substring(0, len);
             }
 
+            Filter filter;
             if (neighbors) {
-                return create(parseContext, geoMapper, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                filter = create(parseContext, geoMapper, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
-                return create(parseContext, geoMapper, geohash, null);
+                filter = create(parseContext, geoMapper, geohash, null);
             }
+
+            if ((cache != null && cache) || (cache == null && levels > cacheLevel)) {
+                filter = parseContext.cacheFilter(filter, cacheKey);
+            }
+            filter = wrapSmartNameFilter(filter, smartMappers, parseContext);
+            if (filterName != null) {
+                parseContext.addNamedFilter(filterName, filter);
+            }
+
+            return filter;
         }
     }
 }

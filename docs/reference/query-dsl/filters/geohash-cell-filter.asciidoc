@@ -60,3 +60,11 @@ next to the given cell.
     }
 }
 --------------------------------------------------
+
+
+[float]
+==== Caching
+
+By default, the result of the filter will be cached if the `precision`
+is larger than `1000km`. The `_cache` can be set to `true` to always
+cache the *result* of the filter or `false` to disable the cache.

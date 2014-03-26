@@ -374,7 +374,7 @@ public final class PagedBytesReference implements BytesReference {
         // a remaining fragment < pagesize needs at least one buffer
         numBuffers += (pages == 0) ? 1 : pages;
         // a remainder that is not a multiple of pagesize also needs an extra buffer
-        numBuffers += (pages > 0 && numBuffers % PAGE_SIZE > 0) ? 1 : 0;
+        numBuffers += (pages > 0 && numBytes % PAGE_SIZE > 0) ? 1 : 0;
         return numBuffers;
     }
 

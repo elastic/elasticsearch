@@ -603,8 +603,12 @@ if __name__ == '__main__':
     artifact_name = find_from_pom('name')
     artifact_description = find_from_pom('description')
     project_url = find_from_pom('url')
+    elasticsearch_version = find_from_pom('elasticsearch.version')
     print('  Artifact Id: [%s]' % artifact_id)
     print('  Release version: [%s]' % release_version)
+    print('  Elasticsearch: [%s]' % elasticsearch_version)
+    if elasticsearch_version.find('-SNAPSHOT') != -1:
+        raise RuntimeError('Can not release with a SNAPSHOT elasticsearch dependency: %s' % elasticsearch_version)
 
     # extract snapshot
     default_snapshot_version = guess_snapshot(release_version)

@@ -284,8 +284,8 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testMultiField() throws IOException {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping.json");
+    public void testMultiField_includeInAllSetToFalse() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_include_in_all_set_to_false.json");
         DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -301,5 +301,26 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         AllField field = (AllField) doc.getField("_all");
         AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
         assertThat(allEntries.fields(), empty());
+    }
+
+    @Test
+    public void testMultiField_defaults() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/multifield-mapping_default.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject()
+                .field("_id", "1")
+                .field("foo")
+                .startObject()
+                .field("bar", "Elasticsearch rules!")
+                .endObject()
+                .endObject();
+
+        Document doc = docMapper.parse(builder.bytes()).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        assertThat(allEntries.fields(), hasSize(1));
+        assertThat(allEntries.fields(), hasItem("foo.bar"));
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -40,6 +41,9 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
+    private final FieldMapper mapper;
+    private final IndexFieldData indexFieldData;
+    private AtomicFieldData fieldData;
     private AtomicReaderContext currentContext;
 
     public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType) {
@@ -47,38 +51,38 @@ public class FieldValueFactorFunction extends ScoreFunction {
         this.field = field;
         this.boostFactor = boostFactor;
         this.modifier = modifierType;
+        SearchContext searchContext = SearchContext.current();
+        this.mapper = searchContext.mapperService().smartNameFieldMapper(field);
+        if (this.mapper == null) {
+            throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
+        }
+        this.indexFieldData = searchContext.fieldData().getForField(mapper);
     }
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
-        this.currentContext = context;
+        this.fieldData = this.indexFieldData.load(context);
     }
 
     @Override
     public double score(int docId, float subQueryScore) {
-        SearchContext searchContext = SearchContext.current();
-        FieldMapper mapper = searchContext.mapperService().smartNameFieldMapper(field);
-        if (mapper != null) {
-            AtomicFieldData data = searchContext.fieldData().getForField(mapper).load(currentContext);
-            ScriptDocValues values = data.getScriptValues();
-            values.setNextDocId(docId);
-            List<?> actualValues = values.getValues();
-            if (actualValues.size() > 0) {
-                Object o = actualValues.get(0);
-                double val;
-                if (o instanceof Long) {
-                    val = (long)o;
-                } else if (o instanceof Double) {
-                    val = (double)o;
-                } else {
-                    throw new ElasticsearchException("Invalid data type for field [" + field + "]");
-                }
-                return Modifier.apply(modifier, val * boostFactor);
+        ScriptDocValues values = this.fieldData.getScriptValues();
+        values.setNextDocId(docId);
+        List<?> actualValues = values.getValues();
+        if (actualValues.size() > 0) {
+            Object o = actualValues.get(0);
+            double val;
+            if (o instanceof Long) {
+                val = (long)o;
+            } else if (o instanceof Double) {
+                val = (double)o;
             } else {
-                throw new ElasticsearchException("Missing value for field [" + field + "]");
+                throw new ElasticsearchException("Invalid data type for field [" + field + "]");
             }
+            return Modifier.apply(modifier, val * boostFactor);
+        } else {
+            throw new ElasticsearchException("Missing value for field [" + field + "]");
         }
-        throw new ElasticsearchException("Unable to find a fieldmapper for field [" + field + "]");
     }
 
     @Override

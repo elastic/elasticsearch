@@ -39,7 +39,6 @@ import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
-import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.After;
@@ -54,10 +53,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.util.*;
-import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSearchersClosed;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -150,71 +149,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         MockBigArrays.ensureAllArraysAreReleased();
     }
 
-    public static void ensureAllFilesClosed() throws IOException {
-        try {
-            for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
-                try {
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            return !w.isOpen();
-                        }
-                    });
-                } catch (InterruptedException e) {
-                    Thread.interrupted();
-                }
-                if (!w.successfullyClosed()) {
-                    if (w.closeException() == null) {
-                        w.close();
-                        if (w.closeException() != null) {
-                            throw w.closeException();
-                        }
-                    } else {
-                        throw w.closeException();
-                    }
-                }
-                assertThat(w.isOpen(), is(false));
-            }
-        } finally {
-            forceClearMockWrappers();
-        }
-    }
-
-    public static void ensureAllSearchersClosed() {
-        /* in some cases we finish a test faster than the freeContext calls make it to the
-         * shards. Let's wait for some time if there are still searchers. If the are really 
-         * pending we will fail anyway.*/
-        try {
-            if (awaitBusy(new Predicate<Object>() {
-                public boolean apply(Object o) {
-                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
-                }
-            }, 5, TimeUnit.SECONDS)) {
-                return;
-            }
-        } catch (InterruptedException ex) {
-            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
-                return;
-            }
-        }
-        try {
-            RuntimeException ex = null;
-            StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                ex = entry.getValue();
-                builder.append(entry.getKey().shardId()).append(",");
-            }
-            builder.append("]");
-            throw new RuntimeException(builder.toString(), ex);
-        } finally {
-            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
-        }
-    }
-
-    public static void forceClearMockWrappers() {
-        MockDirectoryHelper.wrappers.clear();
-    }
-
     public static boolean hasUnclosedWrapper() {
         for (MockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
             if (w.isOpen()) {
@@ -229,13 +163,13 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         closeAfterSuite(new Closeable() {
             @Override
             public void close() throws IOException {
-                ensureAllFilesClosed();
+                assertAllFilesClosed();
             }
         });
         closeAfterSuite(new Closeable() {
             @Override
             public void close() throws IOException {
-                ensureAllSearchersClosed();
+                assertAllSearchersClosed();
             }
         });
         defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
@@ -366,6 +300,4 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
             return threadGroup.getName();
         }
     }
-
-
 }

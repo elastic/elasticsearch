@@ -101,7 +101,7 @@ public class SearchWhileCreatingIndexTests extends ElasticsearchIntegrationTest 
                 status = client().admin().cluster().prepareHealth("test").get().getStatus();
                 cluster().ensureAtLeastNumNodes(numberOfReplicas + 1);
             }
-            wipeIndices("test");
+            cluster().wipeIndices("test");
         }
     }
 }

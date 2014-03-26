@@ -108,7 +108,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexWithStoreType(String index, String storeType, String distributor) {
-        wipeIndices(index);
+        cluster().wipeIndices(index);
         client().admin().indices().prepareCreate(index)
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)
@@ -121,7 +121,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexWithoutRateLimitingStoreType(String index, String storeType, String distributor) {
-        wipeIndices(index);
+        cluster().wipeIndices(index);
         client().admin().indices().prepareCreate(index)
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)

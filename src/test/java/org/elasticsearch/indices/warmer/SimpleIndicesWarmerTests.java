@@ -345,7 +345,7 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
             } else {
                 assertThat(memoryUsage1, equalTo(memoryUsage0));
             }
-            wipeIndices("idx");
+            cluster().wipeIndices("idx");
         }
     }
 

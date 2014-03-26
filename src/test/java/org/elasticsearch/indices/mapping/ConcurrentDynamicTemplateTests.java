@@ -52,7 +52,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
 
         int iters = atLeast(5);
         for (int i = 0; i < iters; i++) {
-            wipeIndices("test");
+            cluster().wipeIndices("test");
             client().admin().indices().prepareCreate("test")
                     .setSettings(
                             ImmutableSettings.settingsBuilder()

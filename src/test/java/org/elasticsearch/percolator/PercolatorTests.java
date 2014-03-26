@@ -280,7 +280,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        wipeIndices("test");
+        cluster().wipeIndices("test");
         prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ensureGreen();
 

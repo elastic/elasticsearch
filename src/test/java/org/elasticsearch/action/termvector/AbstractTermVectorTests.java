@@ -181,7 +181,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
     }
 
     protected void createIndexBasedOnFieldSettings(TestFieldSetting[] fieldSettings, int number_of_shards) throws IOException {
-        wipeIndices("test");
+        cluster().wipeIndices("test");
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("type1").startObject("properties");
         for (TestFieldSetting field : fieldSettings) {

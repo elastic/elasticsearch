@@ -27,6 +27,6 @@ The `range` query accepts the following parameters:
 `gt`::  	Greater-than
 `lte`:: 	Less-than or equal to
 `lt`::  	Less-than
-`boost`:: 	Sets the bool value of the query, defaults to `1.0`
+`boost`:: 	Sets the boost value of the query, defaults to `1.0`
 
 deprecated[0.90.4,The `from`, `to`, `include_lower` and `include_upper` parameters have been deprecated in favour of `gt`,`gte`,`lt`,`lte`]

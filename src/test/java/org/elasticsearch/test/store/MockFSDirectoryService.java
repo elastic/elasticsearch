@@ -53,6 +53,4 @@ public class MockFSDirectoryService extends FsDirectoryService {
     protected synchronized FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
         throw new UnsupportedOperationException();
     }
-    
-    
 }

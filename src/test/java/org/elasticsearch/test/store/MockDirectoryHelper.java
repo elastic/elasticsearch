@@ -36,7 +36,7 @@ import org.elasticsearch.index.store.fs.MmapFsDirectoryService;
 import org.elasticsearch.index.store.fs.NioFsDirectoryService;
 import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.TestCluster;
 
 import java.io.IOException;
 import java.util.Random;
@@ -66,7 +66,7 @@ public class MockDirectoryHelper {
     private final boolean failOnClose;
 
     public MockDirectoryHelper(ShardId shardId, Settings indexSettings, ESLogger logger) {
-        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.INDEX_SEED_SETTING, 0l);
+        final long seed = indexSettings.getAsLong(TestCluster.SETTING_INDEX_SEED, 0l);
         random = new Random(seed);
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
         randomIOExceptionRateOnOpen = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0.0d);

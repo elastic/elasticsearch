@@ -68,9 +68,7 @@ class ShardTermsByQueryResponse extends BroadcastShardOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            responseTerms = ResponseTerms.deserialize(in);
-        }
+        responseTerms = ResponseTerms.deserialize(in);
     }
 
     /**
@@ -82,11 +80,6 @@ class ShardTermsByQueryResponse extends BroadcastShardOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (responseTerms != null) {
-            out.writeBoolean(true);
-            ResponseTerms.serialize(responseTerms, out);
-        } else {
-            out.writeBoolean(false);
-        }
+        ResponseTerms.serialize(responseTerms, out);
     }
 }

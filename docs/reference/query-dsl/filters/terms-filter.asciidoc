@@ -139,6 +139,15 @@ possible, reducing the need for networking.
 [float]
 ==== Terms lookup by query mechanism
 
+added[1.2.0]
+
+.Experimental!
+[IMPORTANT]
+=====
+This feature is marked as experimental, and may be subject to change in the
+future.  If you use this feature, please let us know your experience with it!
+=====
+
 The terms filter by query feature allows the lookup of terms from
 documents matching a query/filter.  This functionality is similar to
 the "<<query-dsl-has-child-filter,HasChild>>" and "<<query-dsl-has-parent-filter,HasParent>>"

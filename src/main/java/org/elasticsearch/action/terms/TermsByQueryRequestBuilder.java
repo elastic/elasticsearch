@@ -27,7 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.FilterBuilder;
 
 /**
- * A terms by query action request builder.
+ * A terms by query action request builder.  This is an internal api.
  */
 public class TermsByQueryRequestBuilder extends BroadcastOperationRequestBuilder<TermsByQueryRequest, TermsByQueryResponse, TermsByQueryRequestBuilder> {
 

@@ -63,7 +63,7 @@ public abstract class ResponseTerms implements Streamable {
      * Deserialize to correct {@link ResponseTerms} implementation.
      */
     public static ResponseTerms deserialize(StreamInput in) throws IOException {
-        Type type = Type.fromOrd(in.readVInt());
+        Type type = Type.fromId(in.readByte());
         ResponseTerms rt;
         switch (type) {
             case LONGS:
@@ -87,7 +87,7 @@ public abstract class ResponseTerms implements Streamable {
      * Serialize a {@link ResponseTerms}.
      */
     public static void serialize(ResponseTerms rt, StreamOutput out) throws IOException {
-        out.writeVInt(rt.getType().ordinal());
+        out.writeByte(rt.getType().id());
         rt.writeTo(out);
     }
 
@@ -225,10 +225,25 @@ public abstract class ResponseTerms implements Streamable {
      * The various types of {@link ResponseTerms}.
      */
     public static enum Type {
-        BYTES, LONGS, DOUBLES, BLOOM;
+        BYTES((byte) 0),
+        LONGS((byte) 1),
+        DOUBLES((byte) 2),
+        BLOOM((byte) 3);
 
-        public static Type fromOrd(int ord) {
-            switch (ord) {
+        private final byte id;
+
+        Type(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return id;
+        }
+
+        public static Type fromId(byte id) {
+            switch (id) {
+                case 0:
+                    return BYTES;
                 case 1:
                     return LONGS;
                 case 2:
@@ -506,7 +521,8 @@ public abstract class ResponseTerms implements Streamable {
             for (int i = 0; i < numVals && !isFull(); i++) {
                 final BytesRef term = values.nextValue();
                 terms.add(values.copyShared());  // so it is safe to be placed in set
-                sizeInBytes += term.length + 8;  // 8 additional bytes for the 2 ints in a BytesRef
+                // offset int + length int + object pointer + object header + array pointer + array header = 64
+                sizeInBytes += term.length + 64;
             }
         }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.action.terms;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
@@ -46,7 +44,6 @@ import java.util.Arrays;
  */
 public class TermsByQueryRequest extends BroadcastOperationRequest<TermsByQueryRequest> {
 
-    private static final XContentType contentType = Requests.CONTENT_TYPE;
     @Nullable
     protected String routing;
     private long nowInMillis;

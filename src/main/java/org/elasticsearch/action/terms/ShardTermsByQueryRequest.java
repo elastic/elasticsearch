@@ -82,11 +82,8 @@ class ShardTermsByQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-
-        if (in.readBoolean()) {
-            request = new TermsByQueryRequest();
-            request.readFrom(in);
-        }
+        request = new TermsByQueryRequest();
+        request.readFrom(in);
 
         if (in.readBoolean()) {
             filteringAliases = in.readStringArray();
@@ -102,13 +99,7 @@ class ShardTermsByQueryRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        if (request == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            request.writeTo(out);
-        }
+        request.writeTo(out);
 
         if (filteringAliases == null) {
             out.writeBoolean(false);

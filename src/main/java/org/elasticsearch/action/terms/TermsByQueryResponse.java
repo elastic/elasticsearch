@@ -73,9 +73,7 @@ public class TermsByQueryResponse extends BroadcastOperationResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            responseTerms = ResponseTerms.deserialize(in);
-        }
+        responseTerms = ResponseTerms.deserialize(in);
     }
 
     /**
@@ -87,11 +85,6 @@ public class TermsByQueryResponse extends BroadcastOperationResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (responseTerms == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            ResponseTerms.serialize(responseTerms, out);
-        }
+        ResponseTerms.serialize(responseTerms, out);
     }
 }

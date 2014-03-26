@@ -93,7 +93,7 @@ public class BloomFieldDataTermsFilter extends FieldDataTermsFilter {
                 final int numVals = values.setDocument(doc);
                 for (int i = 0; i < numVals; i++) {
                     final BytesRef term = values.nextValue();
-                    if (bloomFilter != null ? bloomFilter.mightContain(term) : false) {
+                    if (bloomFilter.mightContain(term)) {
                         return true;
                     }
                 }

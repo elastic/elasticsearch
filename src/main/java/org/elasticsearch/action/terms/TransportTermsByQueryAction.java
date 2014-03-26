@@ -72,9 +72,7 @@ import static com.google.common.collect.Lists.newArrayList;
 /**
  * The terms by query transport operation
  */
-public class TransportTermsByQueryAction
-        extends
-        TransportBroadcastOperationAction<TermsByQueryRequest, TermsByQueryResponse, ShardTermsByQueryRequest, ShardTermsByQueryResponse> {
+public class TransportTermsByQueryAction extends TransportBroadcastOperationAction<TermsByQueryRequest, TermsByQueryResponse, ShardTermsByQueryRequest, ShardTermsByQueryResponse> {
 
     private final IndicesService indicesService;
     private final ScriptService scriptService;
@@ -306,7 +304,7 @@ public class TransportTermsByQueryAction
             throw new QueryPhaseExecutionException(context, "failed to execute termsByQuery", e);
         } finally {
             // this will also release the index searcher
-            context.release();
+            context.clearAndRelease();
             SearchContext.removeCurrent();
         }
     }

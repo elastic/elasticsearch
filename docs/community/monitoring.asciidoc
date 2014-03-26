@@ -4,6 +4,9 @@
 * https://github.com/lukas-vlcek/bigdesk[bigdesk]:
   Live charts and statistics for elasticsearch cluster.
 
+* https://github.com/lmenezes/elasticsearch-kopf/[Kopf]:
+  Live cluster health and shard allocation monitoring with administration toolset.
+  
 * https://github.com/karmi/elasticsearch-paramedic[paramedic]:
   Live charts with cluster stats and indices/shards information.
 

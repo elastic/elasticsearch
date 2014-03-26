@@ -43,18 +43,6 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
         this.shardId = shardId;
     }
 
-    /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
-     * this the a given <code>shardId</code>.
-     *
-     * @param shardId shard id of the group
-     * @param shards  shards to iterate
-     * @param index   the offset in the shards list to start the iteration from
-     */
-    public PlainShardIterator(ShardId shardId, List<ShardRouting> shards, int index) {
-        super(shards, index);
-        this.shardId = shardId;
-    }
 
     @Override
     public ShardId shardId() {

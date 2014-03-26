@@ -43,7 +43,8 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
 
     @Test
     public void testEmptyIterator() {
-        ShardIterator shardIterator = new PlainShardIterator(new ShardId("test1", 0), ImmutableList.<ShardRouting>of(), 0);
+        ShardShuffler shuffler = new RotationShardShuffler(0);
+        ShardIterator shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(ImmutableList.<ShardRouting>of()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.firstOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
@@ -52,7 +53,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", 0), ImmutableList.<ShardRouting>of(), 1);
+        shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(ImmutableList.<ShardRouting>of()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.firstOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
@@ -61,7 +62,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", 0), ImmutableList.<ShardRouting>of(), 2);
+        shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(ImmutableList.<ShardRouting>of()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.firstOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
@@ -70,7 +71,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", 0), ImmutableList.<ShardRouting>of(), 3);
+        shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(ImmutableList.<ShardRouting>of()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.firstOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));

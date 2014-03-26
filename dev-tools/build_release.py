@@ -208,6 +208,29 @@ def add_version_snapshot(readme_file, release, snapshot):
             return line
     process_file(readme_file, callback)
 
+# Moves the README.md file from a snapshot to a release (documentation link)
+def remove_documentation_snapshot(readme_file, repo_url, release, branch):
+    pattern = '* [%s-SNAPSHOT](%sblob/%s/README.md)' % (release, repo_url, branch)
+    replacement = '* [%s](%sblob/v%s/README.md)' % (release, repo_url, release)
+    def callback(line):
+        # If we find pattern, we replace its content
+        if line.find(pattern) >= 0:
+            return line.replace(pattern, replacement)
+        else:
+            return line
+    process_file(readme_file, callback)
+
+# Add in README.markdown file the documentation for the next version
+def add_documentation_snapshot(readme_file, repo_url, release, snapshot, branch):
+    pattern = '* [%s](%sblob/v%s/README.md)' % (release, repo_url, release)
+    replacement = '* [%s-SNAPSHOT](%sblob/%s/README.md)' % (snapshot, repo_url, branch)
+    def callback(line):
+        # If we find pattern, we copy the line and replace its content
+        if line.find(pattern) >= 0:
+            return line.replace(pattern, replacement)+line
+        else:
+            return line
+    process_file(readme_file, callback)
 
 # Set release date in README.md file
 def set_date(readme_file):
@@ -603,8 +626,12 @@ if __name__ == '__main__':
     artifact_name = find_from_pom('name')
     artifact_description = find_from_pom('description')
     project_url = find_from_pom('url')
+    elasticsearch_version = find_from_pom('elasticsearch.version')
     print('  Artifact Id: [%s]' % artifact_id)
     print('  Release version: [%s]' % release_version)
+    print('  Elasticsearch: [%s]' % elasticsearch_version)
+    if elasticsearch_version.find('-SNAPSHOT') != -1:
+        raise RuntimeError('Can not release with a SNAPSHOT elasticsearch dependency: %s' % elasticsearch_version)
 
     # extract snapshot
     default_snapshot_version = guess_snapshot(release_version)
@@ -626,6 +653,7 @@ if __name__ == '__main__':
     try:
         pending_files = [POM_FILE, README_FILE]
         remove_maven_snapshot(POM_FILE, release_version)
+        remove_documentation_snapshot(README_FILE, project_url, release_version, src_branch)
         remove_version_snapshot(README_FILE, release_version)
         set_date(README_FILE)
         set_install_instructions(README_FILE, artifact_id, release_version)
@@ -657,6 +685,7 @@ if __name__ == '__main__':
 
         add_maven_snapshot(POM_FILE, release_version, snapshot_version)
         add_version_snapshot(README_FILE, release_version, snapshot_version)
+        add_documentation_snapshot(README_FILE, project_url, release_version, snapshot_version, src_branch)
         add_pending_files(*pending_files)
         commit_snapshot()
 

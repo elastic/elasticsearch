@@ -773,7 +773,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         if (parentFieldMapper.active()) {
                             warmUp.put(indexName, parentFieldMapper);
                         }
-                    } else if (fieldDataType.getLoading() != Loading.EAGER && warmUp.containsKey(indexName)) {
+                    } else if (fieldDataType.getLoading() != Loading.EAGER && !warmUp.containsKey(indexName)) {
                         warmUp.put(indexName, fieldMapper);
                     }
                 }

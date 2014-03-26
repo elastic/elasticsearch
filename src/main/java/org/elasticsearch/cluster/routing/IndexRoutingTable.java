@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -58,6 +57,7 @@ import static com.google.common.collect.Lists.newArrayList;
 public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     private final String index;
+    private final ShardShuffler shuffler;
 
     // note, we assume that when the index routing is created, ShardRoutings are created for all possible number of
     // shards with state set to UNASSIGNED
@@ -66,10 +66,9 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     private final ImmutableList<ShardRouting> allShards;
     private final ImmutableList<ShardRouting> allActiveShards;
 
-    private final AtomicInteger counter = new AtomicInteger();
-
     IndexRoutingTable(String index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
         this.index = index;
+        this.shuffler = new RotationShardShuffler();
         this.shards = shards;
         ImmutableList.Builder<ShardRouting> allShards = ImmutableList.builder();
         ImmutableList.Builder<ShardRouting> allActiveShards = ImmutableList.builder();
@@ -273,14 +272,14 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * Returns an unordered iterator over all shards (including replicas).
      */
     public ShardsIterator randomAllShardsIt() {
-        return new PlainShardsIterator(allShards, counter.incrementAndGet());
+        return new PlainShardsIterator(shuffler.shuffle(allShards, shuffler.nextSeed()));
     }
 
     /**
      * Returns an unordered iterator over all active shards (including replicas).
      */
     public ShardsIterator randomAllActiveShardsIt() {
-        return new PlainShardsIterator(allActiveShards, counter.incrementAndGet());
+        return new PlainShardsIterator(shuffler.shuffle(allActiveShards, shuffler.nextSeed()));
     }
 
     /**

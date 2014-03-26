@@ -25,6 +25,9 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.primitives.Longs;
 import org.apache.lucene.util.IntroSorter;
 
+import java.util.AbstractList;
+import java.util.List;
+
 /** Collections-related utility methods. */
 public enum CollectionUtils {
     ;
@@ -197,6 +200,46 @@ public enum CollectionUtils {
      */
     public static boolean isEmpty(Object[] array) {
         return array == null || array.length == 0;
+    }
+
+    /**
+     * Return a rotated view of the given list with the given distance.
+     */
+    public static <T> List<T> rotate(final List<T> list, int distance) {
+        if (list.isEmpty()) {
+            return list;
+        }
+
+        int d = distance % list.size();
+        if (d < 0) {
+            d += list.size();
+        }
+
+        if (d == 0) {
+            return list;
+        }
+
+        return rotate1(list, d);
+    }
+
+    private static <T> List<T> rotate1(final List<T> list, final int distance) {
+        return new AbstractList<T>() {
+
+            @Override
+            public T get(int index) {
+                int idx = distance + index;
+                if (idx < 0 || idx >= list.size()) {
+                    idx -= list.size();
+                }
+                return list.get(idx);
+            }
+
+            @Override
+            public int size() {
+                return list.size();
+            }
+
+        };
     }
 
 }

@@ -100,7 +100,9 @@ public class FieldValueFactorFunction extends ScoreFunction {
     public enum Modifier {
         NONE,
         LOG,
+        LOG1P,
         LN,
+        LN1P,
         SQUARE,
         SQRT,
         RECIPROCAL;
@@ -116,8 +118,14 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 case LOG:
                     result = Math.log10(n);
                     break;
+                case LOG1P:
+                    result = Math.log10(n + 1);
+                    break;
                 case LN:
                     result = Math.log(n);
+                    break;
+                case LN1P:
+                    result = Math.log1p(n);
                     break;
                 case SQUARE:
                     result = Math.pow(n, 2);

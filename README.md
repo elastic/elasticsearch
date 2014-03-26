@@ -119,6 +119,8 @@ The following settings are supported:
 * `bucket`: The name of the bucket to be used for snapshots. (Mandatory)
 * `region`: The region where bucket is located. Defaults to US Standard
 * `base_path`: Specifies the path within bucket to repository data. Defaults to root directory.
+* `access_key`: The access key to use for authentication. Defaults to value of `cloud.aws.access_key`.
+* `secret_key`: The secret key to use for authentication. Defaults to value of `cloud.aws.secret_key`.
 * `concurrent_streams`: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`.
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
@@ -131,11 +133,11 @@ The S3 repositories are using the same credentials as the rest of the S3 service
             secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
 
 
-Multiple S3 repositories can be created as long as they share the same credential.
+Multiple S3 repositories can be created. If the buckets require different credentials, then define them as part of the repository settings.
 
 ## Testing
 
-Integrations tests in this plugin require working AWS configuration and therefore disabled by default. To enable tests prepare a config file elasticsearch.yml with the following content:
+Integrations tests in this plugin require working AWS configuration and therefore disabled by default. Three buckets and two iam users have to be created. The first iam user needs access to two buckets in different regions and the final bucket is exclusive for the other iam user. To enable tests prepare a config file elasticsearch.yml with the following content:
 
 ```
 cloud:
@@ -147,10 +149,17 @@ repositories:
     s3:
         bucket: "bucket_name"
         region: "us-west-2"
+        private-bucket:
+            bucket: <bucket not accessible by default key>
+            access_key: <access key>
+            secret_key: <access key>
+        remote-bucket:
+            bucket: <bucket in other region>
+            region: <region>
 
 ```
 
-Replaces `access_key`, `secret_key`, `bucket` and `region` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified bucket.
+Replace all occurrences of `access_key`, `secret_key`, `bucket` and `region` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified buckets.
 
 To run test:
 

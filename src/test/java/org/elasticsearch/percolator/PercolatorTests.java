@@ -287,7 +287,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        wipeIndices("test");
+        cluster().wipeIndices("test");
         createIndex("test");
         ensureGreen();
 

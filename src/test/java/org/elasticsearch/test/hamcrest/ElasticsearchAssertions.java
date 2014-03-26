@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.hamcrest;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -46,18 +47,18 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ElasticsearchTestCase.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertTrue;
@@ -377,8 +378,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Streamable streamable) {
-        assertTrue(Version.CURRENT.after(ElasticsearchTestCase.getPreviousVersion()));
-        assertVersionSerializable(ElasticsearchTestCase.randomVersion(), streamable);
+        assertTrue(Version.CURRENT.after(getPreviousVersion()));
+        assertVersionSerializable(randomVersion(), streamable);
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
@@ -433,5 +434,66 @@ public class ElasticsearchAssertions {
         assertNoFailures(response);
         assertThat("One or more shards were not successful but didn't trigger a failure", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
         return response;
+    }
+
+    public static void assertAllSearchersClosed() {
+        /* in some cases we finish a test faster than the freeContext calls make it to the
+         * shards. Let's wait for some time if there are still searchers. If the are really
+         * pending we will fail anyway.*/
+        try {
+            if (awaitBusy(new Predicate<Object>() {
+                public boolean apply(Object o) {
+                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                }
+            }, 5, TimeUnit.SECONDS)) {
+                return;
+            }
+        } catch (InterruptedException ex) {
+            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+                return;
+            }
+        }
+        try {
+            RuntimeException ex = null;
+            StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
+            for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                ex = entry.getValue();
+                builder.append(entry.getKey().shardId()).append(",");
+            }
+            builder.append("]");
+            throw new RuntimeException(builder.toString(), ex);
+        } finally {
+            MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+        }
+    }
+
+    public static void assertAllFilesClosed() throws IOException {
+        try {
+            for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
+                try {
+                    awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(Object input) {
+                            return !w.isOpen();
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                }
+                if (!w.successfullyClosed()) {
+                    if (w.closeException() == null) {
+                        w.close();
+                        if (w.closeException() != null) {
+                            throw w.closeException();
+                        }
+                    } else {
+                        throw w.closeException();
+                    }
+                }
+                assertThat(w.isOpen(), is(false));
+            }
+        } finally {
+            MockDirectoryHelper.wrappers.clear();
+        }
     }
 }

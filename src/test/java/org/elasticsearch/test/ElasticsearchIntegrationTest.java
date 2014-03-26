@@ -18,22 +18,17 @@
  */
 package org.elasticsearch.test;
 
-import com.carrotsearch.hppc.ObjectArrayList;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.AbstractRandomizedTest;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -51,7 +46,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -60,17 +54,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.index.mapper.FieldMapper.Loading;
-import org.elasticsearch.index.merge.policy.*;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.indices.IndexTemplateMissingException;
-import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.junit.After;
 import org.junit.Before;
@@ -146,7 +130,7 @@ import static org.hamcrest.Matchers.equalTo;
  * <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
  * <li>-D{@value TestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
  * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
- * <li>-D{@value #INDEX_SEED_SETTING} - a random seed used to initialize the index random context.
+ * <li>-D{@value org.elasticsearch.test.TestCluster#SETTING_INDEX_SEED} - a random seed used to initialize the index random context.
  * </ul>
  * </p>
  */
@@ -159,13 +143,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
      */
     public static final String TESTS_CLIENT_RATIO = "tests.client.ratio";
-
-    /**
-     * Key used to retrieve the index random seed from the index settings on a running node.
-     * The value of this seed can be used to initialize a random context for a specific index.
-     * It's set once per test via a generic index template.
-     */
-    public static final String INDEX_SEED_SETTING = "index.tests.seed";
 
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
@@ -192,7 +169,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<Class<?>, TestCluster>();
 
     @BeforeClass
-    public final static void beforeClass() throws Exception {
+    public static void beforeClass() throws Exception {
         // Initialize lazily. No need for volatiles/ CASs since each JVM runs at most one test
         // suite at any given moment.
         if (GLOBAL_CLUSTER == null) {
@@ -221,10 +198,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     fail("Unknown Scope: [" + currentClusterScope + "]");
             }
             currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
-            wipeIndices("_all");
-            wipeTemplates();
+            cluster().wipe();
             randomIndexTemplate();
-            wipeRepositories();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -268,12 +243,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
                 }
-                wipeIndices("_all"); // wipe after to make sure we fail in the test that didn't ack the delete
-                wipeTemplates();
-                wipeRepositories();
-                ensureAllSearchersClosed();
-                ensureAllFilesClosed();
-                ensureEstimatedStats();
+                cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                cluster().assertAfterTest();
             } finally {
                 if (currentClusterScope == Scope.TEST) {
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
@@ -312,75 +283,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * per index basis.
      */
     private static void randomIndexTemplate() {
-        // TODO move settings for random directory etc here into the index based randomized settings.
-        if (cluster().size() > 0) {
-            ImmutableSettings.Builder builder = setRandomNormsLoading(setRandomMerge(getRandom(), ImmutableSettings.builder())
-                    .put(INDEX_SEED_SETTING, randomLong()))
-                    .put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1));
-            client().admin().indices().preparePutTemplate("random_index_template")
-                    .setTemplate("*")
-                    .setOrder(0)
-                    .setSettings(builder)
-                    .execute().actionGet();
-        }
-    }
-
-    private static ImmutableSettings.Builder setRandomNormsLoading(ImmutableSettings.Builder builder) {
-        if (randomBoolean()) {
-            builder.put(SearchService.NORMS_LOADING_KEY, randomFrom(Arrays.asList(Loading.EAGER, Loading.LAZY)));
-        }
-        return builder;
-    }
-
-    private static ImmutableSettings.Builder setRandomMerge(Random random, ImmutableSettings.Builder builder) {
-        if (random.nextBoolean()) {
-            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
-                    random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
-        }
-        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
-        switch (random.nextInt(5)) {
-            case 4:
-                mergePolicy = LogByteSizeMergePolicyProvider.class;
-                break;
-            case 3:
-                mergePolicy = LogDocMergePolicyProvider.class;
-                break;
-            case 0:
-                mergePolicy = null;
-        }
-        if (mergePolicy != null) {
-            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
-        }
-
-        if (random.nextBoolean()) {
-            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
-        }
-        switch (random.nextInt(5)) {
-            case 4:
-                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, SerialMergeSchedulerProvider.class.getName());
-                break;
-            case 3:
-                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class.getName());
-                break;
-        }
-
-        return builder;
+        cluster().randomIndexTemplate();
     }
 
     public static Iterable<Client> clients() {
         return cluster();
     }
 
-    protected static final int DEFAULT_MIN_NUM_SHARDS = 1;
-    protected static final int DEFAULT_MAX_NUM_SHARDS = 10;
-
     protected int minimumNumberOfShards() {
-        return DEFAULT_MIN_NUM_SHARDS;
+        return TestCluster.DEFAULT_MIN_NUM_SHARDS;
     }
 
     protected int maximumNumberOfShards() {
-        return DEFAULT_MAX_NUM_SHARDS;
+        return TestCluster.DEFAULT_MAX_NUM_SHARDS;
     }
 
     protected int numberOfShards() {
@@ -419,89 +334,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     /**
-     * Ensures that the breaker statistics are reset to 0 since we wiped all indices and that
-     * means all stats should be set to 0 otherwise something is wrong with the field data
-     * calculation.
-     */
-    private static void ensureEstimatedStats() {
-        if (cluster().size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
-                    .clear().setBreaker(true).execute().actionGet();
-            for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getEstimated(), equalTo(0L));
-            }
-        }
-    }
-
-    /**
-     * Deletes the given indices from the tests cluster. If no index name is passed to this method
-     * all indices are removed.
-     */
-    public static void wipeIndices(String... indices) {
-        assert indices != null && indices.length > 0;
-        if (cluster().size() > 0) {
-            try {
-                assertAcked(client().admin().indices().prepareDelete(indices));
-            } catch (IndexMissingException e) {
-                // ignore
-            } catch (ElasticsearchIllegalArgumentException e) {
-                // Happens if `action.destructive_requires_name` is set to true
-                // which is the case in the CloseIndexDisableCloseAllTests
-                if ("_all".equals(indices[0])) {
-                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<String>();
-                    for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
-                        concreteIndices.add(indexMetaData.getIndex());
-                    }
-                    if (!concreteIndices.isEmpty()) {
-                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Deletes index templates, support wildcard notation.
-     * If no template name is passed to this method all templates are removed.
-     */
-    public static void wipeTemplates(String... templates) {
-        if (cluster().size() > 0) {
-            // if nothing is provided, delete all
-            if (templates.length == 0) {
-                templates = new String[]{"*"};
-            }
-            for (String template : templates) {
-                try {
-                    client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
-                } catch (IndexTemplateMissingException e) {
-                    // ignore
-                }
-            }
-        }
-    }
-
-    /**
-     * Deletes repositories, supports wildcard notation.
-     */
-    public static void wipeRepositories(String... repositories) {
-        if (cluster().size() > 0) {
-            // if nothing is provided, delete all
-            if (repositories.length == 0) {
-                repositories = new String[]{"*"};
-            }
-            for (String repository : repositories) {
-                try {
-                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
-                } catch (RepositoryMissingException ex) {
-                    // ignore
-                }
-            }
-        }
-    }
-
-    /**
      * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
      * already exists this method will fail and wipe all the indices created so far.
      */
@@ -516,7 +348,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 success = true;
             } finally {
                 if (!success && !created.isEmpty()) {
-                    wipeIndices(created.toArray(new String[created.size()]));
+                    cluster().wipeIndices(created.toArray(new String[created.size()]));
                 }
             }
         }

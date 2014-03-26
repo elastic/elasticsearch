@@ -84,30 +84,40 @@ public final class PagedBytesReference implements BytesReference {
 
     @Override
     public void writeTo(OutputStream os) throws IOException {
-            BytesRef ref = new BytesRef();
-            int written = 0;
-            
-            // are we a slice?
-            if (offset != 0) {
-                // remaining size of page fragment at offset
-                int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
-                bytearray.get(offset, fragmentSize, ref);
-                os.write(ref.bytes, ref.offset, fragmentSize);
-                written += fragmentSize;
-            }
+        // nothing to do
+        if (length == 0) {
+            return;
+        }
 
-            // handle remainder of pages + trailing fragment
-            while (written < length) {
-                int remaining = length - written;
-                int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
-                bytearray.get(offset + written, bulkSize, ref);
-                os.write(ref.bytes, ref.offset, bulkSize);
-                written += bulkSize;
-            }
+        BytesRef ref = new BytesRef();
+        int written = 0;
+        
+        // are we a slice?
+        if (offset != 0) {
+            // remaining size of page fragment at offset
+            int fragmentSize = Math.min(length, PAGE_SIZE - (offset % PAGE_SIZE));
+            bytearray.get(offset, fragmentSize, ref);
+            os.write(ref.bytes, ref.offset, fragmentSize);
+            written += fragmentSize;
+        }
+
+        // handle remainder of pages + trailing fragment
+        while (written < length) {
+            int remaining = length - written;
+            int bulkSize = (remaining > PAGE_SIZE) ? PAGE_SIZE : remaining;
+            bytearray.get(offset + written, bulkSize, ref);
+            os.write(ref.bytes, ref.offset, bulkSize);
+            written += bulkSize;
+        }
     }
 
     @Override
     public void writeTo(GatheringByteChannel channel) throws IOException {
+        // nothing to do
+        if (length == 0) {
+            return;
+        }
+
         ByteBuffer[] buffers;
         ByteBuffer currentBuffer = null;
         BytesRef ref = new BytesRef();
@@ -201,6 +211,11 @@ public final class PagedBytesReference implements BytesReference {
 
     @Override
     public ChannelBuffer toChannelBuffer() {
+        // nothing to do
+        if (length == 0) {
+            return ChannelBuffers.EMPTY_BUFFER;
+        }
+
         ChannelBuffer[] buffers;
         ChannelBuffer currentBuffer = null;
         BytesRef ref = new BytesRef();

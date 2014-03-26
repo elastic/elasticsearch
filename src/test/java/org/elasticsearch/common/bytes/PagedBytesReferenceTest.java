@@ -283,6 +283,14 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         assertArrayEquals(pbr.toBytes(), bufferBytes);
     }
 
+    public void testEmptyToChannelBuffer() {
+        BytesReference pbr = getRandomizedPagedBytesReference(0);
+        ChannelBuffer cb = pbr.toChannelBuffer();
+        assertNotNull(cb);
+        assertEquals(0, pbr.length());
+        assertEquals(0, cb.capacity());
+    }
+
     public void testSliceToChannelBuffer() {
         int length = randomIntBetween(10, PAGE_SIZE * randomIntBetween(2,8));
         BytesReference pbr = getRandomizedPagedBytesReference(length);

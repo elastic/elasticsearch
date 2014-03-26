@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
+import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
 import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
@@ -114,6 +115,13 @@ public enum PreBuiltTokenFilters {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
             return new LowerCaseFilter(version.luceneVersion, tokenStream);
+        }
+    },
+
+    UPPERCASE(CachingStrategy.LUCENE) {
+        @Override
+        public TokenStream create(TokenStream tokenStream, Version version) {
+            return new UpperCaseFilter(version.luceneVersion, tokenStream);
         }
     },
 

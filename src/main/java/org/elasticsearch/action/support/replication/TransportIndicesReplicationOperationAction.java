@@ -84,6 +84,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
         final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<Object>(concreteIndices.length);
+        final long startTimeInMillis = System.currentTimeMillis();
 
         Map<String, Set<String>> routingMap = resolveRouting(clusterState, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
@@ -94,7 +95,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
                 if (routingMap != null) {
                     routing = routingMap.get(index);
                 }
-                IndexRequest indexRequest = newIndexRequestInstance(request, index, routing);
+                IndexRequest indexRequest = newIndexRequestInstance(request, index, routing, startTimeInMillis);
                 // no threading needed, all is done on the index replication one
                 indexRequest.listenerThreaded(false);
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -127,7 +128,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
     protected abstract String transportAction();
 
-    protected abstract IndexRequest newIndexRequestInstance(Request request, String index, Set<String> routing);
+    protected abstract IndexRequest newIndexRequestInstance(Request request, String index, Set<String> routing, long startTimeInMillis);
 
     protected abstract boolean accumulateExceptions();
 

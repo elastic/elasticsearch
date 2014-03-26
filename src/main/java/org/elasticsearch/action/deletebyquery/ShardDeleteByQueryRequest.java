@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -47,6 +48,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
     private Set<String> routing;
     @Nullable
     private String[] filteringAliases;
+    private long nowInMillis;
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
         super(request);
@@ -59,6 +61,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         timeout = request.timeout();
         this.routing = request.routing();
         filteringAliases = request.filteringAliases();
+        nowInMillis = request.nowInMillis();
     }
 
     ShardDeleteByQueryRequest() {
@@ -93,6 +96,10 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         return filteringAliases;
     }
 
+    long nowInMillis() {
+        return nowInMillis;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -112,6 +119,12 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
             for (int i = 0; i < aliasesSize; i++) {
                 filteringAliases[i] = in.readString();
             }
+        }
+
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            nowInMillis = in.readVLong();
+        } else {
+            nowInMillis = System.currentTimeMillis();
         }
     }
 
@@ -136,6 +149,9 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
             }
         } else {
             out.writeVInt(0);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeVLong(nowInMillis);
         }
     }
 

@@ -142,4 +142,16 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
+    public void testDateMath() throws Exception {
+        index("test", "type", "1", "d", "2013-01-01");
+        ensureGreen();
+        refresh();
+        assertHitCount(client().prepareCount("test").get(), 1);
+        client().prepareDeleteByQuery("test").setQuery(QueryBuilders.rangeQuery("d").to("now-1h")).get();
+        refresh();
+        assertHitCount(client().prepareCount("test").get(), 0);
+    }
+
+
 }

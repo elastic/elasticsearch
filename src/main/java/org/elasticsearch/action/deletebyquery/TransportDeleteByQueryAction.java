@@ -100,8 +100,8 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
     }
 
     @Override
-    protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
+    protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing, long startTimeInMillis) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.indices());
-        return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases);
+        return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases, startTimeInMillis);
     }
 }

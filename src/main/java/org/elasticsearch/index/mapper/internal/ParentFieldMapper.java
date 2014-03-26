@@ -23,7 +23,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.XTermsFilter;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -278,7 +278,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             for (String type : context.mapperService().types()) {
                 typesValues.add(Uid.createUidAsBytes(type, bValue));
             }
-            return new XTermsFilter(names.indexName(), typesValues);
+            return new TermsFilter(names.indexName(), typesValues);
         }
     }
 
@@ -311,7 +311,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        return new XTermsFilter(names.indexName(), bValues);
+        return new TermsFilter(names.indexName(), bValues);
     }
 
     /**

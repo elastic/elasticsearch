@@ -25,7 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.queries.XTermsFilter;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -88,7 +88,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     }
 
     private Filter getTermsFilter(String field, String text) {
-        return new XTermsFilter(new Term(field, text));
+        return new TermsFilter(new Term(field, text));
     }
 
     private Filter getWrappedTermQuery(String field, String text) {

@@ -22,7 +22,7 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.XTermsFilter;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
@@ -201,7 +201,7 @@ public class TermsFilterParser implements FilterParser {
                     for (int i = 0; i < filterValues.length; i++) {
                         filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
                     }
-                    filter = new XTermsFilter(fieldName, filterValues);
+                    filter = new TermsFilter(fieldName, filterValues);
                 }
                 // cache the whole filter by default, or if explicitly told to
                 if (cache == null || cache) {

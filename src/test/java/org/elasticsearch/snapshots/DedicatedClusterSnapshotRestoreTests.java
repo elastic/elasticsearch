@@ -137,7 +137,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         logger.info("--> start 2 nodes");
         cluster().startNode(settingsBuilder().put("gateway.type", "local"));
         cluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        wipeIndices("_all");
+        cluster().wipeIndices("_all");
 
         assertAcked(prepareCreate("test-idx-1", 2, settingsBuilder().put("number_of_shards", 6)
                 .put("number_of_replicas", 0)

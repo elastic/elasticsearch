@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.hppc.ObjectArrayList;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -26,8 +28,12 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecyclerModule;
 import org.elasticsearch.client.Client;
@@ -35,6 +41,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,8 +57,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.merge.policy.*;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
+import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
@@ -66,6 +82,7 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -74,8 +91,15 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
 import static com.google.common.collect.Maps.newTreeMap;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSearchersClosed;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 /**
  * TestCluster manages a set of JVM private nodes and allows convenient access to them.
@@ -106,13 +130,22 @@ public final class TestCluster implements Iterable<Client> {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
+    /**
+     * Key used to retrieve the index random seed from the index settings on a running node.
+     * The value of this seed can be used to initialize a random context for a specific index.
+     * It's set once per test via a generic index template.
+     */
+    public static final String SETTING_INDEX_SEED = "index.tests.seed";
+
     private static final String CLUSTER_NAME_KEY = "cluster.name";
 
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     static final int DEFAULT_MIN_NUM_NODES = 2;
-
     static final int DEFAULT_MAX_NUM_NODES = 6;
+
+    public static final int DEFAULT_MIN_NUM_SHARDS = 1;
+    public static final int DEFAULT_MAX_NUM_SHARDS = 10;
 
     /* sorted map to make traverse order reproducible */
     private final TreeMap<String, NodeAndClient> nodes = newTreeMap();
@@ -626,7 +659,7 @@ public final class TestCluster implements Iterable<Client> {
         public static TransportClientFactory NO_SNIFF_CLIENT_FACTORY = new TransportClientFactory(false);
         public static TransportClientFactory SNIFF_CLIENT_FACTORY = new TransportClientFactory(true);
 
-        public TransportClientFactory(boolean sniff) {
+        private TransportClientFactory(boolean sniff) {
             this.sniff = sniff;
         }
 
@@ -725,13 +758,168 @@ public final class TestCluster implements Iterable<Client> {
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
     }
 
+    public void wipe() {
+        wipeIndices("_all");
+        wipeTemplates();
+        wipeRepositories();
+    }
+
+    /**
+     * Deletes the given indices from the tests cluster. If no index name is passed to this method
+     * all indices are removed.
+     */
+    public void wipeIndices(String... indices) {
+        assert indices != null && indices.length > 0;
+        if (size() > 0) {
+            try {
+                assertAcked(client().admin().indices().prepareDelete(indices));
+            } catch (IndexMissingException e) {
+                // ignore
+            } catch (ElasticsearchIllegalArgumentException e) {
+                // Happens if `action.destructive_requires_name` is set to true
+                // which is the case in the CloseIndexDisableCloseAllTests
+                if ("_all".equals(indices[0])) {
+                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
+                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<String>();
+                    for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
+                        concreteIndices.add(indexMetaData.getIndex());
+                    }
+                    if (!concreteIndices.isEmpty()) {
+                        assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Deletes index templates, support wildcard notation.
+     * If no template name is passed to this method all templates are removed.
+     */
+    public void wipeTemplates(String... templates) {
+        if (size() > 0) {
+            // if nothing is provided, delete all
+            if (templates.length == 0) {
+                templates = new String[]{"*"};
+            }
+            for (String template : templates) {
+                try {
+                    client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
+                } catch (IndexTemplateMissingException e) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    /**
+     * Deletes repositories, supports wildcard notation.
+     */
+    public void wipeRepositories(String... repositories) {
+        if (size() > 0) {
+            // if nothing is provided, delete all
+            if (repositories.length == 0) {
+                repositories = new String[]{"*"};
+            }
+            for (String repository : repositories) {
+                try {
+                    client().admin().cluster().prepareDeleteRepository(repository).execute().actionGet();
+                } catch (RepositoryMissingException ex) {
+                    // ignore
+                }
+            }
+        }
+    }
+
+    /**
+     * Ensures that the breaker statistics are reset to 0 since we wiped all indices and that
+     * means all stats should be set to 0 otherwise something is wrong with the field data
+     * calculation.
+     */
+    public void ensureEstimatedStats() {
+        if (size() > 0) {
+            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
+                    .clear().setBreaker(true).execute().actionGet();
+            for (NodeStats stats : nodeStats.getNodes()) {
+                assertThat("Breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getEstimated(), equalTo(0L));
+            }
+        }
+    }
+
+    /**
+     * Creates a randomized index template. This template is used to pass in randomized settings on a
+     * per index basis.
+     */
+    public void randomIndexTemplate() {
+        // TODO move settings for random directory etc here into the index based randomized settings.
+        if (size() > 0) {
+            ImmutableSettings.Builder builder = setRandomNormsLoading(setRandomMerge(random, ImmutableSettings.builder())
+                    .put(SETTING_INDEX_SEED, random.nextLong()))
+                    .put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
+                    .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, 1));
+            client().admin().indices().preparePutTemplate("random_index_template")
+                    .setTemplate("*")
+                    .setOrder(0)
+                    .setSettings(builder)
+                    .execute().actionGet();
+        }
+    }
+
+    private ImmutableSettings.Builder setRandomNormsLoading(ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(FieldMapper.Loading.EAGER, FieldMapper.Loading.LAZY)));
+        }
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomMerge(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
+                    random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
+        }
+        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
+        switch (random.nextInt(5)) {
+            case 4:
+                mergePolicy = LogByteSizeMergePolicyProvider.class;
+                break;
+            case 3:
+                mergePolicy = LogDocMergePolicyProvider.class;
+                break;
+            case 0:
+                mergePolicy = null;
+        }
+        if (mergePolicy != null) {
+            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
+        }
+        switch (random.nextInt(5)) {
+            case 4:
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, SerialMergeSchedulerProvider.class.getName());
+                break;
+            case 3:
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class.getName());
+                break;
+        }
+
+        return builder;
+    }
+
     /**
      * This method should be executed during tearDown
      */
     public synchronized void afterTest() {
         wipeDataDirectories();
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
+    }
 
+    public void assertAfterTest() throws IOException {
+        assertAllSearchersClosed();
+        assertAllFilesClosed();
+        ensureEstimatedStats();
     }
 
     private void resetClients() {
@@ -760,7 +948,7 @@ public final class TestCluster implements Iterable<Client> {
     }
 
     /**
-     * Returns an Iterabel to all instances for the given class &gt;T&lt; across all nodes in the cluster.
+     * Returns an Iterable to all instances for the given class &gt;T&lt; across all nodes in the cluster.
      */
     public synchronized <T> Iterable<T> getInstances(Class<T> clazz) {
         List<T> instances = new ArrayList<T>(nodes.size());

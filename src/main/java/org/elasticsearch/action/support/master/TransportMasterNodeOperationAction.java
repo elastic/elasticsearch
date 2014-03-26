@@ -220,8 +220,9 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                             @Override
                             public void postAdded() {
                                 ClusterState clusterStateV2 = clusterService.state();
-                                if (clusterState.version() != clusterStateV2.version()) {
-                                    // something changed while adding, try again
+                                // checking for changes that happened while adding the listener. We can't check using cluster
+                                // state versions as mater election doesn't increase version numbers
+                                if (clusterState != clusterStateV2) {
                                     clusterService.remove(this);
                                     innerExecute(request, listener, false);
                                 }

@@ -167,7 +167,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("body", "Test: http://www.facebook.com ").type(Type.PHRASE)).addHighlightedField("body").execute().actionGet();
         assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
         search = client().prepareSearch().setQuery(matchQuery("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature").type(Type.PHRASE)).addHighlightedField("body").execute().actionGet();
-        assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: <em>http</em>://<em>www</em>.<em>facebook</em>.<em>com</em> <em>http</em>://<em>elasticsearch</em>.<em>org</em> <em>http</em>://<em>xing</em>.<em>com</em> <em>http</em>://<em>cnn</em>.<em>com</em> <em>http</em>://<em>quora</em>.com"));
+        assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: <em>http</em>://<em>www</em>.<em>facebook</em>.com <em>http</em>://<em>elasticsearch</em>.<em>org</em> <em>http</em>://<em>xing</em>.com <em>http</em>://<em>cnn</em>.com <em>http</em>://<em>quora</em>.com"));
     }
     
     @Test

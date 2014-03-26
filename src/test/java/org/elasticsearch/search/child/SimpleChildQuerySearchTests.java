@@ -588,22 +588,16 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                // Enable this again when upgraded to Lucene 4.7.1
-//                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))))).get();
-                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(matchAllQuery())))).get();
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))))).get();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                // Enable this again when upgraded to Lucene 4.7.1
-//                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*"))))).execute()
-                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(matchAllQuery())))).execute()
+                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                // Enable this again when upgraded to Lucene 4.7.1
-//                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(matchAllQuery())))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }
@@ -626,9 +620,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
-                // Enable this again when upgraded to Lucene 4.7.1
-//                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:(red OR yellow OR blue)"))))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }

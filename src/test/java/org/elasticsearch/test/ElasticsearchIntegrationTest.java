@@ -200,7 +200,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
             cluster().wipe();
-            randomIndexTemplate();
+            cluster().randomIndexTemplate();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -274,14 +274,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             client = new RandomizingClient((InternalClient) client, getRandom());
         }
         return client;
-    }
-
-    /**
-     * Creates a randomized index template. This template is used to pass in randomized settings on a
-     * per index basis.
-     */
-    private static void randomIndexTemplate() {
-        cluster().randomIndexTemplate();
     }
 
     public static Iterable<Client> clients() {

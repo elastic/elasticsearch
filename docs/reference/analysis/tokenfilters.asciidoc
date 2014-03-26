@@ -17,6 +17,8 @@ include::tokenfilters/length-tokenfilter.asciidoc[]
 
 include::tokenfilters/lowercase-tokenfilter.asciidoc[]
 
+include::tokenfilters/uppercase-tokenfilter.asciidoc[]
+
 include::tokenfilters/ngram-tokenfilter.asciidoc[]
 
 include::tokenfilters/edgengram-tokenfilter.asciidoc[]

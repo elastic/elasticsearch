@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.query.functionscore.fieldvaluefactor;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -73,7 +76,12 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
             throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] required field 'field' missing");
         }
 
-        return new FieldValueFactorFunction(field, boostFactor, modifier);
+        SearchContext searchContext = SearchContext.current();
+        FieldMapper mapper = searchContext.mapperService().smartNameFieldMapper(field);
+        if (mapper == null) {
+            throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]");
+        }
+        return new FieldValueFactorFunction(field, boostFactor, modifier, searchContext.fieldData().getForField(mapper));
     }
 
     @Override

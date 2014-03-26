@@ -541,19 +541,6 @@ public class IndexMetaData {
             ImmutableOpenMap.Builder<String, AliasMetaData> tmpAliases = aliases;
             Settings tmpSettings = settings;
 
-            // For backward compatibility
-            String[] legacyAliases = settings.getAsArray("index.aliases");
-            if (legacyAliases.length > 0) {
-                tmpAliases = ImmutableOpenMap.builder();
-                for (String alias : legacyAliases) {
-                    AliasMetaData aliasMd = AliasMetaData.newAliasMetaDataBuilder(alias).build();
-                    tmpAliases.put(alias, aliasMd);
-                }
-                tmpAliases.putAll(aliases);
-                // Remove index.aliases from settings once they are migrated to the new data structure
-                tmpSettings = ImmutableSettings.settingsBuilder().put(settings).putArray("index.aliases").build();
-            }
-
             // update default mapping on the MappingMetaData
             if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                 MappingMetaData defaultMapping = mappings.get(MapperService.DEFAULT_MAPPING);

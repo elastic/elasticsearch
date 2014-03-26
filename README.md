@@ -16,7 +16,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 Please read documentation relative to the version you are using:
 
-* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-azure/blob/master/README.md)
+* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-gce/blob/master/README.md)
 
 
 Google Compute Engine Virtual Machine Discovery

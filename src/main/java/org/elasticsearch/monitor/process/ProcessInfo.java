@@ -94,6 +94,7 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
     static final class Fields {
         static final XContentBuilderString PROCESS = new XContentBuilderString("process");
         static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
         static final XContentBuilderString ID = new XContentBuilderString("id");
         static final XContentBuilderString MAX_FILE_DESCRIPTORS = new XContentBuilderString("max_file_descriptors");
         static final XContentBuilderString MLOCKALL = new XContentBuilderString("mlockall");
@@ -102,7 +103,7 @@ public class ProcessInfo implements Streamable, Serializable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.PROCESS);
-        builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
         builder.field(Fields.ID, id);
         builder.field(Fields.MAX_FILE_DESCRIPTORS, maxFileDescriptors);
         builder.field(Fields.MLOCKALL, mlockall);

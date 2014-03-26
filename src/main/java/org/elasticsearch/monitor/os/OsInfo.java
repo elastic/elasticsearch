@@ -91,6 +91,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     static final class Fields {
         static final XContentBuilderString OS = new XContentBuilderString("os");
         static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
         static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
         static final XContentBuilderString CPU = new XContentBuilderString("cpu");
         static final XContentBuilderString VENDOR = new XContentBuilderString("vendor");
@@ -111,7 +112,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
-        builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
         builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
         if (cpu != null) {
             builder.startObject(Fields.CPU);

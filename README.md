@@ -5,14 +5,18 @@ The Phonetic Analysis plugin integrates phonetic token filter analysis with elas
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-phonetic/2.0.0`.
 
-* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/master).
-* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/1.x).
+* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/master).
+* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/es-1.1).
+* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/es-1.0).
+* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/tree/es-0.90).
 
 |    Phonetic Analysis Plugin   |    elasticsearch    | Release date |
 |-------------------------------|---------------------|:------------:|
-| 2.1.0-SNAPSHOT                | 1.0.0.RC1 -> master |  XXXX-XX-XX  |
-| 2.0.0                         | 1.0.0.RC1 -> master |  2014-02-28  |
-| 2.0.0.RC1                     | 1.0.0.RC1 -> master |  2014-01-15  |
+| 3.0.0-SNAPSHOT                | master              |  XXXX-XX-XX  |
+
+Please read documentation relative to the version you are using:
+
+* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-phonetic/blob/master/README.md)
 
 
 A `phonetic` token filter that can be configured with different `encoder` types: 

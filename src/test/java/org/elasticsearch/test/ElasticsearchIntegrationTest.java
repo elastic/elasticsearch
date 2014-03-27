@@ -170,6 +170,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     @BeforeClass
     public static void beforeClass() throws Exception {
+        initializeGlobalCluster();
+    }
+
+    private static void initializeGlobalCluster() {
         // Initialize lazily. No need for volatiles/ CASs since each JVM runs at most one test
         // suite at any given moment.
         if (GLOBAL_CLUSTER == null) {
@@ -232,6 +236,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     @After
     public final void after() throws IOException {
+        boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
             final Scope currentClusterScope = getCurrentClusterScope();
@@ -251,12 +256,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 }
             }
             logger.info("[{}#{}]: cleaned up after test", getTestClass().getSimpleName(), getTestName());
+            success = true;
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
                 ElasticsearchTestCase.printStackDump(logger);
             }
             throw e;
         } finally {
+            if (!success) {
+                // if we failed that means that something broke horribly so we should
+                // clear all clusters and if the current cluster is the global we shut that one
+                // down as well to prevent subsequent tests from failing due to the same problem.
+                clearClusters();
+                if (currentCluster == GLOBAL_CLUSTER) {
+                    GLOBAL_CLUSTER.close();
+                    GLOBAL_CLUSTER = null;
+                    initializeGlobalCluster(); // re-init that cluster
+                }
+            }
             currentCluster.afterTest();
             currentCluster = null;
         }

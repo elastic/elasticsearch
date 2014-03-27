@@ -283,7 +283,7 @@ public abstract class ContextMapping implements ToXContent {
         public static List<ContextQuery> parseQueries(Map<String, ContextMapping> mappings, XContentParser parser)
                 throws IOException, ElasticsearchParseException {
 
-            Map<String, ContextQuery> querySet = new HashMap<String, ContextMapping.ContextQuery>();
+            Map<String, ContextQuery> querySet = new HashMap<>();
             Token token = parser.currentToken();
             if(token == Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != Token.END_OBJECT) {

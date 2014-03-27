@@ -90,7 +90,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 }
             }
         }
-        final List<CompletionSuggestion.Entry.Option> options = new ArrayList<CompletionSuggestion.Entry.Option>(results.values());
+        final List<CompletionSuggestion.Entry.Option> options = new ArrayList<>(results.values());
         CollectionUtil.introSort(options, scoreComparator);
 
         int optionCount = Math.min(suggestionContext.getSize(), options.size());

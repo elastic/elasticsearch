@@ -130,7 +130,7 @@ public class DoubleObjectPagedHashMap<T> extends AbstractPagedHashMap implements
             boolean cached;
             final Cursor<T> cursor;
             {
-                cursor = new Cursor<T>();
+                cursor = new Cursor<>();
                 cursor.index = -1;
                 cached = false;
             }

@@ -105,7 +105,7 @@ public class HistogramAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
-        List<InternalHistogram.Bucket> buckets = new ArrayList<InternalHistogram.Bucket>((int) bucketOrds.size());
+        List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
         for (long i = 0; i < bucketOrds.capacity(); ++i) {
             final long ord = bucketOrds.id(i);
             if (ord < 0) {

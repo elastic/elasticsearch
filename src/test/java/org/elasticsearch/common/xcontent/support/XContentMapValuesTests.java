@@ -204,7 +204,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
 
     @Test
     public void prefixedNamesFilteringTest() {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("obj", "value");
         map.put("obj_name", "value_name");
         Map<String, Object> filterdMap = XContentMapValues.filter(map, new String[]{"obj_name"}, Strings.EMPTY_ARRAY);
@@ -216,7 +216,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void nestedFilteringTest() {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("array",
                 Arrays.asList(
@@ -262,7 +262,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     @SuppressWarnings("unchecked")
     @Test
     public void completeObjectFilteringTest() {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("obj",
                 new HashMap<String, Object>() {{
@@ -307,7 +307,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
     @SuppressWarnings("unchecked")
     @Test
     public void filterIncludesUsingStarPrefix() {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("obj",
                 new HashMap<String, Object>() {{
@@ -349,7 +349,7 @@ public class XContentMapValuesTests extends ElasticsearchTestCase {
 
     @Test
     public void filterWithEmptyIncludesExcludes() {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         Map<String, Object> filteredMap = XContentMapValues.filter(map, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));

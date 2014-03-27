@@ -37,7 +37,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
      * requested. Information such as frequency, doc frequency and positions
      * information can be retrieved from the TermInfo objects in this map.
      */
-    private final Map<String, IndexFieldTerm> terms = new HashMap<String, IndexFieldTerm>();
+    private final Map<String, IndexFieldTerm> terms = new HashMap<>();
 
     // the name of this field
     private final String fieldName;

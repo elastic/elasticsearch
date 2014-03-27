@@ -820,7 +820,7 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "ip", "type=ip").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
                     .startObject()
@@ -843,7 +843,7 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         IPv4Range range = bucket.getAggregations().get("ip_range");
-        List<IPv4Range.Bucket> buckets = new ArrayList<IPv4Range.Bucket>(range.getBuckets());
+        List<IPv4Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
         assertThat(range, Matchers.notNullValue());
         assertThat(range.getName(), equalTo("ip_range"));
         assertThat(buckets.size(), is(1));

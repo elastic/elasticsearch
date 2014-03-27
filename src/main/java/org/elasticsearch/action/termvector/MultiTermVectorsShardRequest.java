@@ -44,7 +44,7 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
         super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
-        requests = new ArrayList<TermVectorRequest>();
+        requests = new ArrayList<>();
     }
 
     public int shardId() {
@@ -76,7 +76,7 @@ public class MultiTermVectorsShardRequest extends SingleShardOperationRequest<Mu
         super.readFrom(in);
         int size = in.readVInt();
         locations = new IntArrayList(size);
-        requests = new ArrayList<TermVectorRequest>(size);
+        requests = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             requests.add(TermVectorRequest.readTermVectorRequest(in));

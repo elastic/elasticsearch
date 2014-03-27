@@ -118,7 +118,7 @@ public class HashedAggregator {
                 }
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
                 BytesRefCountIterator iter = aggregator.getIter();
                 while (iter.next() != null) {
                     ordered.add(new InternalStringTermsFacet.TermEntry(iter.makeSafe(), iter.count()));
@@ -232,7 +232,7 @@ public class HashedAggregator {
 
     private static final class AssertingHashCount implements HashCount { // simple
         // implementation for assertions
-        private final ObjectIntOpenHashMap<HashedBytesRef> valuesAndCount = new ObjectIntOpenHashMap<HashedBytesRef>();
+        private final ObjectIntOpenHashMap<HashedBytesRef> valuesAndCount = new ObjectIntOpenHashMap<>();
         private HashedBytesRef spare = new HashedBytesRef();
 
         @Override

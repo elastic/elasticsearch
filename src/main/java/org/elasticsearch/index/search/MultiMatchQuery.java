@@ -105,7 +105,7 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         public  List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException{
-            List<Query> queries = new ArrayList<Query>();
+            List<Query> queries = new ArrayList<>();
             for (String fieldName : fieldNames.keySet()) {
                 Float boostValue = fieldNames.get(fieldName);
                 Query query = parseGroup(type.matchQueryType(), fieldName, boostValue, value, minimumShouldMatch);
@@ -159,8 +159,8 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         public List<Query> buildGroupedQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
-            Map<Analyzer, List<FieldAndMapper>> groups = new HashMap<Analyzer, List<FieldAndMapper>>();
-            List<Tuple<String, Float>> missing = new ArrayList<Tuple<String, Float>>();
+            Map<Analyzer, List<FieldAndMapper>> groups = new HashMap<>();
+            List<Tuple<String, Float>> missing = new ArrayList<>();
             for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
                 String name = entry.getKey();
                 MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(name);
@@ -178,7 +178,7 @@ public class MultiMatchQuery extends MatchQuery {
                 }
 
             }
-            List<Query> queries = new ArrayList<Query>();
+            List<Query> queries = new ArrayList<>();
             for (Tuple<String, Float> tuple : missing) {
                 Query q = parseGroup(type.matchQueryType(), tuple.v1(), tuple.v2(), value, minimumShouldMatch);
                 if (q != null) {

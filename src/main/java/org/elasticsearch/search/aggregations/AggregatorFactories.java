@@ -212,7 +212,7 @@ public class AggregatorFactories {
 
     public static class Builder {
 
-        private List<AggregatorFactory> factories = new ArrayList<AggregatorFactory>();
+        private List<AggregatorFactory> factories = new ArrayList<>();
 
         public Builder add(AggregatorFactory factory) {
             factories.add(factory);

@@ -405,7 +405,7 @@ public class GeolocationContextMapping extends ContextMapping {
 
         private IntOpenHashSet precisions = new IntOpenHashSet();
         private boolean neighbors; // take neighbor cell on the lowest level into account
-        private HashSet<String> defaultLocations = new HashSet<String>();
+        private HashSet<String> defaultLocations = new HashSet<>();
         private String fieldName = null;
         
         protected Builder(String name) {
@@ -579,7 +579,7 @@ public class GeolocationContextMapping extends ContextMapping {
                 if(mapping.fieldName != null) {
                     IndexableField[] fields = doc.getFields(mapping.fieldName);
                     if(fields.length > 0) {
-                        geohashes = new ArrayList<String>(fields.length);
+                        geohashes = new ArrayList<>(fields.length);
                         GeoPoint spare = new GeoPoint();
                         for (IndexableField field : fields) {
                             spare.resetFromString(field.stringValue());
@@ -595,7 +595,7 @@ public class GeolocationContextMapping extends ContextMapping {
                 geohashes = locations;
             }
 
-            Collection<String> locations = new HashSet<String>();
+            Collection<String> locations = new HashSet<>();
             for (String geohash : geohashes) {
                 for (int p : mapping.precision) {
                     int precision = Math.min(p, geohash.length());

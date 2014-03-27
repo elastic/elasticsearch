@@ -157,7 +157,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                                 warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
                             } else {
                                 boolean found = false;
-                                List<IndexWarmersMetaData.Entry> entries = new ArrayList<IndexWarmersMetaData.Entry>(warmers.entries().size() + 1);
+                                List<IndexWarmersMetaData.Entry> entries = new ArrayList<>(warmers.entries().size() + 1);
                                 for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                                     if (entry.name().equals(request.name())) {
                                         found = true;

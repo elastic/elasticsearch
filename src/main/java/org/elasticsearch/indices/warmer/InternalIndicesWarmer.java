@@ -47,7 +47,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
 
     private final IndicesService indicesService;
 
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public InternalIndicesWarmer(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {

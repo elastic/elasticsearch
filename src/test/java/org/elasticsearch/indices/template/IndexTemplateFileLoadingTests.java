@@ -80,7 +80,7 @@ public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest 
     @Test
     public void testThatLoadingTemplateFromFileWorks() throws Exception {
         final int iters = scaledRandomIntBetween(5, 20);
-        Set<String> indices = new HashSet<String>();
+        Set<String> indices = new HashSet<>();
         for (int i = 0; i < iters; i++) {
             String indexName = "foo" + randomRealisticUnicodeOfLengthBetween(0, 5);
             if (indices.contains(indexName)) {

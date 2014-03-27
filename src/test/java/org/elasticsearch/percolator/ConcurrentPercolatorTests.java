@@ -84,7 +84,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         final CountDownLatch start = new CountDownLatch(1);
         final AtomicBoolean stop = new AtomicBoolean(false);
         final AtomicInteger counts = new AtomicInteger(0);
-        final AtomicReference<Throwable> exceptionHolder = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> exceptionHolder = new AtomicReference<>();
         Thread[] threads = new Thread[5];
 
         for (int i = 0; i < threads.length; i++) {
@@ -297,7 +297,7 @@ public class ConcurrentPercolatorTests extends ElasticsearchIntegrationTest {
         final int numIndexThreads = 3;
         final int numberPercolateOperation = 100;
 
-        final AtomicReference<Throwable> exceptionHolder = new AtomicReference<Throwable>(null);
+        final AtomicReference<Throwable> exceptionHolder = new AtomicReference<>(null);
         final AtomicInteger idGen = new AtomicInteger(0);
         final Set<String> liveIds = ConcurrentCollections.newConcurrentSet();
         final AtomicBoolean run = new AtomicBoolean(true);

@@ -37,7 +37,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class InternalIndicesLifecycle extends AbstractComponent implements IndicesLifecycle {
 
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public InternalIndicesLifecycle(Settings settings) {

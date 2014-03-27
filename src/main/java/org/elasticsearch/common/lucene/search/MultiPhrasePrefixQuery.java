@@ -33,8 +33,8 @@ import java.util.*;
 public class MultiPhrasePrefixQuery extends Query {
 
     private String field;
-    private ArrayList<Term[]> termArrays = new ArrayList<Term[]>();
-    private ArrayList<Integer> positions = new ArrayList<Integer>();
+    private ArrayList<Term[]> termArrays = new ArrayList<>();
+    private ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
@@ -138,7 +138,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        ObjectOpenHashSet<Term> terms = new ObjectOpenHashSet<Term>();
+        ObjectOpenHashSet<Term> terms = new ObjectOpenHashSet<>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {

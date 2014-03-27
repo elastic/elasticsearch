@@ -261,7 +261,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return new TermFilter(new Term(names.indexName(), bValue));
         }
 
-        List<String> types = new ArrayList<String>(context.mapperService().types().size());
+        List<String> types = new ArrayList<>(context.mapperService().types().size());
         for (DocumentMapper documentMapper : context.mapperService()) {
             if (!documentMapper.parentFieldMapper().active()) {
                 types.add(documentMapper.type());
@@ -274,7 +274,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return new TermFilter(new Term(names.indexName(), Uid.createUidAsBytes(types.get(0), bValue)));
         } else {
             // we use all non child types, cause we don't know if its exact or not...
-            List<BytesRef> typesValues = new ArrayList<BytesRef>(types.size());
+            List<BytesRef> typesValues = new ArrayList<>(types.size());
             for (String type : context.mapperService().types()) {
                 typesValues.add(Uid.createUidAsBytes(type, bValue));
             }
@@ -292,14 +292,14 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return termFilter(values.get(0), context);
         }
 
-        List<String> types = new ArrayList<String>(context.mapperService().types().size());
+        List<String> types = new ArrayList<>(context.mapperService().types().size());
         for (DocumentMapper documentMapper : context.mapperService()) {
             if (!documentMapper.parentFieldMapper().active()) {
                 types.add(documentMapper.type());
             }
         }
 
-        List<BytesRef> bValues = new ArrayList<BytesRef>(values.size());
+        List<BytesRef> bValues = new ArrayList<>(values.size());
         for (Object value : values) {
             BytesRef bValue = BytesRefs.toBytesRef(value);
             if (Uid.hasDelimiter(bValue)) {

@@ -153,7 +153,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      */
     public GroupShardsIterator allShardsGrouped(String... indices) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }
@@ -175,7 +175,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public GroupShardsIterator allActiveShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }
@@ -201,7 +201,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
 
     public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }
@@ -237,7 +237,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
      */
     public GroupShardsIterator activePrimaryShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<>();
         if (indices == null || indices.length == 0) {
             indices = indicesRouting.keySet().toArray(new String[indicesRouting.keySet().size()]);
         }

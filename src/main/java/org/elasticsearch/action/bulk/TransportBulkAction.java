@@ -151,7 +151,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);
 
         MetaData metaData = clusterState.metaData();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<BulkItemResponse>(bulkRequest.requests.size());
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);

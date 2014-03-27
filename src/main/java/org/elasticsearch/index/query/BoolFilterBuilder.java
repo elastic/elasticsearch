@@ -32,11 +32,11 @@ import java.util.List;
  */
 public class BoolFilterBuilder extends BaseFilterBuilder {
     
-    private ArrayList<FilterBuilder> mustClauses = new ArrayList<FilterBuilder>();
+    private ArrayList<FilterBuilder> mustClauses = new ArrayList<>();
 
-    private ArrayList<FilterBuilder> mustNotClauses = new ArrayList<FilterBuilder>();
+    private ArrayList<FilterBuilder> mustNotClauses = new ArrayList<>();
 
-    private ArrayList<FilterBuilder> shouldClauses = new ArrayList<FilterBuilder>();
+    private ArrayList<FilterBuilder> shouldClauses = new ArrayList<>();
     
     private Boolean cache;
     private String cacheKey;

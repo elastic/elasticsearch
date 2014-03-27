@@ -67,7 +67,7 @@ public class FileSystemUtils {
             dirCreated = true;
             testDir.mkdirs();
         }
-        List<RandomAccessFile> files = new ArrayList<RandomAccessFile>();
+        List<RandomAccessFile> files = new ArrayList<>();
         try {
             while (true) {
                 files.add(new RandomAccessFile(new File(testDir, "tmp" + files.size()), "rw"));

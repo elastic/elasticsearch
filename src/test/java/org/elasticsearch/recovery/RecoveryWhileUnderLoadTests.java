@@ -340,7 +340,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         Thread[] writers = new Thread[scaledRandomIntBetween(3, 10)];
         final CountDownLatch stopLatch = new CountDownLatch(writers.length);
         logger.info("--> starting {} indexing threads", writers.length);
-        final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+        final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<>();
         for (int i = 0; i < writers.length; i++) {
             final int indexerId = i;
             final Client client = client();

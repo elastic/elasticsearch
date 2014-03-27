@@ -143,7 +143,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
 
         List<Object> values = fieldsValues.get(name);
         if (values == null) {
-            values = new ArrayList<Object>(2);
+            values = new ArrayList<>(2);
             fieldsValues.put(name, values);
         }
         values.add(value);

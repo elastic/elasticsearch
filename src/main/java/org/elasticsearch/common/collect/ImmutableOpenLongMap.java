@@ -183,15 +183,15 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
     }
 
     public static <VType> Builder<VType> builder() {
-        return new Builder<VType>();
+        return new Builder<>();
     }
 
     public static <VType> Builder<VType> builder(int size) {
-        return new Builder<VType>(size);
+        return new Builder<>(size);
     }
 
     public static <VType> Builder<VType> builder(ImmutableOpenLongMap<VType> map) {
-        return new Builder<VType>(map);
+        return new Builder<>(map);
     }
 
     public static class Builder<VType> implements LongObjectMap<VType> {
@@ -204,7 +204,7 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
         }
 
         public Builder(int size) {
-            this.map = new LongObjectOpenHashMap<VType>(size);
+            this.map = new LongObjectOpenHashMap<>(size);
         }
 
         public Builder(ImmutableOpenLongMap<VType> map) {
@@ -217,7 +217,7 @@ public final class ImmutableOpenLongMap<VType> implements Iterable<LongObjectCur
         public ImmutableOpenLongMap<VType> build() {
             LongObjectOpenHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return new ImmutableOpenLongMap<VType>(map);
+            return new ImmutableOpenLongMap<>(map);
         }
 
         /**

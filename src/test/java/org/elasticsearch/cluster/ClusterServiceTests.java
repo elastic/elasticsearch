@@ -435,7 +435,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
 
         // The tasks can be re-ordered, so we need to check out-of-order
-        Set<String> controlSources = new HashSet<String>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
+        Set<String> controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
         List<PendingClusterTask> pendingClusterTasks = clusterService.pendingTasks();
         assertThat(pendingClusterTasks.size(), equalTo(9));
         for (PendingClusterTask task : pendingClusterTasks) {
@@ -443,7 +443,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         }
         assertTrue(controlSources.isEmpty());
 
-        controlSources = new HashSet<String>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
+        controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5", "6", "7", "8", "9", "10"));
         PendingClusterTasksResponse response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks().size(), equalTo(9));
         for (PendingClusterTask task : response) {
@@ -497,7 +497,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         pendingClusterTasks = clusterService.pendingTasks();
         assertThat(pendingClusterTasks.size(), equalTo(4));
-        controlSources = new HashSet<String>(Arrays.asList("2", "3", "4", "5"));
+        controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5"));
         for (PendingClusterTask task : pendingClusterTasks) {
             assertTrue(controlSources.remove(task.source().string()));
         }
@@ -505,7 +505,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         response = cluster().clientNodeClient().admin().cluster().preparePendingClusterTasks().execute().actionGet();
         assertThat(response.pendingTasks().size(), equalTo(4));
-        controlSources = new HashSet<String>(Arrays.asList("2", "3", "4", "5"));
+        controlSources = new HashSet<>(Arrays.asList("2", "3", "4", "5"));
         for (PendingClusterTask task : response) {
             assertTrue(controlSources.remove(task.source().string()));
             assertThat(task.getTimeInQueueInMillis(), greaterThan(0l));
@@ -602,7 +602,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         Priority[] priorities = Priority.values();
 
         // will hold all the tasks in the order in which they were executed
-        List<PrioritiezedTask> tasks = new ArrayList<PrioritiezedTask>(taskCount);
+        List<PrioritiezedTask> tasks = new ArrayList<>(taskCount);
         CountDownLatch latch = new CountDownLatch(taskCount);
         for (int i = 0; i < taskCount; i++) {
             Priority priority = priorities[randomIntBetween(0, priorities.length - 1)];
@@ -680,7 +680,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         @Override
         public Collection<Class<? extends LifecycleComponent>> services() {
-            List<Class<? extends LifecycleComponent>> services = new ArrayList<Class<? extends LifecycleComponent>>(1);
+            List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
             services.add(MasterAwareService.class);
             return services;
         }

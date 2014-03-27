@@ -64,7 +64,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
-            queryFetchResults = new AtomicArray<QueryFetchSearchResult>(firstResults.length());
+            queryFetchResults = new AtomicArray<>(firstResults.length());
         }
 
         @Override

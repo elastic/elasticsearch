@@ -99,7 +99,7 @@ public interface CharMatcher {
     public final class Builder {
         private final Set<CharMatcher> matchers;
         Builder() {
-            matchers = new HashSet<CharMatcher>();
+            matchers = new HashSet<>();
         }
         public Builder or(CharMatcher matcher) {
             matchers.add(matcher);

@@ -366,7 +366,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        Map<String, Integer> termsAndDocCount = new HashMap<String, Integer>();
+        Map<String, Integer> termsAndDocCount = new HashMap<>();
         termsAndDocCount.put("prefix_aaad", 20);
         termsAndDocCount.put("prefix_abbb", 18);
         termsAndDocCount.put("prefix_aaca", 16);
@@ -903,7 +903,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
         NumShards test = getNumShards("test");
 
-        List<String> phrases = new ArrayList<String>();
+        List<String> phrases = new ArrayList<>();
         Collections.addAll(phrases, "nobel prize", "noble gases", "somethingelse prize", "pride and joy", "notes are fun");
         for (int i = 0; i < 8; i++) {
             phrases.add("noble somethingelse" + i);
@@ -1053,7 +1053,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
             titles.add(c + " 2006");
         }
 
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (String title: titles.build()) {
             builders.add(client().prepareIndex("test", "type1").setSource("title", title));
         }

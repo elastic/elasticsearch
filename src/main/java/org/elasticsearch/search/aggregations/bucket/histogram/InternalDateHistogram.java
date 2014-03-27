@@ -121,7 +121,7 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
             // it's not a number, so lets try to parse it as a date using the formatter.
         }
         if (bucketsMap == null) {
-            bucketsMap = new ObjectObjectOpenHashMap<String, InternalDateHistogram.Bucket>();
+            bucketsMap = new ObjectObjectOpenHashMap<>();
             for (InternalDateHistogram.Bucket bucket : buckets) {
                 bucketsMap.put(bucket.getKey(), bucket);
             }

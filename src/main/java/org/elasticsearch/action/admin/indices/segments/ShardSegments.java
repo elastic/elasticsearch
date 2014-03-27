@@ -95,7 +95,7 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
         if (size == 0) {
             segments = ImmutableList.of();
         } else {
-            segments = new ArrayList<Segment>(size);
+            segments = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 segments.add(Segment.readSegment(in));
             }

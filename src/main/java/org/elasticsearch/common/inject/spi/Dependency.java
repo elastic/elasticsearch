@@ -53,7 +53,7 @@ public final class Dependency<T> {
      * nullable.
      */
     public static <T> Dependency<T> get(Key<T> key) {
-        return new Dependency<T>(null, key, true, -1);
+        return new Dependency<>(null, key, true, -1);
     }
 
     /**

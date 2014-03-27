@@ -93,7 +93,7 @@ public class PluginsService extends AbstractComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from settings [{}]", pluginInfo);
             }
-            tupleBuilder.add(new Tuple<PluginInfo, Plugin>(pluginInfo, plugin));
+            tupleBuilder.add(new Tuple<>(pluginInfo, plugin));
         }
 
         // now, find all the ones that are in the classpath
@@ -410,7 +410,7 @@ public class PluginsService extends AbstractComponent {
                 }
 
                 PluginInfo pluginInfo = new PluginInfo(plugin.name(), plugin.description(), isSite, true, pluginVersion, isolation);
-                plugins.add(new Tuple<PluginInfo, Plugin>(pluginInfo, plugin));
+                plugins.add(new Tuple<>(pluginInfo, plugin));
             } catch (Throwable e) {
                 logger.warn("failed to load plugin from [" + pluginUrl + "]", e);
             } finally {
@@ -423,7 +423,7 @@ public class PluginsService extends AbstractComponent {
 
     private ImmutableList<Tuple<PluginInfo,Plugin>> loadSitePlugins() {
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> sitePlugins = ImmutableList.builder();
-        List<String> loadedJvmPlugins = new ArrayList<String>();
+        List<String> loadedJvmPlugins = new ArrayList<>();
 
         // Already known jvm plugins are ignored
         for(Tuple<PluginInfo, Plugin> tuple : plugins) {

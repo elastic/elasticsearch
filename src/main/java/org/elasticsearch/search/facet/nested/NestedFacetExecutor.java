@@ -109,7 +109,7 @@ public class NestedFacetExecutor extends FacetExecutor {
 
         @Override
         public void executePost(List<ContextDocIdSet> docSets) throws IOException {
-            List<ContextDocIdSet> nestedEntries = new ArrayList<ContextDocIdSet>(docSets.size());
+            List<ContextDocIdSet> nestedEntries = new ArrayList<>(docSets.size());
             for (int i = 0; i < docSets.size(); i++) {
                 ContextDocIdSet entry = docSets.get(i);
                 AtomicReaderContext context = entry.context;

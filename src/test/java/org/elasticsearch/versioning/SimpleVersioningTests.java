@@ -192,7 +192,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         assertThat(deleteResponse.getVersion(), equalTo(20l));
 
         // Make sure that the next delete will be GC. Note we do it on the index settings so it will be cleaned up
-        HashMap<String,Object> newSettings = new HashMap<String, Object>();
+        HashMap<String,Object> newSettings = new HashMap<>();
         newSettings.put("index.gc_deletes",-1);
         client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
 

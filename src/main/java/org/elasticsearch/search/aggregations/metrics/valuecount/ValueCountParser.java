@@ -45,7 +45,7 @@ public class ValueCountParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<BytesValuesSource> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
+        ValuesSourceConfig<BytesValuesSource> config = new ValuesSourceConfig<>(BytesValuesSource.class);
 
         String field = null;
         String script = null;

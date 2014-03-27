@@ -65,7 +65,7 @@ import java.util.List;
  */
 public abstract class SearchContext implements Releasable {
 
-    private static ThreadLocal<SearchContext> current = new ThreadLocal<SearchContext>();
+    private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
 
     public static void setCurrent(SearchContext value) {
         current.set(value);

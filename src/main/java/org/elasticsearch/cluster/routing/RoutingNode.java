@@ -180,7 +180,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     public Collection<MutableShardRouting> copyShards() {
-        return new ArrayList<MutableShardRouting>(shards);
+        return new ArrayList<>(shards);
     }
 
     public boolean isEmpty() {

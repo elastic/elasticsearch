@@ -191,7 +191,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float indexBalance;
         private final float shardBalance;
         private final float primaryBalance;
-        private final EnumMap<Operation, float[]> thetaMap = new EnumMap<BalancedShardsAllocator.Operation, float[]>(Operation.class);
+        private final EnumMap<Operation, float[]> thetaMap = new EnumMap<>(Operation.class);
 
         public WeightFunction(float indexBalance, float shardBalance, float primaryBalance) {
             float sum = indexBalance + shardBalance + primaryBalance;
@@ -265,8 +265,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public static class Balancer {
 
         private final ESLogger logger;
-        private final Map<String, ModelNode> nodes = new HashMap<String, ModelNode>();
-        private final HashSet<String> indices = new HashSet<String>();
+        private final Map<String, ModelNode> nodes = new HashMap<>();
+        private final HashSet<String> indices = new HashSet<>();
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
         private final WeightFunction weight;
@@ -645,7 +645,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
-            final Set<ModelNode> throttledNodes = new IdentityHashSet<ModelNode>();
+            final Set<ModelNode> throttledNodes = new IdentityHashSet<>();
             do {
                 for (int i = 0; i < primaryLength; i++) {
                     MutableShardRouting shard = primary[i];
@@ -792,7 +792,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 MutableShardRouting candidate = null;
                 final AllocationDeciders deciders = allocation.deciders();
                 /* make a copy since we modify this list in the loop */
-                final ArrayList<MutableShardRouting> shards = new ArrayList<MutableShardRouting>(index.getAllShards());
+                final ArrayList<MutableShardRouting> shards = new ArrayList<>(index.getAllShards());
                 for (MutableShardRouting shard : shards) {
                     if (shard.started()) {
                         // skip initializing, unassigned and relocating shards we can't relocate them anyway
@@ -856,7 +856,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     static class ModelNode implements Iterable<ModelIndex> {
         private final String id;
-        private final Map<String, ModelIndex> indices = new HashMap<String, ModelIndex>();
+        private final Map<String, ModelIndex> indices = new HashMap<>();
         /* cached stats - invalidated on add/remove and lazily calculated */
         private int numShards = -1;
         private int numPrimaries = -1;
@@ -906,7 +906,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         public Collection<MutableShardRouting> shards() {
-            Collection<MutableShardRouting> result = new ArrayList<MutableShardRouting>();
+            Collection<MutableShardRouting> result = new ArrayList<>();
             for (ModelIndex index : indices.values()) {
                 result.addAll(index.getAllShards());
             }
@@ -964,7 +964,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     static final class ModelIndex {
         private final String id;
-        private final Map<MutableShardRouting, Decision> shards = new HashMap<MutableShardRouting, Decision>();
+        private final Map<MutableShardRouting, Decision> shards = new HashMap<>();
         private int numPrimaries = -1;
         private int highestPrimary = -1;
 

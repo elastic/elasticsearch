@@ -60,14 +60,14 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
     public ClusterStatsNodes(ClusterStatsNodeResponse[] nodeResponses) {
         this.counts = new Counts();
-        this.versions = new HashSet<Version>();
+        this.versions = new HashSet<>();
         this.os = new OsStats();
         this.jvm = new JvmStats();
         this.fs = new FsStats.Info();
-        this.plugins = new HashSet<PluginInfo>();
+        this.plugins = new HashSet<>();
         this.process = new ProcessStats();
 
-        Set<InetAddress> seenAddresses = new HashSet<InetAddress>(nodeResponses.length);
+        Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.length);
 
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
 
@@ -130,7 +130,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         counts = Counts.readCounts(in);
 
         int size = in.readVInt();
-        versions = new HashSet<Version>(size);
+        versions = new HashSet<>(size);
         for (; size > 0; size--) {
             versions.add(Version.readVersion(in));
         }
@@ -141,7 +141,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         fs = FsStats.Info.readInfoFrom(in);
 
         size = in.readVInt();
-        plugins = new HashSet<PluginInfo>(size);
+        plugins = new HashSet<>(size);
         for (; size > 0; size--) {
             plugins.add(PluginInfo.readPluginInfo(in));
         }
@@ -306,7 +306,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         ObjectIntOpenHashMap<OsInfo.Cpu> cpus;
 
         public OsStats() {
-            cpus = new ObjectIntOpenHashMap<org.elasticsearch.monitor.os.OsInfo.Cpu>();
+            cpus = new ObjectIntOpenHashMap<>();
         }
 
         public void addNodeInfo(NodeInfo nodeInfo) {
@@ -339,7 +339,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             availableProcessors = in.readVInt();
             availableMemory = in.readLong();
             int size = in.readVInt();
-            cpus = new ObjectIntOpenHashMap<OsInfo.Cpu>(size);
+            cpus = new ObjectIntOpenHashMap<>(size);
             for (; size > 0; size--) {
                 cpus.addTo(OsInfo.Cpu.readCpu(in), in.readVInt());
             }
@@ -503,7 +503,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         long heapMax;
 
         JvmStats() {
-            versions = new ObjectIntOpenHashMap<JvmVersion>();
+            versions = new ObjectIntOpenHashMap<>();
             threads = 0;
             maxUptime = 0;
             heapMax = 0;
@@ -561,7 +561,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int size = in.readVInt();
-            versions = new ObjectIntOpenHashMap<JvmVersion>(size);
+            versions = new ObjectIntOpenHashMap<>(size);
             for (; size > 0; size--) {
                 versions.addTo(JvmVersion.readJvmVersion(in), in.readVInt());
             }

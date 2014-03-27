@@ -55,7 +55,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
         super(index, indexSettings, name, settings);
         outputUnigrams = settings.getAsBoolean("output_unigrams", false);
         final String[] asArray = settings.getAsArray("ignored_scripts");
-        Set<String> scripts = new HashSet<String>(Arrays.asList("han", "hiragana", "katakana", "hangul"));
+        Set<String> scripts = new HashSet<>(Arrays.asList("han", "hiragana", "katakana", "hangul"));
         if (asArray != null) {
             scripts.removeAll(Arrays.asList(asArray));
         }

@@ -38,7 +38,7 @@ import java.util.HashMap;
 public class RecoveryResponse extends BroadcastOperationResponse implements ToXContent {
 
     private boolean detailed = false;
-    private Map<String, List<ShardRecoveryResponse>> shardResponses = new HashMap<String, List<ShardRecoveryResponse>>();
+    private Map<String, List<ShardRecoveryResponse>> shardResponses = new HashMap<>();
 
     public RecoveryResponse() { }
 
@@ -68,7 +68,7 @@ public class RecoveryResponse extends BroadcastOperationResponse implements ToXC
 
         List<ShardRecoveryResponse> shardRecoveries = shardResponses.get(index);
         if (shardRecoveries == null) {
-            shardRecoveries = new ArrayList<ShardRecoveryResponse>();
+            shardRecoveries = new ArrayList<>();
             shardResponses.put(index, shardRecoveries);
         }
 
@@ -129,7 +129,7 @@ public class RecoveryResponse extends BroadcastOperationResponse implements ToXC
         for (int i = 0; i < size; i++) {
             String s = in.readString();
             int listSize = in.readVInt();
-            List<ShardRecoveryResponse> list = new ArrayList<ShardRecoveryResponse>(listSize);
+            List<ShardRecoveryResponse> list = new ArrayList<>(listSize);
             for (int j = 0; j < listSize; j++) {
                 list.add(ShardRecoveryResponse.readShardRecoveryResponse(in));
             }

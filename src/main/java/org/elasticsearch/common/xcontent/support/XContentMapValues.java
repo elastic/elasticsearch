@@ -210,7 +210,7 @@ public class XContentMapValues {
                 }
             } else if (entry.getValue() instanceof List) {
                 List<Object> list = (List<Object>) entry.getValue();
-                List<Object> innerInto = new ArrayList<Object>(list.size());
+                List<Object> innerInto = new ArrayList<>(list.size());
                 // if we had an exact match, we want give deeper excludes their chance
                 filter(list, innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
                 into.put(entry.getKey(), innerInto);
@@ -235,7 +235,7 @@ public class XContentMapValues {
                     to.add(innerInto);
                 }
             } else if (o instanceof List) {
-                List<Object> innerInto = new ArrayList<Object>();
+                List<Object> innerInto = new ArrayList<>();
                 filter((List<Object>) o, innerInto, includes, excludes, sb);
                 if (!innerInto.isEmpty()) {
                     to.add(innerInto);

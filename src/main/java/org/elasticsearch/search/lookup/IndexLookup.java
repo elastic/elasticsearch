@@ -81,7 +81,7 @@ public class IndexLookup extends MinimalMap<String, IndexField> {
     // stores the objects that are used in the script. we maintain this map
     // because we do not want to re-initialize the objects each time a field is
     // accessed
-    private final Map<String, IndexField> indexFields = new HashMap<String, IndexField>();
+    private final Map<String, IndexField> indexFields = new HashMap<>();
 
     // number of documents per shard. cached here because the computation is
     // expensive

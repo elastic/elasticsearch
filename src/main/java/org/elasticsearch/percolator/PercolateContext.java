@@ -142,7 +142,7 @@ public class PercolateContext extends SearchContext {
         lookup().setNextDocId(0);
         lookup().source().setNextSource(parsedDocument.source());
 
-        Map<String, SearchHitField> fields = new HashMap<String, SearchHitField>();
+        Map<String, SearchHitField> fields = new HashMap<>();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {
             fields.put(field.name(), new InternalSearchHitField(field.name(), ImmutableList.of()));
         }

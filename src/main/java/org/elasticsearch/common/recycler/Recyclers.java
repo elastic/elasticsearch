@@ -33,21 +33,21 @@ public enum Recyclers {
      * Return a {@link Recycler} that never recycles entries.
      */
     public static <T> Recycler<T> none(Recycler.C<T> c) {
-        return new NoneRecycler<T>(c);
+        return new NoneRecycler<>(c);
     }
 
     /**
      * Return a concurrent recycler based on a deque.
      */
     public static <T> Recycler<T> concurrentDeque(Recycler.C<T> c, int limit) {
-        return new ConcurrentDequeRecycler<T>(c, limit);
+        return new ConcurrentDequeRecycler<>(c, limit);
     }
 
     /**
      * Return a recycler based on a deque.
      */
     public static <T> Recycler<T> deque(Recycler.C<T> c, int limit) {
-        return new DequeRecycler<T>(c, Queues.<T>newArrayDeque(), limit);
+        return new DequeRecycler<>(c, Queues.<T>newArrayDeque(), limit);
     }
 
     /**
@@ -100,7 +100,7 @@ public enum Recyclers {
             SoftReference<Recycler<T>> ref;
 
             {
-                ref = new SoftReference<Recycler<T>>(null);
+                ref = new SoftReference<>(null);
             }
 
             @Override
@@ -108,7 +108,7 @@ public enum Recyclers {
                 Recycler<T> recycler = ref.get();
                 if (recycler == null) {
                     recycler = factory.build();
-                    ref = new SoftReference<Recycler<T>>(recycler);
+                    ref = new SoftReference<>(recycler);
                 }
                 return recycler;
             }

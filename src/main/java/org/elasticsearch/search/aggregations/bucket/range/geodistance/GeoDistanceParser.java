@@ -96,7 +96,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
-                    ranges = new ArrayList<RangeAggregator.Range>();
+                    ranges = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String fromAsStr = null;
                         String toAsStr = null;
@@ -178,7 +178,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
             throw new SearchParseException(context, "Missing [origin] in geo_distance aggregator [" + aggregationName + "]");
         }
 
-        ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<GeoPointValuesSource>(GeoPointValuesSource.class);
+        ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<>(GeoPointValuesSource.class);
 
         if (field == null) {
             return new GeoDistanceFactory(aggregationName, config, InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);

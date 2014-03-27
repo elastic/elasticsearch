@@ -315,8 +315,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
-        final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<CountDownLatch>();
-        final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<CountDownLatch>();
+        final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
+        final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
         mergeSchedulerProvider.addListener(new MergeSchedulerProvider.Listener() {
             @Override
             public void beforeMerge(OnGoingMerge merge) {

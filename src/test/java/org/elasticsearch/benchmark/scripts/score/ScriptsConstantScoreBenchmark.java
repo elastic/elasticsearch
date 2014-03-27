@@ -45,7 +45,7 @@ public class ScriptsConstantScoreBenchmark extends BasicScriptBenchmark {
         int warmerIter = 1000;
 
         init(maxTerms);
-        List<Results> allResults = new ArrayList<BasicScriptBenchmark.Results>();
+        List<Results> allResults = new ArrayList<>();
         Settings settings = settingsBuilder().put("plugin.types", NativeScriptExamplesPlugin.class.getName()).build();
 
         String clusterName = ScriptsConstantScoreBenchmark.class.getSimpleName();

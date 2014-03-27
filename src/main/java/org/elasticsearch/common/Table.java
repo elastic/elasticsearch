@@ -32,8 +32,8 @@ import java.util.Map;
  */
 public class Table {
 
-    private List<Cell> headers = new ArrayList<Cell>();
-    private List<List<Cell>> rows = new ArrayList<List<Cell>>();
+    private List<Cell> headers = new ArrayList<>();
+    private List<List<Cell>> rows = new ArrayList<>();
     private Map<String, List<Cell>> map = Maps.newHashMap();
     private Map<String, Cell> headerMap = Maps.newHashMap();
     private List<Cell> currentCells;
@@ -41,7 +41,7 @@ public class Table {
 
     public Table startHeaders() {
         inHeaders = true;
-        currentCells = new ArrayList<Cell>();
+        currentCells = new ArrayList<>();
         return this;
     }
 
@@ -75,7 +75,7 @@ public class Table {
         if (headers.isEmpty()) {
             throw new ElasticsearchIllegalStateException("no headers added...");
         }
-        currentCells = new ArrayList<Cell>(headers.size());
+        currentCells = new ArrayList<>(headers.size());
         return this;
     }
 
@@ -123,7 +123,7 @@ public class Table {
                 mAttr = headers.get(currentCells.size()).attr;
             }
         } else {
-            mAttr = new HashMap<String, String>();
+            mAttr = new HashMap<>();
             if (!inHeaders) {
                 // get the attributes of the header cell we are going to add
                 mAttr.putAll(headers.get(currentCells.size()).attr);
@@ -187,7 +187,7 @@ public class Table {
 
         public Cell(Object value) {
             this.value = value;
-            this.attr = new HashMap<String, String>();
+            this.attr = new HashMap<>();
         }
 
         public Cell(Object value, Map<String, String> attr) {

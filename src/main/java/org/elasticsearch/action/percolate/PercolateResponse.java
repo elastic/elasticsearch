@@ -257,7 +257,7 @@ public class PercolateResponse extends BroadcastOperationResponse implements Ite
             score = in.readFloat();
             int size = in.readVInt();
             if (size > 0) {
-                hl = new HashMap<String, HighlightField>(size);
+                hl = new HashMap<>(size);
                 for (int j = 0; j < size; j++) {
                     hl.put(in.readString(), HighlightField.readHighlightField(in));
                 }

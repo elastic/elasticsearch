@@ -78,7 +78,7 @@ public class ValidateQueryResponse extends BroadcastOperationResponse {
         valid = in.readBoolean();
         int size = in.readVInt();
         if (size > 0) {
-            queryExplanations = new ArrayList<QueryExplanation>(size);
+            queryExplanations = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 queryExplanations.add(readQueryExplanation(in));
             }

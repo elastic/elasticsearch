@@ -174,7 +174,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                     if (logger.isTraceEnabled()) {
                         logger.trace("Removing node from cluster info: {}", removedNode.getId());
                     }
-                    Map<String, DiskUsage> newUsages = new HashMap<String, DiskUsage>(usages);
+                    Map<String, DiskUsage> newUsages = new HashMap<>(usages);
                     newUsages.remove(removedNode.getId());
                     usages = ImmutableMap.copyOf(newUsages);
                 }
@@ -259,7 +259,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             transportNodesStatsAction.execute(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodeStatses) {
-                    Map<String, DiskUsage> newUsages = new HashMap<String, DiskUsage>();
+                    Map<String, DiskUsage> newUsages = new HashMap<>();
                     for (NodeStats nodeStats : nodeStatses.getNodes()) {
                         if (nodeStats.getFs() == null) {
                             logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().name());
@@ -294,7 +294,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     ShardStats[] stats = indicesStatsResponse.getShards();
-                    HashMap<String, Long> newShardSizes = new HashMap<String, Long>();
+                    HashMap<String, Long> newShardSizes = new HashMap<>();
                     for (ShardStats s : stats) {
                         long size = s.getStats().getStore().sizeInBytes();
                         String sid = shardIdentifierFromRouting(s.getShardRouting());

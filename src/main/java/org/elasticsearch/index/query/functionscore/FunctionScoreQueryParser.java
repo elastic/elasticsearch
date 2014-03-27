@@ -76,7 +76,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         float boost = 1.0f;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
-        ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions = new ArrayList<FiltersFunctionScoreQuery.FilterFunction>();
+        ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions = new ArrayList<>();
         float maxBoost = Float.MAX_VALUE;
 
         String currentFieldName = null;

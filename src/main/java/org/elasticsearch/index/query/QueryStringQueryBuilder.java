@@ -126,7 +126,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new ObjectFloatOpenHashMap<String>();
+            fieldsBoosts = new ObjectFloatOpenHashMap<>();
         }
         fieldsBoosts.put(field, boost);
         return this;

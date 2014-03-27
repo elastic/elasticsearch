@@ -140,6 +140,6 @@ public class InternalSettingsPreparer {
 
         v1 = settingsBuilder.build();
 
-        return new Tuple<Settings, Environment>(v1, environment);
+        return new Tuple<>(v1, environment);
     }
 }

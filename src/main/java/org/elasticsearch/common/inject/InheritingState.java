@@ -111,7 +111,7 @@ class InheritingState implements State {
     public List<TypeListenerBinding> getTypeListenerBindings() {
         List<TypeListenerBinding> parentBindings = parent.getTypeListenerBindings();
         List<TypeListenerBinding> result
-                = new ArrayList<TypeListenerBinding>(parentBindings.size() + 1);
+                = new ArrayList<>(parentBindings.size() + 1);
         result.addAll(parentBindings);
         result.addAll(listenerBindings);
         return result;

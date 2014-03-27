@@ -38,9 +38,9 @@ public class KeyedLockTests extends ElasticsearchTestCase {
 
     @Test
     public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
-        ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<String, Integer>();
-        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<String, AtomicInteger>();
-        KeyedLock<String> connectionLock = new KeyedLock<String>();
+        ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
+        KeyedLock<String> connectionLock = new KeyedLock<>();
         String[] names = new String[randomIntBetween(1, 40)];
         for (int i = 0; i < names.length; i++) {
             names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
@@ -71,11 +71,11 @@ public class KeyedLockTests extends ElasticsearchTestCase {
 
     @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotAcquireTwoLocks() throws InterruptedException {
-        ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<String, Integer>();
-        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<String, AtomicInteger>();
-        KeyedLock<String> connectionLock = new KeyedLock<String>();
+        ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
+        KeyedLock<String> connectionLock = new KeyedLock<>();
         String[] names = new String[randomIntBetween(1, 40)];
-        connectionLock = new KeyedLock<String>();
+        connectionLock = new KeyedLock<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
         connectionLock.acquire(name);
@@ -83,11 +83,11 @@ public class KeyedLockTests extends ElasticsearchTestCase {
 
     @Test(expected = ElasticsearchIllegalStateException.class)
     public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
-        ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<String, Integer>();
-        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<String, AtomicInteger>();
-        KeyedLock<String> connectionLock = new KeyedLock<String>();
+        ConcurrentHashMap<String, Integer> counters = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
+        KeyedLock<String> connectionLock = new KeyedLock<>();
         String[] names = new String[randomIntBetween(1, 40)];
-        connectionLock = new KeyedLock<String>();
+        connectionLock = new KeyedLock<>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.release(name);
     }

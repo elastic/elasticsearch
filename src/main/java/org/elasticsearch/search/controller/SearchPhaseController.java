@@ -481,7 +481,7 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         // merge hits
-        List<InternalSearchHit> hits = new ArrayList<InternalSearchHit>();
+        List<InternalSearchHit> hits = new ArrayList<>();
         if (!fetchResults.isEmpty()) {
             for (ScoreDoc shardDoc : sortedDocs) {
                 FetchSearchResultProvider fetchResultProvider = fetchResultsArr.get(shardDoc.shardIndex);
@@ -511,7 +511,7 @@ public class SearchPhaseController extends AbstractComponent {
         // merge suggest results
         Suggest suggest = null;
         if (!queryResults.isEmpty()) {
-            final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<String, List<Suggest.Suggestion>>();
+            final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
             boolean hasSuggestions = false;
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                 Suggest shardResult = entry.value.queryResult().queryResult().suggest();
@@ -530,7 +530,7 @@ public class SearchPhaseController extends AbstractComponent {
         InternalAggregations aggregations = null;
         if (!queryResults.isEmpty()) {
             if (firstResult.aggregations() != null && firstResult.aggregations().asList() != null) {
-                List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(queryResults.size());
+                List<InternalAggregations> aggregationsList = new ArrayList<>(queryResults.size());
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }

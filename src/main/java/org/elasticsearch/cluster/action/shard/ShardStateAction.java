@@ -122,7 +122,7 @@ public class ShardStateAction extends AbstractComponent {
                     return currentState;
                 }
 
-                List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<ShardRoutingEntry>();
+                List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<>();
                 failedShardQueue.drainTo(shardRoutingEntries);
 
                 // nothing to process (a previous event has processed it already)
@@ -132,7 +132,7 @@ public class ShardStateAction extends AbstractComponent {
 
                 MetaData metaData = currentState.getMetaData();
 
-                List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<ShardRouting>(shardRoutingEntries.size());
+                List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(shardRoutingEntries.size());
                 for (int i = 0; i < shardRoutingEntries.size(); i++) {
                     ShardRoutingEntry shardRoutingEntry = shardRoutingEntries.get(i);
                     shardRoutingEntry.processed = true;
@@ -183,7 +183,7 @@ public class ShardStateAction extends AbstractComponent {
                             return currentState;
                         }
 
-                        List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<ShardRoutingEntry>();
+                        List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<>();
                         startedShardsQueue.drainTo(shardRoutingEntries);
 
                         // nothing to process (a previous event has processed it already)
@@ -194,7 +194,7 @@ public class ShardStateAction extends AbstractComponent {
                         RoutingTable routingTable = currentState.routingTable();
                         MetaData metaData = currentState.getMetaData();
 
-                        List<ShardRouting> shardRoutingToBeApplied = new ArrayList<ShardRouting>(shardRoutingEntries.size());
+                        List<ShardRouting> shardRoutingToBeApplied = new ArrayList<>(shardRoutingEntries.size());
 
                         for (int i = 0; i < shardRoutingEntries.size(); i++) {
                             ShardRoutingEntry shardRoutingEntry = shardRoutingEntries.get(i);

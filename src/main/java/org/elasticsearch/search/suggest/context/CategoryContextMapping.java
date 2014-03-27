@@ -179,7 +179,7 @@ public class CategoryContextMapping extends ContextMapping {
         Iterable<? extends CharSequence> values;
         Token token = parser.currentToken();
         if (token == Token.START_ARRAY) {
-            ArrayList<String> list = new ArrayList<String>();
+            ArrayList<String> list = new ArrayList<>();
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 list.add(parser.text());
             }
@@ -230,7 +230,7 @@ public class CategoryContextMapping extends ContextMapping {
                 return new PrefixAnalyzer.PrefixTokenFilter(stream, ContextMapping.SEPARATOR, values);
             } else {
                 IndexableField[] fields = doc.getFields(fieldname);
-                ArrayList<CharSequence> values = new ArrayList<CharSequence>(fields.length);
+                ArrayList<CharSequence> values = new ArrayList<>(fields.length);
     
                 for (int i = 0; i < fields.length; i++) {
                     values.add(fields[i].stringValue());
@@ -265,7 +265,7 @@ public class CategoryContextMapping extends ContextMapping {
         }
 
         public Automaton toAutomaton() {
-            List<Automaton> automatons = new ArrayList<Automaton>();
+            List<Automaton> automatons = new ArrayList<>();
             for (CharSequence value : values) {
                 automatons.add(BasicAutomata.makeString(value.toString()));
             }
@@ -286,7 +286,7 @@ public class CategoryContextMapping extends ContextMapping {
     public static class Builder extends ContextBuilder<CategoryContextMapping> {
 
         private String fieldname;
-        private List<CharSequence> defaultValues = new ArrayList<CharSequence>();
+        private List<CharSequence> defaultValues = new ArrayList<>();
 
         public Builder(String name) {
             this(name, DEFAULT_FIELDNAME);

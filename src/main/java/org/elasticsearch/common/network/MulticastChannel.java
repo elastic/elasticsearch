@@ -111,7 +111,7 @@ public abstract class MulticastChannel implements Closeable {
      */
     public static class MultiListener implements Listener {
 
-        private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+        private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
         public void add(Listener listener) {
             this.listeners.add(listener);

@@ -96,7 +96,7 @@ public class InternalSearchHitField implements SearchHitField {
     public void readFrom(StreamInput in) throws IOException {
         name = in.readSharedString();
         int size = in.readVInt();
-        values = new ArrayList<Object>(size);
+        values = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             values.add(in.readGenericValue());
         }

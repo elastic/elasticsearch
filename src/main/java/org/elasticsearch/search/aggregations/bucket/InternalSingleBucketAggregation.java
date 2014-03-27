@@ -70,7 +70,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
             return reduced;
         }
         InternalSingleBucketAggregation reduced = null;
-        List<InternalAggregations> subAggregationsList = new ArrayList<InternalAggregations>(aggregations.size());
+        List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
             if (reduced == null) {
                 reduced = (InternalSingleBucketAggregation) aggregation;

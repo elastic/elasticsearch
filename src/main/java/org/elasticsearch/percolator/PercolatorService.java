@@ -148,7 +148,7 @@ public class PercolatorService extends AbstractComponent {
         single = new SingleDocumentPercolatorIndex(cache);
         multi = new MultiDocumentPercolatorIndex(cache);
 
-        percolatorTypes = new ByteObjectOpenHashMap<PercolatorType>(6);
+        percolatorTypes = new ByteObjectOpenHashMap<>(6);
         percolatorTypes.put(countPercolator.id(), countPercolator);
         percolatorTypes.put(queryCountPercolator.id(), queryCountPercolator);
         percolatorTypes.put(matchPercolator.id(), matchPercolator);
@@ -502,7 +502,7 @@ public class PercolatorService extends AbstractComponent {
             int requestedSize = shardResults.get(0).requestedSize();
 
             // Use a custom impl of AbstractBigArray for Object[]?
-            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize == 0 ? numMatches : requestedSize);
+            List<PercolateResponse.Match> finalMatches = new ArrayList<>(requestedSize == 0 ? numMatches : requestedSize);
             outer:
             for (PercolateShardResponse response : shardResults) {
                 Text index = new StringText(response.getIndex());
@@ -526,8 +526,8 @@ public class PercolatorService extends AbstractComponent {
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             long count = 0;
-            List<BytesRef> matches = new ArrayList<BytesRef>();
-            List<Map<String, HighlightField>> hls = new ArrayList<Map<String, HighlightField>>();
+            List<BytesRef> matches = new ArrayList<>();
+            List<Map<String, HighlightField>> hls = new ArrayList<>();
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
             for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
@@ -652,7 +652,7 @@ public class PercolatorService extends AbstractComponent {
             int requestedSize = shardResults.get(0).requestedSize();
 
             // Use a custom impl of AbstractBigArray for Object[]?
-            List<PercolateResponse.Match> finalMatches = new ArrayList<PercolateResponse.Match>(requestedSize);
+            List<PercolateResponse.Match> finalMatches = new ArrayList<>(requestedSize);
             if (nonEmptyResponses == 1) {
                 PercolateShardResponse response = shardResults.get(firstNonEmptyIndex);
                 Text index = new StringText(response.getIndex());
@@ -726,11 +726,11 @@ public class PercolatorService extends AbstractComponent {
                 queryBasedPercolating(percolatorSearcher, context, matchAndSort);
                 TopDocs topDocs = matchAndSort.topDocs();
                 long count = topDocs.totalHits;
-                List<BytesRef> matches = new ArrayList<BytesRef>(topDocs.scoreDocs.length);
+                List<BytesRef> matches = new ArrayList<>(topDocs.scoreDocs.length);
                 float[] scores = new float[topDocs.scoreDocs.length];
                 List<Map<String, HighlightField>> hls = null;
                 if (context.highlight() != null) {
-                    hls = new ArrayList<Map<String, HighlightField>>(topDocs.scoreDocs.length);
+                    hls = new ArrayList<>(topDocs.scoreDocs.length);
                 }
 
                 final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
@@ -867,7 +867,7 @@ public class PercolatorService extends AbstractComponent {
             return shardResults.get(0).aggregations();
         }
 
-        List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(shardResults.size());
+        List<InternalAggregations> aggregationsList = new ArrayList<>(shardResults.size());
         for (PercolateShardResponse shardResult : shardResults) {
             aggregationsList.add(shardResult.aggregations());
         }

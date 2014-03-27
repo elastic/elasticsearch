@@ -72,7 +72,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             return data;
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
-        org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<Long>(INPUT_TYPE.BYTE1, outputs);
+        org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<>(INPUT_TYPE.BYTE1, outputs);
         final IntsRef scratch = new IntsRef();
 
         final long numTerms;

@@ -229,7 +229,7 @@ public class NGramTokenizerFactoryTests extends ElasticsearchTokenStreamTestCase
     
     private Version randomVersion(Random random) throws IllegalArgumentException, IllegalAccessException {
         Field[] declaredFields = Version.class.getDeclaredFields();
-        List<Field> versionFields = new ArrayList<Field>();
+        List<Field> versionFields = new ArrayList<>();
         for (Field field : declaredFields) {
             if ((field.getModifiers() & Modifier.STATIC) != 0 && field.getName().startsWith("V_") && field.getType() == Version.class) {
                 versionFields.add(field);

@@ -33,7 +33,7 @@ public class SettingsFilter extends AbstractComponent {
         void filter(ImmutableSettings.Builder settings);
     }
 
-    private final CopyOnWriteArrayList<Filter> filters = new CopyOnWriteArrayList<Filter>();
+    private final CopyOnWriteArrayList<Filter> filters = new CopyOnWriteArrayList<>();
 
     @Inject
     public SettingsFilter(Settings settings) {

@@ -33,7 +33,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
 
-    protected final ArrayList<BasePolygonBuilder<?>> polygons = new ArrayList<BasePolygonBuilder<?>>();
+    protected final ArrayList<BasePolygonBuilder<?>> polygons = new ArrayList<>();
 
     public MultiPolygonBuilder polygon(BasePolygonBuilder<?> polygon) {
         this.polygons.add(polygon);
@@ -68,7 +68,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     @Override
     public Shape build() {
 
-        List<Shape> shapes = new ArrayList<Shape>(this.polygons.size());
+        List<Shape> shapes = new ArrayList<>(this.polygons.size());
         
         if(wrapdateline) {
             for (BasePolygonBuilder<?> polygon : this.polygons) {
@@ -84,7 +84,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         if (shapes.size() == 1)
             return shapes.get(0);
         else
-            return new ShapeCollection<Shape>(shapes, SPATIAL_CONTEXT);
+            return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
@@ -95,7 +95,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         private InternalPolygonBuilder(MultiPolygonBuilder collection) {
             super();
             this.collection = collection;
-            this.shell = new Ring<InternalPolygonBuilder>(this);
+            this.shell = new Ring<>(this);
         }
 
         @Override

@@ -246,7 +246,7 @@ public class PercolateSourceBuilder implements ToXContent {
         }
 
         public DocBuilder setDoc(String field, Object value) {
-            Map<String, Object> values = new HashMap<String, Object>(2);
+            Map<String, Object> values = new HashMap<>(2);
             values.put(field, value);
             setDoc(values);
             return this;

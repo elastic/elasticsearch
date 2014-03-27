@@ -35,7 +35,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private String separator;
     private Float realWordErrorLikelihood;
     private Float confidence;
-    private final Map<String, List<CandidateGenerator>> generators = new HashMap<String, List<PhraseSuggestionBuilder.CandidateGenerator>>();
+    private final Map<String, List<CandidateGenerator>> generators = new HashMap<>();
     private Integer gramSize;
     private SmoothingModel model;
     private Boolean forceUnigrams;
@@ -115,7 +115,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     public PhraseSuggestionBuilder addCandidateGenerator(CandidateGenerator generator) {
         List<CandidateGenerator> list = this.generators.get(generator.getType());
         if (list == null) {
-            list = new ArrayList<PhraseSuggestionBuilder.CandidateGenerator>();
+            list = new ArrayList<>();
             this.generators.put(generator.getType(), list);
         }
         list.add(generator);

@@ -209,7 +209,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testExtractTerms() {
-        Set<Term> terms = new HashSet<Term>();
+        Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
             terms.add(new Term(_TestUtil.randomRealisticUnicodeString(random(), 1, 10), _TestUtil.randomRealisticUnicodeString(random(), 1, 10)));
@@ -217,7 +217,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
 
         BlendedTermQuery blendedTermQuery = random().nextBoolean() ? BlendedTermQuery.dismaxBlendedQuery(terms.toArray(new Term[0]), random().nextFloat()) :
                 BlendedTermQuery.booleanBlendedQuery(terms.toArray(new Term[0]), random().nextBoolean());
-        Set<Term> extracted = new HashSet<Term>();
+        Set<Term> extracted = new HashSet<>();
         blendedTermQuery.extractTerms(extracted);
         assertThat(extracted.size(), equalTo(terms.size()));
         assertThat(extracted, containsInAnyOrder(terms.toArray(new Term[0])));

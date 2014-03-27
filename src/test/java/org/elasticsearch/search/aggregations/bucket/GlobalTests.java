@@ -50,7 +50,7 @@ public class GlobalTests extends ElasticsearchIntegrationTest {
     public void init() throws Exception {
         createIndex("idx");
         createIndex("idx2");
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         numDocs = randomIntBetween(3, 20);
         for (int i = 0; i < numDocs / 2; i++) {
             builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(jsonBuilder()

@@ -39,7 +39,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
 
-    private Set<CustomSerialMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomSerialMergeScheduler>();
+    private Set<CustomSerialMergeScheduler> schedulers = new CopyOnWriteArraySet<>();
     private final int maxMergeAtOnce;
 
     @Inject

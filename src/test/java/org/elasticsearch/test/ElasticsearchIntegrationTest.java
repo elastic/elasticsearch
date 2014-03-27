@@ -166,7 +166,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
-    private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<Class<?>, TestCluster>();
+    private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -331,7 +331,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public final void createIndex(String... names) {
 
-        List<String> created = new ArrayList<String>();
+        List<String> created = new ArrayList<>();
         for (String name : names) {
             boolean success = false;
             try {
@@ -625,14 +625,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         Random random = getRandom();
-        Set<String> indicesSet = new HashSet<String>();
+        Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {
             indicesSet.add(builder.request().index());
         }
         final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random);
-        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>>();
-        List<CountDownLatch> inFlightAsyncOperations = new ArrayList<CountDownLatch>();
+        final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Throwable>> errors = new CopyOnWriteArrayList<>();
+        List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : rarely()) {
             if (frequently()) {
@@ -662,7 +662,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         for (CountDownLatch operation: inFlightAsyncOperations) {
             operation.await();
         }
-        final List<Throwable> actualErrors = new ArrayList<Throwable>();
+        final List<Throwable> actualErrors = new ArrayList<>();
         for (Tuple<IndexRequestBuilder, Throwable> tuple : errors) {
             if (ExceptionsHelper.unwrapCause(tuple.v2()) instanceof EsRejectedExecutionException) {
                 tuple.v1().execute().actionGet(); // re-index if rejected
@@ -742,7 +742,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         protected void addError(Throwable t) {
-            errors.add(new Tuple<T, Throwable>(builder, t));
+            errors.add(new Tuple<>(builder, t));
         }
 
     }

@@ -46,7 +46,7 @@ public class DocIdSetCollector extends XCollector {
     public DocIdSetCollector(DocSetCache docSetCache, Collector collector) {
         this.docSetCache = docSetCache;
         this.collector = collector;
-        this.docSets = new ArrayList<ContextDocIdSet>();
+        this.docSets = new ArrayList<>();
     }
 
     public List<ContextDocIdSet> docSets() {

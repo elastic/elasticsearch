@@ -32,7 +32,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class DiscoveryNodeService extends AbstractComponent {
 
-    private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<CustomAttributesProvider>();
+    private final List<CustomAttributesProvider> customAttributesProviders = new CopyOnWriteArrayList<>();
 
     @Inject
     public DiscoveryNodeService(Settings settings) {

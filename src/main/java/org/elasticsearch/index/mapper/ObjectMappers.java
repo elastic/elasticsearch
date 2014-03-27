@@ -97,7 +97,7 @@ public class ObjectMappers implements Iterable<ObjectMapper> {
     }
 
     public ObjectMappers remove(Iterable<ObjectMapper> mappers) {
-        ImmutableList.Builder<ObjectMapper> builder = new ImmutableList.Builder<ObjectMapper>();
+        ImmutableList.Builder<ObjectMapper> builder = new ImmutableList.Builder<>();
         for (ObjectMapper objectMapper : objectMappers) {
             boolean found = false;
             for (ObjectMapper mapper : mappers) {
@@ -113,7 +113,7 @@ public class ObjectMappers implements Iterable<ObjectMapper> {
     }
 
     public ObjectMappers remove(ObjectMapper mapper) {
-        ImmutableList.Builder<ObjectMapper> builder = new ImmutableList.Builder<ObjectMapper>();
+        ImmutableList.Builder<ObjectMapper> builder = new ImmutableList.Builder<>();
         for (ObjectMapper objectMapper : objectMappers) {
             if (objectMapper != mapper) { // identify equality
                 builder.add(objectMapper);

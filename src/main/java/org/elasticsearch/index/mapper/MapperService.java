@@ -109,7 +109,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     private final SmartIndexNameSearchAnalyzer searchAnalyzer;
     private final SmartIndexNameSearchQuoteAnalyzer searchQuoteAnalyzer;
 
-    private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<DocumentTypeListener>();
+    private final List<DocumentTypeListener> typeListeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService, IndexFieldDataService fieldDataService,

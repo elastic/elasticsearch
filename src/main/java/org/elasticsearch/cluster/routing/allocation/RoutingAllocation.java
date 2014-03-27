@@ -197,7 +197,7 @@ public class RoutingAllocation {
 
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
-            ignoredShardToNodes = new HashMap<ShardId, String>();
+            ignoredShardToNodes = new HashMap<>();
         }
         ignoredShardToNodes.put(shardId, nodeId);
     }

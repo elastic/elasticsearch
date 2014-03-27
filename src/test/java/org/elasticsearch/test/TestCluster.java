@@ -150,7 +150,7 @@ public final class TestCluster implements Iterable<Client> {
     /* sorted map to make traverse order reproducible */
     private final TreeMap<String, NodeAndClient> nodes = newTreeMap();
 
-    private final Set<File> dataDirToClean = new HashSet<File>();
+    private final Set<File> dataDirToClean = new HashSet<>();
 
     private final String clusterName;
 
@@ -382,7 +382,7 @@ public final class TestCluster implements Iterable<Client> {
         final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(), Predicates.not(new MasterNodePredicate(getMasterName())));
         final Iterator<NodeAndClient> limit = Iterators.limit(values, nodes.size() - n);
         logger.info("changing cluster size from {} to {}", nodes.size() - n, n);
-        Set<NodeAndClient> nodesToRemove = new HashSet<NodeAndClient>();
+        Set<NodeAndClient> nodesToRemove = new HashSet<>();
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();
             nodesToRemove.add(next);
@@ -716,7 +716,7 @@ public final class TestCluster implements Iterable<Client> {
         logger.debug("Cluster is NOT consistent - restarting shared nodes - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
 
 
-        Set<NodeAndClient> sharedNodes = new HashSet<NodeAndClient>();
+        Set<NodeAndClient> sharedNodes = new HashSet<>();
         boolean changed = false;
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             String buildNodeName = buildNodeName(i);
@@ -780,7 +780,7 @@ public final class TestCluster implements Iterable<Client> {
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<String>();
+                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
                     for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
                         concreteIndices.add(indexMetaData.getIndex());
                     }
@@ -951,7 +951,7 @@ public final class TestCluster implements Iterable<Client> {
      * Returns an Iterable to all instances for the given class &gt;T&lt; across all nodes in the cluster.
      */
     public synchronized <T> Iterable<T> getInstances(Class<T> clazz) {
-        List<T> instances = new ArrayList<T>(nodes.size());
+        List<T> instances = new ArrayList<>(nodes.size());
         for (NodeAndClient nodeAndClient : nodes.values()) {
             instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
         }
@@ -1074,7 +1074,7 @@ public final class TestCluster implements Iterable<Client> {
 
     private void restartAllNodes(boolean rollingRestart, RestartCallback callback) throws Exception {
         ensureOpen();
-        List<NodeAndClient> toRemove = new ArrayList<TestCluster.NodeAndClient>();
+        List<NodeAndClient> toRemove = new ArrayList<>();
         try {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 if (!callback.doRestart(nodeAndClient.name)) {
@@ -1177,7 +1177,7 @@ public final class TestCluster implements Iterable<Client> {
         if (clusterService().state().routingTable().hasIndex(index)) {
             List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
             DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodes = new HashSet<String>();
+            Set<String> nodes = new HashSet<>();
             for (ShardRouting shardRouting : allShards) {
                 if (shardRouting.assignedToNode()) {
                     DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
@@ -1301,7 +1301,7 @@ public final class TestCluster implements Iterable<Client> {
      * Returns a predicate that only accepts settings of nodes with one of the given names.
      */
     public static Predicate<Settings> nameFilter(String... nodeName) {
-        return new NodeNamePredicate(new HashSet<String>(Arrays.asList(nodeName)));
+        return new NodeNamePredicate(new HashSet<>(Arrays.asList(nodeName)));
     }
 
     private static final class NodeNamePredicate implements Predicate<Settings> {

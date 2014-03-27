@@ -98,7 +98,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             this.successfulOps = new AtomicInteger(scrollId.getContext().length);
             this.counter = new AtomicInteger(scrollId.getContext().length);
 
-            this.queryFetchResults = new AtomicArray<QueryFetchSearchResult>(scrollId.getContext().length);
+            this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
@@ -117,7 +117,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         // we simply try and return as much as possible
         protected final void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
             if (shardFailures == null) {
-                shardFailures = new AtomicArray<ShardSearchFailure>(scrollId.getContext().length);
+                shardFailures = new AtomicArray<>(scrollId.getContext().length);
             }
             shardFailures.set(shardIndex, failure);
         }

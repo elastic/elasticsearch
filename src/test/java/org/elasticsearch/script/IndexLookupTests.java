@@ -54,75 +54,75 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     private HashMap<String, List<Object>> expectedStartOffsetsArray;
 
     void initTestData() throws InterruptedException, ExecutionException, IOException {
-        emptyArray = new HashMap<String, List<Object>>();
-        List<Object> empty1 = new ArrayList<Object>();
+        emptyArray = new HashMap<>();
+        List<Object> empty1 = new ArrayList<>();
         empty1.add(-1);
         empty1.add(-1);
         emptyArray.put("1", empty1);
-        List<Object> empty2 = new ArrayList<Object>();
+        List<Object> empty2 = new ArrayList<>();
         empty2.add(-1);
         empty2.add(-1);
         emptyArray.put("2", empty2);
-        List<Object> empty3 = new ArrayList<Object>();
+        List<Object> empty3 = new ArrayList<>();
         empty3.add(-1);
         empty3.add(-1);
         emptyArray.put("3", empty3);
 
-        expectedPositionsArray = new HashMap<String, List<Object>>();
+        expectedPositionsArray = new HashMap<>();
 
-        List<Object> pos1 = new ArrayList<Object>();
+        List<Object> pos1 = new ArrayList<>();
         pos1.add(1);
         pos1.add(2);
         expectedPositionsArray.put("1", pos1);
-        List<Object> pos2 = new ArrayList<Object>();
+        List<Object> pos2 = new ArrayList<>();
         pos2.add(0);
         pos2.add(1);
         expectedPositionsArray.put("2", pos2);
-        List<Object> pos3 = new ArrayList<Object>();
+        List<Object> pos3 = new ArrayList<>();
         pos3.add(0);
         pos3.add(4);
         expectedPositionsArray.put("3", pos3);
 
-        expectedPayloadsArray = new HashMap<String, List<Object>>();
-        List<Object> pay1 = new ArrayList<Object>();
+        expectedPayloadsArray = new HashMap<>();
+        List<Object> pay1 = new ArrayList<>();
         pay1.add(2);
         pay1.add(3);
         expectedPayloadsArray.put("1", pay1);
-        List<Object> pay2 = new ArrayList<Object>();
+        List<Object> pay2 = new ArrayList<>();
         pay2.add(1);
         pay2.add(2);
         expectedPayloadsArray.put("2", pay2);
-        List<Object> pay3 = new ArrayList<Object>();
+        List<Object> pay3 = new ArrayList<>();
         pay3.add(1);
         pay3.add(-1);
         expectedPayloadsArray.put("3", pay3);
         /*
          * "a|1 b|2 b|3 c|4 d " "b|1 b|2 c|3 d|4 a " "b|1 c|2 d|3 a|4 b "
          */
-        expectedStartOffsetsArray = new HashMap<String, List<Object>>();
-        List<Object> starts1 = new ArrayList<Object>();
+        expectedStartOffsetsArray = new HashMap<>();
+        List<Object> starts1 = new ArrayList<>();
         starts1.add(4);
         starts1.add(8);
         expectedStartOffsetsArray.put("1", starts1);
-        List<Object> starts2 = new ArrayList<Object>();
+        List<Object> starts2 = new ArrayList<>();
         starts2.add(0);
         starts2.add(4);
         expectedStartOffsetsArray.put("2", starts2);
-        List<Object> starts3 = new ArrayList<Object>();
+        List<Object> starts3 = new ArrayList<>();
         starts3.add(0);
         starts3.add(16);
         expectedStartOffsetsArray.put("3", starts3);
 
-        expectedEndOffsetsArray = new HashMap<String, List<Object>>();
-        List<Object> ends1 = new ArrayList<Object>();
+        expectedEndOffsetsArray = new HashMap<>();
+        List<Object> ends1 = new ArrayList<>();
         ends1.add(7);
         ends1.add(11);
         expectedEndOffsetsArray.put("1", ends1);
-        List<Object> ends2 = new ArrayList<Object>();
+        List<Object> ends2 = new ArrayList<>();
         ends2.add(3);
         ends2.add(7);
         expectedEndOffsetsArray.put("2", ends2);
-        List<Object> ends3 = new ArrayList<Object>();
+        List<Object> ends3 = new ArrayList<>();
         ends3.add(3);
         ends3.add(17);
         expectedEndOffsetsArray.put("3", ends3);
@@ -153,11 +153,11 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         String scriptFieldScript = "term = _index['int_payload_field']['c']; term.tf()";
         scriptFieldScript = "1";
         String scoreScript = "term = _index['int_payload_field']['b']; term.tf()";
-        Map<String, Object> expectedResultsField = new HashMap<String, Object>();
+        Map<String, Object> expectedResultsField = new HashMap<>();
         expectedResultsField.put("1", 1);
         expectedResultsField.put("2", 1);
         expectedResultsField.put("3", 1);
-        Map<String, Object> expectedResultsScore = new HashMap<String, Object>();
+        Map<String, Object> expectedResultsScore = new HashMap<>();
         expectedResultsScore.put("1", 2f);
         expectedResultsScore.put("2", 2f);
         expectedResultsScore.put("3", 2f);
@@ -208,7 +208,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
                 + "); payloadSum=0; for (pos : term) {payloadSum = pos.payloadAsInt(0);} return payloadSum;";
 
         // non existing field: sum should be 0
-        HashMap<String, Object> zeroArray = new HashMap<String, Object>();
+        HashMap<String, Object> zeroArray = new HashMap<>();
         zeroArray.put("1", 0);
         zeroArray.put("2", 0);
         zeroArray.put("3", 0);
@@ -460,7 +460,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
         // check term frequencies for 'a'
         script = "term = _index['float_payload_field']['a']; if (term != null) {term.tf()}";
-        Map<String, Object> expectedResults = new HashMap<String, Object>();
+        Map<String, Object> expectedResults = new HashMap<>();
         expectedResults.put("1", 2);
         expectedResults.put("2", 0);
         expectedResults.put("3", 2);
@@ -515,21 +515,21 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         expectedResults.clear();
 
         // check float payload for 'b'
-        HashMap<String, List<Object>> expectedPayloadsArray = new HashMap<String, List<Object>>();
+        HashMap<String, List<Object>> expectedPayloadsArray = new HashMap<>();
         script = createPositionsArrayScript("float_payload_field", "b", includeAllFlag, "payloadAsFloat(-1)");
         float missingValue = -1;
-        List<Object> payloadsFor1 = new ArrayList<Object>();
+        List<Object> payloadsFor1 = new ArrayList<>();
         payloadsFor1.add(2f);
         payloadsFor1.add(missingValue);
         expectedPayloadsArray.put("1", payloadsFor1);
-        List<Object> payloadsFor2 = new ArrayList<Object>();
+        List<Object> payloadsFor2 = new ArrayList<>();
         payloadsFor2.add(5f);
         payloadsFor2.add(missingValue);
         expectedPayloadsArray.put("3", payloadsFor2);
-        expectedPayloadsArray.put("6", new ArrayList<Object>());
-        expectedPayloadsArray.put("5", new ArrayList<Object>());
-        expectedPayloadsArray.put("4", new ArrayList<Object>());
-        expectedPayloadsArray.put("2", new ArrayList<Object>());
+        expectedPayloadsArray.put("6", new ArrayList<>());
+        expectedPayloadsArray.put("5", new ArrayList<>());
+        expectedPayloadsArray.put("4", new ArrayList<>());
+        expectedPayloadsArray.put("2", new ArrayList<>());
         checkArrayValsInEachDoc(script, expectedPayloadsArray, 6);
 
         // check string payload for 'b'
@@ -543,10 +543,10 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         payloadsFor2.add("a");
         payloadsFor2.add(null);
         expectedPayloadsArray.put("4", payloadsFor2);
-        expectedPayloadsArray.put("6", new ArrayList<Object>());
-        expectedPayloadsArray.put("5", new ArrayList<Object>());
-        expectedPayloadsArray.put("3", new ArrayList<Object>());
-        expectedPayloadsArray.put("1", new ArrayList<Object>());
+        expectedPayloadsArray.put("6", new ArrayList<>());
+        expectedPayloadsArray.put("5", new ArrayList<>());
+        expectedPayloadsArray.put("3", new ArrayList<>());
+        expectedPayloadsArray.put("1", new ArrayList<>());
         checkArrayValsInEachDoc(script, expectedPayloadsArray, 6);
 
         // check int payload for 'c'
@@ -554,14 +554,14 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         payloadsFor1.clear();
         payloadsFor2.clear();
         script = createPositionsArrayScript("int_payload_field", "c", includeAllFlag, "payloadAsInt(-1)");
-        payloadsFor1 = new ArrayList<Object>();
+        payloadsFor1 = new ArrayList<>();
         payloadsFor1.add(1);
         expectedPayloadsArray.put("6", payloadsFor1);
-        expectedPayloadsArray.put("5", new ArrayList<Object>());
-        expectedPayloadsArray.put("4", new ArrayList<Object>());
-        expectedPayloadsArray.put("3", new ArrayList<Object>());
-        expectedPayloadsArray.put("2", new ArrayList<Object>());
-        expectedPayloadsArray.put("1", new ArrayList<Object>());
+        expectedPayloadsArray.put("5", new ArrayList<>());
+        expectedPayloadsArray.put("4", new ArrayList<>());
+        expectedPayloadsArray.put("3", new ArrayList<>());
+        expectedPayloadsArray.put("2", new ArrayList<>());
+        expectedPayloadsArray.put("1", new ArrayList<>());
         checkArrayValsInEachDoc(script, expectedPayloadsArray, 6);
 
     }

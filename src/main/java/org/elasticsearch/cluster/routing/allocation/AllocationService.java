@@ -232,7 +232,7 @@ public class AllocationService extends AbstractComponent {
         boolean changed = false;
 
         // create a copy of the shards interleaving between nodes, and check if they can remain
-        List<MutableShardRouting> shards = new ArrayList<MutableShardRouting>();
+        List<MutableShardRouting> shards = new ArrayList<>();
         int index = 0;
         boolean found = true;
         final RoutingNodes routingNodes = allocation.routingNodes();
@@ -307,7 +307,7 @@ public class AllocationService extends AbstractComponent {
                         if (!routing.primary()) {
                             changed = true;
                             if (shardsToFail == null) {
-                                shardsToFail = new ArrayList<ShardRouting>();
+                                shardsToFail = new ArrayList<>();
                             }
                             shardsToFail.add(routing);
                         }

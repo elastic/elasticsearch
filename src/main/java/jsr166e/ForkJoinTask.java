@@ -1454,7 +1454,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * @return the task
      */
     public static <T> ForkJoinTask<T> adapt(Runnable runnable, T result) {
-        return new AdaptedRunnable<T>(runnable, result);
+        return new AdaptedRunnable<>(runnable, result);
     }
 
     /**
@@ -1468,7 +1468,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
      * @return the task
      */
     public static <T> ForkJoinTask<T> adapt(Callable<? extends T> callable) {
-        return new AdaptedCallable<T>(callable);
+        return new AdaptedCallable<>(callable);
     }
 
     // Serialization support
@@ -1510,7 +1510,7 @@ public abstract class ForkJoinTask<V> implements Future<V>, Serializable {
 
     static {
         exceptionTableLock = new ReentrantLock();
-        exceptionTableRefQueue = new ReferenceQueue<Object>();
+        exceptionTableRefQueue = new ReferenceQueue<>();
         exceptionTable = new ExceptionNode[EXCEPTION_MAP_CAPACITY];
         try {
             U = getUnsafe();

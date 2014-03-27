@@ -131,7 +131,7 @@ public class DocumentMapper implements ToXContent {
 
     public static class Builder {
 
-        private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<Class<? extends RootMapper>, RootMapper>();
+        private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
 
         private NamedAnalyzer indexAnalyzer;
 
@@ -269,9 +269,9 @@ public class DocumentMapper implements ToXContent {
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
 
-    private final List<FieldMapperListener> fieldMapperListeners = new CopyOnWriteArrayList<FieldMapperListener>();
+    private final List<FieldMapperListener> fieldMapperListeners = new CopyOnWriteArrayList<>();
 
-    private final List<ObjectMapperListener> objectMapperListeners = new CopyOnWriteArrayList<ObjectMapperListener>();
+    private final List<ObjectMapperListener> objectMapperListeners = new CopyOnWriteArrayList<>();
 
     private boolean hasNestedObjects = false;
 

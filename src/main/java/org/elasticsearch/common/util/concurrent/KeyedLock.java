@@ -38,9 +38,9 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class KeyedLock<T> {
 
-    private final ConcurrentMap<T, KeyLock> map = new ConcurrentHashMap<T, KeyLock>();
+    private final ConcurrentMap<T, KeyLock> map = new ConcurrentHashMap<>();
 
-    private final ThreadLocal<KeyLock> threadLocal = new ThreadLocal<KeyedLock.KeyLock>();
+    private final ThreadLocal<KeyLock> threadLocal = new ThreadLocal<>();
 
     public void acquire(T key) {
         while (true) {

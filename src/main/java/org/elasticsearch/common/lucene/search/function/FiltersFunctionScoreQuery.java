@@ -174,7 +174,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
             // First: Gather explanations for all filters
-            List<ComplexExplanation> filterExplanations = new ArrayList<ComplexExplanation>();
+            List<ComplexExplanation> filterExplanations = new ArrayList<>();
             for (FilterFunction filterFunction : filterFunctions) {
                 Bits docSet = DocIdSets.toSafeBits(context.reader(),
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));

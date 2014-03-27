@@ -59,7 +59,7 @@ public class ThreadPoolInfo implements Streamable, Iterable<ThreadPool.Info>, To
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        infos = new ArrayList<ThreadPool.Info>(size);
+        infos = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             ThreadPool.Info info = new ThreadPool.Info();
             info.readFrom(in);

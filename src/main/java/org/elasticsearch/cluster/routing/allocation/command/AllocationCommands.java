@@ -45,7 +45,7 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class AllocationCommands {
 
-    private static Map<String, AllocationCommand.Factory> factories = new HashMap<String, AllocationCommand.Factory>();
+    private static Map<String, AllocationCommand.Factory> factories = new HashMap<>();
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.

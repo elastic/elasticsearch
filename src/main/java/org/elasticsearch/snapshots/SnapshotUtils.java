@@ -60,12 +60,12 @@ public class SnapshotUtils {
                     indexOrPattern = indexOrPattern.substring(1);
                     // if its the first, add empty set
                     if (i == 0) {
-                        result = new HashSet<String>();
+                        result = new HashSet<>();
                     }
                 } else if (indexOrPattern.charAt(0) == '-') {
                     // if its the first, fill it with all the indices...
                     if (i == 0) {
-                        result = new HashSet<String>(availableIndices);
+                        result = new HashSet<>(availableIndices);
                     }
                     add = false;
                     indexOrPattern = indexOrPattern.substring(1);
@@ -78,7 +78,7 @@ public class SnapshotUtils {
                     } else {
                         if (result == null) {
                             // add all the previous ones...
-                            result = new HashSet<String>();
+                            result = new HashSet<>();
                             result.addAll(availableIndices.subList(0, i));
                         }
                     }
@@ -95,7 +95,7 @@ public class SnapshotUtils {
             }
             if (result == null) {
                 // add all the previous ones...
-                result = new HashSet<String>();
+                result = new HashSet<>();
                 result.addAll(availableIndices.subList(0, i));
             }
             boolean found = false;

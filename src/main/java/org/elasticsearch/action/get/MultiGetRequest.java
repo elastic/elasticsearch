@@ -203,7 +203,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     Boolean realtime;
     boolean refresh;
 
-    List<Item> items = new ArrayList<Item>();
+    List<Item> items = new ArrayList<>();
 
     public MultiGetRequest add(Item item) {
         items.add(item);
@@ -321,7 +321,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                                     } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                                         parent = parser.text();
                                     } else if ("fields".equals(currentFieldName)) {
-                                        fields = new ArrayList<String>();
+                                        fields = new ArrayList<>();
                                         fields.add(parser.text());
                                     } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
                                         version = parser.longValue();
@@ -338,12 +338,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     if ("fields".equals(currentFieldName)) {
-                                        fields = new ArrayList<String>();
+                                        fields = new ArrayList<>();
                                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                             fields.add(parser.text());
                                         }
                                     } else if ("_source".equals(currentFieldName)) {
-                                        ArrayList<String> includes = new ArrayList<String>();
+                                        ArrayList<String> includes = new ArrayList<>();
                                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                             includes.add(parser.text());
                                         }
@@ -358,9 +358,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                                             if (token == XContentParser.Token.FIELD_NAME) {
                                                 currentFieldName = parser.currentName();
                                                 if ("includes".equals(currentFieldName) || "include".equals(currentFieldName)) {
-                                                    currentList = includes != null ? includes : (includes = new ArrayList<String>(2));
+                                                    currentList = includes != null ? includes : (includes = new ArrayList<>(2));
                                                 } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
-                                                    currentList = excludes != null ? excludes : (excludes = new ArrayList<String>(2));
+                                                    currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
                                                 } else {
                                                     throw new ElasticsearchParseException("Source definition may not contain " + parser.text());
                                                 }
@@ -424,7 +424,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         }
 
         int size = in.readVInt();
-        items = new ArrayList<Item>(size);
+        items = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             items.add(Item.readItem(in));
         }

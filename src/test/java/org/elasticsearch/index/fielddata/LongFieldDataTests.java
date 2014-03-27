@@ -373,7 +373,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
     private void test(Data data) throws Exception {
         Random r = getRandom();
         final int numDocs = 1000 + r.nextInt(19000);
-        final List<LongOpenHashSet> values = new ArrayList<LongOpenHashSet>(numDocs);
+        final List<LongOpenHashSet> values = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; ++i) {
             final int numValues = data.numValues(r);
             final LongOpenHashSet vals = new LongOpenHashSet(numValues);

@@ -36,16 +36,16 @@ public class IdentityHashSet<E>
     private static final Object PRESENT = new Object();
 
     public IdentityHashSet() {
-        map = new IdentityHashMap<E, Object>();
+        map = new IdentityHashMap<>();
     }
 
     public IdentityHashSet(Collection<? extends E> c) {
-        map = new IdentityHashMap<E, Object>(Math.max((int) (c.size() / .75f) + 1, 16));
+        map = new IdentityHashMap<>(Math.max((int) (c.size() / .75f) + 1, 16));
         addAll(c);
     }
 
     public IdentityHashSet(int expectedSize) {
-        map = new IdentityHashMap<E, Object>(expectedSize);
+        map = new IdentityHashMap<>(expectedSize);
     }
 
     /**
@@ -181,7 +181,7 @@ public class IdentityHashSet<E>
         // Read in size
         int size = s.readInt();
 
-        map = new IdentityHashMap<E, Object>(size);
+        map = new IdentityHashMap<>(size);
 
         // Read in all elements in the proper order.
         for (int i = 0; i < size; i++) {

@@ -190,13 +190,13 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
 
         builder = XContentFactory.contentBuilder(XContentType.JSON);
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("date", date);
         builder.map(map);
         assertThat(builder.string(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
 
         builder = XContentFactory.contentBuilder(XContentType.JSON);
-        map = new HashMap<String, Object>();
+        map = new HashMap<>();
         map.put("calendar", calendar);
         builder.map(map);
         assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));

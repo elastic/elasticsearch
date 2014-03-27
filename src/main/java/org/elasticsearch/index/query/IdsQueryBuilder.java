@@ -33,7 +33,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements BoostableQueryB
 
     private final List<String> types;
 
-    private List<String> values = new ArrayList<String>();
+    private List<String> values = new ArrayList<>();
 
     private float boost = -1;
 

@@ -99,7 +99,7 @@ public class CompoundAnalysisTests extends ElasticsearchTestCase {
         stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
-        List<String> terms = new ArrayList<String>();
+        List<String> terms = new ArrayList<>();
         while (stream.incrementToken()) {
             String tokText = termAtt.toString();
             terms.add(tokText);

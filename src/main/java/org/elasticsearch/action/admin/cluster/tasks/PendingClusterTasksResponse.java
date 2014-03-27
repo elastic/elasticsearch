@@ -115,7 +115,7 @@ public class PendingClusterTasksResponse extends ActionResponse implements Itera
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        pendingTasks = new ArrayList<PendingClusterTask>(size);
+        pendingTasks = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             PendingClusterTask task = new PendingClusterTask();
             task.readFrom(in);

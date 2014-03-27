@@ -49,7 +49,7 @@ public class MustacheScriptEngineTest extends ElasticsearchTestCase {
         {
             String template = "GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
-            Map<String, Object> vars = new HashMap<String, Object>();
+            Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             BytesReference o = (BytesReference) qe.execute(qe.compile(template), vars);
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
@@ -59,7 +59,7 @@ public class MustacheScriptEngineTest extends ElasticsearchTestCase {
         {
             String template = "GET _search {\"query\": " + "{\"boosting\": {" + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"{{body_val}}\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
-            Map<String, Object> vars = new HashMap<String, Object>();
+            Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
             BytesReference o = (BytesReference) qe.execute(qe.compile(template), vars);

@@ -70,7 +70,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             return;
         }
 
-        Map<Integer, List<String>> nrReplicasChanged = new HashMap<Integer, List<String>>();
+        Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
 
         // we need to do this each time in case it was changed by update settings
         for (final IndexMetaData indexMetaData : event.state().metaData()) {

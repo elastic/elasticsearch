@@ -133,7 +133,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
             }
         }
 
-        ObjectFloatOpenHashMap<String> indices = new ObjectFloatOpenHashMap<String>();
+        ObjectFloatOpenHashMap<String> indices = new ObjectFloatOpenHashMap<>();
         MetaData electedGlobalState = null;
         int found = 0;
         for (TransportNodesListGatewayMetaState.NodeLocalGatewayMetaState nodeState : nodesState) {

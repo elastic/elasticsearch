@@ -91,7 +91,7 @@ public class RestTable {
 
     private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {
         String pHeaders = request.param("h");
-        List<DisplayHeader> display = new ArrayList<DisplayHeader>();
+        List<DisplayHeader> display = new ArrayList<>();
         if (pHeaders != null) {
             for (String possibility : Strings.splitStringByCommaToArray(pHeaders)) {
                 DisplayHeader dispHeader = null;

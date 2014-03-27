@@ -39,7 +39,7 @@ public abstract class AbstractDump implements Dump {
 
     private final Map<String, Object> context;
 
-    private final ArrayList<File> files = new ArrayList<File>();
+    private final ArrayList<File> files = new ArrayList<>();
 
     protected AbstractDump(long timestamp, String cause, @Nullable Map<String, Object> context) {
         this.timestamp = timestamp;

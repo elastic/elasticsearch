@@ -611,7 +611,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()

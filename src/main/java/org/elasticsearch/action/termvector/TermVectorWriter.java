@@ -32,8 +32,8 @@ import java.util.Set;
 
 // package only - this is an internal class!
 final class TermVectorWriter {
-    final List<String> fields = new ArrayList<String>();
-    final List<Long> fieldOffset = new ArrayList<Long>();
+    final List<String> fields = new ArrayList<>();
+    final List<Long> fieldOffset = new ArrayList<>();
     final BytesStreamOutput output = new BytesStreamOutput(1); // can we somehow
     // predict the
     // size here?

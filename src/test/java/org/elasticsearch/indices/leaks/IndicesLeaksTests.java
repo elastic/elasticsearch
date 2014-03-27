@@ -62,8 +62,8 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
         performCommonOperations();
 
-        List<WeakReference> indexReferences = new ArrayList<WeakReference>();
-        List<WeakReference> shardReferences = new ArrayList<WeakReference>();
+        List<WeakReference> indexReferences = new ArrayList<>();
+        List<WeakReference> shardReferences = new ArrayList<>();
 
         // TODO if we could iterate over the already created classes on the injector, we can just add them here to the list
         // for now, we simple add some classes that make sense

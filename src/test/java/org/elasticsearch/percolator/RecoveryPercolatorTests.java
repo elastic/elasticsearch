@@ -282,7 +282,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
         final AtomicBoolean run = new AtomicBoolean(true);
         final CountDownLatch done = new CountDownLatch(1);
-        final AtomicReference<Throwable> error = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> error = new AtomicReference<>();
         Runnable r = new Runnable() {
             @Override
             public void run() {

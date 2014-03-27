@@ -60,7 +60,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "nested", "type=nested"));
 
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
 
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
@@ -225,7 +225,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()

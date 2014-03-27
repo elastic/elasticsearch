@@ -32,7 +32,7 @@ import java.util.Map;
 public class XContentHelperTests extends ElasticsearchTestCase {
 
     Map<String, Object> getMap(Object... keyValues) {
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         for (int i = 0; i < keyValues.length; i++) {
             map.put((String) keyValues[i], keyValues[++i]);
         }
@@ -42,7 +42,7 @@ public class XContentHelperTests extends ElasticsearchTestCase {
     Map<String, Object> getNamedMap(String name, Object... keyValues) {
         Map<String, Object> map = getMap(keyValues);
 
-        Map<String, Object> namedMap = new HashMap<String, Object>(1);
+        Map<String, Object> namedMap = new HashMap<>(1);
         namedMap.put(name, map);
         return namedMap;
     }

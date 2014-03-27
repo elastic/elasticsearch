@@ -88,7 +88,7 @@ public abstract class Multibinder<T> {
      */
     public static <T> Multibinder<T> newSetBinder(Binder binder, TypeLiteral<T> type) {
         binder = binder.skipSources(RealMultibinder.class, Multibinder.class);
-        RealMultibinder<T> result = new RealMultibinder<T>(binder, type, "",
+        RealMultibinder<T> result = new RealMultibinder<>(binder, type, "",
                 Key.get(Multibinder.<T>setOf(type)));
         binder.install(result);
         return result;
@@ -109,7 +109,7 @@ public abstract class Multibinder<T> {
     public static <T> Multibinder<T> newSetBinder(
             Binder binder, TypeLiteral<T> type, Annotation annotation) {
         binder = binder.skipSources(RealMultibinder.class, Multibinder.class);
-        RealMultibinder<T> result = new RealMultibinder<T>(binder, type, annotation.toString(),
+        RealMultibinder<T> result = new RealMultibinder<>(binder, type, annotation.toString(),
                 Key.get(Multibinder.<T>setOf(type), annotation));
         binder.install(result);
         return result;
@@ -131,7 +131,7 @@ public abstract class Multibinder<T> {
     public static <T> Multibinder<T> newSetBinder(Binder binder, TypeLiteral<T> type,
                                                   Class<? extends Annotation> annotationType) {
         binder = binder.skipSources(RealMultibinder.class, Multibinder.class);
-        RealMultibinder<T> result = new RealMultibinder<T>(binder, type, "@" + annotationType.getName(),
+        RealMultibinder<T> result = new RealMultibinder<>(binder, type, "@" + annotationType.getName(),
                 Key.get(Multibinder.<T>setOf(type), annotationType));
         binder.install(result);
         return result;
@@ -257,7 +257,7 @@ public abstract class Multibinder<T> {
         public Set<T> get() {
             checkConfiguration(isInitialized(), "Multibinder is not initialized");
 
-            Set<T> result = new LinkedHashSet<T>();
+            Set<T> result = new LinkedHashSet<>();
             for (Provider<T> provider : providers) {
                 final T newValue = provider.get();
                 checkConfiguration(newValue != null, "Set injection failed due to null element");

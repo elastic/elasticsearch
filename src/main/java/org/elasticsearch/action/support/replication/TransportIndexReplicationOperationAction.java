@@ -87,7 +87,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger failureCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(groups.size());
-        final AtomicReferenceArray<ShardActionResult> shardsResponses = new AtomicReferenceArray<ShardActionResult>(groups.size());
+        final AtomicReferenceArray<ShardActionResult> shardsResponses = new AtomicReferenceArray<>(groups.size());
 
         for (final ShardIterator shardIt : groups) {
             ShardRequest shardRequest = newShardRequestInstance(request, shardIt.shardId().id());

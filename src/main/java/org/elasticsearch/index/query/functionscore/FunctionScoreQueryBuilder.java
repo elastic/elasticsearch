@@ -47,8 +47,8 @@ public class FunctionScoreQueryBuilder extends BaseQueryBuilder implements Boost
     
     private String boostMode;
 
-    private ArrayList<FilterBuilder> filters = new ArrayList<FilterBuilder>();
-    private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<ScoreFunctionBuilder>();
+    private ArrayList<FilterBuilder> filters = new ArrayList<>();
+    private ArrayList<ScoreFunctionBuilder> scoreFunctions = new ArrayList<>();
 
     public FunctionScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.queryBuilder = queryBuilder;

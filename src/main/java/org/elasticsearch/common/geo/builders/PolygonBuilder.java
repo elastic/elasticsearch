@@ -31,7 +31,7 @@ public class PolygonBuilder extends BasePolygonBuilder<PolygonBuilder> {
 
     protected PolygonBuilder(ArrayList<Coordinate> points) {
         super();
-        this.shell = new Ring<PolygonBuilder>(this, points);
+        this.shell = new Ring<>(this, points);
     }
 
     @Override

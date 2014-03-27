@@ -76,8 +76,8 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             FIELD_TYPE.freeze();
         }
 
-        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<Boolean>(false, false);
-        public static final Explicit<Boolean> COERCE = new Explicit<Boolean>(true, false);
+        public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
+        public static final Explicit<Boolean> COERCE = new Explicit<>(true, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
@@ -104,10 +104,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         protected Explicit<Boolean> ignoreMalformed(BuilderContext context) {
             if (ignoreMalformed != null) {
-                return new Explicit<Boolean>(ignoreMalformed, true);
+                return new Explicit<>(ignoreMalformed, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<Boolean>(context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED.value()), false);
+                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.ignore_malformed", Defaults.IGNORE_MALFORMED.value()), false);
             }
             return Defaults.IGNORE_MALFORMED;
         }
@@ -119,10 +119,10 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         protected Explicit<Boolean> coerce(BuilderContext context) {
             if (coerce != null) {
-                return new Explicit<Boolean>(coerce, true);
+                return new Explicit<>(coerce, true);
             }
             if (context.indexSettings() != null) {
-                return new Explicit<Boolean>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
+                return new Explicit<>(context.indexSettings().getAsBoolean("index.mapping.coerce", Defaults.COERCE.value()), false);
             }
             return Defaults.COERCE;
         }

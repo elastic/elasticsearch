@@ -167,7 +167,7 @@ public class NestedQueryParser implements QueryParser {
         }
     }
 
-    static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<LateBindingParentFilter>();
+    static ThreadLocal<LateBindingParentFilter> parentFilterContext = new ThreadLocal<>();
 
     static class LateBindingParentFilter extends Filter {
 

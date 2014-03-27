@@ -122,12 +122,12 @@ public class LongTerms extends InternalTerms {
                 reduced = terms;
             }
             if (buckets == null) {
-                buckets = new LongObjectPagedHashMap<List<Bucket>>(terms.buckets.size(), reduceContext.bigArrays());
+                buckets = new LongObjectPagedHashMap<>(terms.buckets.size(), reduceContext.bigArrays());
             }
             for (Terms.Bucket bucket : terms.buckets) {
                 List<Bucket> existingBuckets = buckets.get(((Bucket) bucket).term);
                 if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<Bucket>(aggregations.size());
+                    existingBuckets = new ArrayList<>(aggregations.size());
                     buckets.put(((Bucket) bucket).term, existingBuckets);
                 }
                 existingBuckets.add((Bucket) bucket);
@@ -166,7 +166,7 @@ public class LongTerms extends InternalTerms {
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         int size = in.readVInt();
-        List<InternalTerms.Bucket> buckets = new ArrayList<InternalTerms.Bucket>(size);
+        List<InternalTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             buckets.add(new Bucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in)));
         }

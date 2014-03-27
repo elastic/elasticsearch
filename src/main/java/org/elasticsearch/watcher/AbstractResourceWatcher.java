@@ -26,7 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * and calling resource observer.
  */
 public abstract class AbstractResourceWatcher<Listener> implements ResourceWatcher {
-    private final List<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private boolean initialized = false;
 
     @Override

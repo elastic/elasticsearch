@@ -84,7 +84,7 @@ public class ThreadPool extends AbstractComponent {
 
     private final ImmutableMap<String, Settings> defaultExecutorTypeSettings;
 
-    private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<ExecutorHolder>();
+    private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<>();
 
     private final ScheduledThreadPoolExecutor scheduler;
 
@@ -146,7 +146,7 @@ public class ThreadPool extends AbstractComponent {
     }
 
     public ThreadPoolInfo info() {
-        List<Info> infos = new ArrayList<Info>();
+        List<Info> infos = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
             String name = holder.info.getName();
             // no need to have info on "same" thread pool
@@ -167,7 +167,7 @@ public class ThreadPool extends AbstractComponent {
     }
 
     public ThreadPoolStats stats() {
-        List<ThreadPoolStats.Stats> stats = new ArrayList<ThreadPoolStats.Stats>();
+        List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
             String name = holder.info.getName();
             // no need to have info on "same" thread pool

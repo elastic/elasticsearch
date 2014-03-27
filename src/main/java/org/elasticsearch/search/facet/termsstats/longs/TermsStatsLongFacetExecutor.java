@@ -80,7 +80,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            List<InternalTermsStatsLongFacet.LongEntry> longEntries = new ArrayList<InternalTermsStatsLongFacet.LongEntry>(entries.v().size());
+            List<InternalTermsStatsLongFacet.LongEntry> longEntries = new ArrayList<>(entries.v().size());
             boolean[] states = entries.v().allocated;
             Object[] values = entries.v().values;
             for (int i = 0; i < states.length; i++) {

@@ -331,7 +331,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
             if (!fieldVisitor.fields().isEmpty()) {
                 fieldVisitor.postProcess(docMapper);
-                fields = new HashMap<String, GetField>(fieldVisitor.fields().size());
+                fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
                     fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
                 }

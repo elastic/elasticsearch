@@ -902,7 +902,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
                     .startObject()
@@ -924,7 +924,7 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         Range range = bucket.getAggregations().get("range");
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(range.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
         assertThat(range, Matchers.notNullValue());
         assertThat(range.getName(), equalTo("range"));
         assertThat(buckets.size(), is(1));

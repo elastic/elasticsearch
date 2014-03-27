@@ -231,7 +231,7 @@ public class Analysis {
     }
 
     public static List<String> loadWordList(Reader reader, String comment) throws IOException {
-        final List<String> result = new ArrayList<String>();
+        final List<String> result = new ArrayList<>();
         BufferedReader br = null;
         try {
             if (reader instanceof BufferedReader) {

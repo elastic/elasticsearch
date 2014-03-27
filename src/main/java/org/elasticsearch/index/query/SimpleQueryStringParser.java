@@ -118,7 +118,7 @@ public class SimpleQueryStringParser implements QueryParser {
                         }
 
                         if (fieldsAndWeights == null) {
-                            fieldsAndWeights = new HashMap<String, Float>();
+                            fieldsAndWeights = new HashMap<>();
                         }
 
                         if (Regex.isSimpleMatchPattern(fField)) {

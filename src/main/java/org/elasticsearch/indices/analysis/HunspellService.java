@@ -169,7 +169,7 @@ public class HunspellService extends AbstractComponent {
         InputStream affixStream = null;
 
         File[] dicFiles = dicDir.listFiles(DIC_FILE_FILTER);
-        List<InputStream> dicStreams = new ArrayList<InputStream>(dicFiles.length);
+        List<InputStream> dicStreams = new ArrayList<>(dicFiles.length);
         try {
 
             for (int i = 0; i < dicFiles.length; i++) {

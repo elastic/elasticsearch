@@ -33,7 +33,7 @@ public class NumericDoubleAnalyzer extends NumericAnalyzer<NumericDoubleTokenize
     private final static IntObjectOpenHashMap<NamedAnalyzer> builtIn;
 
     static {
-        builtIn = new IntObjectOpenHashMap<NamedAnalyzer>();
+        builtIn = new IntObjectOpenHashMap<>();
         builtIn.put(Integer.MAX_VALUE, new NamedAnalyzer("_double/max", AnalyzerScope.GLOBAL, new NumericDoubleAnalyzer(Integer.MAX_VALUE)));
         for (int i = 0; i <= 64; i += 4) {
             builtIn.put(i, new NamedAnalyzer("_double/" + i, AnalyzerScope.GLOBAL, new NumericDoubleAnalyzer(i)));

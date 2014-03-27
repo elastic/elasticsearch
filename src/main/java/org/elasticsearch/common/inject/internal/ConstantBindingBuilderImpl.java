@@ -117,7 +117,7 @@ public final class ConstantBindingBuilderImpl<T>
             binder.addError(BINDING_TO_NULL);
         }
 
-        setBinding(new InstanceBindingImpl<T>(
+        setBinding(new InstanceBindingImpl<>(
                 base.getSource(), key, base.getScoping(), ImmutableSet.<InjectionPoint>of(), instanceAsT));
     }
 

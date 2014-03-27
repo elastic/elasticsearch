@@ -89,7 +89,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final MetaDataCreateIndexService createIndexService;
 
-    private final CopyOnWriteArrayList<RestoreCompletionListener> listeners = new CopyOnWriteArrayList<RestoreCompletionListener>();
+    private final CopyOnWriteArrayList<RestoreCompletionListener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService, AllocationService allocationService, MetaDataCreateIndexService createIndexService) {

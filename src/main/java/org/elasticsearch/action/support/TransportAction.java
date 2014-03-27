@@ -52,7 +52,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     public void execute(Request request, ActionListener<Response> listener) {
         if (request.listenerThreaded()) {
-            listener = new ThreadedActionListener<Response>(threadPool, listener, logger);
+            listener = new ThreadedActionListener<>(threadPool, listener, logger);
         }
         ActionRequestValidationException validationException = request.validate();
         if (validationException != null) {

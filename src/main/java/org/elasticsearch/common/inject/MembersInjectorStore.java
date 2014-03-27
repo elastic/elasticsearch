@@ -85,7 +85,7 @@ class MembersInjectorStore {
         ImmutableList<SingleMemberInjector> injectors = getInjectors(injectionPoints, errors);
         errors.throwIfNewErrors(numErrorsBefore);
 
-        EncounterImpl<T> encounter = new EncounterImpl<T>(errors, injector.lookups);
+        EncounterImpl<T> encounter = new EncounterImpl<>(errors, injector.lookups);
         for (TypeListenerBinding typeListener : typeListenerBindings) {
             if (typeListener.getTypeMatcher().matches(type)) {
                 try {
@@ -98,7 +98,7 @@ class MembersInjectorStore {
         encounter.invalidate();
         errors.throwIfNewErrors(numErrorsBefore);
 
-        return new MembersInjectorImpl<T>(injector, type, encounter, injectors);
+        return new MembersInjectorImpl<>(injector, type, encounter, injectors);
     }
 
     /**

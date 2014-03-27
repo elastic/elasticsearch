@@ -218,7 +218,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     static {
         // This is not an exhaustive list, just the most common types. Call registerMimeType() to add more.
-        Map<String, String> mimeTypes = new HashMap<String, String>();
+        Map<String, String> mimeTypes = new HashMap<>();
         mimeTypes.put("txt", "text/plain");
         mimeTypes.put("css", "text/css");
         mimeTypes.put("csv", "text/csv");

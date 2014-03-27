@@ -41,12 +41,12 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
-    private final PathTrie<RestHandler> getHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> postHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> putHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> deleteHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> headHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final RestHandlerFilter handlerFilter = new RestHandlerFilter();
 

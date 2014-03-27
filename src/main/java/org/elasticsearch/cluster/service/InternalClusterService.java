@@ -74,9 +74,9 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile PrioritizedEsThreadPoolExecutor updateTasksExecutor;
 
-    private final List<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
-    private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
-    private final List<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<ClusterStateListener>();
+    private final List<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<>();
+    private final List<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
+    private final List<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
     private final LocalNodeMasterListeners localNodeMasterListeners;
 
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
@@ -265,7 +265,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     public List<PendingClusterTask> pendingTasks() {
         long now = System.currentTimeMillis();
         PrioritizedEsThreadPoolExecutor.Pending[] pendings = updateTasksExecutor.getPending();
-        List<PendingClusterTask> pendingClusterTasks = new ArrayList<PendingClusterTask>(pendings.length);
+        List<PendingClusterTask> pendingClusterTasks = new ArrayList<>(pendings.length);
         for (PrioritizedEsThreadPoolExecutor.Pending pending : pendings) {
             final String source;
             final long timeInQueue;
@@ -556,7 +556,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private static class LocalNodeMasterListeners implements ClusterStateListener {
 
-        private final List<LocalNodeMasterListener> listeners = new CopyOnWriteArrayList<LocalNodeMasterListener>();
+        private final List<LocalNodeMasterListener> listeners = new CopyOnWriteArrayList<>();
         private final ThreadPool threadPool;
         private volatile boolean master = false;
 

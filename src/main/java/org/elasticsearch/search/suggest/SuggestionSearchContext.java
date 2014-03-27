@@ -28,7 +28,7 @@ import java.util.Map;
  */
 public class SuggestionSearchContext {
 
-    private final Map<String, SuggestionContext> suggestions = new LinkedHashMap<String, SuggestionContext>(4);
+    private final Map<String, SuggestionContext> suggestions = new LinkedHashMap<>(4);
 
     public void addSuggestion(String name, SuggestionContext suggestion) {
         suggestions.put(name, suggestion);

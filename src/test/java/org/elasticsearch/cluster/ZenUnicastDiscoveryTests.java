@@ -56,7 +56,7 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
                 .build();
 
         final CountDownLatch latch = new CountDownLatch(3);
-        final AtomicArray<String> nodes = new AtomicArray<String>(3);
+        final AtomicArray<String> nodes = new AtomicArray<>(3);
         Runnable r1 = new Runnable() {
 
             @Override

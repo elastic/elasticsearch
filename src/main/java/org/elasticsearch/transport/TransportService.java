@@ -60,7 +60,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     final AtomicLong requestIds = new AtomicLong();
 
-    final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<TransportConnectionListener>();
+    final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
 
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
@@ -163,7 +163,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                           TransportRequestOptions options, TransportResponseHandler<T> handler) throws TransportException {
-        PlainTransportFuture<T> futureHandler = new PlainTransportFuture<T>(handler);
+        PlainTransportFuture<T> futureHandler = new PlainTransportFuture<>(handler);
         sendRequest(node, action, request, options, futureHandler);
         return futureHandler;
     }
@@ -185,7 +185,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 timeoutHandler = new TimeoutHandler(requestId);
                 timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
-            clientHandlers.put(requestId, new RequestHolder<T>(handler, node, action, timeoutHandler));
+            clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
             transport.sendRequest(node, requestId, action, request, options);
         } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node

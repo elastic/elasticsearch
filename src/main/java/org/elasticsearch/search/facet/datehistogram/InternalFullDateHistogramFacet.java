@@ -180,7 +180,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
         // TODO: hppc - not happy with toArray
         Object[] values = map.v().values().toArray();
         Arrays.sort(values, (Comparator) comparatorType.comparator());
-        List<FullEntry> ordered = new ArrayList<FullEntry>(map.v().size());
+        List<FullEntry> ordered = new ArrayList<>(map.v().size());
         for (int i = 0; i < map.v().size(); i++) {
             FullEntry value = (FullEntry) values[i];
             if (value == null) {
@@ -242,7 +242,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
         super.readFrom(in);
         comparatorType = ComparatorType.fromId(in.readByte());
         int size = in.readVInt();
-        entries = new ArrayList<FullEntry>(size);
+        entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             entries.add(new FullEntry(in.readLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readVLong(), in.readDouble()));
         }

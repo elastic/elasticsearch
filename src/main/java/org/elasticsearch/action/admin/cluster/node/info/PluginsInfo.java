@@ -39,11 +39,11 @@ public class PluginsInfo implements Streamable, Serializable, ToXContent {
     private List<PluginInfo> infos;
 
     public PluginsInfo() {
-        infos = new ArrayList<PluginInfo>();
+        infos = new ArrayList<>();
     }
 
     public PluginsInfo(int size) {
-        infos = new ArrayList<PluginInfo>(size);
+        infos = new ArrayList<>(size);
     }
 
     public List<PluginInfo> getInfos() {

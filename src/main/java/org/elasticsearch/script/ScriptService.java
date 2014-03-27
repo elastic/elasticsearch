@@ -191,7 +191,7 @@ public class ScriptService extends AbstractComponent {
             if (extIndex != -1) {
                 String ext = scriptPath.substring(extIndex + 1);
                 String scriptName = scriptPath.substring(0, extIndex).replace(File.separatorChar, '_');
-                return new Tuple<String, String>(scriptName, ext);
+                return new Tuple<>(scriptName, ext);
             } else {
                 return null;
             }

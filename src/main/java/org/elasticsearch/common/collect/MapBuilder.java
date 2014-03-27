@@ -31,11 +31,11 @@ import static com.google.common.collect.Maps.newHashMap;
 public class MapBuilder<K, V> {
 
     public static <K, V> MapBuilder<K, V> newMapBuilder() {
-        return new MapBuilder<K, V>();
+        return new MapBuilder<>();
     }
 
     public static <K, V> MapBuilder<K, V> newMapBuilder(Map<K, V> map) {
-        return new MapBuilder<K, V>(map);
+        return new MapBuilder<>(map);
     }
 
     private Map<K, V> map = newHashMap();

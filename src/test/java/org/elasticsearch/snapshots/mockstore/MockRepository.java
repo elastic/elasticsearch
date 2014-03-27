@@ -115,7 +115,7 @@ public class MockRepository extends FsRepository {
     }
 
     public class MockBlobStore extends BlobStoreWrapper {
-        ConcurrentMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<String, AtomicLong>();
+        ConcurrentMap<String, AtomicLong> accessCounts = new ConcurrentHashMap<>();
 
         private long incrementAndGet(String path) {
             AtomicLong value = accessCounts.get(path);

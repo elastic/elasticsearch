@@ -287,7 +287,7 @@ public class RangeAggregator extends BucketsAggregator {
         public InternalRange buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets =
-                    new ArrayList<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket>(ranges.size());
+                    new ArrayList<>(ranges.size());
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, formatter));
             }

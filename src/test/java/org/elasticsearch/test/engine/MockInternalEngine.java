@@ -56,7 +56,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public final class MockInternalEngine extends InternalEngine implements Engine {
-    public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<AssertingSearcher, RuntimeException>();
+    public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
 

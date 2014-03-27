@@ -155,7 +155,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile boolean failOnMergeFailure;
     private Throwable failedEngine = null;
     private final Object failedEngineMutex = new Object();
-    private final CopyOnWriteArrayList<FailedEngineListener> failedEngineListeners = new CopyOnWriteArrayList<FailedEngineListener>();
+    private final CopyOnWriteArrayList<FailedEngineListener> failedEngineListeners = new CopyOnWriteArrayList<>();
 
     private final AtomicLong translogIdGenerator = new AtomicLong();
 
@@ -1120,7 +1120,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         rwl.readLock().lock();
         try {
             ensureOpen();
-            Map<String, Segment> segments = new HashMap<String, Segment>();
+            Map<String, Segment> segments = new HashMap<>();
 
             // first, go over and compute the search ones...
             Searcher searcher = acquireSearcher("segments");

@@ -109,7 +109,7 @@ public abstract class WordScorer {
     * not seekCeil.  Because of this it really only makes sense in this context.
     */
    private static class FrequencyCachingTermsEnumWrapper extends FilterTermsEnum {
-       private ObjectObjectMap<BytesRef, CacheEntry> cache = new ObjectObjectOpenHashMap<BytesRef, CacheEntry>();
+       private ObjectObjectMap<BytesRef, CacheEntry> cache = new ObjectObjectOpenHashMap<>();
        /**
         * The last term that the called attempted to seek to.
         */

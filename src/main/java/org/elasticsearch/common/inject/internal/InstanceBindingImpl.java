@@ -73,11 +73,11 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     }
 
     public BindingImpl<T> withScoping(Scoping scoping) {
-        return new InstanceBindingImpl<T>(getSource(), getKey(), scoping, injectionPoints, instance);
+        return new InstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, instance);
     }
 
     public BindingImpl<T> withKey(Key<T> key) {
-        return new InstanceBindingImpl<T>(getSource(), key, getScoping(), injectionPoints, instance);
+        return new InstanceBindingImpl<>(getSource(), key, getScoping(), injectionPoints, instance);
     }
 
     public void applyTo(Binder binder) {

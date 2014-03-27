@@ -180,34 +180,34 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         boolean fieldData = false;
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject("test");
-        List<Tuple<String, Boolean>> booleanOptionList = new ArrayList<Tuple<String, Boolean>>();
+        List<Tuple<String, Boolean>> booleanOptionList = new ArrayList<>();
         boolean allDefault = true;
         if (frequently()) {
             allDefault = false;
             mappingBuilder.startObject("_all");
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("omit_norms", omitNorms = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("omit_norms", omitNorms = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("store", stored = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("store", stored = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("store_term_vectors", tv_stored = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("store_term_vectors", tv_stored = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("enabled", enabled = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("enabled", enabled = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("auto_boost", autoBoost = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("auto_boost", autoBoost = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("store_term_vector_offsets", tv_offsets = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("store_term_vector_offsets", tv_offsets = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("store_term_vector_positions", tv_positions = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("store_term_vector_positions", tv_positions = randomBoolean()));
             }
             if (randomBoolean()) {
-                booleanOptionList.add(new Tuple<String, Boolean>("store_term_vector_payloads", tv_payloads = randomBoolean()));
+                booleanOptionList.add(new Tuple<>("store_term_vector_payloads", tv_payloads = randomBoolean()));
             }
             Collections.shuffle(booleanOptionList, getRandom());
             for (Tuple<String, Boolean> option : booleanOptionList) {

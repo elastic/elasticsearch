@@ -47,7 +47,7 @@ public class DfsPhase implements SearchPhase {
     private static ThreadLocal<ObjectOpenHashSet<Term>> cachedTermsSet = new ThreadLocal<ObjectOpenHashSet<Term>>() {
         @Override
         protected ObjectOpenHashSet<Term> initialValue() {
-            return new ObjectOpenHashSet<Term>();
+            return new ObjectOpenHashSet<>();
         }
     };
 

@@ -34,7 +34,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     private float maxErrors = 0.5f;
     private BytesRef separator = SEPARATOR;
     private float realworldErrorLikelihood = 0.95f;
-    private List<DirectCandidateGenerator> generators = new ArrayList<PhraseSuggestionContext.DirectCandidateGenerator>();
+    private List<DirectCandidateGenerator> generators = new ArrayList<>();
     private int gramSize = 1;
     private float confidence = 1.0f;
     private int tokenLimit = NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT;

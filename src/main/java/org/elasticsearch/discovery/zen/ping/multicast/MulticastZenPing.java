@@ -148,7 +148,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     }
 
     public PingResponse[] pingAndWait(TimeValue timeout) {
-        final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
+        final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         try {
             ping(new PingListener() {

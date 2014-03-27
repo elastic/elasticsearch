@@ -38,7 +38,7 @@ public final class HppcMaps {
      * Returns a new map with the given initial capacity
      */
     public static <K, V> ObjectObjectOpenHashMap<K, V> newMap(int capacity) {
-        return new ObjectObjectOpenHashMap<K, V>(capacity);
+        return new ObjectObjectOpenHashMap<>(capacity);
     }
 
     /**

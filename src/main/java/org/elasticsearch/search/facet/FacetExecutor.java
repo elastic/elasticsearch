@@ -62,7 +62,7 @@ public abstract class FacetExecutor {
 
             @Override
             public void executePost(List<ContextDocIdSet> docSets) throws IOException {
-                List<ContextDocIdSet> filteredEntries = new ArrayList<ContextDocIdSet>(docSets.size());
+                List<ContextDocIdSet> filteredEntries = new ArrayList<>(docSets.size());
                 for (int i = 0; i < docSets.size(); i++) {
                     ContextDocIdSet entry = docSets.get(i);
                     DocIdSet filteredSet = filter.getDocIdSet(entry.context, null);

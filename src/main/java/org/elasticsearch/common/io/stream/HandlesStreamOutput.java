@@ -29,8 +29,8 @@ import java.io.IOException;
  */
 public class HandlesStreamOutput extends AdapterStreamOutput {
 
-    private final ObjectIntOpenHashMap<String> handles = new ObjectIntOpenHashMap<String>();
-    private final ObjectIntOpenHashMap<Text> handlesText = new ObjectIntOpenHashMap<Text>();
+    private final ObjectIntOpenHashMap<String> handles = new ObjectIntOpenHashMap<>();
+    private final ObjectIntOpenHashMap<Text> handlesText = new ObjectIntOpenHashMap<>();
 
     public HandlesStreamOutput(StreamOutput out) {
         super(out);

@@ -54,7 +54,7 @@ import java.util.*;
  */
 public class QueryParseContext {
 
-    private static ThreadLocal<String[]> typesContext = new ThreadLocal<String[]>();
+    private static ThreadLocal<String[]> typesContext = new ThreadLocal<>();
 
     public static void setTypes(String[] types) {
         typesContext.set(types);

@@ -128,7 +128,7 @@ public class BasicScriptBenchmark {
     public BasicScriptBenchmark() {
     }
 
-    static List<String> termsList = new ArrayList<String>();
+    static List<String> termsList = new ArrayList<>();
 
     static void init(int numTerms) {
         SecureRandom random = new SecureRandom();
@@ -267,23 +267,23 @@ public class BasicScriptBenchmark {
     }
 
     static List<Entry<String, RequestInfo>> initTermQueries(int minTerms, int maxTerms) {
-        List<Entry<String, RequestInfo>> termSearchRequests = new ArrayList<Entry<String, RequestInfo>>();
+        List<Entry<String, RequestInfo>> termSearchRequests = new ArrayList<>();
         for (int nTerms = minTerms; nTerms < maxTerms; nTerms++) {
-            Map<String, Object> params = new HashMap<String, Object>();
+            Map<String, Object> params = new HashMap<>();
             String[] terms = getTerms(nTerms + 1);
             params.put("text", terms);
             SearchRequest request = searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                     searchSource().explain(false).size(0).query(QueryBuilders.termsQuery("text", terms)));
             String infoString = "Results for term query with " + (nTerms + 1) + " terms:";
-            termSearchRequests.add(new AbstractMap.SimpleEntry<String, RequestInfo>(infoString, new RequestInfo(request, nTerms + 1)));
+            termSearchRequests.add(new AbstractMap.SimpleEntry<>(infoString, new RequestInfo(request, nTerms + 1)));
         }
         return termSearchRequests;
     }
 
     static List<Entry<String, RequestInfo>> initNativeSearchRequests(int minTerms, int maxTerms, String script, boolean langNative) {
-        List<Entry<String, RequestInfo>> nativeSearchRequests = new ArrayList<Entry<String, RequestInfo>>();
+        List<Entry<String, RequestInfo>> nativeSearchRequests = new ArrayList<>();
         for (int nTerms = minTerms; nTerms < maxTerms; nTerms++) {
-            Map<String, Object> params = new HashMap<String, Object>();
+            Map<String, Object> params = new HashMap<>();
             String[] terms = getTerms(nTerms + 1);
             params.put("text", terms);
             String infoString = "Results for native script with " + (nTerms + 1) + " terms:";
@@ -295,19 +295,19 @@ public class BasicScriptBenchmark {
                             .size(0)
                             .query(functionScoreQuery(FilterBuilders.termsFilter("text", terms), scriptFunction).boostMode(
                                     CombineFunction.REPLACE)));
-            nativeSearchRequests.add(new AbstractMap.SimpleEntry<String, RequestInfo>(infoString, new RequestInfo(request, nTerms + 1)));
+            nativeSearchRequests.add(new AbstractMap.SimpleEntry<>(infoString, new RequestInfo(request, nTerms + 1)));
         }
         return nativeSearchRequests;
     }
 
     static List<Entry<String, RequestInfo>> initScriptMatchAllSearchRequests(String script, boolean langNative) {
-        List<Entry<String, RequestInfo>> nativeSearchRequests = new ArrayList<Entry<String, RequestInfo>>();
+        List<Entry<String, RequestInfo>> nativeSearchRequests = new ArrayList<>();
         String infoString = "Results for constant score script:";
         ScriptScoreFunctionBuilder scriptFunction = (langNative == true) ? scriptFunction(script, "native") : scriptFunction(script);
         SearchRequest request = searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                 searchSource().explain(false).size(0)
                         .query(functionScoreQuery(FilterBuilders.matchAllFilter(), scriptFunction).boostMode(CombineFunction.REPLACE)));
-        nativeSearchRequests.add(new AbstractMap.SimpleEntry<String, RequestInfo>(infoString, new RequestInfo(request, 0)));
+        nativeSearchRequests.add(new AbstractMap.SimpleEntry<>(infoString, new RequestInfo(request, 0)));
 
         return nativeSearchRequests;
     }

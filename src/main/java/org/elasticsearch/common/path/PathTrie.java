@@ -58,7 +58,7 @@ public class PathTrie<T> {
     public PathTrie(char separator, String wildcard, Decoder decoder) {
         this.decoder = decoder;
         this.separator = separator;
-        root = new TrieNode<T>(new String(new char[]{separator}), null, null, wildcard);
+        root = new TrieNode<>(new String(new char[]{separator}), null, null, wildcard);
     }
 
     public class TrieNode<T> {
@@ -116,9 +116,9 @@ public class PathTrie<T> {
             TrieNode<T> node = children.get(key);
             if (node == null) {
                 if (index == (path.length - 1)) {
-                    node = new TrieNode<T>(token, value, this, wildcard);
+                    node = new TrieNode<>(token, value, this, wildcard);
                 } else {
-                    node = new TrieNode<T>(token, null, this, wildcard);
+                    node = new TrieNode<>(token, null, this, wildcard);
                 }
                 children = newMapBuilder(children).put(key, node).immutableMap();
             } else {

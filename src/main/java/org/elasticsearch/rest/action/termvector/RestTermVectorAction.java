@@ -126,7 +126,7 @@ public class RestTermVectorAction extends BaseRestHandler {
             String[] paramFieldStrings = Strings.commaDelimitedListToStringArray(fields);
             for (String field : paramFieldStrings) {
                 if (selectedFields == null) {
-                    selectedFields = new HashSet<String>();
+                    selectedFields = new HashSet<>();
                 }
                 if (!selectedFields.contains(field)) {
                     field = field.replaceAll("\\s", "");

@@ -132,7 +132,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
         final InetAddress hostAddress = hostAddressX;
 
         PortsRange portsRange = new PortsRange(port);
-        final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {

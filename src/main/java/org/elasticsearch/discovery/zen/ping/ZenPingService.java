@@ -122,7 +122,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     public PingResponse[] pingAndWait(TimeValue timeout) {
-        final AtomicReference<PingResponse[]> response = new AtomicReference<PingResponse[]>();
+        final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(new PingListener() {
             @Override

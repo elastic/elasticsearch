@@ -258,7 +258,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     private static final ThreadLocal<List<Field>> FIELD_LIST = new ThreadLocal<List<Field>>() {
         protected List<Field> initialValue() {
-            return new ArrayList<Field>(2);
+            return new ArrayList<>(2);
         }
     };
 
@@ -494,7 +494,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
         // create with initial size large enough to avoid rehashing
         ObjectOpenHashSet<BytesRef> terms =
-                new ObjectOpenHashSet<BytesRef>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
+                new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));
         for (int i = 0, len = values.size(); i < len; i++) {
             terms.add(indexedValueForSearch(values.get(i)));
         }
@@ -952,7 +952,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                         newMappersBuilder.put(mergeWithMapper.name(), mergeWithMapper);
                         if (mergeWithMapper instanceof AbstractFieldMapper) {
                             if (newFieldMappers == null) {
-                                newFieldMappers = new ArrayList<FieldMapper>(2);
+                                newFieldMappers = new ArrayList<>(2);
                             }
                             newFieldMappers.add((FieldMapper) mergeWithMapper);
                         }

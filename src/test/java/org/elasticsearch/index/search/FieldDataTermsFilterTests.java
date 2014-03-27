@@ -118,8 +118,8 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
     public void testBytes() throws Exception {
         List<Integer> docs = Arrays.asList(1, 5, 7);
 
-        ObjectOpenHashSet<BytesRef> hTerms = new ObjectOpenHashSet<BytesRef>();
-        List<BytesRef> cTerms = new ArrayList<BytesRef>(docs.size());
+        ObjectOpenHashSet<BytesRef> hTerms = new ObjectOpenHashSet<>();
+        List<BytesRef> cTerms = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             BytesRef term = new BytesRef("str" + docs.get(i));
             hTerms.add(term);
@@ -170,7 +170,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         List<Integer> docs = Arrays.asList(1, 5, 7);
 
         LongOpenHashSet hTerms = new LongOpenHashSet();
-        List<Long> cTerms = new ArrayList<Long>(docs.size());
+        List<Long> cTerms = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             long term = docs.get(i).longValue();
             hTerms.add(term);
@@ -209,7 +209,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchTestCase {
         List<Integer> docs = Arrays.asList(1, 5, 7);
 
         DoubleOpenHashSet hTerms = new DoubleOpenHashSet();
-        List<Double> cTerms = new ArrayList<Double>(docs.size());
+        List<Double> cTerms = new ArrayList<>(docs.size());
         for (int i = 0; i < docs.size(); i++) {
             double term = Double.valueOf(docs.get(i));
             hTerms.add(term);

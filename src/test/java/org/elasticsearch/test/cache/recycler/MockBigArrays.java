@@ -42,7 +42,7 @@ public class MockBigArrays extends BigArrays {
 
     private static boolean DISCARD = false;
 
-    private static ConcurrentMap<Object, Object> ACQUIRED_ARRAYS = new ConcurrentHashMap<Object, Object>();
+    private static ConcurrentMap<Object, Object> ACQUIRED_ARRAYS = new ConcurrentHashMap<>();
 
     /**
      * Discard the next check that all arrays should be released. This can be useful if for a specific test, the cost to make
@@ -211,7 +211,7 @@ public class MockBigArrays extends BigArrays {
 
     @Override
     public <T> ObjectArray<T> newObjectArray(long size) {
-        return new ObjectArrayWrapper<T>(super.<T>newObjectArray(size));
+        return new ObjectArrayWrapper<>(super.<T>newObjectArray(size));
     }
 
     @Override
@@ -222,7 +222,7 @@ public class MockBigArrays extends BigArrays {
         if (array instanceof ObjectArrayWrapper) {
             arr = (ObjectArrayWrapper<T>) array;
         } else {
-            arr = new ObjectArrayWrapper<T>(array);
+            arr = new ObjectArrayWrapper<>(array);
         }
         return arr;
     }

@@ -39,7 +39,7 @@ public class ConcurrentDuel<T> {
     }
     
     public List<T> runDuel(final DuelExecutor<T> executor, int iterations, int numTasks) throws InterruptedException, ExecutionException {
-        List<T> results = new ArrayList<T>();
+        List<T> results = new ArrayList<>();
         T firstRun = executor.run();
         results.add(firstRun);
         for (int i = 0; i < 3; i++) {
@@ -47,13 +47,13 @@ public class ConcurrentDuel<T> {
         }
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicLong count = new AtomicLong(iterations);
-        List<Future<List<T>>> futures = new ArrayList<Future<List<T>>>();
+        List<Future<List<T>>> futures = new ArrayList<>();
         for (int i = 0; i < numTasks; i++) {
             futures.add(pool.submit(new Callable<List<T>>() {
 
                 @Override
                 public List<T> call() throws Exception {
-                    List<T> results = new ArrayList<T>();
+                    List<T> results = new ArrayList<>();
                     latch.await();
                     while(count.decrementAndGet() >= 0) {
                         results.add(executor.run());    

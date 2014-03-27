@@ -132,7 +132,7 @@ public class HasParentQueryParser implements QueryParser {
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
 
         ParentChildIndexFieldData parentChildIndexFieldData = null;
-        Set<String> parentTypes = new HashSet<String>(5);
+        Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentType);
         for (DocumentMapper documentMapper : parseContext.mapperService()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();

@@ -86,7 +86,7 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
 
             SearchHitField hitField = hitContext.hit().fields().get(scriptField.name());
             if (hitField == null) {
-                hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<Object>(2));
+                hitField = new InternalSearchHitField(scriptField.name(), new ArrayList<>(2));
                 hitContext.hit().fields().put(scriptField.name(), hitField);
             }
             hitField.values().add(value);

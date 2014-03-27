@@ -128,7 +128,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
             searchContext.clearAndRelease();
             SearchContext.removeCurrent();
         }
-        return new PrimaryResponse<ShardDeleteByQueryResponse, ShardDeleteByQueryRequest>(shardRequest.request, new ShardDeleteByQueryResponse(), null);
+        return new PrimaryResponse<>(shardRequest.request, new ShardDeleteByQueryResponse(), null);
     }
 
 

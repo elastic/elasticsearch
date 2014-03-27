@@ -127,7 +127,7 @@ public class RestAllocationAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest request, final ClusterStateResponse state, final NodesStatsResponse stats) {
-        final ObjectIntOpenHashMap<String> allocs = new ObjectIntOpenHashMap<String>();
+        final ObjectIntOpenHashMap<String> allocs = new ObjectIntOpenHashMap<>();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
             String nodeId = "UNASSIGNED";

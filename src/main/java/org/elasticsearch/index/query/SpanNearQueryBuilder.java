@@ -30,7 +30,7 @@ import java.util.ArrayList;
  */
 public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanNearQueryBuilder> {
 
-    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<SpanQueryBuilder>();
+    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private Integer slop = null;
 

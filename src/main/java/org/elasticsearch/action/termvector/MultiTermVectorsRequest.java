@@ -41,9 +41,9 @@ import java.util.Set;
 public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> {
 
     String preference;
-    List<TermVectorRequest> requests = new ArrayList<TermVectorRequest>();
+    List<TermVectorRequest> requests = new ArrayList<>();
 
-    final Set<String> ids = new HashSet<String>();
+    final Set<String> ids = new HashSet<>();
 
     public MultiTermVectorsRequest add(TermVectorRequest termVectorRequest) {
         requests.add(termVectorRequest);
@@ -134,7 +134,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
         super.readFrom(in);
         preference = in.readOptionalString();
         int size = in.readVInt();
-        requests = new ArrayList<TermVectorRequest>(size);
+        requests = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             requests.add(TermVectorRequest.readTermVectorRequest(in));
         }

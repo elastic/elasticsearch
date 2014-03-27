@@ -90,7 +90,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URL url = PluginManagerTests.class.getResource("plugin_folder_site.zip");
         downloadAndExtract(pluginName, "file://" + url.getFile());
 
-        String nodeName = cluster().startNode(SETTINGS);
+        cluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -122,7 +122,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         assertPluginAvailable(pluginName);
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testSitePluginWithSourceThrows() throws Exception {
         String pluginName = "plugin-with-source";
         URL url = PluginManagerTests.class.getResource("plugin_with_sourcefiles.zip");
@@ -189,7 +189,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         assertThat(plugins.length, is(0));
     }
 
-    @Test(expected = IOException.class)
+    @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testInstallPluginNull() throws IOException {
         pluginManager(null).downloadAndExtract("");
     }
@@ -203,6 +203,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         File[] plugins = pluginManager.getListInstalledPlugins();
         assertThat(plugins, notNullValue());
         assertThat(plugins.length, is(1));
+        assertThat(pluginManager.isPluginInstalled("plugin"), is(true));
     }
 
     @Test

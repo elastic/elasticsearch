@@ -105,7 +105,6 @@ public class PluginManager {
 
     public void downloadAndExtract(String name) throws IOException {
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
-        boolean downloaded = false;
         HttpDownloadHelper.DownloadProgress progress;
         if (outputMode == OutputMode.SILENT) {
             progress = new HttpDownloadHelper.NullProgress();
@@ -113,149 +112,28 @@ public class PluginManager {
             progress = new HttpDownloadHelper.VerboseProgress(System.out);
         }
 
-        if (!environment.pluginsFile().canWrite()) {
+        File pluginDir = environment.pluginsFile();
+        if (!pluginDir.exists()) {
+            FileSystemUtils.mkdirs(pluginDir);
+        } else if (!pluginDir.canWrite()) {
             System.err.println();
-            throw new IOException("plugin directory " + environment.pluginsFile() + " is read only");
+            throw new IOException("plugin directory " + pluginDir + " is read only");
         }
 
-        PluginHandle pluginHandle = PluginHandle.parse(name);
-        File pluginFile = pluginHandle.distroFile(environment);
-        // extract the plugin
-        File extractLocation = pluginHandle.extractedDir(environment);
-        if (extractLocation.exists()) {
-            throw new IOException("plugin directory " + extractLocation.getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
+        Plugin plugin = new Plugin(name);
+        if (plugin.isInstalled()) {
+            throw new IOException("plugin directory " + plugin.extractedDir().getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
         }
 
-        // first, try directly from the URL provided
-        if (url != null) {
-            URL pluginUrl = new URL(url);
-            log("Trying " + pluginUrl.toExternalForm() + "...");
-            try {
-                downloadHelper.download(pluginUrl, pluginFile, progress, this.timeout);
-                downloaded = true;
-            } catch (ElasticsearchTimeoutException e) {
-                throw e;
-            } catch (Exception e) {
-                // ignore
-                log("Failed: " + ExceptionsHelper.detailedMessage(e));
-            }
-        }
-
-        if (!downloaded) {
-            // We try all possible locations
-            for (URL url : pluginHandle.urls()) {
-                log("Trying " + url.toExternalForm() + "...");
-                try {
-                    downloadHelper.download(url, pluginFile, progress, this.timeout);
-                    downloaded = true;
-                    break;
-                } catch (ElasticsearchTimeoutException e) {
-                    throw e;
-                } catch (Exception e) {
-                    debug("Failed: " + ExceptionsHelper.detailedMessage(e));
-                }
-            }
-        }
-
-        if (!downloaded) {
-            throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
-        }
-
-        ZipFile zipFile = null;
-        try {
-            zipFile = new ZipFile(pluginFile);
-            //we check whether we need to remove the top-level folder while extracting
-            //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
-            boolean removeTopLevelDir = topLevelDirInExcess(zipFile);
-            Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
-            while (zipEntries.hasMoreElements()) {
-                ZipEntry zipEntry = zipEntries.nextElement();
-                if (zipEntry.isDirectory()) {
-                    continue;
-                }
-                String zipEntryName = zipEntry.getName().replace('\\', '/');
-                if (removeTopLevelDir) {
-                    zipEntryName = zipEntryName.substring(zipEntryName.indexOf('/'));
-                }
-                File target = new File(extractLocation, zipEntryName);
-                FileSystemUtils.mkdirs(target.getParentFile());
-                Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
-            }
-            log("Installed " + name + " into " + extractLocation.getAbsolutePath());
-        } catch (Exception e) {
-            log("failed to extract plugin [" + pluginFile + "]: " + ExceptionsHelper.detailedMessage(e));
-            return;
-        } finally {
-            if (zipFile != null) {
-                try {
-                    zipFile.close();
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
-            pluginFile.delete();
-        }
-
-        if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
-            debug("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
-            FileSystemUtils.deleteRecursively(extractLocation);
-            throw new IllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
-        }
-
-        File binFile = new File(extractLocation, "bin");
-        if (binFile.exists() && binFile.isDirectory()) {
-            File toLocation = pluginHandle.binDir(environment);
-            debug("Found bin, moving to " + toLocation.getAbsolutePath());
-            FileSystemUtils.deleteRecursively(toLocation);
-            binFile.renameTo(toLocation);
-            debug("Installed " + name + " into " + toLocation.getAbsolutePath());
-        }
-
-        // try and identify the plugin type, see if it has no .class or .jar files in it
-        // so its probably a _site, and it it does not have a _site in it, move everything to _site
-        if (!new File(extractLocation, "_site").exists()) {
-            if (!FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
-                log("Identified as a _site plugin, moving to _site structure ...");
-                File site = new File(extractLocation, "_site");
-                File tmpLocation = new File(environment.pluginsFile(), extractLocation.getName() + ".tmp");
-                if (!extractLocation.renameTo(tmpLocation)) {
-                    throw new IOException("failed to rename in order to copy to _site (rename to " + tmpLocation.getAbsolutePath() + "");
-                }
-                FileSystemUtils.mkdirs(extractLocation);
-                if (!tmpLocation.renameTo(site)) {
-                    throw new IOException("failed to rename in order to copy to _site (rename to " + site.getAbsolutePath() + "");
-                }
-                debug("Installed " + name + " into " + site.getAbsolutePath());
-            }
-        }
+        // download & unpack the plugin
+        plugin.download(downloadHelper, progress);
+        plugin.unpack();
     }
 
     public void removePlugin(String name) throws IOException {
-        PluginHandle pluginHandle = PluginHandle.parse(name);
-        boolean removed = false;
+         Plugin plugin = new Plugin(name);
 
-        if (Strings.isNullOrEmpty(pluginHandle.name)) {
-            throw new ElasticsearchIllegalArgumentException("plugin name is incorrect");
-        }
-
-        File pluginToDelete = pluginHandle.extractedDir(environment);
-        if (pluginToDelete.exists()) {
-            debug("Removing: " + pluginToDelete.getPath());
-            FileSystemUtils.deleteRecursively(pluginToDelete, true);
-            removed = true;
-        }
-        pluginToDelete = pluginHandle.distroFile(environment);
-        if (pluginToDelete.exists()) {
-            debug("Removing: " + pluginToDelete.getPath());
-            pluginToDelete.delete();
-            removed = true;
-        }
-        File binLocation = pluginHandle.binDir(environment);
-        if (binLocation.exists()) {
-            debug("Removing: " + binLocation.getPath());
-            FileSystemUtils.deleteRecursively(binLocation);
-            removed = true;
-        }
+        boolean removed = plugin.remove();
         if (removed) {
             log("Removed " + name);
         } else {
@@ -263,9 +141,13 @@ public class PluginManager {
         }
     }
 
+    public boolean isPluginInstalled(String name) {
+        Plugin plugin = new Plugin(name);
+        return plugin.isInstalled();
+    }
+
     public File[] getListInstalledPlugins() {
-        File[] plugins = environment.pluginsFile().listFiles();
-        return plugins;
+        return environment.pluginsFile().listFiles();
     }
 
     public void listInstalledPlugins() {
@@ -274,34 +156,10 @@ public class PluginManager {
         if (plugins == null || plugins.length == 0) {
             log("    - No plugin detected in " + environment.pluginsFile().getAbsolutePath());
         } else {
-            for (int i = 0; i < plugins.length; i++) {
-                log("    - " + plugins[i].getName());
+            for (File plugin : plugins) {
+                log("    - " + plugin.getName());
             }
         }
-    }
-
-    private boolean topLevelDirInExcess(ZipFile zipFile) {
-        //We don't rely on ZipEntry#isDirectory because it might be that there is no explicit dir
-        //but the files path do contain dirs, thus they are going to be extracted on sub-folders anyway
-        Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
-        Set<String> topLevelDirNames = new HashSet<>();
-        while (zipEntries.hasMoreElements()) {
-            ZipEntry zipEntry = zipEntries.nextElement();
-            String zipEntryName = zipEntry.getName().replace('\\', '/');
-
-            int slash = zipEntryName.indexOf('/');
-            //if there isn't a slash in the entry name it means that we have a file in the top-level
-            if (slash == -1) {
-                return false;
-            }
-
-            topLevelDirNames.add(zipEntryName.substring(0, slash));
-            //if we have more than one top-level folder
-            if (topLevelDirNames.size() > 1) {
-                return false;
-            }
-        }
-        return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
     }
 
     private static final int EXIT_CODE_OK = 0;
@@ -364,8 +222,7 @@ public class PluginManager {
                 }
             }
         } catch (Throwable e) {
-            displayHelp("Error while parsing options: " + e.getClass().getSimpleName() +
-                    ": " + e.getMessage());
+            displayHelp("Error while parsing options: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             System.exit(EXIT_CODE_CMD_USAGE);
         }
 
@@ -383,8 +240,7 @@ public class PluginManager {
                         pluginManager.log("Failed to install " + pluginName + ", reason: " + e.getMessage());
                     } catch (Throwable e) {
                         exitCode = EXIT_CODE_ERROR;
-                        displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
+                        displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                     }
                     break;
                 case ACTION.REMOVE:
@@ -400,8 +256,7 @@ public class PluginManager {
                         pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                     } catch (Throwable e) {
                         exitCode = EXIT_CODE_ERROR;
-                        displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
+                        displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                     }
                     break;
                 case ACTION.LIST:
@@ -409,8 +264,7 @@ public class PluginManager {
                         pluginManager.listInstalledPlugins();
                         exitCode = EXIT_CODE_OK;
                     } catch (Throwable e) {
-                        displayHelp("Error while listing plugins, reason: " + e.getClass().getSimpleName() +
-                                ": " + e.getMessage());
+                        displayHelp("Error while listing plugins, reason: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                     }
                     break;
 
@@ -455,7 +309,7 @@ public class PluginManager {
     }
 
     /**
-     * Helper class to extract properly user name, repository name, version and plugin name
+     * Helper class to unpack properly user name, repository name, version and plugin name
      * from plugin name given by a user.
      */
     static class PluginHandle {
@@ -540,6 +394,195 @@ public class PluginManager {
             }
 
             return new PluginHandle(repo, version, user, repo);
+        }
+    }
+
+    class Plugin {
+
+        private final PluginHandle pluginHandle;
+        private final String pluginName;
+
+        public Plugin(String name) {
+            pluginName = name;
+            pluginHandle = PluginHandle.parse(name);
+            if (Strings.isNullOrEmpty(pluginHandle.name)) {
+                throw new ElasticsearchIllegalArgumentException("plugin name \"" + name + "\" is incorrect");
+            }
+        }
+
+        public File extractedDir() {
+            return pluginHandle.extractedDir(environment);
+        }
+
+        public boolean isInstalled() {
+            return extractedDir().exists();
+        }
+
+        public File distroFile() {
+            return pluginHandle.distroFile(environment);
+        }
+
+        public File binDir() {
+            return pluginHandle.binDir(environment);
+        }
+
+        private void download(HttpDownloadHelper downloadHelper, HttpDownloadHelper.DownloadProgress progress) throws IOException {
+            boolean downloaded = false;
+            File pluginFile = distroFile();
+            // first, try directly from the URL provided
+            if (url != null) {
+                URL pluginUrl = new URL(url);
+                log("Trying " + pluginUrl.toExternalForm() + "...");
+                try {
+                    downloadHelper.download(pluginUrl, pluginFile, progress, timeout);
+                    downloaded = true;
+                } catch (ElasticsearchTimeoutException e) {
+                    throw e;
+                } catch (Exception e) {
+                    // ignore
+                    log("Failed: " + ExceptionsHelper.detailedMessage(e));
+                }
+            }
+
+            if (!downloaded) {
+                // We try all possible locations
+                for (URL url : pluginHandle.urls()) {
+                    log("Trying " + url.toExternalForm() + "...");
+                    try {
+                        downloadHelper.download(url, pluginFile, progress, timeout);
+                        downloaded = true;
+                        break;
+                    } catch (ElasticsearchTimeoutException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        debug("Failed: " + ExceptionsHelper.detailedMessage(e));
+                    }
+                }
+            }
+            if (!downloaded) {
+                throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
+            }
+        }
+
+        private void unpack() throws IOException {
+            File pluginFile = distroFile();
+            File extractLocation = extractedDir();
+            ZipFile zipFile = null;
+            try {
+                zipFile = new ZipFile(pluginFile);
+                //we check whether we need to remove the top-level folder while extracting
+                //sometimes (e.g. github) the downloaded archive contains a top-level folder which needs to be removed
+                boolean removeTopLevelDir = topLevelDirInExcess(zipFile);
+                Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+                while (zipEntries.hasMoreElements()) {
+                    ZipEntry zipEntry = zipEntries.nextElement();
+                    if (zipEntry.isDirectory()) {
+                        continue;
+                    }
+                    String zipEntryName = zipEntry.getName().replace('\\', '/');
+                    if (removeTopLevelDir) {
+                        zipEntryName = zipEntryName.substring(zipEntryName.indexOf('/'));
+                    }
+                    File target = new File(extractLocation, zipEntryName);
+                    FileSystemUtils.mkdirs(target.getParentFile());
+                    Streams.copy(zipFile.getInputStream(zipEntry), new FileOutputStream(target));
+                }
+                log("Installed " + pluginName + " into " + extractLocation.getAbsolutePath());
+            } catch (Exception e) {
+                throw new IOException("failed to extract plugin [" + pluginFile + "]: " + ExceptionsHelper.detailedMessage(e),e);
+            } finally {
+                if (zipFile != null) {
+                    try {
+                        zipFile.close();
+                    } catch (IOException e) {
+                        // ignore
+                    }
+                }
+                pluginFile.delete();
+            }
+
+
+            if (FileSystemUtils.hasExtensions(extractLocation, ".java")) {
+                debug("Plugin installation assumed to be site plugin, but contains source code, aborting installation...");
+                FileSystemUtils.deleteRecursively(extractLocation);
+                throw new ElasticsearchIllegalArgumentException("Plugin installation assumed to be site plugin, but contains source code, aborting installation.");
+            }
+
+            File binDir = new File(extractLocation, "bin");
+            if (binDir.exists() && binDir.isDirectory()) {
+                File pluginBinDir = binDir();
+                debug("Found bin, moving to " + pluginBinDir.getAbsolutePath());
+                FileSystemUtils.deleteRecursively(pluginBinDir);
+                binDir.renameTo(pluginBinDir);
+                debug("Installed " + pluginName + " into " + pluginBinDir.getAbsolutePath());
+            }
+
+            // try and identify the plugin type, see if it has no .class or .jar files in it
+            // so its probably a _site, and if it does not have a _site in it, move everything to _site
+            File siteDir = new File(extractLocation, "_site");
+            if (!siteDir.exists()) {
+                if (!FileSystemUtils.hasExtensions(extractLocation, ".class", ".jar")) {
+                    log("Identified as a _site plugin, moving to _site structure ...");
+                    File pluginDir = environment.pluginsFile();
+                    File tmpLocation = new File(pluginDir, extractLocation.getName() + ".tmp");
+                    if (!extractLocation.renameTo(tmpLocation)) {
+                        throw new IOException("failed to rename in order to copy to _site (rename to " + tmpLocation.getAbsolutePath() + ")");
+                    }
+                    FileSystemUtils.mkdirs(extractLocation);
+                    if (!tmpLocation.renameTo(siteDir)) {
+                        throw new IOException("failed to rename in order to copy to _site (rename to " + siteDir.getAbsolutePath() + ")");
+                    }
+                    debug("Installed " + pluginName + " into " + siteDir.getAbsolutePath());
+                }
+            }
+
+        }
+
+        private boolean remove() {
+            boolean removed = false;
+            File pluginDir = extractedDir();
+            if (pluginDir.exists()) {
+                debug("Removing: " + pluginDir.getPath());
+                FileSystemUtils.deleteRecursively(pluginDir, true);
+                removed = true;
+            }
+            File distroFile = distroFile();
+            if (distroFile.exists()) {
+                debug("Removing: " + distroFile.getPath());
+                distroFile.delete();
+                removed = true;
+            }
+            File binLocation = binDir();
+            if (binLocation.exists()) {
+                debug("Removing: " + binLocation.getPath());
+                FileSystemUtils.deleteRecursively(binLocation);
+                removed = true;
+            }
+            return removed;
+        }
+
+        private boolean topLevelDirInExcess(ZipFile zipFile) {
+            //We don't rely on ZipEntry#isDirectory because it might be that there is no explicit dir
+            //but the files path do contain dirs, thus they are going to be extracted on sub-folders anyway
+            Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+            Set<String> topLevelDirNames = new HashSet<>();
+            while (zipEntries.hasMoreElements()) {
+                ZipEntry zipEntry = zipEntries.nextElement();
+                String zipEntryName = zipEntry.getName().replace('\\', '/');
+
+                int slash = zipEntryName.indexOf('/');
+                //if there isn't a slash in the entry name it means that we have a file in the top-level
+                if (slash == -1) {
+                    return false;
+                }
+
+                topLevelDirNames.add(zipEntryName.substring(0, slash));
+                //if we have more than one top-level folder
+                if (topLevelDirNames.size() > 1) {
+                    return false;
+                }
+            }
+            return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
         }
     }
 

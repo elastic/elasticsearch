@@ -133,12 +133,9 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         }
         try {
             byte[] filterSource = filter.uncompressed();
-            XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource);
-            try {
+            try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
                 ParsedFilter parsedFilter = indexQueryParser.parseInnerFilter(parser);
                 return parsedFilter == null ? null : parsedFilter.filter();
-            } finally {
-                parser.close();
             }
         } catch (IOException ex) {
             throw new AliasFilterParsingException(index, alias, "Invalid alias filter", ex);

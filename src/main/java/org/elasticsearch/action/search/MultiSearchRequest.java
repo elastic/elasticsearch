@@ -115,8 +115,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
             // now parse the action
             if (nextMarker - from > 0) {
-                XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
-                try {
+                try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
                     // Move to START_OBJECT, if token is null, its an empty data
                     XContentParser.Token token = parser.nextToken();
                     if (token != null) {
@@ -180,8 +179,6 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                             }
                         }
                     }
-                } finally {
-                    parser.close();
                 }
             }
             searchRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed));

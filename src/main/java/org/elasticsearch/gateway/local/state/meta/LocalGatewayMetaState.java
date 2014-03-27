@@ -589,8 +589,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         if (data.length == 0) {
                             continue;
                         }
-                        XContentParser parser = XContentHelper.createParser(data, 0, data.length);
-                        try {
+                        try (XContentParser parser = XContentHelper.createParser(data, 0, data.length)) {
                             String currentFieldName = null;
                             XContentParser.Token token = parser.nextToken();
                             if (token != null) {
@@ -608,8 +607,6 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                                     }
                                 }
                             }
-                        } finally {
-                            parser.close();
                         }
                         index = fileIndex;
                         metaDataFile = stateFile;

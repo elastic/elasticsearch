@@ -92,8 +92,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
      * Sets the source for the request.
      */
     public ClusterRerouteRequest source(BytesReference source) throws Exception {
-        XContentParser parser = XContentHelper.createParser(source);
-        try {
+        try (XContentParser parser = XContentHelper.createParser(source)) {
             XContentParser.Token token;
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -113,8 +112,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
                     }
                 }
             }
-        } finally {
-            parser.close();
         }
         return this;
     }

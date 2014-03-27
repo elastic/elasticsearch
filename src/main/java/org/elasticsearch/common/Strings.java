@@ -51,8 +51,7 @@ public class Strings {
     private static final char EXTENSION_SEPARATOR = '.';
 
     public static void tabify(int tabs, String from, StringBuilder to) throws Exception {
-        final BufferedReader reader = new BufferedReader(new FastStringReader(from));
-        try {
+        try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 for (int i = 0; i < tabs; i++) {
@@ -60,14 +59,11 @@ public class Strings {
                 }
                 to.append(line).append('\n');
             }
-        } finally {
-            reader.close();
         }
     }
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
-        final BufferedReader reader = new BufferedReader(new FastStringReader(from));
-        try {
+        try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 for (int i = 0; i < spaces; i++) {
@@ -75,8 +71,6 @@ public class Strings {
                 }
                 to.append(line).append('\n');
             }
-        } finally {
-            reader.close();
         }
     }
 

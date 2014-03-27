@@ -62,12 +62,9 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
             IOUtils.close(randomAccessFile);
         }
 
-        XContentParser parser = YamlXContent.yamlXContent.createParser(new FileInputStream(file));
-        try {
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(new FileInputStream(file))) {
             RestTestSuiteParseContext testParseContext = new RestTestSuiteParseContext(api, filename, parser, currentVersion);
             return parse(testParseContext);
-        } finally {
-            parser.close();
         }
     }
 

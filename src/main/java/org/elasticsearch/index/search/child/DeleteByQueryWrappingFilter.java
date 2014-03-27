@@ -79,14 +79,11 @@ public class DeleteByQueryWrappingFilter extends Filter {
         } else {
             IndexReader indexReader = searcher.getIndexReader();
             if (!contains(indexReader, context)) {
-                IndexReader multiReader = new MultiReader(new IndexReader[]{indexReader, context.reader()}, false);
-                try {
+                try (IndexReader multiReader = new MultiReader(new IndexReader[]{indexReader, context.reader()}, false)) {
                     Similarity similarity = searcher.getSimilarity();
                     searcher = new IndexSearcher(multiReader);
                     searcher.setSimilarity(similarity);
                     weight = searcher.createNormalizedWeight(query);
-                } finally {
-                    multiReader.close();
                 }
             }
         }

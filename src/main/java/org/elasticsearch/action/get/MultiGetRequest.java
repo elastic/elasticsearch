@@ -279,8 +279,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     }
 
     public MultiGetRequest add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, @Nullable String defaultRouting, BytesReference data, boolean allowExplicitIndex) throws Exception {
-        XContentParser parser = XContentFactory.xContent(data).createParser(data);
-        try {
+        try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
             XContentParser.Token token;
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -400,8 +399,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                     }
                 }
             }
-        } finally {
-            parser.close();
         }
         return this;
     }

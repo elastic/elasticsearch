@@ -51,24 +51,18 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        SmileParser parser = SmileXContent.smileFactory.createParser(content);
-        try {
+        try (SmileParser parser = SmileXContent.smileFactory.createParser(content)) {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
         }
     }
 
     @Override
     public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        SmileParser parser = SmileXContent.smileFactory.createParser(content);
-        try {
+        try (SmileParser parser = SmileXContent.smileFactory.createParser(content)) {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
         }
     }
 
@@ -92,12 +86,9 @@ public class SmileXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        SmileParser parser = SmileXContent.smileFactory.createParser(content, offset, length);
-        try {
+        try (SmileParser parser = SmileXContent.smileFactory.createParser(content, offset, length)) {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
         }
     }
 }

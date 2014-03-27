@@ -453,40 +453,37 @@ public final class Errors implements Serializable {
      * Returns the formatted message for an exception with the specified messages.
      */
     public static String format(String heading, Collection<Message> errorMessages) {
-        final Formatter fmt = new Formatter(Locale.ROOT);
-        try {
+        try (Formatter fmt = new Formatter(Locale.ROOT)) {
             fmt.format(heading).format(":%n%n");
             int index = 1;
             boolean displayCauses = getOnlyCause(errorMessages) == null;
-    
+
             for (Message errorMessage : errorMessages) {
                 fmt.format("%s) %s%n", index++, errorMessage.getMessage());
-    
+
                 List<Object> dependencies = errorMessage.getSources();
                 for (int i = dependencies.size() - 1; i >= 0; i--) {
                     Object source = dependencies.get(i);
                     formatSource(fmt, source);
                 }
-    
+
                 Throwable cause = errorMessage.getCause();
                 if (displayCauses && cause != null) {
                     StringWriter writer = new StringWriter();
                     cause.printStackTrace(new PrintWriter(writer));
                     fmt.format("Caused by: %s", writer.getBuffer());
                 }
-    
+
                 fmt.format("%n");
             }
-    
+
             if (errorMessages.size() == 1) {
                 fmt.format("1 error");
             } else {
                 fmt.format("%s errors", errorMessages.size());
             }
-    
+
             return fmt.toString();
-        } finally {
-          fmt.close();  
         }
     }
 

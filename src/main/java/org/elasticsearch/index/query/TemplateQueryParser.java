@@ -64,15 +64,12 @@ public class TemplateQueryParser implements QueryParser {
         ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.params());
         BytesReference querySource = (BytesReference) executable.run();
 
-        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-        try {
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
             context.reset(qSourceParser);
             Query result = context.parseInnerQuery();
             parser.nextToken();
             return result;
-        } finally {
-            qSourceParser.close();
         }
     }
 

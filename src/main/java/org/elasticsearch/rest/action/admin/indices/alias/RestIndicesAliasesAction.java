@@ -52,8 +52,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.listenerThreaded(false);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
-        XContentParser parser = null;
-        try {
+        try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
             // {
             //     actions : [
             //         { add : { index : "test1", alias : "alias1", filter : {"user" : "kimchy"} } }
@@ -61,7 +60,6 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //     ]
             // }
             indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-            parser = XContentFactory.xContent(request.content()).createParser(request.content());
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 throw new ElasticsearchIllegalArgumentException("No action is specified");
@@ -140,8 +138,6 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                 logger.warn("Failed to send response", e1);
             }
             return;
-        } finally {
-            parser.close();
         }
         client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestResponseActionListener<IndicesAliasesResponse>(request, channel, logger));
     }

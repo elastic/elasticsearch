@@ -5,13 +5,10 @@
                 "tempalte_1":{
                     "match":"multi*",
                     "mapping":{
-                        "type":"multi_field",
+                        "type":"{dynamic_type}",
+                        "index":"analyzed",
+                        "store":"yes",
                         "fields":{
-                            "{name}":{
-                                "type":"{dynamic_type}",
-                                "index":"analyzed",
-                                "store":"yes"
-                            },
                             "org":{
                                 "type":"{dynamic_type}",
                                 "index":"not_analyzed",

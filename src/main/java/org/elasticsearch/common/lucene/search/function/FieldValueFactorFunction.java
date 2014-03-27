@@ -23,11 +23,9 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
@@ -39,10 +37,10 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final String field;
     private final float boostFactor;
     private final Modifier modifier;
-    private final IndexFieldData indexFieldData;
-    private AtomicFieldData fieldData;
+    private final IndexNumericFieldData indexFieldData;
+    private DoubleValues values;
 
-    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, IndexFieldData indexFieldData) {
+    public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, IndexNumericFieldData indexFieldData) {
         super(CombineFunction.MULT);
         this.field = field;
         this.boostFactor = boostFactor;
@@ -52,24 +50,14 @@ public class FieldValueFactorFunction extends ScoreFunction {
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
-        this.fieldData = this.indexFieldData.load(context);
+        this.values = this.indexFieldData.load(context).getDoubleValues();
     }
 
     @Override
     public double score(int docId, float subQueryScore) {
-        ScriptDocValues values = this.fieldData.getScriptValues();
-        values.setNextDocId(docId);
-        List<?> actualValues = values.getValues();
-        if (actualValues.size() > 0) {
-            Object o = actualValues.get(0);
-            double val;
-            if (o instanceof Long) {
-                val = (long)o;
-            } else if (o instanceof Double) {
-                val = (double)o;
-            } else {
-                throw new ElasticsearchException("Invalid data type for field [" + field + "]");
-            }
+        final int numValues = this.values.setDocument(docId);
+        if (numValues > 0) {
+            double val = this.values.nextValue();
             return Modifier.apply(modifier, val * boostFactor);
         } else {
             throw new ElasticsearchException("Missing value for field [" + field + "]");
@@ -103,9 +91,6 @@ public class FieldValueFactorFunction extends ScoreFunction {
         RECIPROCAL;
 
         public static double apply(Modifier t, double n) {
-            if (t == null) {
-                return n;
-            }
             double result = n;
             switch (t) {
                 case NONE:

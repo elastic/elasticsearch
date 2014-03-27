@@ -59,19 +59,19 @@ public class FunctionScoreFieldValueTests extends ElasticsearchIntegrationTest {
         ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource("test", 5, "body", "foo").get();
-        client().prepareIndex("test", "type1", "2").setSource("test", 7, "body", "foo").get();
+        client().prepareIndex("test", "type1", "2").setSource("test", 17, "body", "foo").get();
         client().prepareIndex("test", "type1", "3").setSource("body", "bar").get();
 
         refresh();
 
-        // document 2 scores higher because 7 > 5
+        // document 2 scores higher because 17 > 5
         SearchResponse response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
                 .setQuery(functionScoreQuery(simpleQueryString("foo"), fieldValueFactorFunction("test")))
                 .get();
         assertOrderedSearchHits(response, "2", "1");
 
-        // document 1 scores higher because 1/5 > 1/7
+        // document 1 scores higher because 1/5 > 1/17
         response = client().prepareSearch("test")
                 .setExplain(randomBoolean())
                 .setQuery(functionScoreQuery(simpleQueryString("foo"),

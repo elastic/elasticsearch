@@ -61,7 +61,7 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
     @Test
     public void testMarvelHeros() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        Map<String, Analyzer> mapping = new HashMap<String, Analyzer>();
+        Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
 
             @Override
@@ -194,7 +194,7 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
     @Test
     public void testMarvelHerosMultiGenerator() throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        Map<String, Analyzer> mapping = new HashMap<String, Analyzer>();
+        Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
 
             @Override
@@ -288,7 +288,7 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         
       
         RAMDirectory dir = new RAMDirectory();
-        Map<String, Analyzer> mapping = new HashMap<String, Analyzer>();
+        Map<String, Analyzer> mapping = new HashMap<>();
         mapping.put("body_ngram", new Analyzer() {
 
             @Override

@@ -627,7 +627,7 @@ public class ReadMostlyVector<E>
     }
 
     public Iterator<E> iterator() {
-        return new Itr<E>(this, 0);
+        return new Itr<>(this, 0);
     }
 
     public int lastIndexOf(Object o) {
@@ -643,11 +643,11 @@ public class ReadMostlyVector<E>
     }
 
     public ListIterator<E> listIterator() {
-        return new Itr<E>(this, 0);
+        return new Itr<>(this, 0);
     }
 
     public ListIterator<E> listIterator(int index) {
-        return new Itr<E>(this, index);
+        return new Itr<>(this, index);
     }
 
     @SuppressWarnings("unchecked") public E remove(int index) {
@@ -735,7 +735,7 @@ public class ReadMostlyVector<E>
             long stamp = lock.readLock();
             try {
                 if (toIndex <= count)
-                    ret = new ReadMostlyVectorSublist<E>(this, fromIndex, ssize);
+                    ret = new ReadMostlyVectorSublist<>(this, fromIndex, ssize);
             } finally {
                 lock.unlockRead(stamp);
             }
@@ -843,7 +843,7 @@ public class ReadMostlyVector<E>
      * @return an iterator over the elements in this list in proper sequence
      */
     public Iterator<E> snapshotIterator() {
-        return new SnapshotIterator<E>(this);
+        return new SnapshotIterator<>(this);
     }
 
     static final class SnapshotIterator<E> implements Iterator<E> {
@@ -1049,7 +1049,7 @@ public class ReadMostlyVector<E>
 
     /** See {@link Vector#elements} */
     public Enumeration<E> elements() {
-        return new Itr<E>(this, 0);
+        return new Itr<>(this, 0);
     }
 
     /** See {@link Vector#capacity} */
@@ -1112,7 +1112,7 @@ public class ReadMostlyVector<E>
         } finally {
             lock.unlockRead(stamp);
         }
-        return new ReadMostlyVector<E>(a, n, capacityIncrement);
+        return new ReadMostlyVector<>(a, n, capacityIncrement);
     }
 
     private void writeObject(java.io.ObjectOutputStream s)
@@ -1396,7 +1396,7 @@ public class ReadMostlyVector<E>
         }
 
         public Iterator<E> iterator() {
-            return new SubItr<E>(this, offset);
+            return new SubItr<>(this, offset);
         }
 
         public int lastIndexOf(Object o) {
@@ -1411,11 +1411,11 @@ public class ReadMostlyVector<E>
         }
 
         public ListIterator<E> listIterator() {
-            return new SubItr<E>(this, offset);
+            return new SubItr<>(this, offset);
         }
 
         public ListIterator<E> listIterator(int index) {
-            return new SubItr<E>(this, index + offset);
+            return new SubItr<>(this, index + offset);
         }
 
         public E remove(int index) {
@@ -1476,7 +1476,7 @@ public class ReadMostlyVector<E>
                 throw new ArrayIndexOutOfBoundsException(fromIndex);
             if (toIndex > c || ssize < 0)
                 throw new ArrayIndexOutOfBoundsException(toIndex);
-            return new ReadMostlyVectorSublist<E>(list, offset+fromIndex, ssize);
+            return new ReadMostlyVectorSublist<>(list, offset+fromIndex, ssize);
         }
 
         public Object[] toArray() {

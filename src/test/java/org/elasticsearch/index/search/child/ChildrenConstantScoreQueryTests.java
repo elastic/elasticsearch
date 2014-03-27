@@ -150,7 +150,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
         int childDocId = 0;
         int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
-        ObjectObjectOpenHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectOpenHashMap<String, NavigableSet<String>>();
+        ObjectObjectOpenHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectOpenHashMap<>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
             boolean filterMe = rarely();
@@ -193,7 +193,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
                     if (childValueToParentIds.containsKey(childValue)) {
                         parentIds = childValueToParentIds.lget();
                     } else {
-                        childValueToParentIds.put(childValue, parentIds = new TreeSet<String>());
+                        childValueToParentIds.put(childValue, parentIds = new TreeSet<>());
                     }
                     if (!markParentAsDeleted && !filterMe) {
                         parentIds.add(parent);

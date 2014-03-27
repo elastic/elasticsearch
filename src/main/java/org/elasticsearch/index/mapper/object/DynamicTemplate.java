@@ -107,7 +107,7 @@ public class DynamicTemplate {
 
     public DynamicTemplate(String name, Map<String, Object> conf, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
         this.name = name;
-        this.conf = new TreeMap<String, Object>(conf);
+        this.conf = new TreeMap<>(conf);
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
         this.match = match;

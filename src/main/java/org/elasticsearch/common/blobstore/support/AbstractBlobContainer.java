@@ -49,7 +49,7 @@ public abstract class AbstractBlobContainer implements BlobContainer {
     @Override
     public byte[] readBlobFully(String blobName) throws IOException {
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
         final ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
         readBlob(blobName, new ReadBlobListener() {

@@ -41,7 +41,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceWatcherService> {
 
-    private final List<ResourceWatcher> watchers = new CopyOnWriteArrayList<ResourceWatcher>();
+    private final List<ResourceWatcher> watchers = new CopyOnWriteArrayList<>();
 
     private volatile ScheduledFuture scheduledFuture;
 

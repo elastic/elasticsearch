@@ -33,7 +33,7 @@ public class NumericFloatAnalyzer extends NumericAnalyzer<NumericFloatTokenizer>
     private final static IntObjectOpenHashMap<NamedAnalyzer> builtIn;
 
     static {
-        builtIn = new IntObjectOpenHashMap<NamedAnalyzer>();
+        builtIn = new IntObjectOpenHashMap<>();
         builtIn.put(Integer.MAX_VALUE, new NamedAnalyzer("_float/max", AnalyzerScope.GLOBAL, new NumericFloatAnalyzer(Integer.MAX_VALUE)));
         for (int i = 0; i <= 64; i += 4) {
             builtIn.put(i, new NamedAnalyzer("_float/" + i, AnalyzerScope.GLOBAL, new NumericFloatAnalyzer(i)));

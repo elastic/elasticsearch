@@ -173,7 +173,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         }
 
         public R create(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return (R) new InternalRange<B>(name, ranges, formatter, keyed, unmapped);
+            return (R) new InternalRange<>(name, ranges, formatter, keyed, unmapped);
         }
 
 
@@ -212,7 +212,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
     @Override
     public B getBucketByKey(String key) {
         if (rangeMap == null) {
-            rangeMap = new HashMap<String, B>(ranges.size());
+            rangeMap = new HashMap<>(ranges.size());
             for (Range.Bucket bucket : ranges) {
                 rangeMap.put(bucket.getKey(), (B) bucket);
             }
@@ -237,9 +237,9 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
                 continue;
             }
             if (rangesList == null) {
-                rangesList = new ArrayList<List<Bucket>>(ranges.ranges.size());
+                rangesList = new ArrayList<>(ranges.ranges.size());
                 for (Bucket bucket : ranges.ranges) {
-                    List<Bucket> sameRangeList = new ArrayList<Bucket>(aggregations.size());
+                    List<Bucket> sameRangeList = new ArrayList<>(aggregations.size());
                     sameRangeList.add(bucket);
                     rangesList.add(sameRangeList);
                 }

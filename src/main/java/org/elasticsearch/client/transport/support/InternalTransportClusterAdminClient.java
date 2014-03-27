@@ -52,7 +52,7 @@ public class InternalTransportClusterAdminClient extends AbstractClusterAdminCli
                                                Map<String, GenericAction> actions) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
-        MapBuilder<ClusterAction, TransportActionNodeProxy> actionsBuilder = new MapBuilder<ClusterAction, TransportActionNodeProxy>();
+        MapBuilder<ClusterAction, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof ClusterAction) {
                 actionsBuilder.put((ClusterAction) action, new TransportActionNodeProxy(settings, action, transportService));

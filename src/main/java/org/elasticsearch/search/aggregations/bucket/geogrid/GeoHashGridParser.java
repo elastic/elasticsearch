@@ -96,7 +96,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
-        ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<GeoPointValuesSource>(GeoPointValuesSource.class);
+        ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<>(GeoPointValuesSource.class);
         if (field == null) {
             return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
         }

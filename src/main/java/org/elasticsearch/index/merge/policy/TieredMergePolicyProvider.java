@@ -38,7 +38,7 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
 
     private final IndexSettingsService indexSettingsService;
 
-    private final Set<CustomTieredMergePolicyProvider> policies = new CopyOnWriteArraySet<CustomTieredMergePolicyProvider>();
+    private final Set<CustomTieredMergePolicyProvider> policies = new CopyOnWriteArraySet<>();
 
     private volatile double forceMergeDeletesPctAllowed;
     private volatile ByteSizeValue floorSegment;

@@ -349,7 +349,7 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
         }
         bootClassPath = in.readString();
         classPath = in.readString();
-        systemProperties = new HashMap<String, String>();
+        systemProperties = new HashMap<>();
         int size = in.readInt();
         for (int i = 0; i < size; i++) {
             systemProperties.put(in.readString(), in.readString());

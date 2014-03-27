@@ -44,7 +44,7 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
     @Inject
     public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
         this.threadPool = threadPool;
-        MapBuilder<IndicesAction, TransportAction> actionsBuilder = new MapBuilder<IndicesAction, TransportAction>();
+        MapBuilder<IndicesAction, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
             if (entry.getKey() instanceof IndicesAction) {
                 actionsBuilder.put((IndicesAction) entry.getKey(), entry.getValue());

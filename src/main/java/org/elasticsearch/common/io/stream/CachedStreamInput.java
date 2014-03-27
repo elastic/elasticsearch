@@ -37,7 +37,7 @@ public class CachedStreamInput {
         }
     }
 
-    private static final ThreadLocal<SoftReference<Entry>> cache = new ThreadLocal<SoftReference<Entry>>();
+    private static final ThreadLocal<SoftReference<Entry>> cache = new ThreadLocal<>();
 
     static Entry instance() {
         SoftReference<Entry> ref = cache.get();
@@ -45,7 +45,7 @@ public class CachedStreamInput {
         if (entry == null) {
             HandlesStreamInput handles = new HandlesStreamInput();
             entry = new Entry(handles);
-            cache.set(new SoftReference<Entry>(entry));
+            cache.set(new SoftReference<>(entry));
         }
         return entry;
     }

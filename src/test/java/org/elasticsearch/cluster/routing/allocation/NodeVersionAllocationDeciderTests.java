@@ -189,7 +189,7 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
 
         ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(routingTable.allShards().size()));
-        List<DiscoveryNode> nodes = new ArrayList<DiscoveryNode>();
+        List<DiscoveryNode> nodes = new ArrayList<>();
         int nodeIdx = 0;
         int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {

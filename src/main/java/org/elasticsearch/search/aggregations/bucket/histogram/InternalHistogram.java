@@ -108,7 +108,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 bucket.aggregations.reduce(bigArrays);
                 return (B) bucket;
             }
-            List<InternalAggregations> aggregations = new ArrayList<InternalAggregations>(buckets.size());
+            List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
             Bucket reduced = null;
             for (Bucket bucket : buckets) {
                 if (reduced == null) {
@@ -174,7 +174,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
                                            EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
-            return new InternalHistogram<B>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
         }
 
         public B createBucket(long key, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
@@ -222,7 +222,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     @Override
     public B getBucketByKey(Number key) {
         if (bucketsMap == null) {
-            bucketsMap = new LongObjectOpenHashMap<B>(buckets.size());
+            bucketsMap = new LongObjectOpenHashMap<>(buckets.size());
             for (B bucket : buckets) {
                 bucketsMap.put(bucket.key, bucket);
             }
@@ -323,20 +323,20 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         InternalHistogram reduced = (InternalHistogram) aggregations.get(0);
 
-        LongObjectPagedHashMap<List<B>> bucketsByKey = new LongObjectPagedHashMap<List<B>>(reduceContext.bigArrays());
+        LongObjectPagedHashMap<List<B>> bucketsByKey = new LongObjectPagedHashMap<>(reduceContext.bigArrays());
         for (InternalAggregation aggregation : aggregations) {
             InternalHistogram<B> histogram = (InternalHistogram) aggregation;
             for (B bucket : histogram.buckets) {
                 List<B> bucketList = bucketsByKey.get(bucket.key);
                 if (bucketList == null) {
-                    bucketList = new ArrayList<B>(aggregations.size());
+                    bucketList = new ArrayList<>(aggregations.size());
                     bucketsByKey.put(bucket.key, bucketList);
                 }
                 bucketList.add(bucket);
             }
         }
 
-        List<B> reducedBuckets = new ArrayList<B>((int) bucketsByKey.size());
+        List<B> reducedBuckets = new ArrayList<>((int) bucketsByKey.size());
         for (LongObjectPagedHashMap.Cursor<List<B>> cursor : bucketsByKey) {
             List<B> sameTermBuckets = cursor.value;
             B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
@@ -431,7 +431,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         formatter = ValueFormatterStreams.readOptional(in);
         keyed = in.readBoolean();
         int size = in.readVInt();
-        List<B> buckets = new ArrayList<B>(size);
+        List<B> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             buckets.add(createBucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in), formatter));
         }

@@ -208,7 +208,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
                 "Transforming a data stream (such as when using a scrambler in telecommunications)."};
 
         String[] contentArray = new String[fieldSettings.length];
-        Map<String, Object> docSource = new HashMap<String, Object>();
+        Map<String, Object> docSource = new HashMap<>();
         TestDoc[] testDocs = new TestDoc[numberOfDocs];
         for (int docId = 0; docId < numberOfDocs; docId++) {
             docSource.clear();
@@ -227,13 +227,13 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
     }
 
     protected TestConfig[] generateTestConfigs(int numberOfTests, TestDoc[] testDocs, TestFieldSetting[] fieldSettings) {
-        ArrayList<TestConfig> configs = new ArrayList<TestConfig>();
+        ArrayList<TestConfig> configs = new ArrayList<>();
         for (int i = 0; i < numberOfTests; i++) {
 
             ArrayList<String> selectedFields = null;
             if (randomBoolean()) {
                 // used field selection
-                selectedFields = new ArrayList<String>();
+                selectedFields = new ArrayList<>();
                 if (randomBoolean()) {
                     selectedFields.add("Doesnt_exist"); // this will be ignored.
                 }
@@ -273,7 +273,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
 
     protected DirectoryReader indexDocsWithLucene(TestDoc[] testDocs) throws IOException {
 
-        Map<String, Analyzer> mapping = new HashMap<String, Analyzer>();
+        Map<String, Analyzer> mapping = new HashMap<>();
         for (TestFieldSetting field : testDocs[0].fieldSettings) {
             if (field.storedPayloads) {
                 mapping.put(field.name, new Analyzer() {
@@ -320,7 +320,7 @@ public abstract class AbstractTermVectorTests extends ElasticsearchIntegrationTe
 
     protected void validateResponse(TermVectorResponse esResponse, Fields luceneFields, TestConfig testConfig) throws IOException {
         TestDoc testDoc = testConfig.doc;
-        HashSet<String> selectedFields = testConfig.selectedFields == null ? null : new HashSet<String>(
+        HashSet<String> selectedFields = testConfig.selectedFields == null ? null : new HashSet<>(
                 Arrays.asList(testConfig.selectedFields));
         Fields esTermVectorFields = esResponse.getFields();
         for (TestFieldSetting field : testDoc.fieldSettings) {

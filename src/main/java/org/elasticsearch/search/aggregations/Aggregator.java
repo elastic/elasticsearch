@@ -119,7 +119,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
 
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
-            subAggregatorbyName = new HashMap<String, Aggregator>(subAggregators.length);
+            subAggregatorbyName = new HashMap<>(subAggregators.length);
             for (int i = 0; i < subAggregators.length; i++) {
                 subAggregatorbyName.put(subAggregators[i].name, subAggregators[i]);
             }
@@ -202,7 +202,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
     public abstract InternalAggregation buildEmptyAggregation();
 
     protected final InternalAggregations buildEmptySubAggregations() {
-        List<InternalAggregation> aggs = new ArrayList<InternalAggregation>();
+        List<InternalAggregation> aggs = new ArrayList<>();
         for (Aggregator aggregator : subAggregators) {
             aggs.add(aggregator.buildEmptyAggregation());
         }

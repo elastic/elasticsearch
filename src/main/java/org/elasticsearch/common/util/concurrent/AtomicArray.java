@@ -43,7 +43,7 @@ public class AtomicArray<E> {
     private volatile List<Entry<E>> nonNullList;
 
     public AtomicArray(int size) {
-        array = new AtomicReferenceArray<E>(size);
+        array = new AtomicReferenceArray<>(size);
     }
 
     /**
@@ -86,11 +86,11 @@ public class AtomicArray<E> {
             if (array == null || array.length() == 0) {
                 nonNullList = ImmutableList.of();
             } else {
-                List<Entry<E>> list = new ArrayList<Entry<E>>(array.length());
+                List<Entry<E>> list = new ArrayList<>(array.length());
                 for (int i = 0; i < array.length(); i++) {
                     E e = array.get(i);
                     if (e != null) {
-                        list.add(new Entry<E>(i, e));
+                        list.add(new Entry<>(i, e));
                     }
                 }
                 nonNullList = list;

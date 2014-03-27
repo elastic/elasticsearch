@@ -158,7 +158,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     private volatile BoundTransportAddress boundAddress;
 
-    private final KeyedLock<String> connectionLock = new KeyedLock<String>();
+    private final KeyedLock<String> connectionLock = new KeyedLock<>();
 
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
@@ -364,7 +364,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         final InetAddress hostAddress = hostAddressX;
 
         PortsRange portsRange = new PortsRange(port);
-        final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
         boolean success = portsRange.iterate(new PortsRange.PortCallback() {
             @Override
             public boolean onPortNumber(int portNumber) {
@@ -927,7 +927,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         public synchronized void close() {
-            List<ChannelFuture> futures = new ArrayList<ChannelFuture>();
+            List<ChannelFuture> futures = new ArrayList<>();
             closeChannelsAndWait(recovery, futures);
             closeChannelsAndWait(bulk, futures);
             closeChannelsAndWait(reg, futures);

@@ -92,7 +92,7 @@ public class TransportRecoveryAction extends
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
-        Map<String, List<ShardRecoveryResponse>> shardResponses = new HashMap<String, List<ShardRecoveryResponse>>();
+        Map<String, List<ShardRecoveryResponse>> shardResponses = new HashMap<>();
 
         for (int i = 0; i < shardsResponses.length(); i++) {
             Object shardResponse = shardsResponses.get(i);
@@ -101,7 +101,7 @@ public class TransportRecoveryAction extends
             } else if (shardResponse instanceof BroadcastShardOperationFailedException) {
                 failedShards++;
                 if (shardFailures == null) {
-                    shardFailures = new ArrayList<ShardOperationFailedException>();
+                    shardFailures = new ArrayList<>();
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
@@ -111,7 +111,7 @@ public class TransportRecoveryAction extends
                 List<ShardRecoveryResponse> responses = shardResponses.get(indexName);
 
                 if (responses == null) {
-                    responses = new ArrayList<ShardRecoveryResponse>();
+                    responses = new ArrayList<>();
                     shardResponses.put(indexName, responses);
                 }
 

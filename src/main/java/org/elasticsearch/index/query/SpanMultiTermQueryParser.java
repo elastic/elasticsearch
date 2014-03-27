@@ -66,6 +66,6 @@ public class SpanMultiTermQueryParser implements QueryParser {
         }
 
         parser.nextToken();
-        return new SpanMultiTermQueryWrapper<MultiTermQuery>((MultiTermQuery) subQuery);
+        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
     }
 }

@@ -361,7 +361,7 @@ public class DefaultSearchContext extends SearchContext {
 
     public void addRescore(RescoreSearchContext rescore) {
         if (this.rescore == null) {
-            this.rescore = new ArrayList<RescoreSearchContext>();
+            this.rescore = new ArrayList<>();
         }
         this.rescore.add(rescore);
     }
@@ -681,7 +681,7 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public void addReleasable(Releasable releasable) {
         if (clearables == null) {
-            clearables = new ArrayList<Releasable>();
+            clearables = new ArrayList<>();
         }
         clearables.add(releasable);
     }

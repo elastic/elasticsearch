@@ -193,7 +193,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
     static {
         Field[] declaredFields = Version.class.getDeclaredFields();
-        Set<Integer> ids = new HashSet<Integer>();
+        Set<Integer> ids = new HashSet<>();
         for (Field field : declaredFields) {
             final int mod = field.getModifiers();
             if (Modifier.isStatic(mod) && Modifier.isFinal(mod) && Modifier.isPublic(mod)) {
@@ -207,7 +207,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
                 }
             }
         }
-        List<Integer> idList = new ArrayList<Integer>(ids);
+        List<Integer> idList = new ArrayList<>(ids);
         Collections.sort(idList);
         Collections.reverse(idList);
         ImmutableList.Builder<Version> version = ImmutableList.builder();

@@ -47,11 +47,11 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
     public Shape build() {
         //Could wrap JtsGeometry but probably slower due to conversions to/from JTS in relate()
         //MultiPoint geometry = FACTORY.createMultiPoint(points.toArray(new Coordinate[points.size()]));
-        List<Point> shapes = new ArrayList<Point>(points.size());
+        List<Point> shapes = new ArrayList<>(points.size());
         for (Coordinate coord : points) {
             shapes.add(SPATIAL_CONTEXT.makePoint(coord.x, coord.y));
         }
-        return new ShapeCollection<Point>(shapes, SPATIAL_CONTEXT);
+        return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
     }
 
     @Override

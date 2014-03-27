@@ -30,7 +30,7 @@ import java.util.ArrayList;
  */
 public class SpanOrQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder, BoostableQueryBuilder<SpanOrQueryBuilder> {
 
-    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<SpanQueryBuilder>();
+    private ArrayList<SpanQueryBuilder> clauses = new ArrayList<>();
 
     private float boost = -1;
 

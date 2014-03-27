@@ -420,7 +420,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long generation = findLatestFileNameGeneration(blobs);
                 BlobStoreIndexShardSnapshots snapshots = buildBlobStoreIndexShardSnapshots(blobs);
 
-                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<>();
                 final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = newArrayList();
 
                 int indexNumberOfFiles = 0;
@@ -717,7 +717,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 }
 
                 final CountDownLatch latch = new CountDownLatch(filesToRecover.size());
-                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+                final CopyOnWriteArrayList<Throwable> failures = new CopyOnWriteArrayList<>();
 
                 for (final FileInfo fileToRecover : filesToRecover) {
                     logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());

@@ -66,7 +66,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     // the mutex protect all the refreshOrUpdate variables!
     private final Object refreshOrUpdateMutex = new Object();
-    private final List<MappingTask> refreshOrUpdateQueue = new ArrayList<MappingTask>();
+    private final List<MappingTask> refreshOrUpdateQueue = new ArrayList<>();
     private long refreshOrUpdateInsertOrder;
     private long refreshOrUpdateProcessedInsertOrder;
 
@@ -120,7 +120,7 @@ public class MetaDataMappingService extends AbstractComponent {
      * and generate a single cluster change event out of all of those.
      */
     ClusterState executeRefreshOrUpdate(final ClusterState currentState, final long insertionOrder) throws Exception {
-        final List<MappingTask> allTasks = new ArrayList<MappingTask>();
+        final List<MappingTask> allTasks = new ArrayList<>();
 
         synchronized (refreshOrUpdateMutex) {
             if (refreshOrUpdateQueue.isEmpty()) {
@@ -153,7 +153,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
             List<MappingTask> indexTasks = tasksPerIndex.get(task.index);
             if (indexTasks == null) {
-                indexTasks = new ArrayList<MappingTask>();
+                indexTasks = new ArrayList<>();
                 tasksPerIndex.put(task.index, indexTasks);
             }
             indexTasks.add(task);
@@ -173,7 +173,7 @@ public class MetaDataMappingService extends AbstractComponent {
             // the tasks lists to iterate over, filled with the list of mapping tasks, trying to keep
             // the latest (based on order) update mapping one per node
             List<MappingTask> allIndexTasks = entry.getValue();
-            List<MappingTask> tasks = new ArrayList<MappingTask>();
+            List<MappingTask> tasks = new ArrayList<>();
             for (MappingTask task : allIndexTasks) {
                 if (!indexMetaData.isSameUUID(task.indexUUID)) {
                     logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);

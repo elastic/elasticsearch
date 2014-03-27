@@ -173,7 +173,7 @@ public class SearchStats implements Streamable, ToXContent {
         openContexts += searchStats.openContexts;
         if (includeTypes && searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
             if (groupStats == null) {
-                groupStats = new HashMap<String, Stats>(searchStats.groupStats.size());
+                groupStats = new HashMap<>(searchStats.groupStats.size());
             }
             for (Map.Entry<String, Stats> entry : searchStats.groupStats.entrySet()) {
                 Stats stats = groupStats.get(entry.getKey());
@@ -243,7 +243,7 @@ public class SearchStats implements Streamable, ToXContent {
         openContexts = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            groupStats = new HashMap<String, Stats>(size);
+            groupStats = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 groupStats.put(in.readString(), Stats.readStats(in));
             }

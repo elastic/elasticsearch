@@ -178,7 +178,7 @@ class InjectorShell {
         Key<Injector> key = Key.get(Injector.class);
         InjectorFactory injectorFactory = new InjectorFactory(injector);
         injector.state.putBinding(key,
-                new ProviderInstanceBindingImpl<Injector>(injector, key, SourceProvider.UNKNOWN_SOURCE,
+                new ProviderInstanceBindingImpl<>(injector, key, SourceProvider.UNKNOWN_SOURCE,
                         injectorFactory, Scoping.UNSCOPED, injectorFactory,
                         ImmutableSet.<InjectionPoint>of()));
     }
@@ -212,7 +212,7 @@ class InjectorShell {
         Key<Logger> key = Key.get(Logger.class);
         LoggerFactory loggerFactory = new LoggerFactory();
         injector.state.putBinding(key,
-                new ProviderInstanceBindingImpl<Logger>(injector, key,
+                new ProviderInstanceBindingImpl<>(injector, key,
                         SourceProvider.UNKNOWN_SOURCE, loggerFactory, Scoping.UNSCOPED,
                         loggerFactory, ImmutableSet.<InjectionPoint>of()));
     }

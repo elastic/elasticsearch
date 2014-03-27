@@ -55,12 +55,12 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         super(index);
         this.shardId = shardId;
         locations = new IntArrayList();
-        types = new ArrayList<String>();
-        ids = new ArrayList<String>();
-        fields = new ArrayList<String[]>();
+        types = new ArrayList<>();
+        ids = new ArrayList<>();
+        fields = new ArrayList<>();
         versions = new LongArrayList();
-        versionTypes = new ArrayList<VersionType>();
-        fetchSourceContexts = new ArrayList<FetchSourceContext>();
+        versionTypes = new ArrayList<>();
+        fetchSourceContexts = new ArrayList<>();
     }
 
     public int shardId() {
@@ -114,12 +114,12 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         super.readFrom(in);
         int size = in.readVInt();
         locations = new IntArrayList(size);
-        types = new ArrayList<String>(size);
-        ids = new ArrayList<String>(size);
-        fields = new ArrayList<String[]>(size);
+        types = new ArrayList<>(size);
+        ids = new ArrayList<>(size);
+        fields = new ArrayList<>(size);
         versions = new LongArrayList(size);
-        versionTypes = new ArrayList<VersionType>(size);
-        fetchSourceContexts = new ArrayList<FetchSourceContext>(size);
+        versionTypes = new ArrayList<>(size);
+        fetchSourceContexts = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {

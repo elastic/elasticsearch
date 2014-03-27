@@ -82,7 +82,7 @@ public class ScanContext {
             this.from = from;
             this.to = from + size;
             this.trackScores = trackScores;
-            this.docs = new ArrayList<ScoreDoc>(size);
+            this.docs = new ArrayList<>(size);
         }
 
         void incCounter(int count) {

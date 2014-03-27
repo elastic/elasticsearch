@@ -38,7 +38,7 @@ public class IndexRequestBuilderTests extends ElasticsearchIntegrationTest {
     public void testSetSource() throws InterruptedException, ExecutionException {
         createIndex("test");
         ensureYellow();
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         map.put("test_field", "foobar");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[] {
                 client().prepareIndex("test", "test").setSource((Object)"test_field", (Object)"foobar"),

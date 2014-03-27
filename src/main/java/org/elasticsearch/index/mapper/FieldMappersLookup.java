@@ -90,7 +90,7 @@ public class FieldMappersLookup implements Iterable<FieldMapper> {
      * Removes the set of mappers.
      */
     public void removeMappers(Iterable<FieldMapper> mappersToRemove) {
-        List<FieldMapper> tempMappers = new ArrayList<FieldMapper>(this.mappers);
+        List<FieldMapper> tempMappers = new ArrayList<>(this.mappers);
         ImmutableOpenMap.Builder<String, FieldMappers> tempName = ImmutableOpenMap.builder(this.name);
         ImmutableOpenMap.Builder<String, FieldMappers> tempIndexName = ImmutableOpenMap.builder(this.indexName);
         ImmutableOpenMap.Builder<String, FieldMappers> tempFullName = ImmutableOpenMap.builder(this.fullName);

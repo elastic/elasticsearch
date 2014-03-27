@@ -54,7 +54,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private InternalAggregations aggregations;
 
     PercolateShardResponse() {
-        hls = new ArrayList<Map<String, HighlightField>>();
+        hls = new ArrayList<>();
     }
 
     public PercolateShardResponse(BytesRef[] matches, List<Map<String, HighlightField>> hls, long count, float[] scores, PercolateContext context, String index, int shardId) {
@@ -145,7 +145,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             int mSize = in.readVInt();
-            Map<String, HighlightField> fields = new HashMap<String, HighlightField>();
+            Map<String, HighlightField> fields = new HashMap<>();
             for (int j = 0; j < mSize; j++) {
                 fields.put(in.readString(), HighlightField.readHighlightField(in));
             }

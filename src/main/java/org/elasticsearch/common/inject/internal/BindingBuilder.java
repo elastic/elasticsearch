@@ -63,7 +63,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         checkNotNull(linkedKey, "linkedKey");
         checkNotTargetted();
         BindingImpl<T> base = getBinding();
-        setBinding(new LinkedBindingImpl<T>(
+        setBinding(new LinkedBindingImpl<>(
                 base.getSource(), base.getKey(), base.getScoping(), linkedKey));
         return this;
     }
@@ -88,7 +88,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         }
 
         BindingImpl<T> base = getBinding();
-        setBinding(new InstanceBindingImpl<T>(
+        setBinding(new InstanceBindingImpl<>(
                 base.getSource(), base.getKey(), base.getScoping(), injectionPoints, instance));
     }
 
@@ -108,7 +108,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         }
 
         BindingImpl<T> base = getBinding();
-        setBinding(new ProviderInstanceBindingImpl<T>(
+        setBinding(new ProviderInstanceBindingImpl<>(
                 base.getSource(), base.getKey(), base.getScoping(), injectionPoints, provider));
         return this;
     }
@@ -122,7 +122,7 @@ public class BindingBuilder<T> extends AbstractBindingBuilder<T>
         checkNotTargetted();
 
         BindingImpl<T> base = getBinding();
-        setBinding(new LinkedProviderBindingImpl<T>(
+        setBinding(new LinkedProviderBindingImpl<>(
                 base.getSource(), base.getKey(), base.getScoping(), providerKey));
         return this;
     }

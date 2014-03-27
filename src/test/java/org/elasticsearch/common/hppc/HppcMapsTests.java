@@ -90,7 +90,7 @@ public class HppcMapsTests extends ElasticsearchTestCase {
     }
 
     private List<String> toList(Iterable<String> iterable) {
-        List<String> list = new ArrayList<String>();
+        List<String> list = new ArrayList<>();
         for (String s : iterable) {
             list.add(s);
         }

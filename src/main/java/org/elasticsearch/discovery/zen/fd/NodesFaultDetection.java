@@ -66,7 +66,7 @@ public class NodesFaultDetection extends AbstractComponent {
     private final boolean registerConnectionListener;
 
 
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private final ConcurrentMap<DiscoveryNode, NodeFD> nodesFD = newConcurrentMap();
 

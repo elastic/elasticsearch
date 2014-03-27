@@ -60,7 +60,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        List<InternalFullHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullHistogramFacet.FullEntry>(entries.v().size());
+        List<InternalFullHistogramFacet.FullEntry> entries1 = new ArrayList<>(entries.v().size());
         final boolean [] states = entries.v().allocated;
         final Object[] values = entries.v().values;
 

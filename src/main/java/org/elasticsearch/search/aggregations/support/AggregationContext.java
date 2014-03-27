@@ -49,8 +49,8 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
     private final SearchContext searchContext;
 
     private ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource>[] perDepthFieldDataSources = new ObjectObjectOpenHashMap[4];
-    private List<ReaderContextAware> readerAwares = new ArrayList<ReaderContextAware>();
-    private List<ScorerAware> scorerAwares = new ArrayList<ScorerAware>();
+    private List<ReaderContextAware> readerAwares = new ArrayList<>();
+    private List<ScorerAware> scorerAwares = new ArrayList<>();
 
     private AtomicReaderContext reader;
     private Scorer scorer;
@@ -102,7 +102,7 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             perDepthFieldDataSources = Arrays.copyOf(perDepthFieldDataSources, ArrayUtil.oversize(1 + depth, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         if (perDepthFieldDataSources[depth] == null) {
-            perDepthFieldDataSources[depth] = new ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource>();
+            perDepthFieldDataSources[depth] = new ObjectObjectOpenHashMap<>();
         }
         final ObjectObjectOpenHashMap<ConfigCacheKey, FieldDataSource> fieldDataSources = perDepthFieldDataSources[depth];
 

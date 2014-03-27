@@ -188,7 +188,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             }
         }
 
-        BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<LongEntry>(first.comparatorType.comparator(), first.requiredSize);
+        BoundedTreeSet<LongEntry> ordered = new BoundedTreeSet<>(first.comparatorType.comparator(), first.requiredSize);
         LongIntOpenHashMap entries = aggregated.v();
         final boolean[] states = aggregated.v().allocated;
         final long[] keys = aggregated.v().keys;
@@ -270,7 +270,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         total = in.readVLong();
 
         int size = in.readVInt();
-        entries = new ArrayList<LongEntry>(size);
+        entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             entries.add(new LongEntry(in.readLong(), in.readVInt()));
         }

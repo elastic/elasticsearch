@@ -98,7 +98,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 logger.info("updating [cluster.routing.allocation.awareness.attributes] from [{}] to [{}]", AwarenessAllocationDecider.this.awarenessAttributes, awarenessAttributes);
                 AwarenessAllocationDecider.this.awarenessAttributes = awarenessAttributes;
             }
-            Map<String, String[]> forcedAwarenessAttributes = new HashMap<String, String[]>(AwarenessAllocationDecider.this.forcedAwarenessAttributes);
+            Map<String, String[]> forcedAwarenessAttributes = new HashMap<>(AwarenessAllocationDecider.this.forcedAwarenessAttributes);
             Map<String, Settings> forceGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP);
             if (!forceGroups.isEmpty()) {
                 for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
@@ -185,7 +185,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             ObjectIntOpenHashMap<String> nodesPerAttribute = allocation.routingNodes().nodesPerAttributesCounts(awarenessAttribute);
 
             // build the count of shards per attribute value
-            ObjectIntOpenHashMap<String> shardPerAttribute = new ObjectIntOpenHashMap<String>();
+            ObjectIntOpenHashMap<String> shardPerAttribute = new ObjectIntOpenHashMap<>();
             for (MutableShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
                 // if the shard is relocating, then make sure we count it as part of the node it is relocating to
                 if (assignedShard.relocating()) {

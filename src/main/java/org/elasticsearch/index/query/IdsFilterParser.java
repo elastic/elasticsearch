@@ -52,7 +52,7 @@ public class IdsFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        List<BytesRef> ids = new ArrayList<BytesRef>();
+        List<BytesRef> ids = new ArrayList<>();
         Collection<String> types = null;
         String filterName = null;
         String currentFieldName = null;
@@ -72,7 +72,7 @@ public class IdsFilterParser implements FilterParser {
                         ids.add(value);
                     }
                 } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
-                    types = new ArrayList<String>();
+                    types = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {

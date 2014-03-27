@@ -122,7 +122,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
         int successfulShards = 0;
         int failedShards = 0;
 
-        final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<String, List<Suggest.Suggestion>>();
+        final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<>();
 
         List<ShardOperationFailedException> shardFailures = null;
         for (int i = 0; i < shardsResponses.length(); i++) {

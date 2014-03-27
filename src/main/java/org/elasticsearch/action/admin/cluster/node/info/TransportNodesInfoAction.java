@@ -64,7 +64,7 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
 
     @Override
     protected NodesInfoResponse newResponse(NodesInfoRequest nodesInfoRequest, AtomicReferenceArray responses) {
-        final List<NodeInfo> nodesInfos = new ArrayList<NodeInfo>();
+        final List<NodeInfo> nodesInfos = new ArrayList<>();
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof NodeInfo) {

@@ -78,7 +78,7 @@ public class FieldMappers implements Iterable<FieldMapper> {
     }
 
     public FieldMappers remove(FieldMapper mapper) {
-        ArrayList<FieldMapper> list = new ArrayList<FieldMapper>(fieldMappers.length);
+        ArrayList<FieldMapper> list = new ArrayList<>(fieldMappers.length);
         for (FieldMapper fieldMapper : fieldMappers) {
             if (!fieldMapper.equals(mapper)) { // identify equality
                 list.add(fieldMapper);

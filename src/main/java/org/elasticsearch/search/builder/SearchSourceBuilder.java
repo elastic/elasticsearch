@@ -487,7 +487,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     public SearchSourceBuilder addRescorer(RescoreBuilder rescoreBuilder) {
         if (rescoreBuilders == null) {
-            rescoreBuilders = new ArrayList<RescoreBuilder>();
+            rescoreBuilders = new ArrayList<>();
         }
         rescoreBuilders.add(rescoreBuilder);
         return this;
@@ -567,7 +567,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder fields(String... fields) {
         if (fieldNames == null) {
-            fieldNames = new ArrayList<String>();
+            fieldNames = new ArrayList<>();
         }
         for (String field : fields) {
             fieldNames.add(field);
@@ -581,7 +581,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder field(String name) {
         if (fieldNames == null) {
-            fieldNames = new ArrayList<String>();
+            fieldNames = new ArrayList<>();
         }
         fieldNames.add(name);
         return this;
@@ -592,7 +592,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder fieldDataField(String name) {
         if (fieldDataFields == null) {
-            fieldDataFields = new ArrayList<String>();
+            fieldDataFields = new ArrayList<>();
         }
         fieldDataFields.add(name);
         return this;
@@ -683,7 +683,7 @@ public class SearchSourceBuilder implements ToXContent {
      */
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         if (this.indexBoost == null) {
-            this.indexBoost = new ObjectFloatOpenHashMap<String>();
+            this.indexBoost = new ObjectFloatOpenHashMap<>();
         }
         this.indexBoost.put(index, indexBoost);
         return this;

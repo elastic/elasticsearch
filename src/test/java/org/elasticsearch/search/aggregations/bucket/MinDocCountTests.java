@@ -58,10 +58,10 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
         createIndex("idx");
 
         cardinality = randomIntBetween(8, 30);
-        final List<IndexRequestBuilder> indexRequests = new ArrayList<IndexRequestBuilder>();
-        final Set<String> stringTerms = new HashSet<String>();
+        final List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        final Set<String> stringTerms = new HashSet<>();
         final LongSet longTerms = new LongOpenHashSet();
-        final Set<String> dateTerms = new HashSet<String>();
+        final Set<String> dateTerms = new HashSet<>();
         for (int i = 0; i < cardinality; ++i) {
             String stringTerm;
             do {

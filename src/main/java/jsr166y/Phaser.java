@@ -534,8 +534,8 @@ public class Phaser {
         }
         else {
             this.root = this;
-            this.evenQ = new AtomicReference<QNode>();
-            this.oddQ = new AtomicReference<QNode>();
+            this.evenQ = new AtomicReference<>();
+            this.oddQ = new AtomicReference<>();
         }
         this.state = (parties == 0) ? (long)EMPTY :
             ((long)phase << PHASE_SHIFT) |

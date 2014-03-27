@@ -65,7 +65,7 @@ public class SimpleDumpGenerator implements DumpGenerator {
         } catch (FileNotFoundException e) {
             throw new DumpGenerationFailedException("Failed to generate dump", e);
         }
-        ArrayList<DumpContributionFailedException> failedContributors = new ArrayList<DumpContributionFailedException>();
+        ArrayList<DumpContributionFailedException> failedContributors = new ArrayList<>();
         for (String name : contributors) {
             DumpContributor contributor = this.contributors.get(name);
             if (contributor == null) {

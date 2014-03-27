@@ -119,7 +119,7 @@ public class VersionsTests extends ElasticsearchLuceneTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        List<Document> docs = new ArrayList<Document>();
+        List<Document> docs = new ArrayList<>();
         for (int i = 0; i < 4; ++i) {
             // Nested
             Document doc = new Document();

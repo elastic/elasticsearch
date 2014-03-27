@@ -111,7 +111,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
         }
         int routingSize = in.readVInt();
         if (routingSize > 0) {
-            routing = new HashSet<String>(routingSize);
+            routing = new HashSet<>(routingSize);
             for (int i = 0; i < routingSize; i++) {
                 routing.add(in.readString());
             }

@@ -140,7 +140,7 @@ public class UpdateHelper extends AbstractComponent {
             }
             XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
         } else {
-            Map<String, Object> ctx = new HashMap<String, Object>(2);
+            Map<String, Object> ctx = new HashMap<>(2);
             ctx.put("_source", sourceAndContent.v2());
 
             try {
@@ -227,7 +227,7 @@ public class UpdateHelper extends AbstractComponent {
                     }
                     GetField getField = fields.get(field);
                     if (getField == null) {
-                        getField = new GetField(field, new ArrayList<Object>(2));
+                        getField = new GetField(field, new ArrayList<>(2));
                         fields.put(field, getField);
                     }
                     getField.getValues().add(value);

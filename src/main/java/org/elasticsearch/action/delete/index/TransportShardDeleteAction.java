@@ -109,7 +109,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
 
         ShardDeleteResponse response = new ShardDeleteResponse(delete.version(), delete.found());
-        return new PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest>(shardRequest.request, response, null);
+        return new PrimaryResponse<>(shardRequest.request, response, null);
     }
 
     @Override

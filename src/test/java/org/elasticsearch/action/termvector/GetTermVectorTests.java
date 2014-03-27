@@ -461,7 +461,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
     private String createString(String[] tokens, Map<String, List<BytesRef>> payloads, int encoding, char delimiter) {
         String resultString = "";
-        ObjectIntOpenHashMap<String> payloadCounter = new ObjectIntOpenHashMap<String>();
+        ObjectIntOpenHashMap<String> payloadCounter = new ObjectIntOpenHashMap<>();
         for (String token : tokens) {
             if (!payloadCounter.containsKey(token)) {
                 payloadCounter.putIfAbsent(token, 0);
@@ -496,7 +496,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
     }
 
     private Map<String, List<BytesRef>> createPayloads(String[] tokens, int encoding) {
-        Map<String, List<BytesRef>> payloads = new HashMap<String, List<BytesRef>>();
+        Map<String, List<BytesRef>> payloads = new HashMap<>();
         for (String token : tokens) {
             if (payloads.get(token) == null) {
                 payloads.put(token, new ArrayList<BytesRef>());

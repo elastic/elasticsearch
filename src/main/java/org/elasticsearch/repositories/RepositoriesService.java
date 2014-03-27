@@ -104,7 +104,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                     repositories = new RepositoriesMetaData(new RepositoryMetaData(request.name, request.type, request.settings));
                 } else {
                     boolean found = false;
-                    List<RepositoryMetaData> repositoriesMetaData = new ArrayList<RepositoryMetaData>(repositories.repositories().size() + 1);
+                    List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size() + 1);
 
                     for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                         if (repositoryMetaData.name().equals(newRepositoryMetaData.name())) {
@@ -181,7 +181,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                 MetaData.Builder mdBuilder = MetaData.builder(currentState.metaData());
                 RepositoriesMetaData repositories = metaData.custom(RepositoriesMetaData.TYPE);
                 if (repositories != null && repositories.repositories().size() > 0) {
-                    List<RepositoryMetaData> repositoriesMetaData = new ArrayList<RepositoryMetaData>(repositories.repositories().size());
+                    List<RepositoryMetaData> repositoriesMetaData = new ArrayList<>(repositories.repositories().size());
                     boolean changed = false;
                     for (RepositoryMetaData repositoryMetaData : repositories.repositories()) {
                         if (Regex.simpleMatch(request.name, repositoryMetaData.name())) {

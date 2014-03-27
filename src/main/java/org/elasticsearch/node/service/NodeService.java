@@ -89,11 +89,11 @@ public class NodeService extends AbstractComponent {
     }
 
     public synchronized void putAttribute(String key, String value) {
-        serviceAttributes = new MapBuilder<String, String>(serviceAttributes).put(key, value).immutableMap();
+        serviceAttributes = new MapBuilder<>(serviceAttributes).put(key, value).immutableMap();
     }
 
     public synchronized void removeAttribute(String key) {
-        serviceAttributes = new MapBuilder<String, String>(serviceAttributes).remove(key).immutableMap();
+        serviceAttributes = new MapBuilder<>(serviceAttributes).remove(key).immutableMap();
     }
 
     /**

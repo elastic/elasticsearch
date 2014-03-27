@@ -50,11 +50,11 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         int numOrdinals = 1 + random.nextInt(200);
         int numValues = 100 + random.nextInt(100000);
         OrdinalsBuilder builder = new OrdinalsBuilder(numDocs);
-        Set<OrdAndId> ordsAndIdSet = new HashSet<OrdAndId>();
+        Set<OrdAndId> ordsAndIdSet = new HashSet<>();
         for (int i = 0; i < numValues; i++) {
             ordsAndIdSet.add(new OrdAndId(1 + random.nextInt(numOrdinals), random.nextInt(numDocs)));
         }
-        List<OrdAndId> ordsAndIds = new ArrayList<OrdAndId>(ordsAndIdSet);
+        List<OrdAndId> ordsAndIds = new ArrayList<>(ordsAndIdSet);
         Collections.sort(ordsAndIds, new Comparator<OrdAndId>() {
 
             @Override
@@ -106,7 +106,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         Ordinals ords = creationMultiOrdinals(builder);
         Ordinals.Docs docs = ords.ordinals();
         int docId = ordsAndIds.get(0).id;
-        List<Long> docOrds = new ArrayList<Long>();
+        List<Long> docOrds = new ArrayList<>();
         for (OrdAndId ordAndId : ordsAndIds) {
             if (docId == ordAndId.id) {
                 docOrds.add(ordAndId.ord);

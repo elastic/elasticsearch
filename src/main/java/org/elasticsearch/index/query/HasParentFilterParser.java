@@ -131,7 +131,7 @@ public class HasParentFilterParser implements FilterParser {
         // wrap the query with type query
         query = new XFilteredQuery(query, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
 
-        Set<String> parentTypes = new HashSet<String>(5);
+        Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentType);
         ParentChildIndexFieldData parentChildIndexFieldData = null;
         for (DocumentMapper documentMapper : parseContext.mapperService()) {

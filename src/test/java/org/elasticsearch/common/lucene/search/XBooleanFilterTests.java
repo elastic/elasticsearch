@@ -61,7 +61,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
                 {'a', 'a', 'a', 'a', 'x'}
         };
 
-        List<Document> documents = new ArrayList<Document>(documentMatrix.length);
+        List<Document> documents = new ArrayList<>(documentMatrix.length);
         for (char[] fields : documentMatrix) {
             Document document = new Document();
             for (int i = 0; i < fields.length; i++) {
@@ -86,7 +86,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testWithTwoClausesOfEachOccur_allFixedBitsetFilters() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(0, 'a', MUST, false), newFilterClause(1, 'b', MUST, false),
                 newFilterClause(2, 'c', SHOULD, false), newFilterClause(3, 'd', SHOULD, false),
@@ -115,7 +115,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testWithTwoClausesOfEachOccur_allBitsBasedFilters() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(0, 'a', MUST, true), newFilterClause(1, 'b', MUST, true),
                 newFilterClause(2, 'c', SHOULD, true), newFilterClause(3, 'd', SHOULD, true),
@@ -144,7 +144,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testWithTwoClausesOfEachOccur_allFilterTypes() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(0, 'a', MUST, true), newFilterClause(1, 'b', MUST, false),
                 newFilterClause(2, 'c', SHOULD, true), newFilterClause(3, 'd', SHOULD, false),
@@ -199,7 +199,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testWithTwoClausesOfEachOccur_singleClauseOptimisation() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(1, 'b', MUST, true)
         ));
@@ -242,7 +242,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testOnlyShouldClauses() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         // 2 slow filters
         // This case caused: https://github.com/elasticsearch/elasticsearch/issues/2826
         booleanFilters.add(createBooleanFilter(
@@ -272,7 +272,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testOnlyMustClauses() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         // Slow filters
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(3, 'd', MUST, true),
@@ -300,7 +300,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testOnlyMustNotClauses() throws Exception {
-        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        List<XBooleanFilter> booleanFilters = new ArrayList<>();
         // Slow filters
         booleanFilters.add(createBooleanFilter(
                 newFilterClause(1, 'a', MUST_NOT, true),

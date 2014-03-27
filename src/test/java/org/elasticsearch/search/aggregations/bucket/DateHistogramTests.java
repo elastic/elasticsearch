@@ -606,7 +606,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(4));
 
-        List<DateHistogram.Bucket> buckets = new ArrayList<DateHistogram.Bucket>(histo.getBuckets());
+        List<DateHistogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
 
         DateHistogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
@@ -983,7 +983,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
@@ -1103,7 +1103,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         int emptyBucketIndex = randomIntBetween(1, numOfBuckets - 2); // should be in the middle
 
         long[] docCounts = new long[numOfBuckets];
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numOfBuckets; i++) {
             if (i == emptyBucketIndex) {
                 docCounts[i] = 0;

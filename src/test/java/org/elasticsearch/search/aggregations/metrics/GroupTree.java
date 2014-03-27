@@ -192,7 +192,7 @@ public class GroupTree implements Iterable<GroupTree.Group> {
     private Iterator<Group> iterator(final Group start) {
         return new AbstractIterator<Group>() {
             {
-                stack = new ArrayDeque<GroupTree>();
+                stack = new ArrayDeque<>();
                 push(GroupTree.this, start);
             }
 

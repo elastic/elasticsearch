@@ -114,7 +114,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             clusterState = clusterService.state();
             String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
+            this.responses = new AtomicReferenceArray<>(this.nodesIds.length);
         }
 
         private void start() {

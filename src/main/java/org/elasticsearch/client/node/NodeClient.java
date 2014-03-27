@@ -49,7 +49,7 @@ public class NodeClient extends AbstractClient implements InternalClient {
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = admin;
-        MapBuilder<Action, TransportAction> actionsBuilder = new MapBuilder<Action, TransportAction>();
+        MapBuilder<Action, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
             if (entry.getKey() instanceof Action) {
                 actionsBuilder.put((Action) entry.getKey(), entry.getValue());

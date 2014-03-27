@@ -1126,7 +1126,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         // Add a dummy doc, that shouldn't never interfere with percolate operations.
         client().prepareIndex("my-index", "my-type", "1").setSource("field", "value").execute().actionGet();
 
-        Map<Integer, NavigableSet<Integer>> controlMap = new HashMap<Integer, NavigableSet<Integer>>();
+        Map<Integer, NavigableSet<Integer>> controlMap = new HashMap<>();
         long numQueries = randomIntBetween(100, 250);
         logger.info("--> register " + numQueries + " queries");
         for (int i = 0; i < numQueries; i++) {
@@ -1139,7 +1139,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             }
             controlMap.get(value).add(i);
         }
-        List<Integer> usedValues = new ArrayList<Integer>(controlMap.keySet());
+        List<Integer> usedValues = new ArrayList<>(controlMap.keySet());
         refresh();
 
         // Only retrieve the score

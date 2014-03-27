@@ -66,7 +66,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<Coordinate> lineCoordinates = new ArrayList<Coordinate>();
+        List<Coordinate> lineCoordinates = new ArrayList<>();
         lineCoordinates.add(new Coordinate(100, 0));
         lineCoordinates.add(new Coordinate(101, 1));
 
@@ -89,7 +89,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<Coordinate> shellCoordinates = new ArrayList<Coordinate>();
+        List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
         shellCoordinates.add(new Coordinate(101, 0));
         shellCoordinates.add(new Coordinate(101, 1));
@@ -122,14 +122,14 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<Coordinate> shellCoordinates = new ArrayList<Coordinate>();
+        List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
         shellCoordinates.add(new Coordinate(101, 0));
         shellCoordinates.add(new Coordinate(101, 1));
         shellCoordinates.add(new Coordinate(100, 1));
         shellCoordinates.add(new Coordinate(100, 0));
 
-        List<Coordinate> holeCoordinates = new ArrayList<Coordinate>();
+        List<Coordinate> holeCoordinates = new ArrayList<>();
         holeCoordinates.add(new Coordinate(100.2, 0.2));
         holeCoordinates.add(new Coordinate(100.8, 0.2));
         holeCoordinates.add(new Coordinate(100.8, 0.8));
@@ -192,14 +192,14 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
                 .endArray()
                 .endObject().string();
 
-        List<Coordinate> shellCoordinates = new ArrayList<Coordinate>();
+        List<Coordinate> shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(100, 0));
         shellCoordinates.add(new Coordinate(101, 0));
         shellCoordinates.add(new Coordinate(101, 1));
         shellCoordinates.add(new Coordinate(100, 1));
         shellCoordinates.add(new Coordinate(100, 0));
 
-        List<Coordinate> holeCoordinates = new ArrayList<Coordinate>();
+        List<Coordinate> holeCoordinates = new ArrayList<>();
         holeCoordinates.add(new Coordinate(100.2, 0.2));
         holeCoordinates.add(new Coordinate(100.8, 0.2));
         holeCoordinates.add(new Coordinate(100.8, 0.8));
@@ -211,7 +211,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
         holes[0] = GEOMETRY_FACTORY.createLinearRing(holeCoordinates.toArray(new Coordinate[holeCoordinates.size()]));
         Polygon withHoles = GEOMETRY_FACTORY.createPolygon(shell, holes);
 
-        shellCoordinates = new ArrayList<Coordinate>();
+        shellCoordinates = new ArrayList<>();
         shellCoordinates.add(new Coordinate(102, 3));
         shellCoordinates.add(new Coordinate(103, 3));
         shellCoordinates.add(new Coordinate(103, 2));
@@ -255,15 +255,15 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
     }
 
     private ShapeCollection<Shape> shapeCollection(Shape... shapes) {
-        return new ShapeCollection<Shape>(Arrays.asList(shapes), SPATIAL_CONTEXT);
+        return new ShapeCollection<>(Arrays.asList(shapes), SPATIAL_CONTEXT);
     }
 
     private ShapeCollection<Shape> shapeCollection(Geometry... geoms) {
-        List<Shape> shapes = new ArrayList<Shape>(geoms.length);
+        List<Shape> shapes = new ArrayList<>(geoms.length);
         for (Geometry geom : geoms) {
             shapes.add(jtsGeom(geom));
         }
-        return new ShapeCollection<Shape>(shapes, SPATIAL_CONTEXT);
+        return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
     }
 
     private JtsGeometry jtsGeom(Geometry geom) {

@@ -42,11 +42,11 @@ public class UntargettedBindingImpl<T> extends BindingImpl<T> implements Untarge
     }
 
     public BindingImpl<T> withScoping(Scoping scoping) {
-        return new UntargettedBindingImpl<T>(getSource(), getKey(), scoping);
+        return new UntargettedBindingImpl<>(getSource(), getKey(), scoping);
     }
 
     public BindingImpl<T> withKey(Key<T> key) {
-        return new UntargettedBindingImpl<T>(getSource(), key, getScoping());
+        return new UntargettedBindingImpl<>(getSource(), key, getScoping());
     }
 
     public void applyTo(Binder binder) {

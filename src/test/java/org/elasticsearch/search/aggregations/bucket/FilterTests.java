@@ -55,7 +55,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
         createIndex("idx2");
         numDocs = randomIntBetween(5, 20);
         numTag1Docs = randomIntBetween(1, numDocs - 1);
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numTag1Docs; i++) {
             builders.add(client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
@@ -138,7 +138,7 @@ public class FilterTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()

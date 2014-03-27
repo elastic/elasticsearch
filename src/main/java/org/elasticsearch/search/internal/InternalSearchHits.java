@@ -50,8 +50,8 @@ public class InternalSearchHits implements SearchHits {
             NO_STREAM
         }
 
-        private IdentityHashMap<SearchShardTarget, Integer> shardHandleLookup = new IdentityHashMap<SearchShardTarget, Integer>();
-        private IntObjectOpenHashMap<SearchShardTarget> handleShardLookup = new IntObjectOpenHashMap<SearchShardTarget>();
+        private IdentityHashMap<SearchShardTarget, Integer> shardHandleLookup = new IdentityHashMap<>();
+        private IntObjectOpenHashMap<SearchShardTarget> handleShardLookup = new IntObjectOpenHashMap<>();
         private ShardTargetType streamShardTarget = ShardTargetType.STREAM;
 
         public StreamContext reset() {

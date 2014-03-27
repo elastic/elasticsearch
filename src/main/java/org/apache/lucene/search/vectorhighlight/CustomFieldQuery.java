@@ -54,7 +54,7 @@ public class CustomFieldQuery extends FieldQuery {
         }
     }
 
-    public static final ThreadLocal<Boolean> highlightFilters = new ThreadLocal<Boolean>();
+    public static final ThreadLocal<Boolean> highlightFilters = new ThreadLocal<>();
 
     public CustomFieldQuery(Query query, IndexReader reader, FastVectorHighlighter highlighter) throws IOException {
         this(query, reader, highlighter.isPhraseHighlight(), highlighter.isFieldMatch());

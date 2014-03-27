@@ -183,15 +183,15 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
     }
 
     public static <VType> Builder<VType> builder() {
-        return new Builder<VType>();
+        return new Builder<>();
     }
 
     public static <VType> Builder<VType> builder(int size) {
-        return new Builder<VType>(size);
+        return new Builder<>(size);
     }
 
     public static <VType> Builder<VType> builder(ImmutableOpenIntMap<VType> map) {
-        return new Builder<VType>(map);
+        return new Builder<>(map);
     }
 
     public static class Builder<VType> implements IntObjectMap<VType> {
@@ -204,7 +204,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
 
         public Builder(int size) {
-            this.map = new IntObjectOpenHashMap<VType>(size);
+            this.map = new IntObjectOpenHashMap<>(size);
         }
 
         public Builder(ImmutableOpenIntMap<VType> map) {
@@ -217,7 +217,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         public ImmutableOpenIntMap<VType> build() {
             IntObjectOpenHashMap<VType> map = this.map;
             this.map = null; // nullify the map, so any operation post build will fail! (hackish, but safest)
-            return new ImmutableOpenIntMap<VType>(map);
+            return new ImmutableOpenIntMap<>(map);
         }
 
         /**

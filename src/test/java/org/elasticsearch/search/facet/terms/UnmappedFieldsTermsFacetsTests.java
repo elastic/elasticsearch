@@ -214,7 +214,7 @@ public class UnmappedFieldsTermsFacetsTests extends ElasticsearchIntegrationTest
 
         facet = searchResponse.getFacets().facet("partially_mapped_bool");
         assertThat(facet.getName(), equalTo("partially_mapped_bool"));
-        ArrayList<String> terms = new ArrayList<String>();
+        ArrayList<String> terms = new ArrayList<>();
         for (TermsFacet.Entry entry : facet.getEntries()) {
             terms.add(entry.getTerm().toString());
         }

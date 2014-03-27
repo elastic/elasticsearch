@@ -93,7 +93,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
     private volatile ImmutableMap<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
 
-    private final CopyOnWriteArrayList<SnapshotCompletionListener> snapshotCompletionListeners = new CopyOnWriteArrayList<SnapshotCompletionListener>();
+    private final CopyOnWriteArrayList<SnapshotCompletionListener> snapshotCompletionListeners = new CopyOnWriteArrayList<>();
 
 
     @Inject

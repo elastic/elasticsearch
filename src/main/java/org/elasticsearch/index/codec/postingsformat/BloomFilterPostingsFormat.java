@@ -104,7 +104,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     public final class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
-        HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<String, BloomFilter>();
+        HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<>();
 
         // for internal use only
         FieldsProducer getDelegate() {
@@ -335,7 +335,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     final class BloomFilteredFieldsConsumer extends FieldsConsumer {
         private FieldsConsumer delegateFieldsConsumer;
-        private Map<FieldInfo, BloomFilter> bloomFilters = new HashMap<FieldInfo, BloomFilter>();
+        private Map<FieldInfo, BloomFilter> bloomFilters = new HashMap<>();
         private SegmentWriteState state;
 
         // private PostingsFormat delegatePostingsFormat;
@@ -370,7 +370,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         public void close() throws IOException {
             delegateFieldsConsumer.close();
             // Now we are done accumulating values for these fields
-            List<Entry<FieldInfo, BloomFilter>> nonSaturatedBlooms = new ArrayList<Map.Entry<FieldInfo, BloomFilter>>();
+            List<Entry<FieldInfo, BloomFilter>> nonSaturatedBlooms = new ArrayList<>();
 
             for (Entry<FieldInfo, BloomFilter> entry : bloomFilters.entrySet()) {
                 nonSaturatedBlooms.add(entry);

@@ -64,7 +64,7 @@ public class ElasticsearchAllocationTestCase extends ElasticsearchTestCase {
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
         final ImmutableSet<Class<? extends AllocationDecider>> defaultAllocationDeciders = AllocationDecidersModule.DEFAULT_ALLOCATION_DECIDERS;
-        final List<AllocationDecider> list = new ArrayList<AllocationDecider>();
+        final List<AllocationDecider> list = new ArrayList<>();
         for (Class<? extends AllocationDecider> deciderClass : defaultAllocationDeciders) {
             try {
                 try {

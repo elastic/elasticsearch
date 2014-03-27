@@ -98,7 +98,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
         }
 
         // we use set here and not identity set since we might get duplicates
-        HashSet<ShardIterator> set = new HashSet<ShardIterator>();
+        HashSet<ShardIterator> set = new HashSet<>();
         IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
         for (String r : routing) {
             int shardId = shardId(clusterState, index, null, null, r);
@@ -120,7 +120,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     @Override
     public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
-        final Set<ShardIterator> set = new HashSet<ShardIterator>(shards.size());
+        final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
             ShardIterator iterator = preferenceActiveShardIterator(shard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
             if (iterator != null) {
@@ -134,7 +134,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
 
     private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing) throws IndexMissingException {
         routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
-        final Set<IndexShardRoutingTable> set = new HashSet<IndexShardRoutingTable>();
+        final Set<IndexShardRoutingTable> set = new HashSet<>();
         // we use set here and not list since we might get duplicates
         for (String index : concreteIndices) {
             final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);

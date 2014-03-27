@@ -157,7 +157,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
     List<StringEntry> mutableList() {
         if (!(entries instanceof List)) {
-            entries = new ArrayList<StringEntry>(entries);
+            entries = new ArrayList<>(entries);
         }
         return (List<StringEntry>) entries;
     }
@@ -221,7 +221,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         } else {
             Object[] values = map.v().values;
             Arrays.sort(values, (Comparator) comparatorType.comparator());
-            List<StringEntry> ordered = new ArrayList<StringEntry>(Math.min(map.v().size(), requiredSize));
+            List<StringEntry> ordered = new ArrayList<>(Math.min(map.v().size(), requiredSize));
             for (int i = 0; i < requiredSize; i++) {
                 StringEntry value = (StringEntry) values[i];
                 if (value == null) {
@@ -302,7 +302,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         missing = in.readVLong();
 
         int size = in.readVInt();
-        entries = new ArrayList<StringEntry>(size);
+        entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             entries.add(new StringEntry(in.readText(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
         }

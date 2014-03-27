@@ -137,13 +137,13 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
             // we get here after we are at warmers token
             String currentFieldName = null;
             XContentParser.Token token;
-            List<Entry> entries = new ArrayList<Entry>();
+            List<Entry> entries = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     String name = currentFieldName;
-                    List<String> types = new ArrayList<String>(2);
+                    List<String> types = new ArrayList<>(2);
                     BytesReference source = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

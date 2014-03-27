@@ -48,7 +48,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
     @Test
     public void testNestedSorting() throws Exception {
-        List<Document> docs = new ArrayList<Document>();
+        List<Document> docs = new ArrayList<>();
         Document document = new Document();
         document.add(createField("field2", 3, Field.Store.NO));
         document.add(new StringField("filter_1", "T", Field.Store.NO));

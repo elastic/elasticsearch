@@ -91,7 +91,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         if (!(runnable instanceof PrioritizedRunnable)) {
             runnable = PrioritizedRunnable.wrap(runnable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<T>((PrioritizedRunnable) runnable, value, insertionOrder.incrementAndGet());
+        return new PrioritizedFutureTask<>((PrioritizedRunnable) runnable, value, insertionOrder.incrementAndGet());
     }
 
     @Override
@@ -99,7 +99,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         if (!(callable instanceof PrioritizedCallable)) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, insertionOrder.incrementAndGet());
+        return new PrioritizedFutureTask<>((PrioritizedCallable<T>) callable, insertionOrder.incrementAndGet());
     }
 
     public static class Pending {

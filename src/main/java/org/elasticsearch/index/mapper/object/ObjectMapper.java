@@ -156,7 +156,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             context.path().pathType(pathType);
             context.path().add(name);
 
-            Map<String, Mapper> mappers = new HashMap<String, Mapper>();
+            Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(context);
                 mappers.put(mapper.name(), mapper);
@@ -842,7 +842,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
         doMerge(mergeWithObject, mergeContext);
 
-        List<Mapper> mappersToPut = new ArrayList<Mapper>();
+        List<Mapper> mappersToPut = new ArrayList<>();
         FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
         ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
         synchronized (mutex) {
@@ -924,7 +924,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        TreeMap<String, Mapper> sortedMappers = new TreeMap<String, Mapper>();
+        TreeMap<String, Mapper> sortedMappers = new TreeMap<>();
         for (ObjectObjectCursor<String, Mapper> cursor : mappers) {
             sortedMappers.put(cursor.key, cursor.value);
         }
@@ -936,7 +936,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             }
         }
         if (additionalMappers != null && additionalMappers.length > 0) {
-            TreeMap<String, Mapper> additionalSortedMappers = new TreeMap<String, Mapper>();
+            TreeMap<String, Mapper> additionalSortedMappers = new TreeMap<>();
             for (Mapper mapper : additionalMappers) {
                 additionalSortedMappers.put(mapper.name(), mapper);
             }

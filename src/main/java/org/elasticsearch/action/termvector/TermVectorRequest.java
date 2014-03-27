@@ -81,7 +81,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         this.preference = other.preference();
         this.routing = other.routing();
         if (other.selectedFields != null) {
-            this.selectedFields = new HashSet<String>(other.selectedFields);
+            this.selectedFields = new HashSet<>(other.selectedFields);
         }
     }
 
@@ -305,7 +305,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
         }
         int numSelectedFields = in.readVInt();
         if (numSelectedFields > 0) {
-            selectedFields = new HashSet<String>();
+            selectedFields = new HashSet<>();
             for (int i = 0; i < numSelectedFields; i++) {
                 selectedFields.add(in.readString());
             }
@@ -352,7 +352,7 @@ public class TermVectorRequest extends SingleShardOperationRequest<TermVectorReq
     public static void parseRequest(TermVectorRequest termVectorRequest, XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
-        List<String> fields = new ArrayList<String>();
+        List<String> fields = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

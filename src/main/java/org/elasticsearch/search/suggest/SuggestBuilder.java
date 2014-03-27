@@ -43,7 +43,7 @@ public class SuggestBuilder implements ToXContent {
     private final String name;
     private String globalText;
 
-    private final List<SuggestionBuilder<?>> suggestions = new ArrayList<SuggestionBuilder<?>>();
+    private final List<SuggestionBuilder<?>> suggestions = new ArrayList<>();
 
     public SuggestBuilder() {
         this.name = null;
@@ -127,7 +127,7 @@ public class SuggestBuilder implements ToXContent {
         private Integer size;
         private Integer shardSize;
         
-        private List<ContextQuery> contextQueries = new ArrayList<ContextQuery>();
+        private List<ContextQuery> contextQueries = new ArrayList<>();
 
         public SuggestionBuilder(String name, String suggester) {
             this.name = name;

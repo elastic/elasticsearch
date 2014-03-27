@@ -44,7 +44,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     private final StatsHolder totalStats = new StatsHolder();
 
-    private final CopyOnWriteArrayList<IndexingOperationListener> listeners = new CopyOnWriteArrayList<IndexingOperationListener>();
+    private final CopyOnWriteArrayList<IndexingOperationListener> listeners = new CopyOnWriteArrayList<>();
 
     private volatile Map<String, StatsHolder> typesStats = ImmutableMap.of();
 
@@ -64,12 +64,12 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         Map<String, IndexingStats.Stats> typesSt = null;
         if (types != null && types.length > 0) {
             if (types.length == 1 && types[0].equals("_all")) {
-                typesSt = new HashMap<String, IndexingStats.Stats>(typesStats.size());
+                typesSt = new HashMap<>(typesStats.size());
                 for (Map.Entry<String, StatsHolder> entry : typesStats.entrySet()) {
                     typesSt.put(entry.getKey(), entry.getValue().stats());
                 }
             } else {
-                typesSt = new HashMap<String, IndexingStats.Stats>(types.length);
+                typesSt = new HashMap<>(types.length);
                 for (String type : types) {
                     StatsHolder statsHolder = typesStats.get(type);
                     if (statsHolder != null) {

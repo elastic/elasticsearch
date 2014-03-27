@@ -54,7 +54,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
-            if (fields == null) fields = new ObjectLongOpenHashMap<String>();
+            if (fields == null) fields = new ObjectLongOpenHashMap<>();
             final boolean[] states = stats.fields.allocated;
             final Object[] keys = stats.fields.keys;
             final long[] values = stats.fields.values;
@@ -95,7 +95,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         evictions = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fields = new ObjectLongOpenHashMap<String>(size);
+            fields = new ObjectLongOpenHashMap<>(size);
             for (int i = 0; i < size; i++) {
                 fields.put(in.readString(), in.readVLong());
             }

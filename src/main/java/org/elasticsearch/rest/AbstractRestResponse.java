@@ -64,11 +64,11 @@ public abstract class AbstractRestResponse implements RestResponse {
     @Override
     public void addHeader(String name, String value) {
         if (customHeaders == null) {
-            customHeaders = new HashMap<String, List<String>>(2);
+            customHeaders = new HashMap<>(2);
         }
         List<String> header = customHeaders.get(name);
         if (header == null) {
-            header = new ArrayList<String>();
+            header = new ArrayList<>();
             customHeaders.put(name, header);
         }
         header.add(value);

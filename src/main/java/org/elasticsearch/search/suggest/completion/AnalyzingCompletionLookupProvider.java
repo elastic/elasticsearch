@@ -85,7 +85,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public FieldsConsumer consumer(final IndexOutput output) throws IOException {
         CodecUtil.writeHeader(output, CODEC_NAME, CODEC_VERSION_LATEST);
         return new FieldsConsumer() {
-            private Map<FieldInfo, Long> fieldOffsets = new HashMap<FieldInfo, Long>();
+            private Map<FieldInfo, Long> fieldOffsets = new HashMap<>();
 
             @Override
             public void close() throws IOException {
@@ -202,13 +202,13 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public LookupFactory load(IndexInput input) throws IOException {
         long sizeInBytes = 0;
         int version = CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION_START, CODEC_VERSION_LATEST);
-        final Map<String, AnalyzingSuggestHolder> lookupMap = new HashMap<String, AnalyzingSuggestHolder>();
+        final Map<String, AnalyzingSuggestHolder> lookupMap = new HashMap<>();
         input.seek(input.length() - 8);
         long metaPointer = input.readLong();
         input.seek(metaPointer);
         int numFields = input.readVInt();
 
-        Map<Long, String> meta = new TreeMap<Long, String>();
+        Map<Long, String> meta = new TreeMap<>();
         for (int i = 0; i < numFields; i++) {
             String name = input.readString();
             long offset = input.readVLong();
@@ -217,7 +217,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
         for (Map.Entry<Long, String> entry : meta.entrySet()) {
             input.seek(entry.getKey());
-            FST<Pair<Long, BytesRef>> fst = new FST<Pair<Long, BytesRef>>(input, new PairOutputs<Long, BytesRef>(
+            FST<Pair<Long, BytesRef>> fst = new FST<>(input, new PairOutputs<>(
                     PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton()));
             int maxAnalyzedPathsForOneInput = input.readVInt();
             int maxSurfaceFormsPerAnalyzedForm = input.readVInt();
@@ -285,7 +285,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 long sizeInBytes = 0;
                 ObjectLongOpenHashMap<String> completionFields = null;
                 if (fields != null  && fields.length > 0) {
-                    completionFields = new ObjectLongOpenHashMap<String>(fields.length);
+                    completionFields = new ObjectLongOpenHashMap<>(fields.length);
                 }
 
                 for (Map.Entry<String, AnalyzingSuggestHolder> entry : lookupMap.entrySet()) {

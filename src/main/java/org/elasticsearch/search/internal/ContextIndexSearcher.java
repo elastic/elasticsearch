@@ -83,7 +83,7 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     public void addMainQueryCollector(Collector collector) {
         if (queryCollectors == null) {
-            queryCollectors = new ArrayList<Collector>();
+            queryCollectors = new ArrayList<>();
         }
         queryCollectors.add(collector);
     }

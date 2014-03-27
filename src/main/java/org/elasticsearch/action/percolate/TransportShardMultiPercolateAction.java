@@ -97,7 +97,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
     protected Response shardOperation(Request request, int shardId) throws ElasticsearchException {
         // TODO: Look into combining the shard req's docs into one in memory index.
         Response response = new Response();
-        response.items = new ArrayList<Response.Item>(request.items.size());
+        response.items = new ArrayList<>(request.items.size());
         for (Request.Item item : request.items) {
             Response.Item responseItem;
             int slot = item.slot;
@@ -130,7 +130,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             this.index = concreteIndex;
             this.shardId = shardId;
             this.preference = preference;
-            this.items = new ArrayList<Item>();
+            this.items = new ArrayList<>();
         }
 
         public int shardId() {
@@ -151,7 +151,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
             shardId = in.readVInt();
             preference = in.readOptionalString();
             int size = in.readVInt();
-            items = new ArrayList<Item>(size);
+            items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
                 PercolateShardRequest shardRequest = new PercolateShardRequest(index(), shardId);
@@ -229,7 +229,7 @@ public class TransportShardMultiPercolateAction extends TransportShardSingleOper
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int size = in.readVInt();
-            items = new ArrayList<Item>(size);
+            items = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 int slot = in.readVInt();
                 if (in.readBoolean()) {

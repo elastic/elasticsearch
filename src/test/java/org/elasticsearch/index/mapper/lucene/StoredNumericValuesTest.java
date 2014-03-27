@@ -87,7 +87,7 @@ public class StoredNumericValuesTest {
         DirectoryReader reader = DirectoryReader.open(writer, true);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        Set<String> fields = new HashSet<String>(Arrays.asList("field1", "field2", "field3"));
+        Set<String> fields = new HashSet<>(Arrays.asList("field1", "field2", "field3"));
         CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fields, false);
         searcher.doc(0, fieldsVisitor);
         fieldsVisitor.postProcess(mapper);

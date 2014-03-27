@@ -205,7 +205,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {
-        final List<String> list = new ArrayList<String>();
+        final List<String> list = new ArrayList<>();
         assert parser.currentToken() == XContentParser.Token.START_ARRAY;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             list.add(parser.text());

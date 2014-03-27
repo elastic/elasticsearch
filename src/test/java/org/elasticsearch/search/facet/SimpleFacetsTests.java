@@ -330,7 +330,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
         }
 
         flushAndRefresh();
-        ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
+        ConcurrentDuel<Facets> duel = new ConcurrentDuel<>(5);
         {
             final Client cl = client();
 
@@ -528,7 +528,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
         }
 
         flushAndRefresh();
-        ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
+        ConcurrentDuel<Facets> duel = new ConcurrentDuel<>(5);
         String[] fieldPostFix = new String[]{"", "_mv"};
         for (final String postfix : fieldPostFix) {
             duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {

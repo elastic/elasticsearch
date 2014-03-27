@@ -50,7 +50,7 @@ public class OrFilter extends Filter {
         if (filters.size() == 1) {
             return filters.get(0).getDocIdSet(context, acceptDocs);
         }
-        List<DocIdSet> sets = new ArrayList<DocIdSet>(filters.size());
+        List<DocIdSet> sets = new ArrayList<>(filters.size());
         for (int i = 0; i < filters.size(); i++) {
             DocIdSet set = filters.get(i).getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(set)) { // none matching for this filter, continue

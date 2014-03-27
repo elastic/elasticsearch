@@ -83,7 +83,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
 
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
-        final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<Object>(concreteIndices.length);
+        final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
         final long startTimeInMillis = System.currentTimeMillis();
 
         Map<String, Set<String>> routingMap = resolveRouting(clusterState, request);

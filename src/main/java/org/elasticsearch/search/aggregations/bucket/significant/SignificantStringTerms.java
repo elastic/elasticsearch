@@ -107,7 +107,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
         this.subsetSize = in.readVLong();
         this.supersetSize = in.readVLong();
         int size = in.readVInt();
-        List<InternalSignificantTerms.Bucket> buckets = new ArrayList<InternalSignificantTerms.Bucket>(size);
+        List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             BytesRef term = in.readBytesRef();
             long subsetDf = in.readVLong();

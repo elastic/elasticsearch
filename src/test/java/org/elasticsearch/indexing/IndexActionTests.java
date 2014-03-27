@@ -85,7 +85,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
 
         final AtomicIntegerArray createdCounts = new AtomicIntegerArray(docCount);
         ExecutorService threadPool = Executors.newFixedThreadPool(threadCount);
-        List<Callable<Void>> tasks = new ArrayList<Callable<Void>>(taskCount);
+        List<Callable<Void>> tasks = new ArrayList<>(taskCount);
         final Random random = getRandom();
         for (int i=0;i< taskCount; i++ ) {
             tasks.add(new Callable<Void>() {

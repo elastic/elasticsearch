@@ -42,7 +42,7 @@ import java.util.*;
  */
 public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
-    final List<FilterClause> clauses = new ArrayList<FilterClause>();
+    final List<FilterClause> clauses = new ArrayList<>();
 
     /**
      * Returns the a DocIdSetIterator representing the Boolean composition
@@ -73,7 +73,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
         // first, go over and see if we can shortcut the execution
         // and gather Bits if we need to
-        List<ResultClause> results = new ArrayList<ResultClause>(clauses.size());
+        List<ResultClause> results = new ArrayList<>(clauses.size());
         boolean hasShouldClauses = false;
         boolean hasNonEmptyShouldClause = false;
         boolean hasMustClauses = false;
@@ -116,7 +116,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         boolean hasBits = false;
         // But first we need to handle the "fast" should clauses, otherwise a should clause can unset docs
         // that don't match with a must or must_not clause.
-        List<ResultClause> fastOrClauses = new ArrayList<ResultClause>();
+        List<ResultClause> fastOrClauses = new ArrayList<>();
         for (int i = 0; i < results.size(); i++) {
             ResultClause clause = results.get(i);
             // we apply bits in based ones (slow) in the second run
@@ -205,7 +205,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
 
         // we have some clauses with bits, apply them...
         // we let the "res" drive the computation, and check Bits for that
-        List<ResultClause> slowOrClauses = new ArrayList<ResultClause>();
+        List<ResultClause> slowOrClauses = new ArrayList<>();
         for (int i = 0; i < results.size(); i++) {
             ResultClause clause = results.get(i);
             if (clause.bits == null) {

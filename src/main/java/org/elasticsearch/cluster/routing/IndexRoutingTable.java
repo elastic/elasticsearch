@@ -133,7 +133,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * validate based on a meta data, returning failures found
      */
     public List<String> validate(IndexMetaData indexMetaData) {
-        ArrayList<String> failures = new ArrayList<String>();
+        ArrayList<String> failures = new ArrayList<>();
 
         // check the number of shards
         if (indexMetaData.numberOfShards() != shards().size()) {
@@ -289,7 +289,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      */
     public GroupShardsIterator groupByShardsIt() {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>(shards.size());
+        ArrayList<ShardIterator> set = new ArrayList<>(shards.size());
         for (IndexShardRoutingTable indexShard : this) {
             set.add(indexShard.shardsIt());
         }
@@ -305,7 +305,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      */
     public GroupShardsIterator groupByAllIt() {
         // use list here since we need to maintain identity across shards
-        ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
+        ArrayList<ShardIterator> set = new ArrayList<>();
         for (IndexShardRoutingTable indexShard : this) {
             for (ShardRouting shardRouting : indexShard) {
                 set.add(shardRouting.shardsIt());

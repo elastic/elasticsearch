@@ -55,7 +55,7 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     public ListenableActionFuture<Response> execute() {
-        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<Response>(request.listenerThreaded(), client.threadPool());
+        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<>(request.listenerThreaded(), client.threadPool());
         execute(future);
         return future;
     }

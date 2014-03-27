@@ -375,18 +375,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
             // go over and remove mappings
             for (DocumentMapper documentMapper : mapperService) {
-                if (seenMappings.containsKey(new Tuple<String, String>(index, documentMapper.type())) && !indexMetaData.mappings().containsKey(documentMapper.type())) {
+                if (seenMappings.containsKey(new Tuple<>(index, documentMapper.type())) && !indexMetaData.mappings().containsKey(documentMapper.type())) {
                     // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
                     mapperService.remove(documentMapper.type());
-                    seenMappings.remove(new Tuple<String, String>(index, documentMapper.type()));
+                    seenMappings.remove(new Tuple<>(index, documentMapper.type()));
                 }
             }
         }
     }
 
     private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedString mappingSource) {
-        if (!seenMappings.containsKey(new Tuple<String, String>(index, mappingType))) {
-            seenMappings.put(new Tuple<String, String>(index, mappingType), true);
+        if (!seenMappings.containsKey(new Tuple<>(index, mappingType))) {
+            seenMappings.put(new Tuple<>(index, mappingType), true);
         }
 
         // refresh mapping can happen for 2 reasons. The first is less urgent, and happens when the mapping on this

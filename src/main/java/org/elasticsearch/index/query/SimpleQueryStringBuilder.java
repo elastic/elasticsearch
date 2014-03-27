@@ -31,7 +31,7 @@ import java.util.Map;
  * query, but won't throw exceptions for any weird string syntax.
  */
 public class SimpleQueryStringBuilder extends BaseQueryBuilder {
-    private Map<String, Float> fields = new HashMap<String, Float>();
+    private Map<String, Float> fields = new HashMap<>();
     private String analyzer;
     private Operator operator;
     private final String queryText;

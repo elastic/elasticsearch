@@ -135,7 +135,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
         
         public void indices(String... indices) {
-            List<String> finalIndices = new ArrayList<String>();
+            List<String> finalIndices = new ArrayList<>();
             for (String index : indices) {
                 if (index != null) {
                     finalIndices.add(index);
@@ -165,7 +165,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 //for DELETE we expand the aliases
                 String[] indexAsArray = {concreteIndex};
                 ImmutableOpenMap<String, ImmutableList<AliasMetaData>> aliasMetaData = metaData.findAliases(aliases, indexAsArray);
-                List<String> finalAliases = new ArrayList<String> ();
+                List<String> finalAliases = new ArrayList<>();
                 for (ObjectCursor<ImmutableList<AliasMetaData>> curAliases : aliasMetaData.values()) {
                     for (AliasMetaData aliasMeta: curAliases.value) {
                         finalAliases.add(aliasMeta.alias());

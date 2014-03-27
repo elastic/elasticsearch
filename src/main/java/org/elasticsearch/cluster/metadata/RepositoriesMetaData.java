@@ -121,7 +121,7 @@ public class RepositoriesMetaData implements MetaData.Custom {
         @Override
         public RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
-            List<RepositoryMetaData> repository = new ArrayList<RepositoryMetaData>();
+            List<RepositoryMetaData> repository = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();

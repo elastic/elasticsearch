@@ -83,7 +83,7 @@ public class PathTests {
 
     private static class Tokens {
 
-        private List<OrderPath.Token> tokens = new ArrayList<OrderPath.Token>();
+        private List<OrderPath.Token> tokens = new ArrayList<>();
 
         Tokens add(String name) {
             tokens.add(new OrderPath.Token(name, name, null));

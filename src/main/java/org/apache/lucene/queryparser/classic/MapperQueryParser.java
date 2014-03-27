@@ -184,7 +184,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 return disMaxQuery;
             } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = getFieldQuerySingle(mField, queryText, quoted);
                     if (q != null) {
@@ -298,7 +298,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 return disMaxQuery;
             } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
@@ -352,7 +352,7 @@ public class MapperQueryParser extends QueryParser {
             }
             return disMaxQuery;
         } else {
-            List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+            List<BooleanClause> clauses = new ArrayList<>();
             for (String mField : fields) {
                 Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
                 if (q != null) {
@@ -417,7 +417,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 return disMaxQuery;
             } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = getFuzzyQuerySingle(mField, termStr, minSimilarity);
                     applyBoost(mField, q);
@@ -487,7 +487,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 return disMaxQuery;
             } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = getPrefixQuerySingle(mField, termStr);
                     if (q != null) {
@@ -557,7 +557,7 @@ public class MapperQueryParser extends QueryParser {
         } catch (IOException e) {
             return super.getPrefixQuery(field, termStr);
         }
-        List<String> tlist = new ArrayList<String>();
+        List<String> tlist = new ArrayList<>();
         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
 
         while (true) {
@@ -579,7 +579,7 @@ public class MapperQueryParser extends QueryParser {
             return super.getPrefixQuery(field, tlist.get(0));
         } else {
             // build a boolean query with prefix on each one...
-            List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+            List<BooleanClause> clauses = new ArrayList<>();
             for (String token : tlist) {
                 clauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
             }
@@ -639,7 +639,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 return disMaxQuery;
             } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = getWildcardQuerySingle(mField, termStr);
                     if (q != null) {
@@ -775,7 +775,7 @@ public class MapperQueryParser extends QueryParser {
                 }
                 return disMaxQuery;
             } else {
-                List<BooleanClause> clauses = new ArrayList<BooleanClause>();
+                List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = getRegexpQuerySingle(mField, termStr);
                     if (q != null) {

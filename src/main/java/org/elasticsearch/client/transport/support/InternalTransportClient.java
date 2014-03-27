@@ -58,7 +58,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
         this.nodesService = nodesService;
         this.adminClient = adminClient;
 
-        MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<Action, TransportActionNodeProxy>();
+        MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof Action) {
                 actionsBuilder.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));

@@ -39,10 +39,10 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     static <T> ConstructorBindingImpl<T> create(
             InjectorImpl injector, Key<T> key, Object source, Scoping scoping) {
-        Factory<T> factoryFactory = new Factory<T>();
+        Factory<T> factoryFactory = new Factory<>();
         InternalFactory<? extends T> scopedFactory
                 = Scopes.scope(key, injector, factoryFactory, scoping);
-        return new ConstructorBindingImpl<T>(
+        return new ConstructorBindingImpl<>(
                 injector, key, source, scopedFactory, scoping, factoryFactory);
     }
 

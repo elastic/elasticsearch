@@ -92,7 +92,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
 
         int childDocId = 0;
         int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
-        ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>> childValueToParentIds = new ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>>();
+        ObjectObjectOpenHashMap<String, NavigableMap<String, FloatArrayList>> childValueToParentIds = new ObjectObjectOpenHashMap<>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
             boolean filterMe = rarely();
@@ -135,7 +135,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
                     if (childValueToParentIds.containsKey(childValue)) {
                         parentIdToChildScores = childValueToParentIds.lget();
                     } else {
-                        childValueToParentIds.put(childValue, parentIdToChildScores = new TreeMap<String, FloatArrayList>());
+                        childValueToParentIds.put(childValue, parentIdToChildScores = new TreeMap<>());
                     }
                     if (!markParentAsDeleted && !filterMe) {
                         FloatArrayList childScores = parentIdToChildScores.get(parent);

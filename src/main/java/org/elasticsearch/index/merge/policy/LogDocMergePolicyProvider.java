@@ -46,7 +46,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
     private final boolean calibrateSizeByDeletes;
     private boolean asyncMerge;
 
-    private final Set<CustomLogDocMergePolicy> policies = new CopyOnWriteArraySet<CustomLogDocMergePolicy>();
+    private final Set<CustomLogDocMergePolicy> policies = new CopyOnWriteArraySet<>();
 
     private final ApplySettings applySettings = new ApplySettings();
 

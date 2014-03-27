@@ -225,7 +225,7 @@ public class EvenShardsCountAllocator extends AbstractComponent implements Shard
 
     private RoutingNode[] sortedNodesLeastToHigh(RoutingAllocation allocation) {
         // create count per node id, taking into account relocations
-        final ObjectIntOpenHashMap<String> nodeCounts = new ObjectIntOpenHashMap<String>();
+        final ObjectIntOpenHashMap<String> nodeCounts = new ObjectIntOpenHashMap<>();
         for (RoutingNode node : allocation.routingNodes()) {
             for (int i = 0; i < node.size(); i++) {
                 ShardRouting shardRouting = node.get(i);

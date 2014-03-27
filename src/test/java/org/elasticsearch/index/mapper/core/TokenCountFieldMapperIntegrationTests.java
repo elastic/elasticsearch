@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrationTest {
     @ParametersFactory
     public static Iterable<Object[]> buildParameters() {
-        List<Object[]> parameters = new ArrayList<Object[]>();
+        List<Object[]> parameters = new ArrayList<>();
         for (boolean storeCountedFields : new boolean[] { true, false }) {
             for (boolean loadCountedFields : new boolean[] { true, false }) {
                 parameters.add(new Object[] { storeCountedFields, loadCountedFields });
@@ -183,7 +183,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
     private void assertSearchReturns(SearchResponse result, String... ids) {
         assertThat(result.getHits().getTotalHits(), equalTo((long) ids.length));
         assertThat(result.getHits().hits().length, equalTo(ids.length));
-        List<String> foundIds = new ArrayList<String>();
+        List<String> foundIds = new ArrayList<>();
         for (SearchHit hit : result.getHits()) {
             foundIds.add(hit.id());
         }

@@ -33,7 +33,7 @@ public class NumericLongAnalyzer extends NumericAnalyzer<NumericLongTokenizer> {
     private final static IntObjectOpenHashMap<NamedAnalyzer> builtIn;
 
     static {
-        builtIn = new IntObjectOpenHashMap<NamedAnalyzer>();
+        builtIn = new IntObjectOpenHashMap<>();
         builtIn.put(Integer.MAX_VALUE, new NamedAnalyzer("_long/max", AnalyzerScope.GLOBAL, new NumericLongAnalyzer(Integer.MAX_VALUE)));
         for (int i = 0; i <= 64; i += 4) {
             builtIn.put(i, new NamedAnalyzer("_long/" + i, AnalyzerScope.GLOBAL, new NumericLongAnalyzer(i)));

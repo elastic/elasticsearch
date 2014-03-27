@@ -57,7 +57,7 @@ public class GetAliasesResponse extends ActionResponse {
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
-            List<AliasMetaData> value = new ArrayList<AliasMetaData>(valueSize);
+            List<AliasMetaData> value = new ArrayList<>(valueSize);
             for (int j = 0; j < valueSize; j++) {
                 value.add(AliasMetaData.Builder.readFrom(in));
             }

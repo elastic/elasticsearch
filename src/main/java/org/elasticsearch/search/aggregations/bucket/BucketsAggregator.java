@@ -44,7 +44,7 @@ public abstract class BucketsAggregator extends Aggregator {
                              long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
         docCounts = bigArrays.newLongArray(estimatedBucketsCount, true);
-        List<Aggregator> collectables = new ArrayList<Aggregator>(subAggregators.length);
+        List<Aggregator> collectables = new ArrayList<>(subAggregators.length);
         for (int i = 0; i < subAggregators.length; i++) {
             if (subAggregators[i].shouldCollect()) {
                 collectables.add((subAggregators[i]));

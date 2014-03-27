@@ -97,7 +97,7 @@ public class CardinalityParser implements Aggregator.Parser {
         ValuesSourceConfig<?> config = null;
 
         if (script != null) {
-            config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(BytesValuesSource.class);
             config.script(context.scriptService().search(context.lookup(), scriptLang, script, scriptParams));
         }
 
@@ -105,9 +105,9 @@ public class CardinalityParser implements Aggregator.Parser {
             FieldMapper<?> mapper = context.smartNameFieldMapper(field);
             if (config == null) {
                 if (mapper instanceof NumberFieldMapper) {
-                    config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class);
+                    config = new ValuesSourceConfig<>(NumericValuesSource.class);
                 } else {
-                    config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
+                    config = new ValuesSourceConfig<>(BytesValuesSource.class);
                     if (mapper == null) {
                         config.unmapped(true);
                     }
@@ -121,7 +121,7 @@ public class CardinalityParser implements Aggregator.Parser {
                 config.fieldContext(new FieldContext(field, indexFieldData));
             }
         } else if (config == null) {
-            config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(BytesValuesSource.class);
         }
 
         if (rehash == null) {

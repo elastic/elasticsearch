@@ -152,7 +152,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
 
     private void checkExpectedStringTermsFound(SignificantTerms topTerms) {
-        HashMap<String,Bucket>topWords=new HashMap<String,Bucket>();
+        HashMap<String,Bucket>topWords=new HashMap<>();
         for (Bucket topTerm : topTerms ){
             topWords.put(topTerm.getKey(),topTerm);
         }

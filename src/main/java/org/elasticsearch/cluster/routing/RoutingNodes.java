@@ -64,7 +64,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private Set<ShardId> clearPostAllocationFlag;
 
-    private final Map<String, ObjectIntOpenHashMap<String>> nodesPerAttributeNames = new HashMap<String, ObjectIntOpenHashMap<String>>();
+    private final Map<String, ObjectIntOpenHashMap<String>> nodesPerAttributeNames = new HashMap<>();
 
     public RoutingNodes(ClusterState clusterState) {
         this.metaData = clusterState.metaData();
@@ -213,7 +213,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         if (nodesPerAttributesCounts != null) {
             return nodesPerAttributesCounts;
         }
-        nodesPerAttributesCounts = new ObjectIntOpenHashMap<String>();
+        nodesPerAttributesCounts = new ObjectIntOpenHashMap<>();
         for (RoutingNode routingNode : this) {
             String attrValue = routingNode.node().attributes().get(attributeName);
             nodesPerAttributesCounts.addTo(attrValue, 1);
@@ -518,12 +518,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         public UnassignedShards(UnassignedShards other) {
             source = other;
             sourceTransactionId = other.transactionId;
-            unassigned = new ArrayList<MutableShardRouting>(other.unassigned);
+            unassigned = new ArrayList<>(other.unassigned);
             primaries = other.primaries;
         }
 
         public UnassignedShards() {
-            unassigned = new ArrayList<MutableShardRouting>();
+            unassigned = new ArrayList<>();
             source = null;
             sourceTransactionId = -1;
         }
@@ -632,7 +632,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         int inactiveShardCount = 0;
         int relocating = 0;
         final Set<ShardId> seenShards = newHashSet();
-        Map<String, Integer> indicesAndShards = new HashMap<String, Integer>();
+        Map<String, Integer> indicesAndShards = new HashMap<>();
         for (RoutingNode node : routingNodes) {
             for (MutableShardRouting shard : node) {
                 if (!shard.active() && shard.relocatingNodeId() == null) {

@@ -127,7 +127,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
         synchronized (typeParsersMutex) {
-            typeParsers = new MapBuilder<String, Mapper.TypeParser>(typeParsers)
+            typeParsers = new MapBuilder<>(typeParsers)
                     .put(type, typeParser)
                     .immutableMap();
         }
@@ -135,7 +135,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     public void putRootTypeParser(String type, Mapper.TypeParser typeParser) {
         synchronized (typeParsersMutex) {
-            rootTypeParsers = new MapBuilder<String, Mapper.TypeParser>(rootTypeParsers)
+            rootTypeParsers = new MapBuilder<>(rootTypeParsers)
                     .put(type, typeParser)
                     .immutableMap();
         }
@@ -283,9 +283,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         String rootName = root.keySet().iterator().next();
         Tuple<String, Map<String, Object>> mapping;
         if (type == null || type.equals(rootName)) {
-            mapping = new Tuple<String, Map<String, Object>>(rootName, (Map<String, Object>) root.get(rootName));
+            mapping = new Tuple<>(rootName, (Map<String, Object>) root.get(rootName));
         } else {
-            mapping = new Tuple<String, Map<String, Object>>(type, root);
+            mapping = new Tuple<>(type, root);
         }
 
         return mapping;

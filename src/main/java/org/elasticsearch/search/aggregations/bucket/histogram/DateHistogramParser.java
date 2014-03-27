@@ -82,7 +82,7 @@ public class DateHistogramParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class);
+        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
 
         String field = null;
         String script = null;

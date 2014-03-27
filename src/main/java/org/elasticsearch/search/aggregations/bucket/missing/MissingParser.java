@@ -43,7 +43,7 @@ public class MissingParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<ValuesSource> config = new ValuesSourceConfig<ValuesSource>(ValuesSource.class);
+        ValuesSourceConfig<ValuesSource> config = new ValuesSourceConfig<>(ValuesSource.class);
 
         String field = null;
 

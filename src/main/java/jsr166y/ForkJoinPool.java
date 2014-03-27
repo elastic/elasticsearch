@@ -2644,7 +2644,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         scheduled for execution
      */
     public <T> ForkJoinTask<T> submit(Callable<T> task) {
-        ForkJoinTask<T> job = new ForkJoinTask.AdaptedCallable<T>(task);
+        ForkJoinTask<T> job = new ForkJoinTask.AdaptedCallable<>(task);
         externalPush(job);
         return job;
     }
@@ -2655,7 +2655,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      *         scheduled for execution
      */
     public <T> ForkJoinTask<T> submit(Runnable task, T result) {
-        ForkJoinTask<T> job = new ForkJoinTask.AdaptedRunnable<T>(task, result);
+        ForkJoinTask<T> job = new ForkJoinTask.AdaptedRunnable<>(task, result);
         externalPush(job);
         return job;
     }
@@ -2685,12 +2685,12 @@ public class ForkJoinPool extends AbstractExecutorService {
         // In previous versions of this class, this method constructed
         // a task to run ForkJoinTask.invokeAll, but now external
         // invocation of multiple tasks is at least as efficient.
-        ArrayList<Future<T>> futures = new ArrayList<Future<T>>(tasks.size());
+        ArrayList<Future<T>> futures = new ArrayList<>(tasks.size());
 
         boolean done = false;
         try {
             for (Callable<T> t : tasks) {
-                ForkJoinTask<T> f = new ForkJoinTask.AdaptedCallable<T>(t);
+                ForkJoinTask<T> f = new ForkJoinTask.AdaptedCallable<>(t);
                 futures.add(f);
                 externalPush(f);
             }
@@ -3306,11 +3306,11 @@ public class ForkJoinPool extends AbstractExecutorService {
     // implement RunnableFuture.
 
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
-        return new ForkJoinTask.AdaptedRunnable<T>(runnable, value);
+        return new ForkJoinTask.AdaptedRunnable<>(runnable, value);
     }
 
     protected <T> RunnableFuture<T> newTaskFor(Callable<T> callable) {
-        return new ForkJoinTask.AdaptedCallable<T>(callable);
+        return new ForkJoinTask.AdaptedCallable<>(callable);
     }
 
     // Unsafe mechanics
@@ -3353,7 +3353,7 @@ public class ForkJoinPool extends AbstractExecutorService {
             throw new Error(e);
         }
 
-        submitters = new ThreadLocal<Submitter>();
+        submitters = new ThreadLocal<>();
         ForkJoinWorkerThreadFactory fac = defaultForkJoinWorkerThreadFactory =
             new DefaultForkJoinWorkerThreadFactory();
         modifyThreadPermission = new RuntimePermission("modifyThread");

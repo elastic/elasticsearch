@@ -51,7 +51,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     protected Ring<E> shell; 
 
     // List of linear rings defining the holes of the polygon 
-    protected final ArrayList<BaseLineStringBuilder<?>> holes = new ArrayList<BaseLineStringBuilder<?>>();
+    protected final ArrayList<BaseLineStringBuilder<?>> holes = new ArrayList<>();
 
     @SuppressWarnings("unchecked")
     private E thisRef() {
@@ -99,7 +99,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * @return this
      */
     public Ring<E> hole() {
-        Ring<E> hole = new Ring<E>(thisRef());
+        Ring<E> hole = new Ring<>(thisRef());
         this.holes.add(hole);
         return hole;
     }
@@ -328,12 +328,12 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     } 
 
     private static Edge[] edges(Edge[] edges, int numHoles, ArrayList<ArrayList<Coordinate[]>> components) {
-        ArrayList<Edge> mainEdges = new ArrayList<Edge>(edges.length);
+        ArrayList<Edge> mainEdges = new ArrayList<>(edges.length);
 
         for (int i = 0; i < edges.length; i++) {
             if (edges[i].component >= 0) {
                 int length = component(edges[i], -(components.size()+numHoles+1), mainEdges);
-                ArrayList<Coordinate[]> component = new ArrayList<Coordinate[]>();
+                ArrayList<Coordinate[]> component = new ArrayList<>();
                 component.add(coordinates(edges[i], new Coordinate[length+1]));
                 components.add(component);
             }
@@ -343,7 +343,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     }
 
     private static Coordinate[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {
-        final ArrayList<ArrayList<Coordinate[]>> components = new ArrayList<ArrayList<Coordinate[]>>();
+        final ArrayList<ArrayList<Coordinate[]>> components = new ArrayList<>();
         assign(holes, holes(holes, numHoles), numHoles, edges(edges, numHoles, components), components);
         return buildCoordinates(components);
     }

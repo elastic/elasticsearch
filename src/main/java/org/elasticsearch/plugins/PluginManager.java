@@ -284,7 +284,7 @@ public class PluginManager {
         //We don't rely on ZipEntry#isDirectory because it might be that there is no explicit dir
         //but the files path do contain dirs, thus they are going to be extracted on sub-folders anyway
         Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
-        Set<String> topLevelDirNames = new HashSet<String>();
+        Set<String> topLevelDirNames = new HashSet<>();
         while (zipEntries.hasMoreElements()) {
             ZipEntry zipEntry = zipEntries.nextElement();
             String zipEntryName = zipEntry.getName().replace('\\', '/');
@@ -473,7 +473,7 @@ public class PluginManager {
         }
 
         List<URL> urls() {
-            List<URL> urls = new ArrayList<URL>();
+            List<URL> urls = new ArrayList<>();
             if (version != null) {
                 // Elasticsearch download service
                 addUrl(urls, "http://download.elasticsearch.org/" + user + "/" + repo + "/" + repo + "-" + version + ".zip");

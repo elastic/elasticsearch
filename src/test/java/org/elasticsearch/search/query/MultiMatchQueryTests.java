@@ -65,7 +65,7 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
         assertAcked(builder.addMapping("test", createMapping()));
         ensureGreen();
         int numDocs = scaledRandomIntBetween(50, 100);
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test", "test", "theone").setSource(
                 "full_name", "Captain America",
                 "first_name", "Captain",
@@ -99,11 +99,11 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                 "last_name", "",
                 "category", "marvel hero",
                 "skill", 1));
-        List<String> firstNames = new ArrayList<String>();
+        List<String> firstNames = new ArrayList<>();
         fill(firstNames, "Captain", between(15, 25));
         fill(firstNames, "Ultimate", between(5, 10));
         fillRandom(firstNames, between(3, 7));
-        List<String> lastNames = new ArrayList<String>();
+        List<String> lastNames = new ArrayList<>();
         fill(lastNames, "Captain", between(3, 7));
         fillRandom(lastNames, between(30, 40));
         for (int i = 0; i < numDocs; i++) {

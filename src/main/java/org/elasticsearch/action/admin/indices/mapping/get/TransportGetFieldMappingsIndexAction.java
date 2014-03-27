@@ -105,7 +105,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             }
         }
 
-        MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>> typeMappings = new MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>>();
+        MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
             ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
@@ -180,7 +180,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
     };
 
     private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) throws ElasticsearchException {
-        MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<String, FieldMappingMetaData>();
+        MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
         ImmutableList<FieldMapper> allFieldMappers = documentMapper.mappers().mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {

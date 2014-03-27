@@ -301,7 +301,7 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             return total;
         }
         Info res = new Info();
-        Set<String> seenDevices = new HashSet<String>(infos.length);
+        Set<String> seenDevices = new HashSet<>(infos.length);
         for (Info subInfo : infos) {
             if (subInfo.dev != null) {
                 if (!seenDevices.add(subInfo.dev)) {

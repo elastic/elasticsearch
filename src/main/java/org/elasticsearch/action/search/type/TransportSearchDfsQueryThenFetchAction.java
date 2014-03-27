@@ -71,9 +71,9 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
-            queryResults = new AtomicArray<QuerySearchResult>(firstResults.length());
-            fetchResults = new AtomicArray<FetchSearchResult>(firstResults.length());
-            docIdsToLoad = new AtomicArray<IntArrayList>(firstResults.length());
+            queryResults = new AtomicArray<>(firstResults.length());
+            fetchResults = new AtomicArray<>(firstResults.length());
+            docIdsToLoad = new AtomicArray<>(firstResults.length());
         }
 
         @Override

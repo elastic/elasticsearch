@@ -239,14 +239,14 @@ public abstract class AbstractXContentParser implements XContentParser {
     static final MapFactory SIMPLE_MAP_FACTORY = new MapFactory() {
         @Override
         public Map<String, Object> newMap() {
-            return new HashMap<String, Object>();
+            return new HashMap<>();
         }
     };
 
     static final MapFactory ORDERED_MAP_FACTORY = new MapFactory() {
         @Override
         public Map<String, Object> newMap() {
-            return new LinkedHashMap<String, Object>();
+            return new LinkedHashMap<>();
         }
     };
 
@@ -279,7 +279,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
-        ArrayList<Object> list = new ArrayList<Object>();
+        ArrayList<Object> list = new ArrayList<>();
         while ((t = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             list.add(readValue(parser, mapFactory, t));
         }

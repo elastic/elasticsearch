@@ -58,7 +58,7 @@ public class TransportGetFieldMappingsAction extends TransportAction<GetFieldMap
         String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
         final AtomicInteger indexCounter = new AtomicInteger();
         final AtomicInteger completionCounter = new AtomicInteger(concreteIndices.length);
-        final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<Object>(concreteIndices.length);
+        final AtomicReferenceArray<Object> indexResponses = new AtomicReferenceArray<>(concreteIndices.length);
 
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new GetFieldMappingsResponse());

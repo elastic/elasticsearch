@@ -537,8 +537,8 @@ public class RecoveryState implements ToXContent, Streamable {
         private long startTime = 0;
         private long time = 0;
 
-        private List<File> fileDetails = new ArrayList<File>();
-        private List<File> reusedFileDetails = new ArrayList<File>();
+        private List<File> fileDetails = new ArrayList<>();
+        private List<File> reusedFileDetails = new ArrayList<>();
 
         private long version = -1;
 
@@ -740,12 +740,12 @@ public class RecoveryState implements ToXContent, Streamable {
             recoveredFileCount = new AtomicInteger(in.readVInt());
             recoveredByteCount = new AtomicLong(in.readVLong());
             int size = in.readVInt();
-            fileDetails = new ArrayList<File>(size);
+            fileDetails = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 fileDetails.add(File.readFile(in));
             }
             size = in.readVInt();
-            reusedFileDetails = new ArrayList<File>(size);
+            reusedFileDetails = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 reusedFileDetails.add(File.readFile(in));
             }

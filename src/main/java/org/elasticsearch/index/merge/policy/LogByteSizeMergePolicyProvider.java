@@ -49,7 +49,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
     private final boolean calibrateSizeByDeletes;
     private boolean asyncMerge;
 
-    private final Set<CustomLogByteSizeMergePolicy> policies = new CopyOnWriteArraySet<CustomLogByteSizeMergePolicy>();
+    private final Set<CustomLogByteSizeMergePolicy> policies = new CopyOnWriteArraySet<>();
 
     private final ApplySettings applySettings = new ApplySettings();
 

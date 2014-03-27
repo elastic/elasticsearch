@@ -96,7 +96,7 @@ public class PlainHighlighter implements Highlighter {
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
-        ArrayList<TextFragment> fragsList = new ArrayList<TextFragment>();
+        ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
 
         try {

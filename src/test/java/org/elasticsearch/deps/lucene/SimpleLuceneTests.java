@@ -126,7 +126,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         IndexReader reader = DirectoryReader.open(indexWriter, true);
         IndexSearcher searcher = new IndexSearcher(reader);
         TopDocs topDocs = searcher.search(new TermQuery(new Term("_id", "1")), 1);
-        final ArrayList<String> fieldsOrder = new ArrayList<String>();
+        final ArrayList<String> fieldsOrder = new ArrayList<>();
         searcher.doc(topDocs.scoreDocs[0].doc, new StoredFieldVisitor() {
             @Override
             public Status needsField(FieldInfo fieldInfo) throws IOException {

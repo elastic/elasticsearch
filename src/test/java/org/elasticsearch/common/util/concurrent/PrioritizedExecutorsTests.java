@@ -40,7 +40,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
 
     @Test
     public void testPriorityQueue() throws Exception {
-        PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<Priority>();
+        PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<>();
         List<Priority> priorities = Lists.newArrayList(Priority.values());
         Collections.shuffle(priorities);
 
@@ -61,7 +61,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
     @Test
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(8);
+        List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.submit(new AwaitingJob(awaitingLatch));
@@ -90,7 +90,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
     @Test
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(8);
+        List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.execute(new AwaitingJob(awaitingLatch));
@@ -119,7 +119,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
     @Test
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(8);
+        List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.submit(new AwaitingJob(awaitingLatch));
@@ -148,7 +148,7 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
     @Test
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(Executors.defaultThreadFactory());
-        List<Integer> results = new ArrayList<Integer>(8);
+        List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
         executor.submit(new AwaitingJob(awaitingLatch));

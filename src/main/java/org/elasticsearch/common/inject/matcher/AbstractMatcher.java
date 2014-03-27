@@ -26,11 +26,11 @@ import java.io.Serializable;
 public abstract class AbstractMatcher<T> implements Matcher<T> {
 
     public Matcher<T> and(final Matcher<? super T> other) {
-        return new AndMatcher<T>(this, other);
+        return new AndMatcher<>(this, other);
     }
 
     public Matcher<T> or(Matcher<? super T> other) {
-        return new OrMatcher<T>(this, other);
+        return new OrMatcher<>(this, other);
     }
 
     private static class AndMatcher<T> extends AbstractMatcher<T> implements Serializable {

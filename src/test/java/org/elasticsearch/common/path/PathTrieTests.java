@@ -35,7 +35,7 @@ public class PathTrieTests extends ElasticsearchTestCase {
 
     @Test
     public void testPath() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/b/c", "walla");
         trie.insert("a/d/g", "kuku");
         trie.insert("x/b/c", "lala");
@@ -63,14 +63,14 @@ public class PathTrieTests extends ElasticsearchTestCase {
 
     @Test
     public void testEmptyPath() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("/", "walla");
         assertThat(trie.retrieve(""), equalTo("walla"));
     }
 
     @Test
     public void testDifferentNamesOnDifferentPath() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/{type}", "test1");
         trie.insert("/b/{name}", "test2");
 
@@ -85,7 +85,7 @@ public class PathTrieTests extends ElasticsearchTestCase {
 
     @Test
     public void testSameNameOnDifferentPath() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("/a/c/{name}", "test1");
         trie.insert("/b/{name}", "test2");
 
@@ -100,7 +100,7 @@ public class PathTrieTests extends ElasticsearchTestCase {
 
     @Test
     public void testPreferNonWildcardExecution() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("{test}", "test1");
         trie.insert("b", "test2");
         trie.insert("{test}/a", "test3");
@@ -113,7 +113,7 @@ public class PathTrieTests extends ElasticsearchTestCase {
 
     @Test
     public void testSamePathConcreteResolution() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("{x}/{y}/{z}", "test1");
         trie.insert("{x}/_y/{k}", "test2");
 
@@ -130,7 +130,7 @@ public class PathTrieTests extends ElasticsearchTestCase {
 
     @Test
     public void testNamedWildcardAndLookupWithWildcard() {
-        PathTrie<String> trie = new PathTrie<String>();
+        PathTrie<String> trie = new PathTrie<>();
         trie.insert("x/{test}", "test1");
         trie.insert("{test}/a", "test2");
         trie.insert("/{test}", "test3");

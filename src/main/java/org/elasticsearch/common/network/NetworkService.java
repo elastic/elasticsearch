@@ -79,7 +79,7 @@ public class NetworkService extends AbstractComponent {
         InetAddress resolveIfPossible(String value);
     }
 
-    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<CustomNameResolver>();
+    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
 
     @Inject
     public NetworkService(Settings settings) {

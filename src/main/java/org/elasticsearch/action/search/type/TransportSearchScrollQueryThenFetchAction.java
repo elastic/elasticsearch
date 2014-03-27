@@ -102,8 +102,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             this.nodes = clusterService.state().nodes();
             this.successfulOps = new AtomicInteger(scrollId.getContext().length);
 
-            this.queryResults = new AtomicArray<QuerySearchResult>(scrollId.getContext().length);
-            this.fetchResults = new AtomicArray<FetchSearchResult>(scrollId.getContext().length);
+            this.queryResults = new AtomicArray<>(scrollId.getContext().length);
+            this.fetchResults = new AtomicArray<>(scrollId.getContext().length);
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
@@ -122,7 +122,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         // we simply try and return as much as possible
         protected final void addShardFailure(final int shardIndex, ShardSearchFailure failure) {
             if (shardFailures == null) {
-                shardFailures = new AtomicArray<ShardSearchFailure>(scrollId.getContext().length);
+                shardFailures = new AtomicArray<>(scrollId.getContext().length);
             }
             shardFailures.set(shardIndex, failure);
         }
@@ -250,7 +250,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             } else {
                 sortedShardList = searchPhaseController.sortDocsForScroll(queryResults);
             }
-            AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<IntArrayList>(queryResults.length());
+            AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
             if (docIdsToLoad.asList().isEmpty()) {

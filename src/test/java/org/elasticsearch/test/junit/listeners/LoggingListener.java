@@ -79,7 +79,7 @@ public class LoggingListener extends RunListener {
         if (testLogging == null) {
             return null;
         }
-        Map<String, String> map = new HashMap<String, String>();
+        Map<String, String> map = new HashMap<>();
         final String[] loggersAndLevels = testLogging.value().split(",");
         for (String loggerAndLevel : loggersAndLevels) {
             String[] loggerAndLevelArray = loggerAndLevel.split(":");

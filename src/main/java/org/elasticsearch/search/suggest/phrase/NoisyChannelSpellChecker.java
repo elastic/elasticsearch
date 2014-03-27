@@ -62,7 +62,7 @@ public final class NoisyChannelSpellChecker {
     public Result getCorrections(TokenStream stream, final CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, WordScorer wordScorer, BytesRef separator, float confidence, int gramSize) throws IOException {
         
-        final List<CandidateSet> candidateSetsList = new ArrayList<DirectCandidateGenerator.CandidateSet>();
+        final List<CandidateSet> candidateSetsList = new ArrayList<>();
         SuggestUtils.analyze(stream, new SuggestUtils.TokenConsumer() {
             CandidateSet currentSet = null;
             private TypeAttribute typeAttribute;

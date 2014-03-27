@@ -139,7 +139,7 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
         @Override
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState newState, @Nullable String reason) {
             List<IndexShardState> shardStates = this.shardStates.putIfAbsent(indexShard.shardId(),
-                    new CopyOnWriteArrayList<IndexShardState>(new IndexShardState[]{newState}));
+                    new CopyOnWriteArrayList<>(new IndexShardState[]{newState}));
             if (shardStates != null) {
                 shardStates.add(newState);
             }

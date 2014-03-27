@@ -64,7 +64,7 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        ArrayList<InternalFullDateHistogramFacet.FullEntry> entries1 = new ArrayList<InternalFullDateHistogramFacet.FullEntry>(entries.v().size());
+        ArrayList<InternalFullDateHistogramFacet.FullEntry> entries1 = new ArrayList<>(entries.v().size());
         final boolean[] states = entries.v().allocated;
         final Object[] values = entries.v().values;
         for (int i = 0; i < states.length; i++) {

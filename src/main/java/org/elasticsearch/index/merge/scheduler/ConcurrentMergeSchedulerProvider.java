@@ -46,7 +46,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     private final int maxThreadCount;
     private final int maxMergeCount;
 
-    private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomConcurrentMergeScheduler>();
+    private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<>();
 
     @Inject
     public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {

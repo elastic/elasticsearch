@@ -94,9 +94,9 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
 
         //Expand the indices names
         List<AliasActions> actions = request.aliasActions();
-        List<AliasAction> finalActions = new ArrayList<AliasAction>();
+        List<AliasAction> finalActions = new ArrayList<>();
         boolean hasOnlyDeletesButNoneCanBeDone = true;
-        Set<String> aliases = new HashSet<String>();
+        Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             //expand indices
             String[] concreteIndices = state.metaData().concreteIndices(action.indices(), request.indicesOptions());

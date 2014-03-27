@@ -228,7 +228,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         ImmutableMap<String, StoreFileMetaData> files = list();
         String checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
         synchronized (mutex) {
-            Map<String, String> checksums = new HashMap<String, String>();
+            Map<String, String> checksums = new HashMap<>();
             for (StoreFileMetaData metaData : files.values()) {
                 if (metaData.checksum() != null) {
                     checksums.put(metaData.name(), metaData.checksum());
@@ -607,7 +607,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     }
                     Collection<String> dirNames = map.get(metaData.directory());
                     if (dirNames == null) {
-                        dirNames = new ArrayList<String>();
+                        dirNames = new ArrayList<>();
                         map.put(metaData.directory(), dirNames);
                     }
                     dirNames.add(name);

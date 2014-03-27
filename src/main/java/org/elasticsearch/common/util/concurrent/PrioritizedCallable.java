@@ -30,7 +30,7 @@ public abstract class PrioritizedCallable<T> implements Callable<T>, Comparable<
     private final Priority priority;
 
     public static <T> PrioritizedCallable<T> wrap(Callable<T> callable, Priority priority) {
-        return new Wrapped<T>(callable, priority);
+        return new Wrapped<>(callable, priority);
     }
 
     protected PrioritizedCallable(Priority priority) {

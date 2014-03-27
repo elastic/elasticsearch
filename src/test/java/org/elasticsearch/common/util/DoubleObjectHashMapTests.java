@@ -27,8 +27,8 @@ public class DoubleObjectHashMapTests extends ElasticsearchTestCase {
 
     @Test
     public void duel() {
-        final DoubleObjectOpenHashMap<Object> map1 = new DoubleObjectOpenHashMap<Object>();
-        final DoubleObjectPagedHashMap<Object> map2 = new DoubleObjectPagedHashMap<Object>(randomInt(42), 0.6f + randomFloat() * 0.39f, BigArraysTests.randombigArrays());
+        final DoubleObjectOpenHashMap<Object> map1 = new DoubleObjectOpenHashMap<>();
+        final DoubleObjectPagedHashMap<Object> map2 = new DoubleObjectPagedHashMap<>(randomInt(42), 0.6f + randomFloat() * 0.39f, BigArraysTests.randombigArrays());
         final int maxKey = randomIntBetween(1, 10000);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < iters; ++i) {
@@ -48,7 +48,7 @@ public class DoubleObjectHashMapTests extends ElasticsearchTestCase {
         for (int i = 0; i <= maxKey; ++i) {
             assertSame(map1.get(i), map2.get(i));
         }
-        final DoubleObjectOpenHashMap<Object> copy = new DoubleObjectOpenHashMap<Object>();
+        final DoubleObjectOpenHashMap<Object> copy = new DoubleObjectOpenHashMap<>();
         for (DoubleObjectPagedHashMap.Cursor<Object> cursor : map2) {
             copy.put(cursor.key, cursor.value);
         }

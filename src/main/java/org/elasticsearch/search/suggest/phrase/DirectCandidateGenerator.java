@@ -117,7 +117,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         final long frequency = original.frequency;
         spellchecker.setThresholdFrequency(this.suggestMode == SuggestMode.SUGGEST_ALWAYS ? 0 : thresholdFrequency(frequency, dictSize));
         SuggestWord[] suggestSimilar = spellchecker.suggestSimilar(new Term(field, term), numCandidates, reader, this.suggestMode);
-        List<Candidate> candidates = new ArrayList<Candidate>(suggestSimilar.length);
+        List<Candidate> candidates = new ArrayList<>(suggestSimilar.length);
         for (int i = 0; i < suggestSimilar.length; i++) {
             SuggestWord suggestWord = suggestSimilar[i];
             BytesRef candidate = new BytesRef(suggestWord.string);
@@ -186,7 +186,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         }
         
         public void addCandidates(List<Candidate> candidates) {
-            final Set<Candidate> set = new HashSet<DirectCandidateGenerator.Candidate>(candidates);
+            final Set<Candidate> set = new HashSet<>(candidates);
             for (int i = 0; i < this.candidates.length; i++) {
                 set.add(this.candidates[i]);
             }

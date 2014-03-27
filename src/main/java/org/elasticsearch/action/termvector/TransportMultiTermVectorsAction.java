@@ -60,9 +60,9 @@ public class TransportMultiTermVectorsAction extends TransportAction<MultiTermVe
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-        final AtomicArray<MultiTermVectorsItemResponse> responses = new AtomicArray<MultiTermVectorsItemResponse>(request.requests.size());
+        final AtomicArray<MultiTermVectorsItemResponse> responses = new AtomicArray<>(request.requests.size());
 
-        Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<ShardId, MultiTermVectorsShardRequest>();
+        Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorRequest termVectorRequest = request.requests.get(i);
             termVectorRequest.routing(clusterState.metaData().resolveIndexRouting(termVectorRequest.routing(), termVectorRequest.index()));

@@ -64,8 +64,8 @@ public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent
     }
 
     private final ThreadPool threadPool;
-    private final CopyOnWriteArrayList<FailureListener> failureListeners = new CopyOnWriteArrayList<FailureListener>();
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<FailureListener> failureListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private final boolean notifyOnMergeFailure;
 

@@ -177,7 +177,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             if (payload == null) {
                 return;
             }
-            payloads = new ArrayList<Object>(requests.size() + 10);
+            payloads = new ArrayList<>(requests.size() + 10);
             // add requests#size-1 elements to the payloads if it null (we add for an *existing* request)
             for (int i = 1; i < requests.size(); i++) {
                 payloads.add(null);

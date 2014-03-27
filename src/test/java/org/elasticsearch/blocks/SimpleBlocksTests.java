@@ -162,7 +162,7 @@ public class SimpleBlocksTests extends ElasticsearchIntegrationTest {
     }
 
     private void setIndexReadOnly(String index, Object value) {
-        HashMap<String, Object> newSettings = new HashMap<String, Object>();
+        HashMap<String, Object> newSettings = new HashMap<>();
         newSettings.put(IndexMetaData.SETTING_READ_ONLY, value);
 
         UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);

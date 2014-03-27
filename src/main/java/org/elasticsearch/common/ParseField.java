@@ -42,7 +42,7 @@ public class ParseField {
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = Strings.EMPTY_ARRAY;
         } else {
-            final HashSet<String> set = new HashSet<String>();
+            final HashSet<String> set = new HashSet<>();
             for (String depName : deprecatedNames) {
                 set.add(Strings.toCamelCase(depName));
                 set.add(Strings.toUnderscoreCase(depName));

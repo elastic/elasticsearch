@@ -124,7 +124,7 @@ public final class TermVectorFields extends Fields {
      */
     public TermVectorFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
         BytesStreamInput header = new BytesStreamInput(headerRef);
-        fieldMap = new ObjectLongOpenHashMap<String>();
+        fieldMap = new ObjectLongOpenHashMap<>();
 
         // here we read the header to fill the field offset map
         String headerString = header.readString();

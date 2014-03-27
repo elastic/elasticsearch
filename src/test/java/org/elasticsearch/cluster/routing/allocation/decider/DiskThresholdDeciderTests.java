@@ -54,19 +54,19 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
-        Map<String, DiskUsage> usages = new HashMap<String, DiskUsage>();
+        Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node1", new DiskUsage("node1", 100, 10)); // 90% used
         usages.put("node2", new DiskUsage("node2", 100, 35)); // 65% used
         usages.put("node3", new DiskUsage("node3", 100, 60)); // 40% used
         usages.put("node4", new DiskUsage("node4", 100, 80)); // 20% used
 
-        Map<String, Long> shardSizes = new HashMap<String, Long>();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L);
         final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
 
         AllocationDeciders deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -159,7 +159,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.7).build();
 
         deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -190,7 +190,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.6).build();
 
         deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -243,19 +243,19 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "30b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "20b").build();
 
-        Map<String, DiskUsage> usages = new HashMap<String, DiskUsage>();
+        Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node1", new DiskUsage("node1", 100, 10)); // 90% used
         usages.put("node2", new DiskUsage("node2", 100, 35)); // 65% used
         usages.put("node3", new DiskUsage("node3", 100, 60)); // 40% used
         usages.put("node4", new DiskUsage("node4", 100, 80)); // 20% used
 
-        Map<String, Long> shardSizes = new HashMap<String, Long>();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L);
         final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
 
         AllocationDeciders deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -348,7 +348,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "30b").build();
 
         deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -379,7 +379,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "40b").build();
 
         deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -432,16 +432,16 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.71).build();
 
-        Map<String, DiskUsage> usages = new HashMap<String, DiskUsage>();
+        Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node1", new DiskUsage("node1", 100, 31)); // 69% used
         usages.put("node2", new DiskUsage("node2", 100, 1));  // 99% used
 
-        Map<String, Long> shardSizes = new HashMap<String, Long>();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
 
         AllocationDeciders deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -493,17 +493,17 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.85).build();
 
-        Map<String, DiskUsage> usages = new HashMap<String, DiskUsage>();
+        Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
 
-        Map<String, Long> shardSizes = new HashMap<String, Long>();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L); // 10 bytes
         shardSizes.put("[test][0][r]", 10L); // 10 bytes
         final ClusterInfo clusterInfo = new ClusterInfo(ImmutableMap.copyOf(usages), ImmutableMap.copyOf(shardSizes));
 
         AllocationDeciders deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
-                new HashSet<AllocationDecider>(Arrays.asList(
+                new HashSet<>(Arrays.asList(
                         new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         new DiskThresholdDecider(diskSettings))));
 
@@ -553,7 +553,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY);
 
-        Map<String, DiskUsage> usages = new HashMap<String, DiskUsage>();
+        Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
 
@@ -567,7 +567,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = new DiskThresholdDecider(ImmutableSettings.EMPTY);
 
-        Map<String, DiskUsage> usages = new HashMap<String, DiskUsage>();
+        Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node2", new DiskUsage("node2", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", 100, 0));  // 100% used
 

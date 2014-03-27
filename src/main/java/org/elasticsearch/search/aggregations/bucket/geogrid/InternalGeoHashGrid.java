@@ -113,7 +113,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
                 return bucket;
             }
             Bucket reduced = null;
-            List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(buckets.size());
+            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             for (Bucket bucket : buckets) {
                 if (reduced == null) {
                     reduced = bucket;
@@ -160,7 +160,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     @Override
     public GeoHashGrid.Bucket getBucketByKey(String geohash) {
         if (bucketMap == null) {
-            bucketMap = new HashMap<String, Bucket>(buckets.size());
+            bucketMap = new HashMap<>(buckets.size());
             for (Bucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }
@@ -195,12 +195,12 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
                 reduced = grid;
             }
             if (buckets == null) {
-                buckets = new LongObjectPagedHashMap<List<Bucket>>(grid.buckets.size(), reduceContext.bigArrays());
+                buckets = new LongObjectPagedHashMap<>(grid.buckets.size(), reduceContext.bigArrays());
             }
             for (Bucket bucket : grid.buckets) {
                 List<Bucket> existingBuckets = buckets.get(bucket.geohashAsLong);
                 if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<Bucket>(aggregations.size());
+                    existingBuckets = new ArrayList<>(aggregations.size());
                     buckets.put(bucket.geohashAsLong, existingBuckets);
                 }
                 existingBuckets.add(bucket);
@@ -237,7 +237,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             return;
         }
 
-        List<Bucket> trimmedBuckets = new ArrayList<Bucket>(requiredSize);
+        List<Bucket> trimmedBuckets = new ArrayList<>(requiredSize);
         for (Bucket bucket : buckets) {
             if (trimmedBuckets.size() >= requiredSize) {
                 break;
@@ -253,7 +253,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         this.name = in.readString();
         this.requiredSize = readSize(in);
         int size = in.readVInt();
-        List<Bucket> buckets = new ArrayList<Bucket>(size);
+        List<Bucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             buckets.add(new Bucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in)));
         }

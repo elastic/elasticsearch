@@ -144,7 +144,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         stats.mem.nonHeapCommitted = memUsage.getCommitted() < 0 ? 0 : memUsage.getCommitted();
 
         List<MemoryPoolMXBean> memoryPoolMXBeans = ManagementFactory.getMemoryPoolMXBeans();
-        List<MemoryPool> pools = new ArrayList<MemoryPool>();
+        List<MemoryPool> pools = new ArrayList<>();
         for (int i = 0; i < memoryPoolMXBeans.size(); i++) {
             try {
                 MemoryPoolMXBean memoryPoolMXBean = memoryPoolMXBeans.get(i);
@@ -217,7 +217,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
         if (bufferPoolsEnabled) {
             try {
                 List bufferPools = (List) managementFactoryPlatformMXBeansMethod.invoke(null, bufferPoolMXBeanClass);
-                stats.bufferPools = new ArrayList<BufferPool>(bufferPools.size());
+                stats.bufferPools = new ArrayList<>(bufferPools.size());
                 for (Object bufferPool : bufferPools) {
                     String name = (String) bufferPoolMXBeanNameMethod.invoke(bufferPool);
                     Long count = (Long) bufferPoolMXBeanCountMethod.invoke(bufferPool);
@@ -426,7 +426,7 @@ public class JvmStats implements Streamable, Serializable, ToXContent {
 
         if (in.readBoolean()) {
             int size = in.readVInt();
-            bufferPools = new ArrayList<BufferPool>(size);
+            bufferPools = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 BufferPool bufferPool = new BufferPool();
                 bufferPool.readFrom(in);

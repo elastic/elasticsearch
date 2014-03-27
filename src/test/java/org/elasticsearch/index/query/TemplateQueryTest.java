@@ -63,7 +63,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTemplateInBody() throws IOException {
-        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> vars = new HashMap<>();
         vars.put("template", "all");
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(
@@ -75,7 +75,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTemplateWOReplacementInBody() throws IOException {
-        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> vars = new HashMap<>();
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(
                 "{\"match_all\": {}}\"", vars);
@@ -86,7 +86,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTemplateInFile() {
-        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> vars = new HashMap<>();
         vars.put("template", "all");
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(

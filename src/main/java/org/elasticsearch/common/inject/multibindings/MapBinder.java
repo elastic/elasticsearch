@@ -184,7 +184,7 @@ public abstract class MapBinder<K, V> {
     private static <K, V> MapBinder<K, V> newMapBinder(Binder binder, TypeLiteral<V> valueType,
                                                        Key<Map<K, V>> mapKey, Key<Map<K, Provider<V>>> providerMapKey,
                                                        Multibinder<Entry<K, Provider<V>>> entrySetBinder) {
-        RealMapBinder<K, V> mapBinder = new RealMapBinder<K, V>(
+        RealMapBinder<K, V> mapBinder = new RealMapBinder<>(
                 binder, valueType, mapKey, providerMapKey, entrySetBinder);
         binder.install(mapBinder);
         return mapBinder;
@@ -256,7 +256,7 @@ public abstract class MapBinder<K, V> {
             Multibinder.checkConfiguration(!isInitialized(), "MapBinder was already initialized");
 
             Key<V> valueKey = Key.get(valueType, new RealElement(entrySetBinder.getSetName()));
-            entrySetBinder.addBinding().toInstance(new MapEntry<K, Provider<V>>(key,
+            entrySetBinder.addBinding().toInstance(new MapEntry<>(key,
                     binder.getProvider(valueKey)));
             return binder.bind(valueKey);
         }
@@ -278,7 +278,7 @@ public abstract class MapBinder<K, V> {
                 void initialize() {
                     RealMapBinder.this.binder = null;
 
-                    Map<K, Provider<V>> providerMapMutable = new LinkedHashMap<K, Provider<V>>();
+                    Map<K, Provider<V>> providerMapMutable = new LinkedHashMap<>();
                     for (Entry<K, Provider<V>> entry : entrySetProvider.get()) {
                         Multibinder.checkConfiguration(providerMapMutable.put(entry.getKey(), entry.getValue()) == null,
                                 "Map injection failed due to duplicated key \"%s\"", entry.getKey());
@@ -299,7 +299,7 @@ public abstract class MapBinder<K, V> {
             final Provider<Map<K, Provider<V>>> mapProvider = binder.getProvider(providerMapKey);
             binder.bind(mapKey).toProvider(new ProviderWithDependencies<Map<K, V>>() {
                 public Map<K, V> get() {
-                    Map<K, V> map = new LinkedHashMap<K, V>();
+                    Map<K, V> map = new LinkedHashMap<>();
                     for (Entry<K, Provider<V>> entry : mapProvider.get().entrySet()) {
                         V value = entry.getValue().get();
                         K key = entry.getKey();

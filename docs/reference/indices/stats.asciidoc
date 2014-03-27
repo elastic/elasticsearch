@@ -45,6 +45,7 @@ specified as well in the URI. Those stats can be any of:
 `flush`:: 		Flush statistics.
 `completion`:: 		Completion suggest statistics.
 `refresh`:: 	Refresh statistics.
+`suggest`:: 	Suggest statistics.
 
 Some statistics allow per field granularity which accepts a list comma-separated list of included fields. By default all fields are included:
 

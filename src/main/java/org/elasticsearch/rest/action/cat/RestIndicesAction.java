@@ -277,6 +277,16 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("warmer.total_time", "sibling:pri;alias:wtt,warmerTotalTime;default:false;text-align:right;desc:time spent in warmers");
         table.addCell("pri.warmer.total_time", "default:false;text-align:right;desc:time spent in warmers");
 
+        table.addCell("suggest.current", "sibling:pri;alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
+        table.addCell("pri.suggest.current", "default:false;text-align:right;desc:number of current suggest ops");
+
+        table.addCell("suggest.time", "sibling:pri;alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
+        table.addCell("pri.suggest.time", "default:false;text-align:right;desc:time spend in suggest");
+
+        table.addCell("suggest.total", "sibling:pri;alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
+        table.addCell("pri.suggest.total", "default:false;text-align:right;desc:number of suggest ops");
+
+
         table.endHeaders();
         return table;
     }
@@ -439,6 +449,15 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().totalTime());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().totalTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCurrent());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCurrent());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getTime());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getTime());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCount());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCount());
 
             table.endRow();
         }

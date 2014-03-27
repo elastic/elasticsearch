@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -277,6 +278,10 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                     }
                     // go over tribe one, and see if they need to be added
                     for (IndexMetaData tribeIndex : tribeState.metaData()) {
+                        IndexRoutingTable table = tribeState.routingTable().index(tribeIndex.index());
+                        if (table == null) {
+                            continue;
+                        }
                         if (!currentState.metaData().hasIndex(tribeIndex.index())) {
                             // a new index, add it, and add the tribe name as a setting
                             logger.info("[{}] adding index [{}]", tribeName, tribeIndex.index());

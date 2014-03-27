@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.suggest.term;
 
-import java.io.IOException;
-import java.util.Comparator;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,13 +27,16 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
+import java.io.IOException;
+import java.util.Comparator;
+
 /**
  * The suggestion responses corresponding with the suggestions in the request.
  */
 public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
-    public static Comparator<Suggestion.Entry.Option> SCORE = new Score();
-    public static Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
+    public static final Comparator<Suggestion.Entry.Option> SCORE = new Score();
+    public static final Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
     // Highest score first, then highest freq first, then lowest term first

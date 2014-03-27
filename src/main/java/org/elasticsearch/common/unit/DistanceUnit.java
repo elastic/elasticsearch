@@ -51,7 +51,7 @@ public enum DistanceUnit {
     // parsing would fail
     METERS(1, "m", "meters");
 
-    public static DistanceUnit DEFAULT = METERS;
+    public static final DistanceUnit DEFAULT = METERS;
 
     private double meters; 
     private final String[] names;

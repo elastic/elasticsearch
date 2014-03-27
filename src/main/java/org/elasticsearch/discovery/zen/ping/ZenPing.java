@@ -50,7 +50,7 @@ public interface ZenPing extends LifecycleComponent<ZenPing> {
 
     public static class PingResponse implements Streamable {
         
-        public static PingResponse[] EMPTY = new PingResponse[0];
+        public static final PingResponse[] EMPTY = new PingResponse[0];
 
         private ClusterName clusterName;
 

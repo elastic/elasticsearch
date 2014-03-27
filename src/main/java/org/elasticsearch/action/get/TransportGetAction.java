@@ -42,7 +42,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
 
-    public static boolean REFRESH_FORCE = false;
+    public static final boolean REFRESH_FORCE = false;
 
     private final IndicesService indicesService;
     private final boolean realtime;

@@ -22,6 +22,7 @@ package org.elasticsearch.ttl;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -35,7 +36,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope=Scope.SUITE)
+@ClusterScope(scope=Scope.SUITE, numNodes = 1)
 public class SimpleTTLTests extends ElasticsearchIntegrationTest {
 
     static private final long PURGE_INTERVAL = 200;
@@ -72,59 +73,61 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
                         .startObject("_ttl").field("enabled", true).field("store", "yes").field("default", "1d").endObject()
                         .endObject()
                         .endObject()));
-        ensureGreen();
+        ensureYellow("test");
 
         final NumShards test = getNumShards("test");
 
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");
         // Index one doc without routing, one doc with routing, one doc with not TTL and no default and one doc with default TTL
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTTL(providedTTLValue).setRefresh(true).execute().actionGet();
         long now = System.currentTimeMillis();
-        client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1").setTTL(providedTTLValue).setRouting("routing").setRefresh(true).execute().actionGet();
-        client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").execute().actionGet();
-        client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").execute().actionGet();
+        IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
+                .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRefresh(true).get();
+        assertThat(indexResponse.isCreated(), is(true));
+        indexResponse = client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1")
+                .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRouting("routing").setRefresh(true).get();
+        assertThat(indexResponse.isCreated(), is(true));
+        indexResponse = client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").get();
+        assertThat(indexResponse.isCreated(), is(true));
+        indexResponse = client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").get();
+        assertThat(indexResponse.isCreated(), is(true));
 
         // realtime get check
         long currentTime = System.currentTimeMillis();
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").get();
         long ttl0;
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
-            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+            assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
         }
         // verify the ttl is still decreasing when going to the replica
         currentTime = System.currentTimeMillis();
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").get();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
-            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+            assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
         }
         // non realtime get (stored)
         currentTime = System.currentTimeMillis();
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).get();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
-            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+            assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
         }
         // non realtime get going the replica
         currentTime = System.currentTimeMillis();
-        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).get();
         if (getResponse.isExists()) {
             ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
-            assertThat(ttl0, greaterThan(-PURGE_INTERVAL));
-            assertThat(ttl0, lessThan(providedTTLValue - (currentTime - now)));
+            assertThat(ttl0, lessThanOrEqualTo(providedTTLValue - (currentTime - now)));
         } else {
-            assertThat(providedTTLValue - (currentTime - now), lessThan(0l));
+            assertThat(providedTTLValue - (currentTime - now), lessThanOrEqualTo(0l));
         }
 
         // no TTL provided so no TTL fetched

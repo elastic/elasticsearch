@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import com.google.common.primitives.Longs;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -630,7 +629,7 @@ public abstract class FieldDataSource {
                     protected int compare(int i, int j) {
                         final long l1 = array[i];
                         final long l2 = array[j];
-                        return Longs.compare(l1, l2);
+                        return Long.compare(l1, l2);
                     }
                 };
 

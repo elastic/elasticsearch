@@ -100,7 +100,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     @Override
     public int compare(int slot1, int slot2) {
         if (readerGen[slot1] == readerGen[slot2]) {
-            return LongValuesComparator.compare(ords[slot1], ords[slot2]);
+            return Long.compare(ords[slot1], ords[slot2]);
         }
 
         final BytesRef val1 = values[slot1];
@@ -205,7 +205,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             assert bottomSlot != -1;
             final long docOrd = getOrd(doc);
             final long comparableOrd = docOrd == Ordinals.MISSING_ORDINAL ? missingOrd : docOrd << 2;
-            return LongValuesComparator.compare(bottomOrd, comparableOrd);
+            return Long.compare(bottomOrd, comparableOrd);
         }
 
         @Override
@@ -215,19 +215,19 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
                 return compareTopMissing();
             } else {
                 final long comparableOrd = ord << 2;
-                return LongValuesComparator.compare(topOrd, comparableOrd);
+                return Long.compare(topOrd, comparableOrd);
             }
         }
 
         @Override
         public int compareBottomMissing() {
             assert bottomSlot != -1;
-            return LongValuesComparator.compare(bottomOrd, missingOrd);
+            return Long.compare(bottomOrd, missingOrd);
         }
 
         @Override
         public int compareTopMissing() {
-            int cmp =  LongValuesComparator.compare(topOrd, missingOrd);
+            int cmp =  Long.compare(topOrd, missingOrd);
             if (cmp == 0) {
                 return compareValues(top, missingValue);
             } else {

@@ -57,7 +57,7 @@ public class GroupRedBlackTree extends RedBlackTree {
         final double centroid = mean(node);
         int cmp = Double.compare(tmpCentroid, centroid);
         if (cmp == 0) {
-            cmp = Longs.compare(tmpId, ids[node]);
+            cmp = Long.compare(tmpId, ids[node]);
         }
         return cmp;
     }

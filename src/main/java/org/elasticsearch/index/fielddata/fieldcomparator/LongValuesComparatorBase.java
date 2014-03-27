@@ -43,22 +43,12 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
     @Override
     public final int compareBottom(int doc) throws IOException {
         long v2 = sortMode.getRelevantValue(readerValues, doc, missingValue);
-        return compare(bottom, v2);
+        return Long.compare(bottom, v2);
     }
 
     @Override
     public int compareTop(int doc) throws IOException {
-        return compare(top.longValue(), sortMode.getRelevantValue(readerValues, doc, missingValue));
-    }
-
-    static final int compare(long left, long right) {
-        if (left > right) {
-            return 1;
-        } else if (left < right) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return Long.compare(top.longValue(), sortMode.getRelevantValue(readerValues, doc, missingValue));
     }
 
     @Override
@@ -69,11 +59,11 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
 
     @Override
     public int compareBottomMissing() {
-        return compare(bottom, missingValue);
+        return Long.compare(bottom, missingValue);
     }
 
     @Override
     public int compareTopMissing() {
-        return compare(top.longValue(), missingValue);
+        return Long.compare(top.longValue(), missingValue);
     }
 }

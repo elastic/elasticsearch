@@ -120,8 +120,7 @@ public class CommitPoints implements Iterable<CommitPoint> {
     }
 
     public static CommitPoint fromXContent(byte[] data) throws Exception {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-        try {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(data)) {
             String currentFieldName = null;
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
@@ -197,8 +196,6 @@ public class CommitPoints implements Iterable<CommitPoint> {
             }
 
             return new CommitPoint(version, name, type, indexFiles, translogFiles);
-        } finally {
-            parser.close();
         }
     }
 }

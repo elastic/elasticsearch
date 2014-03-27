@@ -98,9 +98,8 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
         PagedMutable lat = new PagedMutable(initialSize, pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
         PagedMutable lon = new PagedMutable(initialSize, pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio);
         boolean success = false;
-        try {
+        try (OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio)) {
             final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator(null)));
             GeoPoint point;
             long ord = 0;
@@ -145,7 +144,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
             if (success) {
                 estimator.afterLoad(null, data.getMemorySizeInBytes());
             }
-            builder.close();
+
         }
 
     }

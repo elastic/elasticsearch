@@ -477,11 +477,8 @@ public class IndexMetaData {
         }
 
         public Builder putMapping(String type, String source) throws IOException {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
-            try {
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
                 putMapping(new MappingMetaData(type, parser.mapOrdered()));
-            } finally {
-                parser.close();
             }
             return this;
         }

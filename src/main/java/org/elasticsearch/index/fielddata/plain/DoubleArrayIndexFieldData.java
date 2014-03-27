@@ -89,9 +89,8 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
 
         values.add(0); // first "t" indicates null value
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
-        OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio);
         boolean success = false;
-        try {
+        try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
             final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
             while ((term = iter.next()) != null) {
@@ -132,7 +131,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
             if (success) {
                 estimator.afterLoad(null, data.getMemorySizeInBytes());
             }
-            builder.close();
+
         }
 
     }

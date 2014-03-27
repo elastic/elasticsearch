@@ -122,13 +122,10 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                 map = (Map<String, Object>) map.values().iterator().next();
             }
             XContentBuilder builder = XContentFactory.smileBuilder().map(map);
-            XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes());
-            try {
+            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(builder.bytes())) {
                 // move to START_OBJECT
                 parser.nextToken();
                 return fromXContent(parser);
-            } finally {
-                parser.close();
             }
         }
 

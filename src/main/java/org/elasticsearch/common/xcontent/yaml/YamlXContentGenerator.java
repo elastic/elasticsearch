@@ -51,24 +51,18 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        YAMLParser parser = YamlXContent.yamlFactory.createParser(content);
-        try {
+        try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content)) {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
         }
     }
 
     @Override
     public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        YAMLParser parser = YamlXContent.yamlFactory.createParser(content);
-        try {
+        try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content)) {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
         }
     }
 
@@ -92,12 +86,9 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     @Override
     public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
         writeFieldName(fieldName);
-        YAMLParser parser = YamlXContent.yamlFactory.createParser(content, offset, length);
-        try {
+        try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content, offset, length)) {
             parser.nextToken();
             generator.copyCurrentStructure(parser);
-        } finally {
-            parser.close();
         }
     }
 }

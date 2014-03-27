@@ -82,10 +82,9 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             numTerms = -1;
         }
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
-        OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio);
         boolean success = false;
-        try {
-            
+        try (OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio)) {
+
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
             // empty strings twice. ie. them merge fails for long output.
             TermsEnum termsEnum = filter(terms, reader);
@@ -93,13 +92,13 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final long termOrd = builder.nextOrdinal();
                 assert termOrd > 0;
-                fstBuilder.add(Util.toIntsRef(term, scratch), (long)termOrd);
+                fstBuilder.add(Util.toIntsRef(term, scratch), (long) termOrd);
                 docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }
             }
-            
+
             FST<Long> fst = fstBuilder.finish();
 
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
@@ -111,7 +110,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             if (success) {
                 estimator.afterLoad(null, data.getMemorySizeInBytes());
             }
-            builder.close();
+
         }
     }
 }

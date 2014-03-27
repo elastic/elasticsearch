@@ -207,20 +207,17 @@ public class CommonTermsQueryParser implements QueryParser {
     private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String field, QueryParseContext parseContext,
             Analyzer analyzer, String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch, MapperService.SmartNameFieldMappers smartNameFieldMappers) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
-        TokenStream source = analyzer.tokenStream(field, queryString.toString());
         int count = 0;
-        try {
+        try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {
             source.reset();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
             while (source.incrementToken()) {
                 BytesRef ref = new BytesRef(termAtt.length() * 4); // oversize for
-                                                                   // UTF-8
+                // UTF-8
                 UnicodeUtil.UTF16toUTF8(termAtt.buffer(), 0, termAtt.length(), ref);
                 query.add(new Term(field, ref));
                 count++;
             }
-        } finally {
-            source.close();
         }
 
         if (count == 0) {

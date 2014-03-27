@@ -162,11 +162,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * By default if no {@link ClusterScope} is configured this will hold a reference to the global cluster carried
      * on across test suites.
      */
-    private static TestCluster currentCluster;
+    private static ImmutableTestCluster currentCluster;
 
     private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
 
-    private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
+    private static final Map<Class<?>, ImmutableTestCluster> clusters = new IdentityHashMap<>();
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -201,9 +201,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 default:
                     fail("Unknown Scope: [" + currentClusterScope + "]");
             }
-            currentCluster.beforeTest(getRandom(), getPerTestTransportClientRatio());
-            cluster().wipe();
-            cluster().randomIndexTemplate();
+            immutableCluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
+            immutableCluster().wipe();
+            immutableCluster().randomIndexTemplate();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -213,8 +213,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    public TestCluster buildAndPutCluster(Scope currentClusterScope, boolean createIfExists) throws IOException {
-        TestCluster testCluster = clusters.get(this.getClass());
+    public ImmutableTestCluster buildAndPutCluster(Scope currentClusterScope, boolean createIfExists) throws IOException {
+        ImmutableTestCluster testCluster = clusters.get(this.getClass());
         if (createIfExists || testCluster == null) {
             testCluster = buildTestCluster(currentClusterScope);
         } else {
@@ -227,7 +227,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private void clearClusters() throws IOException {
         if (!clusters.isEmpty()) {
-            for (TestCluster cluster : clusters.values()) {
+            for (ImmutableTestCluster cluster : clusters.values()) {
                 cluster.close();
             }
             clusters.clear();
@@ -248,8 +248,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
                 }
-                cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
-                cluster().assertAfterTest();
+                immutableCluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                immutableCluster().assertAfterTest();
             } finally {
                 if (currentClusterScope == Scope.TEST) {
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
@@ -279,8 +279,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    public static TestCluster cluster() {
+    public static ImmutableTestCluster immutableCluster() {
         return currentCluster;
+    }
+
+    public static TestCluster cluster() {
+        if (!(currentCluster instanceof  TestCluster)) {
+            throw new UnsupportedOperationException("current test cluster is immutable");
+        }
+        return (TestCluster) currentCluster;
     }
 
     public ClusterService clusterService() {
@@ -288,23 +295,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static Client client() {
-        Client client = cluster().client();
+        Client client = immutableCluster().client();
         if (frequently()) {
             client = new RandomizingClient((InternalClient) client, getRandom());
         }
         return client;
     }
 
+
     public static Iterable<Client> clients() {
-        return cluster();
+        return immutableCluster();
     }
 
     protected int minimumNumberOfShards() {
-        return TestCluster.DEFAULT_MIN_NUM_SHARDS;
+        return ImmutableTestCluster.DEFAULT_MIN_NUM_SHARDS;
     }
 
     protected int maximumNumberOfShards() {
-        return TestCluster.DEFAULT_MAX_NUM_SHARDS;
+        return ImmutableTestCluster.DEFAULT_MAX_NUM_SHARDS;
     }
 
     protected int numberOfShards() {
@@ -357,7 +365,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 success = true;
             } finally {
                 if (!success && !created.isEmpty()) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
+                    immutableCluster().wipeIndices(created.toArray(new String[created.size()]));
                 }
             }
         }

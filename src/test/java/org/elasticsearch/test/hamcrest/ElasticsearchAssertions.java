@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
@@ -469,7 +470,7 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertAllFilesClosed() throws IOException {
+    public static void assertAllFilesClosed() {
         try {
             for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 try {
@@ -484,7 +485,11 @@ public class ElasticsearchAssertions {
                 }
                 if (!w.successfullyClosed()) {
                     if (w.closeException() == null) {
-                        w.close();
+                        try {
+                            w.close();
+                        } catch (IOException e) {
+                            throw new ElasticsearchIllegalStateException("directory close threw IOException", e);
+                        }
                         if (w.closeException() != null) {
                             throw w.closeException();
                         }

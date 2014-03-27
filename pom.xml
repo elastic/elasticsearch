@@ -37,6 +37,7 @@
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
         <tests.topn>5</tests.topn>
+        <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
 
     <dependencies>
@@ -402,7 +403,7 @@
                                         showStatusIgnored="true"
                                         showSuiteSummary="true"
                                         timestamps="false"/>
-                                <report-execution-times historyLength="20" file="${basedir}/.local-${project.version}-execution-hints.log"/>
+                                <report-execution-times historyLength="20" file="${basedir}/${execution.hint.file}"/>
                             </listeners>
                             <assertions>
                                 <enable/>
@@ -412,7 +413,7 @@
                             <parallelism>${tests.jvms}</parallelism>
                             <balancers>
                                 <execution-times>
-                                    <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
+                                    <fileset dir="${basedir}" includes="${execution.hint.file}"/>
                                 </execution-times>
                             </balancers>
                             <includes>
@@ -497,7 +498,7 @@
                                     </classpath>
                                 </taskdef>
                                 <tophints max="${tests.topn}">
-                                    <file file="${basedir}/.local-execution-hints.log" />
+                                    <file file="${basedir}/${execution.hint.file}" />
                                 </tophints>
                             </target>
                         </configuration>

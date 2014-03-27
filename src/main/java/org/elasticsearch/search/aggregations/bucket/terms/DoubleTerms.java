@@ -44,7 +44,7 @@ public class DoubleTerms extends InternalTerms {
 
     public static final Type TYPE = new Type("terms", "dterms");
 
-    public static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public DoubleTerms readResult(StreamInput in) throws IOException {
             DoubleTerms buckets = new DoubleTerms();

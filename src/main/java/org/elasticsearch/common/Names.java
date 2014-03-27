@@ -24,10 +24,8 @@ import jsr166y.ThreadLocalRandom;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
-import java.util.Random;
 
 /**
  *
@@ -58,29 +56,6 @@ public abstract class Names {
                 }
             } catch (IOException e) {
                 // ignore this exception
-            }
-        }
-    }
-
-    public static String randomNodeName(InputStream nodeNames) {
-        if (nodeNames == null) {
-            return null;
-        }
-        try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(nodeNames, Charsets.UTF_8));
-            int numberOfNames = Integer.parseInt(reader.readLine());
-            int number = ((new Random().nextInt(numberOfNames)) % numberOfNames) - 2; // remove 2 for last line and first line
-            for (int i = 0; i < number; i++) {
-                reader.readLine();
-            }
-            return reader.readLine();
-        } catch (Exception e) {
-            return null;
-        } finally {
-            try {
-                nodeNames.close();
-            } catch (IOException e) {
-                // ignore
             }
         }
     }

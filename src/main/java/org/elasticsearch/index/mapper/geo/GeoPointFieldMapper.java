@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.geo;
 
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
@@ -636,7 +637,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         if (this.normalizeLon != fieldMergeWith.normalizeLon) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different normalize_lon");
         }
-        if (this.precisionStep != fieldMergeWith.precisionStep) {
+        if (!Objects.equal(this.precisionStep, fieldMergeWith.precisionStep)) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
         }
 

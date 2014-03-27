@@ -23,9 +23,9 @@ package org.elasticsearch.monitor.jvm;
  */
 public class GcNames {
 
-    public static String YOUNG = "young";
-    public static String OLD = "old";
-    public static String SURVIVOR = "survivor";
+    public static final String YOUNG = "young";
+    public static final String OLD = "old";
+    public static final String SURVIVOR = "survivor";
 
     /**
      * Resolves the GC type by its memory pool name ({@link java.lang.management.MemoryPoolMXBean#getName()}.

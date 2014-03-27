@@ -44,7 +44,7 @@ public class LongTerms extends InternalTerms {
 
     public static final Type TYPE = new Type("terms", "lterms");
 
-    public static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public LongTerms readResult(StreamInput in) throws IOException {
             LongTerms buckets = new LongTerms();

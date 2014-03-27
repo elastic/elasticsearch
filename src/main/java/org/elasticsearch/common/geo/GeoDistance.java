@@ -212,7 +212,7 @@ public enum GeoDistance {
         GeoPoint bottomRight();
     }
 
-    public static AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
+    public static final AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
 
     private static class AlwaysDistanceBoundingCheck implements DistanceBoundingCheck {
         @Override

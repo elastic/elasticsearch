@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public class RestUtils {
 
-    public static PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
+    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
         @Override
         public String decode(String value) {
             return RestUtils.decodeComponent(value);

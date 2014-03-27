@@ -34,7 +34,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -42,8 +41,6 @@ import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -163,9 +160,9 @@ public class RestAllocationAction extends AbstractCatAction {
             table.addCell(avail < 0 ? null : new ByteSizeValue(avail));
             table.addCell(nodeStats.getFs().getTotal().getTotal());
             table.addCell(diskPercent < 0 ? null : diskPercent);
-            table.addCell(node == null ? null : node.getHostName());
-            table.addCell(node == null ? null : node.getHostAddress());
-            table.addCell(node == null ? "UNASSIGNED" : node.name());
+            table.addCell(node.getHostName());
+            table.addCell(node.getHostAddress());
+            table.addCell(node.name());
             table.endRow();
         }
 

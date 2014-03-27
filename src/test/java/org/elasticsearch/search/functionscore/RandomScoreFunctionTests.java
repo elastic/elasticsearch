@@ -19,6 +19,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.CoreMatchers;
@@ -141,6 +142,23 @@ public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
         }
 
         System.out.println("mean: " + sum / (double) count);
+    }
+
+    @Test
+    public void reproducibility() {
+        final long seed = randomLong();
+        RandomScoreFunction rsf = new RandomScoreFunction(seed);
+        final int doc1 = randomInt(Integer.MAX_VALUE);
+        final int doc2 = randomInt(Integer.MAX_VALUE);
+        // rescoring the same docs should return the same score
+        final double score1 = rsf.score(doc1, 0f);
+        final double score2 = rsf.score(doc2, 0f);
+        assertEquals(score1, rsf.score(doc1, 0f), 0d);
+        assertEquals(score2, rsf.score(doc2, 0f), 0d);
+        // even from a different instance
+        RandomScoreFunction rsf2 = new RandomScoreFunction(seed);
+        assertEquals(score2, rsf2.score(doc2, 0f), 0d);
+        assertEquals(score1, rsf2.score(doc1, 0f), 0d);
     }
 
 }

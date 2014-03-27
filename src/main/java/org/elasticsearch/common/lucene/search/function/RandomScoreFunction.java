@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.lucene.search.function;
 
+import com.carrotsearch.hppc.hash.MurmurHash3;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 
@@ -47,45 +48,28 @@ public class RandomScoreFunction extends ScoreFunction {
     @Override
     public Explanation explainScore(int docId, Explanation subQueryExpl) {
         Explanation exp = new Explanation();
-        exp.setDescription("random score function (seed: " + prng.originalSeed + ")");
+        exp.setDescription("random score function (seed: " + prng.seed + ")");
         exp.addDetail(subQueryExpl);
         return exp;
     }
 
     /**
-     * Algorithm largely based on {@link java.util.Random} except this one is not
-     * thread safe and it incorporates the doc id on next();
+     * Random score generator that always returns the same score to the same documents,
+     * provided that it has been instantiated with the same seed.
      */
     static class PRNG {
 
-        private static final long multiplier = 0x5DEECE66DL;
-        private static final long addend = 0xBL;
-        private static final long mask = (1L << 48) - 1;
-
-        final long originalSeed;
-        long seed;
+        final long seed;
 
         PRNG(long seed) {
-            this.originalSeed = seed;
-            this.seed = (seed ^ multiplier) & mask;
+            this.seed = seed;
         }
 
         public float random(int doc) {
-            if (doc == 0) {
-                doc = 0xCAFEBAB;
-            }
-
-            long rand = doc;
-            rand |= rand << 32;
-            rand ^= rand;
-            return nextFloat(rand);
-        }
-
-        public float nextFloat(long rand) {
-            seed = (seed * multiplier + addend) & mask;
-            rand ^= seed;
-            double result = rand / (double)(1L << 54);
-            return (float) result;
+            // TODO: is it equally fair to all documents?
+            long rand = MurmurHash3.hash(seed ^ (long) doc);
+            rand &= (1 << 31) - 1;
+            return (float) rand / Integer.MAX_VALUE;
         }
 
     }

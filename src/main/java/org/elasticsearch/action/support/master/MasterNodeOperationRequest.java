@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRequest> extends ActionRequest<T> {
 
-    public static TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 

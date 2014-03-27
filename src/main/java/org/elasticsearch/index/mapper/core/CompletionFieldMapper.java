@@ -91,7 +91,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         public static final String CONTEXT = "context";
     }
 
-    public static Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
+    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(Fields.CONTENT_FIELD_NAME_INPUT,
             Fields.CONTENT_FIELD_NAME_OUTPUT, Fields.CONTENT_FIELD_NAME_PAYLOAD, Fields.CONTENT_FIELD_NAME_WEIGHT, Fields.CONTEXT);
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, CompletionFieldMapper> {

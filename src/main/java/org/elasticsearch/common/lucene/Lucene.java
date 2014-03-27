@@ -54,7 +54,7 @@ public class Lucene {
 
     public static final int NO_DOC = -1;
 
-    public static ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
+    public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
     @SuppressWarnings("deprecation")
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {

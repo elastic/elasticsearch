@@ -42,9 +42,9 @@ import java.util.Map;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -104,11 +104,12 @@ public class CreateSnapshotRequest extends MasterNodeOperationRequest<CreateSnap
         }
         if (indices == null) {
             validationException = addValidationError("indices is null", validationException);
-        }
-        for (String index : indices) {
-            if (index == null) {
-                validationException = addValidationError("index is null", validationException);
-                break;
+        } else {
+            for (String index : indices) {
+                if (index == null) {
+                    validationException = addValidationError("index is null", validationException);
+                    break;
+                }
             }
         }
         if (indicesOptions == null) {

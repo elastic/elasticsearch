@@ -86,7 +86,7 @@ public class IndexMetaData {
         }
     }
 
-    public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+    public static final Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
 
     static {
         // register non plugin custom metadata

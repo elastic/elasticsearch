@@ -41,7 +41,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
 
     public static final InternalAggregation.Type TYPE = new Type("significant_terms", "sigsterms");
 
-    public static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public SignificantStringTerms readResult(StreamInput in) throws IOException {
             SignificantStringTerms buckets = new SignificantStringTerms();

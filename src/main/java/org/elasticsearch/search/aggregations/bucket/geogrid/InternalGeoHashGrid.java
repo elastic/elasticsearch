@@ -45,7 +45,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
 
     public static final Type TYPE = new Type("geohash_grid", "ghcells");
 
-    public static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public InternalGeoHashGrid readResult(StreamInput in) throws IOException {
             InternalGeoHashGrid buckets = new InternalGeoHashGrid();

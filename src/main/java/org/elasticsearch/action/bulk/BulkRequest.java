@@ -257,9 +257,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 break;
             }
             // now parse the action
-            XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
 
-            try {
+            try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -379,8 +378,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     // move pointers
                     from = nextMarker + 1;
                 }
-            } finally {
-                parser.close();
             }
         }
         return this;

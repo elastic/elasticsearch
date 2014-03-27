@@ -536,8 +536,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     public UpdateRequest source(BytesReference source) throws Exception {
         XContentType xContentType = XContentFactory.xContentType(source);
-        XContentParser parser = XContentFactory.xContent(xContentType).createParser(source);
-        try {
+        try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
             XContentParser.Token t = parser.nextToken();
             if (t == null) {
                 return this;
@@ -564,8 +563,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     docAsUpsert(parser.booleanValue());
                 }
             }
-        } finally {
-            parser.close();
         }
         return this;
     }

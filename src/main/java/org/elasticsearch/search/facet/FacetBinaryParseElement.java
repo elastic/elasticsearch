@@ -36,12 +36,9 @@ public class FacetBinaryParseElement extends FacetParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         byte[] facetSource = parser.binaryValue();
-        XContentParser fSourceParser = XContentFactory.xContent(facetSource).createParser(facetSource);
-        try {
+        try (XContentParser fSourceParser = XContentFactory.xContent(facetSource).createParser(facetSource)) {
             fSourceParser.nextToken(); // move past the first START_OBJECT
             super.parse(fSourceParser, context);
-        } finally {
-            fSourceParser.close();
         }
     }
 }

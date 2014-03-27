@@ -32,11 +32,8 @@ public class QueryBinaryParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         byte[] querySource = parser.binaryValue();
-        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-        try {
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
             context.parsedQuery(context.queryParserService().parse(qSourceParser));
-        } finally {
-            qSourceParser.close();
         }
     }
 }

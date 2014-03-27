@@ -74,9 +74,8 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
         lat.add(0); // first "t" indicates null value
         lon.add(0); // first "t" indicates null value
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio);
         boolean success = false;
-        try {
+        try (OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio)) {
             final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator(null)));
             GeoPoint point;
             while ((point = iter.next()) != null) {
@@ -110,7 +109,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
             if (success) {
                 estimator.afterLoad(null, data.getMemorySizeInBytes());
             }
-            builder.close();
+
         }
 
     }

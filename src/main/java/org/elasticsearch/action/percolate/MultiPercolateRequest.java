@@ -102,8 +102,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
 
             // now parse the action
             if (nextMarker - from > 0) {
-                XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from));
-                try {
+                try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
                     // Move to START_OBJECT, if token is null, its an empty data
                     XContentParser.Token token = parser.nextToken();
                     if (token != null) {
@@ -127,8 +126,6 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                             throw new ElasticsearchParseException(percolateAction + " isn't a supported percolate operation");
                         }
                     }
-                } finally {
-                    parser.close();
                 }
             }
 

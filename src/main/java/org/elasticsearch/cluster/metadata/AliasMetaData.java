@@ -183,11 +183,8 @@ public class AliasMetaData {
                 return this;
             }
             try {
-                XContentParser parser = XContentFactory.xContent(filter).createParser(filter);
-                try {
+                try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
                     filter(parser.mapOrdered());
-                } finally {
-                    parser.close();
                 }
                 return this;
             } catch (IOException e) {

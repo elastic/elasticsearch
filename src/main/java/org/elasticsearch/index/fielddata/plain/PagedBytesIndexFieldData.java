@@ -83,8 +83,6 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                 FilterSettingFields.ACCEPTABLE_TRANSIENT_OVERHEAD_RATIO, OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
 
-        OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio);
-
         // Wrap the context in an estimator and use it to either estimate
         // the entire set, or wrap the TermsEnum so it can be calculated
         // per-term
@@ -92,7 +90,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         TermsEnum termsEnum = estimator.beforeLoad(terms);
         boolean success = false;
 
-        try {
+        try (OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio)) {
             // 0 is reserved for "unset"
             bytes.copyUsingLengthPrefix(new BytesRef());
 
@@ -121,7 +119,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
                 // Call .afterLoad() to adjust the breaker now that we have an exact size
                 estimator.afterLoad(termsEnum, data.getMemorySizeInBytes());
             }
-            builder.close();
+
         }
     }
 

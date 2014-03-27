@@ -112,10 +112,9 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final MonotonicAppendingLongBuffer values = new MonotonicAppendingLongBuffer();
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
-        OrdinalsBuilder builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         TermsEnum termsEnum = estimator.beforeLoad(terms);
         boolean success = false;
-        try {
+        try (OrdinalsBuilder builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio)) {
             BytesRefIterator iter = builder.buildFromTerms(termsEnum);
             BytesRef term;
             assert !getNumericType().isFloatingPoint();
@@ -205,7 +204,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 // Adjust as usual, based on the actual size of the field data
                 estimator.afterLoad(termsEnum, data.getMemorySizeInBytes());
             }
-            builder.close();
+
         }
 
     }

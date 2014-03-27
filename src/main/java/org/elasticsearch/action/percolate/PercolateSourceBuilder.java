@@ -280,13 +280,10 @@ public class PercolateSourceBuilder implements ToXContent {
             if (contentType == builder.contentType()) {
                 builder.rawField("doc", doc);
             } else {
-                XContentParser parser = XContentFactory.xContent(contentType).createParser(doc);
-                try {
+                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(doc)) {
                     parser.nextToken();
                     builder.field("doc");
                     builder.copyCurrentStructure(parser);
-                } finally {
-                    parser.close();
                 }
             }
             return builder;

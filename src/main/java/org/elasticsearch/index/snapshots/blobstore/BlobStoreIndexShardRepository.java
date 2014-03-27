@@ -224,12 +224,9 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
      * @throws IOException
      */
     public static BlobStoreIndexShardSnapshot readSnapshot(byte[] data) throws IOException {
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(data);
-        try {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(data)) {
             parser.nextToken();
             return BlobStoreIndexShardSnapshot.fromXContent(parser);
-        } finally {
-            parser.close();
         }
     }
 

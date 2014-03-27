@@ -79,8 +79,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
         XContentParser.Token token;
         String currentFieldName = null;
         if (data.length() > 0) {
-            XContentParser parser = XContentFactory.xContent(data).createParser(data);
-            try {
+            try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -117,9 +116,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
                         throw new ElasticsearchParseException("_mtermvectors: Parameter " + currentFieldName + "not supported");
                     }
                 }
-            }
-            finally {
-                parser.close();
             }
         }
         for (String id : ids) {

@@ -211,15 +211,12 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         if (lastFound == -1) {
             return defaultValue;
         }
-        IndexInput indexInput = lastDir.openInput(CHECKSUMS_PREFIX + lastFound, IOContext.READONCE);
-        try {
+        try (IndexInput indexInput = lastDir.openInput(CHECKSUMS_PREFIX + lastFound, IOContext.READONCE)) {
             indexInput.readInt(); // version
             return indexInput.readStringStringMap();
         } catch (Throwable e) {
             // failed to load checksums, ignore and return an empty map
             return defaultValue;
-        } finally {
-            indexInput.close();
         }
     }
 
@@ -237,12 +234,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             while (directory.fileExists(checksumName)) {
                 checksumName = CHECKSUMS_PREFIX + System.currentTimeMillis();
             }
-            IndexOutput output = directory.createOutput(checksumName, IOContext.DEFAULT, true);
-            try {
+            try (IndexOutput output = directory.createOutput(checksumName, IOContext.DEFAULT, true)) {
                 output.writeInt(0); // version
                 output.writeStringStringMap(checksums);
-            } finally {
-                output.close();
             }
 
         }

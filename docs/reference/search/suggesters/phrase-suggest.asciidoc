@@ -5,7 +5,7 @@ NOTE: In order to understand the format of suggestions, please
 read the <<search-suggesters>> page first.
 
 The `term` suggester provides a very convenient API to access word
-alternatives on token basis within a certain string distance. The API
+alternatives on a per token basis within a certain string distance. The API
 allows accessing each token in the stream individually while
 suggest-selection is left to the API consumer. Yet, often pre-selected
 suggestions are required in order to present to the end-user. The
@@ -48,8 +48,8 @@ curl -XPOST 'localhost:9200/_search' -d {
 }
 --------------------------------------------------
 
-The response contains suggested scored by the most likely spell
-correction first. In this case we got the expected correction
+The response contains suggestions scored by the most likely spell
+correction first. In this case we received the expected correction
 `xorr the god jewel` first while the second correction is less
 conservative where only one of the errors is corrected. Note, the
 request is executed with `max_errors` set to `0.5` so 50% of the terms

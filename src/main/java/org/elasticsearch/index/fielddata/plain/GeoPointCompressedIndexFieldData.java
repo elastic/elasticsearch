@@ -116,7 +116,13 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
+            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                if (lat.size() != build.getMaxOrd()) {
+                    lat = lat.resize(build.getMaxOrd());
+                    lon = lon.resize(build.getMaxOrd());
+                }
+                data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, reader.maxDoc(), build);
+            } else {
                 Docs ordinals = build.ordinals();
                 int maxDoc = reader.maxDoc();
                 PagedMutable sLat = new PagedMutable(reader.maxDoc(), pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
@@ -132,12 +138,6 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
                 } else {
                     data = new GeoPointCompressedAtomicFieldData.SingleFixedSet(encoding, sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
                 }
-            } else {
-                if (lat.size() != build.getMaxOrd()) {
-                    lat = lat.resize(build.getMaxOrd());
-                    lon = lon.resize(build.getMaxOrd());
-                }
-                data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, reader.maxDoc(), build);
             }
             success = true;
             return data;

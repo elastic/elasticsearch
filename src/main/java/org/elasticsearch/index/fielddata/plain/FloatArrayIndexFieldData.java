@@ -97,7 +97,9 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 values.add(NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
+            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                data = new FloatArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+            } else {
                 Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
@@ -122,8 +124,6 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 } else {
                     data = new FloatArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
                 }
-            } else {
-                data = new FloatArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
             }
             success = true;
             return data;

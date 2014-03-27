@@ -26,7 +26,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
 import org.elasticsearch.index.merge.Merges;
 import org.joda.time.DateTimeZone;
@@ -46,7 +45,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
     @Override
     protected FieldDataType getFieldDataType() {
         // we don't want to optimize the type so it will always be a long...
-        return new FieldDataType("long", ImmutableSettings.builder());
+        return new FieldDataType("long", getFieldDataSettings());
     }
 
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
@@ -86,13 +85,13 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
 
     private static long getFirst(LongValues values, int docId) {
         final int numValues = values.setDocument(docId);
-        assertThat(numValues , is(1));
+        assertThat(numValues, is(1));
         return values.nextValue();
     }
 
     private static double getFirst(DoubleValues values, int docId) {
         final int numValues = values.setDocument(docId);
-        assertThat(numValues , is(1));
+        assertThat(numValues, is(1));
         return values.nextValue();
     }
 
@@ -242,6 +241,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return 1;
             }
+
             @Override
             public long nextValue(Random r) {
                 return 1 + r.nextInt(16);
@@ -251,6 +251,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return 1;
             }
+
             @Override
             public long nextValue(Random r) {
                 // somewhere in-between 2010 and 2012
@@ -261,6 +262,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return r.nextInt(3);
             }
+
             @Override
             public long nextValue(Random r) {
                 // somewhere in-between 2010 and 2012
@@ -271,6 +273,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return r.nextInt(3);
             }
+
             @Override
             public long nextValue(Random r) {
                 return 3 + r.nextInt(8);
@@ -280,6 +283,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return r.nextFloat() < 0.1f ? 1 : 0;
             }
+
             @Override
             public long nextValue(Random r) {
                 return r.nextLong();
@@ -289,6 +293,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return r.nextFloat() < 0.1f ? 1 + r.nextInt(5) : 0;
             }
+
             @Override
             public long nextValue(Random r) {
                 return r.nextLong();
@@ -298,12 +303,15 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
             public int numValues(Random r) {
                 return 1 + r.nextInt(3);
             }
+
             @Override
             public long nextValue(Random r) {
                 return r.nextLong();
             }
         };
+
         public abstract int numValues(Random r);
+
         public abstract long nextValue(Random r);
     }
 

@@ -41,14 +41,31 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
     public static class CommonSettings {
+        public static String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
+
+        public enum MemoryStorageFormat {
+            ORDINALS, PACKED, PAGED;
+
+            public static MemoryStorageFormat fromString(String string) {
+                for (MemoryStorageFormat e : MemoryStorageFormat.values()) {
+                    if (e.name().equalsIgnoreCase(string)) {
+                        return e;
+                    }
+                }
+                return null;
+            }
+        }
 
         /**
-         * Should single value cross documents case be optimized to remove ords. Note, this optimization
-         * might not be supported by all Field Data implementations, but the ones that do, should consult
-         * this method to check if it should be done or not.
+         * Gets a memory storage hint that should be honored if possible but is not mandatory
          */
-        public static boolean removeOrdsOnSingleValue(FieldDataType fieldDataType) {
-            return !"always".equals(fieldDataType.getSettings().get("ordinals"));
+        public static MemoryStorageFormat getMemoryStorageHint(FieldDataType fieldDataType) {
+            // backwards compatibility
+            String s = fieldDataType.getSettings().get("ordinals");
+            if (s != null) {
+                return "always".equals(s) ? MemoryStorageFormat.ORDINALS : null;
+            }
+            return MemoryStorageFormat.fromString(fieldDataType.getSettings().get(SETTING_MEMORY_STORAGE_HINT));
         }
     }
 

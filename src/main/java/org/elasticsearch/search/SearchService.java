@@ -767,15 +767,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     if (fieldDataType == null) {
                         continue;
                     }
-                    final String indexName = fieldMapper.names().indexName();
                     if (fieldMapper instanceof ParentFieldMapper) {
                         ParentFieldMapper parentFieldMapper = (ParentFieldMapper) fieldMapper;
-                        if (parentFieldMapper.active()) {
-                            warmUp.put(indexName, parentFieldMapper);
+                        if (!parentFieldMapper.active()) {
+                            continue;
                         }
-                    } else if (fieldDataType.getLoading() != Loading.EAGER && !warmUp.containsKey(indexName)) {
-                        warmUp.put(indexName, fieldMapper);
+                    } else {
+                        if (fieldDataType.getLoading() != Loading.EAGER) {
+                            continue;
+                        }
                     }
+
+                    final String indexName = fieldMapper.names().indexName();
+                    if (warmUp.containsKey(indexName)) {
+                        continue;
+                    }
+                    warmUp.put(indexName, fieldMapper);
                 }
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();

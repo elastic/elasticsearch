@@ -277,7 +277,8 @@ There are a number of options for the `field_value_factor` function:
 |`field` |Field to be extracted from the document.
 |`factor` |Optional factor to multiply the field value with, defaults to 1.
 |`modifier` |Modifier to apply to the field value, can be one of: `none`, `log`,
- `log1p` `ln`, `ln1p`, `square`, `sqrt`, or `reciprocal`. Defaults to `none`.
+ `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
+ Defaults to `none`.
 |=======================================================================
 
 Keep in mind that taking the log() of 0, or the square root of a negative number

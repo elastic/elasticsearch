@@ -103,6 +103,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
                 return Math.log10(n + 1);
             }
         },
+        LOG2P {
+            @Override
+            public double apply(double n) {
+                return Math.log10(n + 2);
+            }
+        },
         LN {
             @Override
             public double apply(double n) {
@@ -113,6 +119,12 @@ public class FieldValueFactorFunction extends ScoreFunction {
             @Override
             public double apply(double n) {
                 return Math.log1p(n);
+            }
+        },
+        LN2P {
+            @Override
+            public double apply(double n) {
+                return Math.log1p(n + 1);
             }
         },
         SQUARE {

@@ -223,7 +223,8 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Percolate("percolate"),
         Completion("completion"),
         Segments("segments"),
-        Translog("translog");
+        Translog("translog"),
+        Suggest("suggest");
 
         private final String restName;
 

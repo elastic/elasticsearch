@@ -315,7 +315,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments, Flag.Translog};
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments, Flag.Translog, Flag.Suggest};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -373,6 +373,9 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
             case Translog:
                 builder.setTranslog(set);
                 break;
+            case Suggest:
+                builder.setSuggest(set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -413,6 +416,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
                 return response.getSegments() != null;
             case Translog:
                 return response.getTranslog() != null;
+            case Suggest:
+                return response.getSuggest() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

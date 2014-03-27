@@ -74,6 +74,8 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.suggest.stats.ShardSuggestService;
+import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -122,6 +124,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardTermVectorService termVectorService;
     private final IndexFieldDataService indexFieldDataService;
     private final IndexService indexService;
+    private final ShardSuggestService shardSuggestService;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -146,7 +149,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                               ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService) {
+                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -171,6 +174,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.indexFieldDataService = indexFieldDataService;
         this.indexService = indexService;
         this.codecService = codecService;
+        this.shardSuggestService = shardSuggestService;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval());
@@ -211,6 +215,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public ShardTermVectorService termVectorService() {
         return termVectorService;
+    }
+
+    @Override
+    public ShardSuggestService shardSuggestService() {
+        return shardSuggestService;
     }
 
     @Override
@@ -558,6 +567,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public TranslogStats translogStats() {
         return translog.stats();
+    }
+
+    @Override
+    public SuggestStats suggestStats() {
+        return shardSuggestService.stats();
     }
 
     @Override

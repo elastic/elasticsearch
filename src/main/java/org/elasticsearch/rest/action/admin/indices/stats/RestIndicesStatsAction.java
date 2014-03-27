@@ -89,6 +89,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.segments(metrics.contains("segments"));
             indicesStatsRequest.fieldData(metrics.contains("fielddata"));
             indicesStatsRequest.completion(metrics.contains("completion"));
+            indicesStatsRequest.suggest(metrics.contains("suggest"));
         }
 
         if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {

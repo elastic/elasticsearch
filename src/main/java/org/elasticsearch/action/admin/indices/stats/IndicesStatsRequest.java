@@ -247,6 +247,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.Translog);
     }
 
+    public IndicesStatsRequest suggest(boolean suggest) {
+        flags.set(Flag.Suggest, suggest);
+        return this;
+    }
+
+    public boolean suggest() {
+        return flags.isSet(Flag.Suggest);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

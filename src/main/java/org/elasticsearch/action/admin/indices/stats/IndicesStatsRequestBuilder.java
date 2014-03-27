@@ -159,6 +159,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setSuggest(boolean suggest) {
+        request.suggest(suggest);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         ((IndicesAdminClient) client).stats(request, listener);

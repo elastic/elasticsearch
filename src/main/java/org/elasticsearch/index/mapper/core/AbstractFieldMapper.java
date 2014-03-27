@@ -606,6 +606,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
+        if (!this.names().equals(fieldMergeWith.names())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_name");
+        }
 
         if (this.similarity == null) {
             if (fieldMergeWith.similarity() != null) {

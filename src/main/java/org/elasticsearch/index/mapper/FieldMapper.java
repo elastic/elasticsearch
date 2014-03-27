@@ -123,6 +123,31 @@ public interface FieldMapper<T> extends Mapper {
         public Term createIndexNameTerm(BytesRef value) {
             return new Term(indexName, value);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Names names = (Names) o;
+
+            if (!fullName.equals(names.fullName)) return false;
+            if (!indexName.equals(names.indexName)) return false;
+            if (!indexNameClean.equals(names.indexNameClean)) return false;
+            if (!name.equals(names.name)) return false;
+            if (!sourcePath.equals(names.sourcePath)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = name.hashCode();
+            result = 31 * result + indexName.hashCode();
+            result = 31 * result + indexNameClean.hashCode();
+            result = 31 * result + fullName.hashCode();
+            result = 31 * result + sourcePath.hashCode();
+            return result;
+        }
     }
 
     public static enum Loading {

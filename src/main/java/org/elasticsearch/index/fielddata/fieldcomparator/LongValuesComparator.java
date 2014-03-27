@@ -38,7 +38,7 @@ public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
     public int compare(int slot1, int slot2) {
         final long v1 = values[slot1];
         final long v2 = values[slot2];
-        return compare(v1, v2);
+        return Long.compare(v1, v2);
     }
 
     @Override

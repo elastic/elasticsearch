@@ -45,7 +45,7 @@ class InternalOrder extends Terms.Order {
     public static final InternalOrder COUNT_DESC = new InternalOrder((byte) 1, "_count", false, new Comparator<Terms.Bucket>() {
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            int cmp = - Longs.compare(o1.getDocCount(), o2.getDocCount());
+            int cmp = - Long.compare(o1.getDocCount(), o2.getDocCount());
             if (cmp == 0) {
                 cmp = o1.compareTerm(o2);
             }
@@ -60,7 +60,7 @@ class InternalOrder extends Terms.Order {
 
         @Override
         public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-            int cmp = Longs.compare(o1.getDocCount(), o2.getDocCount());
+            int cmp = Long.compare(o1.getDocCount(), o2.getDocCount());
             if (cmp == 0) {
                 cmp = o1.compareTerm(o2);
             }
@@ -163,7 +163,7 @@ class InternalOrder extends Terms.Order {
                     public int compare(Terms.Bucket o1, Terms.Bucket o2) {
                         long v1 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o1).bucketOrd);
                         long v2 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o2).bucketOrd);
-                        return asc ? Longs.compare(v1, v2) : Longs.compare(v2, v1);
+                        return asc ? Long.compare(v1, v2) : Long.compare(v2, v1);
                     }
                 };
             }

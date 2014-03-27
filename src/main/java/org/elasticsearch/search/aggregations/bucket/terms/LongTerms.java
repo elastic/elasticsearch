@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.google.common.primitives.Longs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
@@ -85,7 +84,7 @@ public class LongTerms extends InternalTerms {
 
         @Override
         int compareTerm(Terms.Bucket other) {
-            return Longs.compare(term, other.getKeyAsNumber().longValue());
+            return Long.compare(term, other.getKeyAsNumber().longValue());
         }
     }
 

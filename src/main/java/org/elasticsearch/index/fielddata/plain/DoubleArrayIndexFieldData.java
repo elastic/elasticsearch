@@ -98,7 +98,9 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
+            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                data = new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+            } else {
                 Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
 
@@ -123,8 +125,6 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 } else {
                     data = new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
                 }
-            } else {
-                data = new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
             }
             success = true;
             return data;

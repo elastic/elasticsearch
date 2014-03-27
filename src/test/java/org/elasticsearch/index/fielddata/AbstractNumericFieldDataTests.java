@@ -24,8 +24,11 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.junit.Test;
+
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -34,6 +37,16 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImplTests {
 
     protected abstract FieldDataType getFieldDataType();
+
+    protected ImmutableSettings.Builder getFieldDataSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        IndexFieldData.CommonSettings.MemoryStorageFormat[] formats = IndexFieldData.CommonSettings.MemoryStorageFormat.values();
+        int i = randomInt(formats.length);
+        if (i < formats.length) {
+            builder.put(IndexFieldData.CommonSettings.SETTING_MEMORY_STORAGE_HINT, formats[i].name().toLowerCase(Locale.ROOT));
+        }
+        return builder;
+    }
 
     @Test
     public void testSingleValueAllSetNumber() throws Exception {
@@ -118,7 +131,7 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(1, equalTo(doubleValues.setDocument(2)));
         assertThat(doubleValues.nextValue(), equalTo(3d));
-        
+
         IndexSearcher searcher = new IndexSearcher(readerContext.reader());
         TopFieldDocs topDocs;
 
@@ -236,7 +249,7 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
 
         assertThat(1, equalTo(doubleValues.setDocument(2)));
         assertThat(doubleValues.nextValue(), equalTo(3d));
-        
+
     }
 
     @Test
@@ -268,7 +281,7 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         assertThat(0, equalTo(doubleValues.setDocument(1)));
 
         assertThat(0, equalTo(doubleValues.setDocument(2)));
-    }        
+    }
 
 
     protected void fillAllMissing() throws Exception {

@@ -1,5 +1,5 @@
 [[mapping-type-field]]
-=== Type Field
+=== `_type`
 
 Each document indexed is associated with an id and a type. The type,
 when indexing, is automatically indexed into a `_type` field. By

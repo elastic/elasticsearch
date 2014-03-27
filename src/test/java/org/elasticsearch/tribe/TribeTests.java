@@ -69,6 +69,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         if (cluster2 != null) {
             cluster2.afterTest();
             cluster2.close();
+            cluster2 = null;
         }
     }
 

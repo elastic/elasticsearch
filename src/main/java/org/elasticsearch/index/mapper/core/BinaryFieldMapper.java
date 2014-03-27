@@ -225,7 +225,25 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        if (!(mergeWith instanceof BinaryFieldMapper)) {
+            String mergedType = mergeWith.getClass().getSimpleName();
+            if (mergeWith instanceof AbstractFieldMapper) {
+                mergedType = ((AbstractFieldMapper) mergeWith).contentType();
+            }
+            mergeContext.addConflict("mapper [" + names.fullName() + "] of different type, current_type [" + contentType() + "], merged_type [" + mergedType + "]");
+            // different types, return
+            return;
+        }
+
         BinaryFieldMapper sourceMergeWith = (BinaryFieldMapper) mergeWith;
+
+        if (this.fieldType().stored() != sourceMergeWith.fieldType().stored()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
+        }
+        if (!this.names().equals(sourceMergeWith.names())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_name");
+        }
+
         if (!mergeContext.mergeFlags().simulate()) {
             if (sourceMergeWith.compress != null) {
                 this.compress = sourceMergeWith.compress;

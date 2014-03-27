@@ -85,7 +85,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
+            if (!(build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS)) {
                 Docs ordinals = build.ordinals();
                 int maxDoc = reader.maxDoc();
                 BigDoubleArrayList sLat = new BigDoubleArrayList(reader.maxDoc());

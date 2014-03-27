@@ -24,17 +24,15 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.*;
+import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
@@ -128,10 +126,13 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 values.add(value);
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
+            CommonSettings.MemoryStorageFormat formatHint = CommonSettings.getMemoryStorageHint(fieldDataType);
 
-            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
+            if (build.isMultiValued() || formatHint == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                data = new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+            } else {
                 Docs ordinals = build.ordinals();
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
+                final FixedBitSet docsWithValues = builder.buildDocsWithValuesSet();
 
                 long minValue, maxValue;
                 minValue = maxValue = 0;
@@ -142,7 +143,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
                 // Encode document without a value with a special value
                 long missingValue = 0;
-                if (set != null) {
+                if (docsWithValues != null) {
                     if ((maxValue - minValue + 1) == values.size()) {
                         // values are dense
                         if (minValue > Long.MIN_VALUE) {
@@ -159,40 +160,64 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                         }
                     }
-                    missingValue -= minValue; // delta
                 }
 
                 final long delta = maxValue - minValue;
-                final int bitsRequired = delta < 0 ? 64 : PackedInts.bitsRequired(delta);
                 final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-                final PackedInts.FormatAndBits formatAndBits = PackedInts.fastestFormatAndBits(reader.maxDoc(), bitsRequired, acceptableOverheadRatio);
+                final int pageSize = 1024;
 
-                // there's sweet spot where due to low unique value count, using ordinals will consume less memory
-                final long singleValuesSize = formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, reader.maxDoc(), formatAndBits.bitsPerValue) * 8L;
-                final long uniqueValuesSize = values.ramBytesUsed();
-                final long ordinalsSize = build.getMemorySizeInBytes();
-
-                if (uniqueValuesSize + ordinalsSize < singleValuesSize) {
-                    data = new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
-                } else {
-                    final PackedInts.Mutable sValues = PackedInts.getMutable(reader.maxDoc(), bitsRequired, acceptableOverheadRatio);
-                    if (missingValue != 0) {
-                        sValues.fill(0, sValues.size(), missingValue);
-                    }
-                    for (int i = 0; i < reader.maxDoc(); i++) {
-                        final long ord = ordinals.getOrd(i);
-                        if (ord != Ordinals.MISSING_ORDINAL) {
-                            sValues.set(i, values.get(ord - 1) - minValue);
-                        }
-                    }
-                    if (set == null) {
-                        data = new PackedArrayAtomicFieldData.Single(sValues, minValue, reader.maxDoc(), ordinals.getNumOrds());
-                    } else {
-                        data = new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, reader.maxDoc(), missingValue, ordinals.getNumOrds());
-                    }
+                if (formatHint == null) {
+                    formatHint = chooseStorageFormat(reader, values, build, ordinals, missingValue, delta, acceptableOverheadRatio, pageSize);
                 }
-            } else {
-                data = new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+
+                logger.trace("single value format for field [{}] set to [{}]", getFieldNames().fullName(), formatHint);
+
+                switch (formatHint) {
+                    case PACKED:
+                        final PackedInts.Mutable sValues = PackedInts.getMutable(reader.maxDoc(), PackedInts.bitsRequired(maxValue - minValue), acceptableOverheadRatio);
+
+                        if (missingValue != 0) {
+                            missingValue -= minValue;
+                            sValues.fill(0, sValues.size(), missingValue);
+                        }
+                        for (int i = 0; i < reader.maxDoc(); i++) {
+                            final long ord = ordinals.getOrd(i);
+                            if (ord != Ordinals.MISSING_ORDINAL) {
+                                sValues.set(i, values.get(ord - 1) - minValue);
+                            }
+                        }
+                        if (docsWithValues == null) {
+                            data = new PackedArrayAtomicFieldData.Single(sValues, minValue, reader.maxDoc(), ordinals.getNumOrds());
+                        } else {
+                            data = new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, reader.maxDoc(), missingValue, ordinals.getNumOrds());
+                        }
+                        break;
+                    case PAGED:
+
+                        final AppendingDeltaPackedLongBuffer dpValues = new AppendingDeltaPackedLongBuffer(reader.maxDoc() / pageSize + 1, pageSize, acceptableOverheadRatio);
+
+                        for (int i = 0; i < reader.maxDoc(); i++) {
+                            final long ord = ordinals.getOrd(i);
+                            if (ord == Ordinals.MISSING_ORDINAL) {
+                                dpValues.add(missingValue);
+                            } else {
+                                dpValues.add(values.get(ord - 1));
+                            }
+                        }
+                        dpValues.freeze();
+                        if (docsWithValues == null) {
+                            data = new PackedArrayAtomicFieldData.PagedSingle(dpValues, reader.maxDoc(), ordinals.getNumOrds());
+                        } else {
+                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, reader.maxDoc(), missingValue, ordinals.getNumOrds());
+                        }
+                        break;
+                    case ORDINALS:
+                        data = new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                        break;
+                    default:
+                        throw new ElasticsearchException("unknown memory format: " + formatHint);
+                }
+
             }
 
             success = true;
@@ -208,6 +233,74 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         }
 
+    }
+
+    protected CommonSettings.MemoryStorageFormat chooseStorageFormat(AtomicReader reader, MonotonicAppendingLongBuffer values, Ordinals build, Docs ordinals,
+                                                                     long missingValue, long valuesDelta, float acceptableOverheadRatio, int pageSize) {
+        CommonSettings.MemoryStorageFormat format;// estimate format
+        // valuesDelta can be negative if the difference between max and min values overflows the positive side of longs.
+        int bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(valuesDelta);
+        PackedInts.FormatAndBits formatAndBits = PackedInts.fastestFormatAndBits(reader.maxDoc(), bitsRequired, acceptableOverheadRatio);
+
+        // there's sweet spot where due to low unique value count, using ordinals will consume less memory
+        final long singleValuesSize = formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, reader.maxDoc(), formatAndBits.bitsPerValue) * 8L;
+        final long ordinalsSize = build.getMemorySizeInBytes() + values.ramBytesUsed();
+
+        // estimate the memory signature of paged packing
+        long pagedSingleValuesSize = (reader.maxDoc() / pageSize + 1) * RamUsageEstimator.NUM_BYTES_OBJECT_REF; // array of pages
+        int pageIndex = 0;
+        long pageMinOrdinal = Long.MAX_VALUE;
+        long pageMaxOrdinal = Long.MIN_VALUE;
+        for (int i = 1; i < reader.maxDoc(); ++i, pageIndex = (pageIndex + 1) % pageSize) {
+            pageMaxOrdinal = Math.max(ordinals.getOrd(i), pageMaxOrdinal);
+            pageMinOrdinal = Math.min(ordinals.getOrd(i), pageMinOrdinal);
+            if (pageIndex == pageSize - 1) {
+                // end of page, we now know enough to estimate memory usage
+                // for now we use a global missing value for simplicity (for *very* sparse data have a per page
+                // missing value may be beneficial)
+                long pageMinValue = pageMinOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMinOrdinal - 1);
+                long pageMaxValue = pageMaxOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMaxOrdinal - 1);
+                long pageDelta = pageMaxValue - pageMinValue;
+                if (pageDelta != 0) {
+                    bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);
+                    formatAndBits = PackedInts.fastestFormatAndBits(pageSize, bitsRequired, acceptableOverheadRatio);
+                    pagedSingleValuesSize += formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, pageSize, formatAndBits.bitsPerValue) * 8L;
+                }
+                pagedSingleValuesSize += 8L; // min value per page storage
+
+                pageMinOrdinal = Long.MAX_VALUE;
+                pageMaxOrdinal = Long.MIN_VALUE;
+            }
+        }
+
+        if (pageIndex > 0) {
+            // last page estimation
+            pageIndex++;
+            long pageMinValue = pageMinOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMinOrdinal - 1);
+            long pageMaxValue = pageMaxOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMaxOrdinal - 1);
+            long pageDelta = pageMaxValue - pageMinValue;
+            if (pageDelta != 0) {
+                bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);
+                formatAndBits = PackedInts.fastestFormatAndBits(pageIndex, bitsRequired, acceptableOverheadRatio);
+                pagedSingleValuesSize += formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, pageIndex, formatAndBits.bitsPerValue) * 8L;
+                pagedSingleValuesSize += 8L; // min value per page storage
+            }
+        }
+
+        if (ordinalsSize < singleValuesSize) {
+            if (ordinalsSize < pagedSingleValuesSize) {
+                format = CommonSettings.MemoryStorageFormat.ORDINALS;
+            } else {
+                format = CommonSettings.MemoryStorageFormat.PAGED;
+            }
+        } else {
+            if (pagedSingleValuesSize < singleValuesSize) {
+                format = CommonSettings.MemoryStorageFormat.PAGED;
+            } else {
+                format = CommonSettings.MemoryStorageFormat.PACKED;
+            }
+        }
+        return format;
     }
 
     @Override
@@ -266,6 +359,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
          * Adjust the breaker when no terms were actually loaded, but the field
          * data takes up space regardless. For instance, when ordinals are
          * used.
+         *
          * @param actualUsed bytes actually used
          */
         public void adjustForNoTerms(long actualUsed) {

@@ -1048,6 +1048,10 @@
                                 <!-- start excludes for Unsafe -->
                                 <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
                                 <!-- end excludes for Unsafe -->
+                                <!-- start excludes for Math.abs -->
+                                <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
+                                <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <!-- end excludes for Math.abs -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->

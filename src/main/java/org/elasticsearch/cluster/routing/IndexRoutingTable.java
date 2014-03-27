@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.collect.UnmodifiableIterator;
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -68,7 +69,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     IndexRoutingTable(String index, ImmutableOpenIntMap<IndexShardRoutingTable> shards) {
         this.index = index;
-        this.shuffler = new RotationShardShuffler();
+        this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
         this.shards = shards;
         ImmutableList.Builder<ShardRouting> allShards = ImmutableList.builder();
         ImmutableList.Builder<ShardRouting> allActiveShards = ImmutableList.builder();
@@ -272,14 +273,14 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * Returns an unordered iterator over all shards (including replicas).
      */
     public ShardsIterator randomAllShardsIt() {
-        return new PlainShardsIterator(shuffler.shuffle(allShards, shuffler.nextSeed()));
+        return new PlainShardsIterator(shuffler.shuffle(allShards));
     }
 
     /**
      * Returns an unordered iterator over all active shards (including replicas).
      */
     public ShardsIterator randomAllActiveShardsIt() {
-        return new PlainShardsIterator(shuffler.shuffle(allActiveShards, shuffler.nextSeed()));
+        return new PlainShardsIterator(shuffler.shuffle(allActiveShards));
     }
 
     /**

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.List;
@@ -28,12 +27,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Basic {@link ShardShuffler} implementation that uses an {@link AtomicInteger} to generate seeds and uses a rotation to permute shards.
  */
-public class RotationShardShuffler implements ShardShuffler {
+public class RotationShardShuffler extends ShardShuffler {
 
     private final AtomicInteger seed;
 
-    public RotationShardShuffler() {
-        seed = new AtomicInteger(ThreadLocalRandom.current().nextInt());
+    public RotationShardShuffler(int seed) {
+        this.seed = new AtomicInteger(seed);
     }
 
     @Override

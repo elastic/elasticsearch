@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
+import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -63,7 +64,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     IndexShardRoutingTable(ShardId shardId, ImmutableList<ShardRouting> shards, boolean primaryAllocatedPostApi) {
         this.shardId = shardId;
-        this.shuffler = new RotationShardShuffler();
+        this.shuffler = new RotationShardShuffler(ThreadLocalRandom.current().nextInt());
         this.shards = shards;
         this.primaryAllocatedPostApi = primaryAllocatedPostApi;
 
@@ -256,7 +257,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public ShardIterator shardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(shards, shuffler.nextSeed()));
+        return new PlainShardIterator(shardId, shuffler.shuffle(shards));
     }
 
     public ShardIterator shardsIt() {
@@ -268,7 +269,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public ShardIterator activeShardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(activeShards, shuffler.nextSeed()));
+        return new PlainShardIterator(shardId, shuffler.shuffle(activeShards));
     }
 
     public ShardIterator activeShardsIt() {
@@ -302,7 +303,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     public ShardIterator assignedShardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(assignedShards, shuffler.nextSeed()));
+        return new PlainShardIterator(shardId, shuffler.shuffle(assignedShards));
     }
 
     public ShardIterator assignedShardsIt() {
@@ -331,7 +332,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator primaryFirstActiveInitializingShardsIt() {
         ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(activeShards.size() + allInitializingShards.size());
         // fill it in a randomized fashion
-        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, shuffler.nextSeed())) {
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
             ordered.add(shardRouting);
             if (shardRouting.primary()) {
                 // switch, its the matching node id
@@ -367,7 +368,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator preferNodeActiveInitializingShardsIt(String nodeId) {
         ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(activeShards.size() + allInitializingShards.size());
         // fill it in a randomized fashion
-        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, shuffler.nextSeed())) {
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
             ordered.add(shardRouting);
             if (nodeId.equals(shardRouting.currentNodeId())) {
                 // switch, its the matching node id

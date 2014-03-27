@@ -40,14 +40,24 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
         final int iters = scaledRandomIntBetween(10, 100);
         for (int k = 0; k < iters; ++k) {
             final int size = randomIntBetween(1, 100);
+            final int distance = randomInt();
             List<Object> list = new ArrayList<>();
             for (int i = 0; i < size; ++i) {
                 list.add(new Object());
             }
-            final List<Object> rotated = CollectionUtils.rotate(list, size);
+            final List<Object> rotated = CollectionUtils.rotate(list, distance);
+            // check content is the same
             assertEquals(rotated.size(), list.size());
             assertEquals(Iterables.size(rotated), list.size());
             assertEquals(new HashSet<>(rotated), new HashSet<>(list));
+            // check stability
+            for (int j = randomInt(4); j >= 0; --j) {
+                assertEquals(rotated, CollectionUtils.rotate(list, distance));
+            }
+            // reverse
+            if (distance != Integer.MIN_VALUE) {
+                assertEquals(list, CollectionUtils.rotate(CollectionUtils.rotate(list, distance), -distance));
+            }
         }
     }
 

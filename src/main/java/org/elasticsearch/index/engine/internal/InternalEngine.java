@@ -44,6 +44,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1265,11 +1266,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     private Object dirtyLock(BytesRef uid) {
         int hash = DjbHashFunction.DJB_HASH(uid.bytes, uid.offset, uid.length);
-        // abs returns Integer.MIN_VALUE, so we need to protect against it...
-        if (hash == Integer.MIN_VALUE) {
-            hash = 0;
-        }
-        return dirtyLocks[Math.abs(hash) % dirtyLocks.length];
+        return dirtyLocks[MathUtils.mod(hash, dirtyLocks.length)];
     }
 
     private Object dirtyLock(Term uid) {

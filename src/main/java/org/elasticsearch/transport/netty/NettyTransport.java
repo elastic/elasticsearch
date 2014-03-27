@@ -33,6 +33,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.network.NetworkService;
@@ -911,15 +912,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         public Channel channel(TransportRequestOptions.Type type) {
             if (type == TransportRequestOptions.Type.REG) {
-                return reg[Math.abs(regCounter.incrementAndGet()) % reg.length];
+                return reg[MathUtils.mod(regCounter.incrementAndGet(), reg.length)];
             } else if (type == TransportRequestOptions.Type.STATE) {
-                return state[Math.abs(stateCounter.incrementAndGet()) % state.length];
+                return state[MathUtils.mod(stateCounter.incrementAndGet(), state.length)];
             } else if (type == TransportRequestOptions.Type.PING) {
-                return ping[Math.abs(pingCounter.incrementAndGet()) % ping.length];
+                return ping[MathUtils.mod(pingCounter.incrementAndGet(), ping.length)];
             } else if (type == TransportRequestOptions.Type.BULK) {
-                return bulk[Math.abs(bulkCounter.incrementAndGet()) % bulk.length];
+                return bulk[MathUtils.mod(bulkCounter.incrementAndGet(), bulk.length)];
             } else if (type == TransportRequestOptions.Type.RECOVERY) {
-                return recovery[Math.abs(recoveryCounter.incrementAndGet()) % recovery.length];
+                return recovery[MathUtils.mod(recoveryCounter.incrementAndGet(), recovery.length)];
             } else {
                 throw new ElasticsearchIllegalArgumentException("no type channel for [" + type + "]");
             }

@@ -22,7 +22,6 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
@@ -57,8 +56,13 @@ public class FieldValueFactorFunction extends ScoreFunction {
     public double score(int docId, float subQueryScore) {
         final int numValues = this.values.setDocument(docId);
         if (numValues > 0) {
-            double val = this.values.nextValue();
-            return Modifier.apply(modifier, val * boostFactor);
+            double val = this.values.nextValue() * boostFactor;
+            double result = modifier.apply(val);
+            if (Double.isNaN(result) || Double.isInfinite(result)) {
+                throw new ElasticsearchException("Result of field modification [" + modifier.toString() +
+                        "(" + val + ")] must be a number");
+            }
+            return result;
         } else {
             throw new ElasticsearchException("Missing value for field [" + field + "]");
         }
@@ -81,49 +85,56 @@ public class FieldValueFactorFunction extends ScoreFunction {
      * to the score/value product.
      */
     public enum Modifier {
-        NONE,
-        LOG,
-        LOG1P,
-        LN,
-        LN1P,
-        SQUARE,
-        SQRT,
-        RECIPROCAL;
+        NONE {
+            @Override
+            public double apply(double n) {
+                return n;
+            }
+        },
+        LOG {
+            @Override
+            public double apply(double n) {
+                return Math.log10(n);
+            }
+        },
+        LOG1P {
+            @Override
+            public double apply(double n) {
+                return Math.log10(n + 1);
+            }
+        },
+        LN {
+            @Override
+            public double apply(double n) {
+                return Math.log(n);
+            }
+        },
+        LN1P {
+            @Override
+            public double apply(double n) {
+                return Math.log1p(n);
+            }
+        },
+        SQUARE {
+            @Override
+            public double apply(double n) {
+                return Math.pow(n, 2);
+            }
+        },
+        SQRT {
+            @Override
+            public double apply(double n) {
+                return Math.sqrt(n);
+            }
+        },
+        RECIPROCAL {
+            @Override
+            public double apply(double n) {
+                return 1.0 / n;
+            }
+        };
 
-        public static double apply(Modifier t, double n) {
-            double result = n;
-            switch (t) {
-                case NONE:
-                    break;
-                case LOG:
-                    result = Math.log10(n);
-                    break;
-                case LOG1P:
-                    result = Math.log10(n + 1);
-                    break;
-                case LN:
-                    result = Math.log(n);
-                    break;
-                case LN1P:
-                    result = Math.log1p(n);
-                    break;
-                case SQUARE:
-                    result = Math.pow(n, 2);
-                    break;
-                case SQRT:
-                    result = Math.sqrt(n);
-                    break;
-                case RECIPROCAL:
-                    result = 1.0 / n;
-                    break;
-                default: throw new ElasticsearchIllegalArgumentException("Unknown modifier type: [" + t + "]");
-            }
-            if (Double.isNaN(result) || Double.isInfinite(result)) {
-                throw new ElasticsearchException("Result of field modification [" + t.toString() +
-                        "(" + n + ")] must be a number");
-            }
-            return result;
-        }
+        public abstract double apply(double n);
 
         @Override
         public String toString() {

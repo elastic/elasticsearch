@@ -1045,7 +1045,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         int customCount1 = 0;
         for (ObjectObjectCursor<String, Custom> cursor : metaData1.customs) {
             if (customFactories.get(cursor.key).isPersistent()) {
-                if (!cursor.equals(metaData2.custom(cursor.key))) return false;
+                if (!cursor.value.equals(metaData2.custom(cursor.key))) return false;
                 customCount1++;
             }
         }

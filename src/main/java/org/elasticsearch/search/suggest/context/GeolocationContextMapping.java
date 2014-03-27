@@ -575,7 +575,7 @@ public class GeolocationContextMapping extends ContextMapping {
         protected TokenStream wrapTokenStream(Document doc, TokenStream stream) {
             Collection<String> geohashes;
 
-            if(locations == null | locations.size() == 0) {
+            if (locations == null || locations.size() == 0) {
                 if(mapping.fieldName != null) {
                     IndexableField[] fields = doc.getFields(mapping.fieldName);
                     if(fields.length > 0) {

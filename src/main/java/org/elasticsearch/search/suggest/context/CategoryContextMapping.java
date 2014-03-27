@@ -212,6 +212,15 @@ public class CategoryContextMapping extends ContextMapping {
         return false;
     }
 
+    @Override
+    public int hashCode() {
+        int hashCode = fieldName.hashCode();
+        for (CharSequence seq : defaultValues) {
+            hashCode = 31 * hashCode + seq.hashCode();
+        }
+        return hashCode;
+    }
+
     private static class FieldConfig extends ContextConfig {
 
         private final String fieldname;

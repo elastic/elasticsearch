@@ -41,7 +41,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
 
     public static final Type TYPE = new Type("significant_terms", "siglterms");
 
-    public static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
         public SignificantLongTerms readResult(StreamInput in) throws IOException {
             SignificantLongTerms buckets = new SignificantLongTerms();

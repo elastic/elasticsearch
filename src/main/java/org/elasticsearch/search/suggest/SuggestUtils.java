@@ -44,8 +44,8 @@ import java.util.Comparator;
 import java.util.Locale;
 
 public final class SuggestUtils {
-    public static Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
-    public static Comparator<SuggestWord> SCORE_COMPARATOR = SuggestWordQueue.DEFAULT_COMPARATOR;
+    public static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
+    public static final Comparator<SuggestWord> SCORE_COMPARATOR = SuggestWordQueue.DEFAULT_COMPARATOR;
     
     private SuggestUtils() {
         // utils!!

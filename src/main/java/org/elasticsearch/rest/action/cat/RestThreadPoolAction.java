@@ -195,6 +195,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     pool + ".completed",
                     "alias:" + poolAlias + "c;default:false;text-align:right;desc:number of completed " + pool + " threads"
             );
+            table.addCell(
+                    pool + ".min",
+                    "alias:" + poolAlias + "mi;default:false;text-align:right;desc:minimum number of " + pool + " threads"
+            );
+            table.addCell(
+                    pool + ".max",
+                    "alias:" + poolAlias + "ma;default:false;text-align:right;desc:maximum number of " + pool + " threads"
+            );
         }
 
         table.endHeaders();
@@ -240,6 +248,8 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(poolStats == null ? null : poolStats.getRejected());
                 table.addCell(poolStats == null ? null : poolStats.getLargest());
                 table.addCell(poolStats == null ? null : poolStats.getCompleted());
+                table.addCell(poolStats == null ? null : poolStats.getMin());
+                table.addCell(poolStats == null ? null : poolStats.getMax());
             }
 
             table.endRow();

@@ -180,6 +180,8 @@ public class ThreadPool extends AbstractComponent {
             long rejected = -1;
             int largest = -1;
             long completed = -1;
+            int min = -1;
+            int max = -1;
             if (holder.executor instanceof ThreadPoolExecutor) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) holder.executor;
                 threads = threadPoolExecutor.getPoolSize();
@@ -187,12 +189,16 @@ public class ThreadPool extends AbstractComponent {
                 active = threadPoolExecutor.getActiveCount();
                 largest = threadPoolExecutor.getLargestPoolSize();
                 completed = threadPoolExecutor.getCompletedTaskCount();
+                // set within the if statement to avoid reporting this without
+                //  other details
+                min = holder.info.getMin();
+                max = holder.info.getMax();
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
                 if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
                     rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, min, max));
         }
         return new ThreadPoolStats(stats);
     }

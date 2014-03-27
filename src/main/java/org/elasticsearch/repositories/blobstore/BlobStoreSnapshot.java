@@ -177,7 +177,7 @@ public class BlobStoreSnapshot implements Snapshot {
      */
     @Override
     public int compareTo(Snapshot o) {
-        return Longs.compare(startTime, ((BlobStoreSnapshot) o).startTime);
+        return Long.compare(startTime, ((BlobStoreSnapshot) o).startTime);
     }
 
     /**

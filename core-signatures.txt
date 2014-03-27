@@ -44,3 +44,6 @@ java.lang.Object#notifyAll()
 @defaultMessage Beware of the behavior of this method on MIN_VALUE
 java.lang.Math#abs(int)
 java.lang.Math#abs(long)
+
+@defaultMessage Use Long.compare instead we are on Java7
+com.google.common.primitives.Longs#compare(long,long)

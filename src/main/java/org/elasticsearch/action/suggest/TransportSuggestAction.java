@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -150,6 +151,9 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
         final Engine.Searcher searcher = indexShard.acquireSearcher("suggest");
+        ShardSuggestService shardSuggestService = indexShard.shardSuggestService();
+        shardSuggestService.preSuggest();
+        long startTime = System.nanoTime();
         XContentParser parser = null;
         try {
             BytesReference suggest = request.suggest();
@@ -170,6 +174,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
             if (parser != null) {
                 parser.close();
             }
+            shardSuggestService.postSuggest(System.nanoTime() - startTime);
         }
     }
 }

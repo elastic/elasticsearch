@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
@@ -106,6 +108,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Translog:
                     translog = new TranslogStats();
                     break;
+                case Suggest:
+                    suggest = new SuggestStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -166,6 +171,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case Translog:
                     translog = indexShard.translogStats();
                     break;
+                case Suggest:
+                    suggest = indexShard.suggestStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -219,6 +227,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public TranslogStats translog;
+
+    @Nullable
+    public SuggestStats suggest;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -351,6 +362,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             translog.add(stats.getTranslog());
         }
+        if (suggest == null) {
+            if (stats.getSuggest() != null) {
+                suggest = new SuggestStats();
+                suggest.add(stats.getSuggest());
+            }
+        } else {
+            suggest.add(stats.getSuggest());
+        }
     }
 
     @Nullable
@@ -429,7 +448,14 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public TranslogStats getTranslog() { return translog; }
+    public TranslogStats getTranslog() {
+        return translog;
+    }
+
+    @Nullable
+    public SuggestStats getSuggest() {
+        return suggest;
+    }
 
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
@@ -485,6 +511,9 @@ public class CommonStats implements Streamable, ToXContent {
             segments = SegmentsStats.readSegmentsStats(in);
         }
         translog = in.readOptionalStreamable(new TranslogStats());
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            suggest = in.readOptionalStreamable(new SuggestStats());
+        }
     }
 
     @Override
@@ -580,6 +609,9 @@ public class CommonStats implements Streamable, ToXContent {
             segments.writeTo(out);
         }
         out.writeOptionalStreamable(translog);
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeOptionalStreamable(suggest);
+        }
     }
 
     // note, requires a wrapping object
@@ -632,6 +664,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (translog != null) {
             translog.toXContent(builder, params);
+        }
+        if (suggest != null) {
+            suggest.toXContent(builder, params);
         }
         return builder;
     }

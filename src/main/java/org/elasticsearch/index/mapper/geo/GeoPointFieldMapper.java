@@ -726,7 +726,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         public CustomGeoPointDocValuesField(String  name, double lat, double lon) {
             super(name);
-            points = new ObjectOpenHashSet<GeoPoint>(2);
+            points = new ObjectOpenHashSet<>(2);
             points.add(new GeoPoint(lat, lon));
         }
 

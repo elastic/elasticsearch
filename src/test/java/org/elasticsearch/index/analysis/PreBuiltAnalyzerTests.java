@@ -74,7 +74,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
             TokenStream ts = analyzer.tokenStream("foo", "This is it Dude");
             ts.reset();
             CharTermAttribute charTermAttribute = ts.addAttribute(CharTermAttribute.class);
-            List<String> list = new ArrayList<String>();
+            List<String> list = new ArrayList<>();
             while(ts.incrementToken()) {
                 list.add(charTermAttribute.toString());
             }
@@ -109,7 +109,7 @@ public class PreBuiltAnalyzerTests extends ElasticsearchTestCase {
             TokenStream ts = analyzer.tokenStream("foo", "This is it Dude");
             ts.reset();
             CharTermAttribute charTermAttribute = ts.addAttribute(CharTermAttribute.class);
-            List<String> list = new ArrayList<String>();
+            List<String> list = new ArrayList<>();
             while(ts.incrementToken()) {
                 list.add(charTermAttribute.toString());
             }

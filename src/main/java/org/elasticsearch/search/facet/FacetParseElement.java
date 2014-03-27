@@ -61,7 +61,7 @@ public class FacetParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
 
-        List<SearchContextFacets.Entry> entries = new ArrayList<SearchContextFacets.Entry>();
+        List<SearchContextFacets.Entry> entries = new ArrayList<>();
 
         String facetName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

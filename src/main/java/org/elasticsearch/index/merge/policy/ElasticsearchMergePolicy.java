@@ -111,7 +111,7 @@ public final class ElasticsearchMergePolicy extends MergePolicy {
                     versionInfo.hasVectors(), versionInfo.omitsNorms(), versionInfo.hasPayloads(),
                     versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.attributes());
         }
-        final ArrayList<FieldInfo> fieldInfoList = new ArrayList<FieldInfo>();
+        final ArrayList<FieldInfo> fieldInfoList = new ArrayList<>();
         for (FieldInfo info : fieldInfos) {
             if (info != versionInfo) {
                 fieldInfoList.add(info);

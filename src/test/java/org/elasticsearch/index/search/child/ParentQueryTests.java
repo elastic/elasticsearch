@@ -88,7 +88,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
         int childDocId = 0;
         int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
-        ObjectObjectOpenHashMap<String, NavigableMap<String, Float>> parentValueToChildIds = new ObjectObjectOpenHashMap<String, NavigableMap<String, Float>>();
+        ObjectObjectOpenHashMap<String, NavigableMap<String, Float>> parentValueToChildIds = new ObjectObjectOpenHashMap<>();
         IntIntOpenHashMap childIdToParentId = new IntIntOpenHashMap();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
@@ -134,7 +134,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
                     if (parentValueToChildIds.containsKey(parentValue)) {
                         childIdToScore = parentValueToChildIds.lget();
                     } else {
-                        parentValueToChildIds.put(parentValue, childIdToScore = new TreeMap<String, Float>());
+                        parentValueToChildIds.put(parentValue, childIdToScore = new TreeMap<>());
                     }
                     if (!markChildAsDeleted && !filterMe) {
                         assertFalse("child ["+ child + "] already has a score", childIdToScore.containsKey(child));

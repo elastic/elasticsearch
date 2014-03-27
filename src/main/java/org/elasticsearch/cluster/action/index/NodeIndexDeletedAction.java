@@ -41,7 +41,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
-    private final List<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final List<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService) {

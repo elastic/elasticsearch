@@ -190,7 +190,7 @@ public class ActionModule extends AbstractModule {
      * @param <Response>              The response type.
      */
     public <Request extends ActionRequest, Response extends ActionResponse> void registerAction(GenericAction<Request, Response> action, Class<? extends TransportAction<Request, Response>> transportAction, Class... supportTransportActions) {
-        actions.put(action.name(), new ActionEntry<Request, Response>(action, transportAction, supportTransportActions));
+        actions.put(action.name(), new ActionEntry<>(action, transportAction, supportTransportActions));
     }
 
     @Override

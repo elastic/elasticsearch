@@ -72,7 +72,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         createIndex("idx_unmapped");
 
-        List<IndexRequestBuilder> cities = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> cities = new ArrayList<>();
         cities.addAll(Arrays.asList(
                 // below 500km
                 indexCity("idx", "utrecht", "52.0945, 5.116"),
@@ -349,7 +349,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
                     .startObject()
@@ -372,7 +372,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         GeoDistance geoDistance = bucket.getAggregations().get("geo_dist");
-        List<GeoDistance.Bucket> buckets = new ArrayList<GeoDistance.Bucket>(geoDistance.getBuckets());
+        List<GeoDistance.Bucket> buckets = new ArrayList<>(geoDistance.getBuckets());
         assertThat(geoDistance, Matchers.notNullValue());
         assertThat(geoDistance.getName(), equalTo("geo_dist"));
         assertThat(buckets.size(), is(1));

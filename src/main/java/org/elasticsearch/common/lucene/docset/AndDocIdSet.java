@@ -64,8 +64,8 @@ public class AndDocIdSet extends DocIdSet {
     public DocIdSetIterator iterator() throws IOException {
         // we try and be smart here, if we can iterate through docsets quickly, prefer to iterate
         // over them as much as possible, before actually going to "bits" based ones to check
-        List<DocIdSet> iterators = new ArrayList<DocIdSet>(sets.length);
-        List<Bits> bits = new ArrayList<Bits>(sets.length);
+        List<DocIdSet> iterators = new ArrayList<>(sets.length);
+        List<Bits> bits = new ArrayList<>(sets.length);
         for (DocIdSet set : sets) {
             if (DocIdSets.isFastIterator(set)) {
                 iterators.add(set);

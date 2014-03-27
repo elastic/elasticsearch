@@ -45,7 +45,7 @@ public class NettyHttpRequest extends HttpRequest {
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request, Channel channel) {
         this.request = request;
         this.channel = channel;
-        this.params = new HashMap<String, String>();
+        this.params = new HashMap<>();
         if (request.getContent().readable()) {
             this.content = new ChannelBufferBytesReference(request.getContent());
         } else {

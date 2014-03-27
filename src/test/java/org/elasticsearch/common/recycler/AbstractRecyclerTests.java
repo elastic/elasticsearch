@@ -141,7 +141,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         assertFresh(data);
 
         // now exhaust the recycler
-        List<V<byte[]>> vals = new ArrayList<V<byte[]>>(limit);
+        List<V<byte[]>> vals = new ArrayList<>(limit);
         for (int i = 0; i < limit ; ++i) {
             vals.add(r.obtain());
         }

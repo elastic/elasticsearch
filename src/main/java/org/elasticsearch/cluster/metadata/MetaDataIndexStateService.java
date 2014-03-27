@@ -109,7 +109,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<String> indicesToClose = new ArrayList<String>();
+                List<String> indicesToClose = new ArrayList<>();
                 for (String index : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {
@@ -200,7 +200,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                List<String> indicesToOpen = new ArrayList<String>();
+                List<String> indicesToOpen = new ArrayList<>();
                 for (String index : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(index);
                     if (indexMetaData == null) {

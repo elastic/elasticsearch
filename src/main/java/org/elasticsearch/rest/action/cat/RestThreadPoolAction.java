@@ -226,7 +226,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             if (stats == null) {
                 poolThreadStats = Collections.emptyMap();
             } else {
-                poolThreadStats = new HashMap<String, ThreadPoolStats.Stats>(14);
+                poolThreadStats = new HashMap<>(14);
                 ThreadPoolStats threadPoolStats = stats.getThreadPool();
                 for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
                     poolThreadStats.put(threadPoolStat.getName(), threadPoolStat);
@@ -254,7 +254,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
         if (headers == null) {
             return defaults;
         } else {
-            Set<String> requestedPools = new LinkedHashSet<String>(headers.length);
+            Set<String> requestedPools = new LinkedHashSet<>(headers.length);
             for (String header : headers) {
                 int dotIndex = header.indexOf('.');
                 if (dotIndex != -1) {

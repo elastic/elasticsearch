@@ -202,7 +202,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             }
         }
 
-        BoundedTreeSet<TermEntry> ordered = new BoundedTreeSet<TermEntry>(first.comparatorType.comparator(), first.requiredSize);
+        BoundedTreeSet<TermEntry> ordered = new BoundedTreeSet<>(first.comparatorType.comparator(), first.requiredSize);
         ObjectIntOpenHashMap<Text> aggregatedEntries = aggregated.v();
 
         final boolean[] states = aggregatedEntries.allocated;
@@ -286,7 +286,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         total = in.readVLong();
 
         int size = in.readVInt();
-        entries = new ArrayList<TermEntry>(size);
+        entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             entries.add(new TermEntry(in.readText(), in.readVInt()));
         }

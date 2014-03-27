@@ -130,7 +130,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                 );
                 // create OrFilter with type filters within to account for different types
                 BoolFilterBuilder filterBuilder = new BoolFilterBuilder();
-                Set<String> types = new HashSet<String>();
+                Set<String> types = new HashSet<>();
                 for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> typesMeta : result) {
                     for (ObjectObjectCursor<String, MappingMetaData> type : typesMeta.value) {
                         filterBuilder.should(new TypeFilterBuilder(type.key));

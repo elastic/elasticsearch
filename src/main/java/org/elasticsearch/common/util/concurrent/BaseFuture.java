@@ -68,7 +68,7 @@ public abstract class BaseFuture<V> implements Future<V> {
     /**
      * Synchronization control for AbstractFutures.
      */
-    private final Sync<V> sync = new Sync<V>();
+    private final Sync<V> sync = new Sync<>();
 
     /*
     * Improve the documentation of when InterruptedException is thrown. Our

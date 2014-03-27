@@ -65,7 +65,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-        parentTypes = new TreeSet<BytesRef>(BytesRef.getUTF8SortedAsUnicodeComparator());
+        parentTypes = new TreeSet<>(BytesRef.getUTF8SortedAsUnicodeComparator());
         this.breakerService = breakerService;
         for (DocumentMapper documentMapper : mapperService) {
             beforeCreate(documentMapper);

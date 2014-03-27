@@ -55,7 +55,7 @@ public abstract class AbstractBindingBuilder<T> {
         this.binder = binder;
         this.elements = elements;
         this.position = elements.size();
-        this.binding = new UntargettedBindingImpl<T>(source, key, Scoping.UNSCOPED);
+        this.binding = new UntargettedBindingImpl<>(source, key, Scoping.UNSCOPED);
         elements.add(position, this.binding);
     }
 

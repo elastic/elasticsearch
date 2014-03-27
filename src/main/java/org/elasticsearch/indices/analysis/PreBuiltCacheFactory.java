@@ -48,11 +48,11 @@ public class PreBuiltCacheFactory {
     static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
         switch (cachingStrategy) {
             case ONE:
-                return new PreBuiltCacheStrategyOne<T>();
+                return new PreBuiltCacheStrategyOne<>();
             case LUCENE:
-                return new PreBuiltCacheStrategyLucene<T>();
+                return new PreBuiltCacheStrategyLucene<>();
             case ELASTICSEARCH:
-                return new PreBuiltCacheStrategyElasticsearch<T>();
+                return new PreBuiltCacheStrategyElasticsearch<>();
             default:
                 throw new ElasticsearchException("No action configured for caching strategy[" + cachingStrategy + "]");
         }

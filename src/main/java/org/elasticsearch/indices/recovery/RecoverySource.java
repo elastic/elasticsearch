@@ -161,7 +161,7 @@ public class RecoverySource extends AbstractComponent {
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest, TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
 
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
-                    final AtomicReference<Throwable> lastException = new AtomicReference<Throwable>();
+                    final AtomicReference<Throwable> lastException = new AtomicReference<>();
                     int fileIndex = 0;
                     for (final String name : response.phase1FileNames) {
                         ThreadPoolExecutor pool;

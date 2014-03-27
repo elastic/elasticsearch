@@ -76,7 +76,7 @@ public class AggregationPhase implements SearchPhase {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
 
-            List<Aggregator> collectors = new ArrayList<Aggregator>();
+            List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
@@ -107,7 +107,7 @@ public class AggregationPhase implements SearchPhase {
         Aggregator[] aggregators = context.aggregations().aggregators();
         boolean success = false;
         try {
-            List<Aggregator> globals = new ArrayList<Aggregator>();
+            List<Aggregator> globals = new ArrayList<>();
             for (int i = 0; i < aggregators.length; i++) {
                 if (aggregators[i] instanceof GlobalAggregator) {
                     globals.add(aggregators[i]);
@@ -130,7 +130,7 @@ public class AggregationPhase implements SearchPhase {
                 collector.postCollection();
             }
 
-            List<InternalAggregation> aggregations = new ArrayList<InternalAggregation>(aggregators.length);
+            List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
             for (Aggregator aggregator : context.aggregations().aggregators()) {
                 aggregations.add(aggregator.buildAggregation(0));
             }

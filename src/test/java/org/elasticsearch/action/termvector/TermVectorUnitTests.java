@@ -305,10 +305,10 @@ public class TermVectorUnitTests extends ElasticsearchLuceneTestCase {
         
     }
     void checkParsedParameters(MultiTermVectorsRequest request) {
-        Set<String> ids = new HashSet<String>();
+        Set<String> ids = new HashSet<>();
         ids.add("1");
         ids.add("2");
-        Set<String> fields = new HashSet<String>();
+        Set<String> fields = new HashSet<>();
         fields.add("a");
         fields.add("b");
         fields.add("c");

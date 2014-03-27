@@ -71,7 +71,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
-    private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
+    private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 

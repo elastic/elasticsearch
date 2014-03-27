@@ -70,11 +70,11 @@ public class ConstructionContext<T> {
         }
 
         if (invocationHandlers == null) {
-            invocationHandlers = new ArrayList<DelegatingInvocationHandler<T>>();
+            invocationHandlers = new ArrayList<>();
         }
 
         DelegatingInvocationHandler<T> invocationHandler
-                = new DelegatingInvocationHandler<T>();
+                = new DelegatingInvocationHandler<>();
         invocationHandlers.add(invocationHandler);
 
         // ES: Replace, since we don't use bytecode gen, just get the type class loader, or system if its null

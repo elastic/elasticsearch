@@ -309,7 +309,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
             }
             return nodesIds;
         } else {
-            ObjectOpenHashSet<String> resolvedNodesIds = new ObjectOpenHashSet<String>(nodesIds.length);
+            ObjectOpenHashSet<String> resolvedNodesIds = new ObjectOpenHashSet<>(nodesIds.length);
             for (String nodeId : nodesIds) {
                 if (nodeId.equals("_local")) {
                     String localNodeId = localNodeId();

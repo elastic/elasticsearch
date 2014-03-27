@@ -121,7 +121,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 facets.release();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), shardSize);
+                BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
                 for (int i = 0; i < states.length; i++) {
                     if (states[i]) {
                         ordered.add(new InternalDoubleTermsFacet.DoubleEntry(keys[i], values[i]));

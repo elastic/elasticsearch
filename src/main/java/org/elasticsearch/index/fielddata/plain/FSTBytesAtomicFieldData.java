@@ -94,7 +94,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         assert fst != null;
         if (needsHashes) {
             if (hashes == null) {
-                BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
+                BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<>(fst);
                 IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(ordinals.getMaxOrd());
                 // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
                 // empty strings twice. ie. them merge fails for long output.
@@ -134,8 +134,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
         // per-thread resources
         protected final BytesReader in;
-        protected final Arc<Long> firstArc = new Arc<Long>();
-        protected final Arc<Long> scratchArc = new Arc<Long>();
+        protected final Arc<Long> firstArc = new Arc<>();
+        protected final Arc<Long> scratchArc = new Arc<>();
         protected final IntsRef scratchInts = new IntsRef();
 
         BytesValues(FST<Long> fst, Ordinals.Docs ordinals) {

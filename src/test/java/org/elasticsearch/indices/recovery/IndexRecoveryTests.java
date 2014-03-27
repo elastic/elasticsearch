@@ -244,7 +244,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     }
 
     private List<ShardRecoveryResponse> findRecoveriesForTargetNode(String nodeName, List<ShardRecoveryResponse> responses) {
-        List<ShardRecoveryResponse> nodeResponses = new ArrayList<ShardRecoveryResponse>();
+        List<ShardRecoveryResponse> nodeResponses = new ArrayList<>();
         for (ShardRecoveryResponse response : responses) {
             if (response.recoveryState().getTargetNode().getName().equals(nodeName)) {
                 nodeResponses.add(response);

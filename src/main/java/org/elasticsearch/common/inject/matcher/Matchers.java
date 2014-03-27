@@ -65,7 +65,7 @@ public class Matchers {
      * Inverts the given matcher.
      */
     public static <T> Matcher<T> not(final Matcher<? super T> p) {
-        return new Not<T>(p);
+        return new Not<>(p);
     }
 
     private static class Not<T> extends AbstractMatcher<T> implements Serializable {

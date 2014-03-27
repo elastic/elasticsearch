@@ -55,7 +55,7 @@ public class FetchSourceParseElement implements SearchParseElement {
             context.fetchSourceContext(new FetchSourceContext(new String[]{parser.text()}));
             return;
         } else if (token == XContentParser.Token.START_ARRAY) {
-            includes = new ArrayList<String>();
+            includes = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 includes.add(parser.text());
             }
@@ -67,9 +67,9 @@ public class FetchSourceParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                     if ("includes".equals(currentFieldName) || "include".equals(currentFieldName)) {
-                        currentList = includes != null ? includes : (includes = new ArrayList<String>(2));
+                        currentList = includes != null ? includes : (includes = new ArrayList<>(2));
                     } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
-                        currentList = excludes != null ? excludes : (excludes = new ArrayList<String>(2));
+                        currentList = excludes != null ? excludes : (excludes = new ArrayList<>(2));
                     } else {
                         throw new ElasticsearchParseException("Source definition may not contain " + parser.text());
                     }

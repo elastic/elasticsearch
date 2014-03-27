@@ -55,7 +55,7 @@ public abstract class TransportResponse implements Streamable {
         // create a new copy of the headers, since we are creating a new request which might have
         // its headers changed in the context of that specific request
         if (request.getHeaders() != null) {
-            this.headers = new HashMap<String, Object>(request.getHeaders());
+            this.headers = new HashMap<>(request.getHeaders());
         }
     }
 

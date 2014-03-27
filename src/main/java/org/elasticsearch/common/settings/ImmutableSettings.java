@@ -504,7 +504,7 @@ public class ImmutableSettings implements Settings {
             settingPrefix = settingPrefix + ".";
         }
         // we don't really care that it might happen twice
-        Map<String, Map<String, String>> map = new LinkedHashMap<String, Map<String, String>>();
+        Map<String, Map<String, String>> map = new LinkedHashMap<>();
         for (Object o : settings.keySet()) {
             String setting = (String) o;
             if (setting.startsWith(settingPrefix)) {
@@ -520,13 +520,13 @@ public class ImmutableSettings implements Settings {
                 String value = nameValue.substring(dotIndex + 1);
                 Map<String, String> groupSettings = map.get(name);
                 if (groupSettings == null) {
-                    groupSettings = new LinkedHashMap<String, String>();
+                    groupSettings = new LinkedHashMap<>();
                     map.put(name, groupSettings);
                 }
                 groupSettings.put(value, get(setting));
             }
         }
-        Map<String, Settings> retVal = new LinkedHashMap<String, Settings>();
+        Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
             retVal.put(entry.getKey(), new ImmutableSettings(Collections.unmodifiableMap(entry.getValue()), classLoader));
         }
@@ -626,7 +626,7 @@ public class ImmutableSettings implements Settings {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
 
-        private final Map<String, String> map = new LinkedHashMap<String, String>();
+        private final Map<String, String> map = new LinkedHashMap<>();
 
         private ClassLoader classLoader;
 

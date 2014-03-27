@@ -73,7 +73,7 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
 
         numDocs = randomIntBetween(7, 20);
 
-        List<IndexRequestBuilder> docs = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> docs = new ArrayList<>();
         docs.addAll(Arrays.asList(
                 indexDoc(1, 2, 1),  // Jan 2
                 indexDoc(2, 2, 2),  // Feb 2
@@ -113,7 +113,7 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(range.getName(), equalTo("range"));
         assertThat(range.getBuckets().size(), equalTo(3));
 
-        List<DateRange.Bucket> buckets = new ArrayList<DateRange.Bucket>(range.getBuckets());
+        List<DateRange.Bucket> buckets = new ArrayList<>(range.getBuckets());
 
         DateRange.Bucket bucket = buckets.get(0);
         assertThat(bucket.getKey(), equalTo("a long time ago"));
@@ -1011,7 +1011,7 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
                     .startObject()
@@ -1032,7 +1032,7 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         DateRange dateRange = bucket.getAggregations().get("date_range");
-        List<DateRange.Bucket> buckets = new ArrayList<DateRange.Bucket>(dateRange.getBuckets());
+        List<DateRange.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
         assertThat(dateRange, Matchers.notNullValue());
         assertThat(dateRange.getName(), equalTo("date_range"));
         assertThat(buckets.size(), is(1));

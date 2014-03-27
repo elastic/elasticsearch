@@ -91,7 +91,7 @@ public class PostingsHighlighter implements Highlighter {
 
         //we merge back multiple values into a single value using the paragraph separator, unless we have to highlight every single value separately (number_of_fragments=0).
         boolean mergeValues = field.fieldOptions().numberOfFragments() != 0;
-        List<Snippet> snippets = new ArrayList<Snippet>();
+        List<Snippet> snippets = new ArrayList<>();
         int numberOfFragments;
 
         try {
@@ -212,7 +212,7 @@ public class PostingsHighlighter implements Highlighter {
     }
 
     private static SortedSet<Term> extractTerms(Query query) {
-        SortedSet<Term> queryTerms = new TreeSet<Term>();
+        SortedSet<Term> queryTerms = new TreeSet<>();
         query.extractTerms(queryTerms);
         return queryTerms;
     }
@@ -241,7 +241,7 @@ public class PostingsHighlighter implements Highlighter {
         //We need to filter the snippets as due to no_match_size we could have
         //either highlighted snippets together non highlighted ones
         //We don't want to mix those up
-        List<Snippet> filteredSnippets = new ArrayList<Snippet>(snippets.size());
+        List<Snippet> filteredSnippets = new ArrayList<>(snippets.size());
         for (Snippet snippet : snippets) {
             if (snippet.isHighlighted()) {
                 filteredSnippets.add(snippet);

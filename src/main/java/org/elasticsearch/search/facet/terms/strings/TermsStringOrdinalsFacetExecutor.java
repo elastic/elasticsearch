@@ -93,7 +93,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         this.cacheRecycler = context.cacheRecycler();
         this.bigArrays = context.bigArrays();
 
-        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
+        this.aggregators = new ArrayList<>(context.searcher().getIndexReader().leaves().size());
     }
 
     @Override
@@ -156,7 +156,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
-        BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
+        BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();

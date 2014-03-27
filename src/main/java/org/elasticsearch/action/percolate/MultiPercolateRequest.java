@@ -154,7 +154,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {
         String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
 
-        Map<String, Object> header = new HashMap<String, Object>();
+        Map<String, Object> header = new HashMap<>();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -287,7 +287,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {
-        final List<String> list = new ArrayList<String>();
+        final List<String> list = new ArrayList<>();
         assert parser.currentToken() == XContentParser.Token.START_ARRAY;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             list.add(parser.text());

@@ -178,7 +178,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         if (fieldsNames != null) {
 
             // in case of multi files, we only collect the fields that are mapped and facet on them.
-            ArrayList<FieldMapper> mappers = new ArrayList<FieldMapper>(fieldsNames.length);
+            ArrayList<FieldMapper> mappers = new ArrayList<>(fieldsNames.length);
             for (int i = 0; i < fieldsNames.length; i++) {
                 FieldMapper mapper = context.smartNameFieldMapper(fieldsNames[i]);
                 if (mapper != null) {

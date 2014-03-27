@@ -65,7 +65,7 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
-            fields = new ObjectLongOpenHashMap<String>(size);
+            fields = new ObjectLongOpenHashMap<>(size);
             for (int i = 0; i < size; i++) {
                 fields.put(in.readString(), in.readVLong());
             }
@@ -135,7 +135,7 @@ public class CompletionStats implements Streamable, ToXContent {
         sizeInBytes += completion.getSizeInBytes();
 
         if (completion.fields != null) {
-            if (fields == null) fields = new ObjectLongOpenHashMap<String>();
+            if (fields == null) fields = new ObjectLongOpenHashMap<>();
 
             final boolean[] states = completion.fields.allocated;
             final Object[] keys = completion.fields.keys;

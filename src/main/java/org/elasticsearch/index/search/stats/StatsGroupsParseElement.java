@@ -37,7 +37,7 @@ public class StatsGroupsParseElement implements SearchParseElement {
         if (token.isValue()) {
             context.groupStats(ImmutableList.of(parser.text()));
         } else if (token == XContentParser.Token.START_ARRAY) {
-            List<String> groupStats = new ArrayList<String>(4);
+            List<String> groupStats = new ArrayList<>(4);
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 groupStats.add(parser.text());
             }

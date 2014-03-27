@@ -105,7 +105,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private DiscoveryNode localNode;
 
-    private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<InitialStateDiscoveryListener>();
+    private final CopyOnWriteArrayList<InitialStateDiscoveryListener> initialStateListeners = new CopyOnWriteArrayList<>();
 
     private volatile boolean master = false;
 

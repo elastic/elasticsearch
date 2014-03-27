@@ -71,9 +71,9 @@ public class DeadlockAnalyzer {
 
 
     private Set<LinkedHashSet<ThreadInfo>> calculateCycles(ImmutableMap<Long, ThreadInfo> threadInfoMap) {
-        Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<LinkedHashSet<ThreadInfo>>();
+        Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
-            LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<ThreadInfo>();
+            LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();
             for (ThreadInfo t = entry.getValue(); !cycle.contains(t); t = threadInfoMap.get(Long.valueOf(t.getLockOwnerId())))
                 cycle.add(t);
 
@@ -86,14 +86,14 @@ public class DeadlockAnalyzer {
 
     private Set<LinkedHashSet<ThreadInfo>> calculateCycleDeadlockChains(ImmutableMap<Long, ThreadInfo> threadInfoMap, Set<LinkedHashSet<ThreadInfo>> cycles) {
         ThreadInfo allThreads[] = threadBean.getThreadInfo(threadBean.getAllThreadIds());
-        Set<LinkedHashSet<ThreadInfo>> deadlockChain = new HashSet<LinkedHashSet<ThreadInfo>>();
+        Set<LinkedHashSet<ThreadInfo>> deadlockChain = new HashSet<>();
         Set<Long> knownDeadlockedThreads = threadInfoMap.keySet();
         for (ThreadInfo threadInfo : allThreads) {
             Thread.State state = threadInfo.getThreadState();
             if (state == Thread.State.BLOCKED && !knownDeadlockedThreads.contains(threadInfo.getThreadId())) {
                 for (LinkedHashSet cycle : cycles) {
                     if (cycle.contains(threadInfoMap.get(Long.valueOf(threadInfo.getLockOwnerId())))) {
-                        LinkedHashSet<ThreadInfo> chain = new LinkedHashSet<ThreadInfo>();
+                        LinkedHashSet<ThreadInfo> chain = new LinkedHashSet<>();
                         for (ThreadInfo node = threadInfo; !chain.contains(node); node = threadInfoMap.get(Long.valueOf(node.getLockOwnerId())))
                             chain.add(node);
 

@@ -106,7 +106,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
      * parses a list of MappingCharFilter style rules into a custom byte[] type table
      */
     private byte[] parseTypes(Collection<String> rules) {
-        SortedMap<Character, Byte> typeMap = new TreeMap<Character, Byte>();
+        SortedMap<Character, Byte> typeMap = new TreeMap<>();
         for (String rule : rules) {
             Matcher m = typePattern.matcher(rule);
             if (!m.find())

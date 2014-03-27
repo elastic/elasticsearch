@@ -123,7 +123,7 @@ public final class InternalNode implements Node {
 
     public InternalNode(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
-        tuple = new Tuple<Settings, Environment>(TribeService.processSettings(tuple.v1()), tuple.v2());
+        tuple = new Tuple<>(TribeService.processSettings(tuple.v1()), tuple.v2());
 
         // The only place we can actually fake the version a node is running on:
         Version version = pSettings.getAsVersion("tests.mock.version", Version.CURRENT);

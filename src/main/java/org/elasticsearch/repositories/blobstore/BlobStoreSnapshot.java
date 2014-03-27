@@ -476,13 +476,13 @@ public class BlobStoreSnapshot implements Snapshot {
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("indices".equals(currentFieldName)) {
-                                    ArrayList<String> indices = new ArrayList<String>();
+                                    ArrayList<String> indices = new ArrayList<>();
                                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                         indices.add(parser.text());
                                     }
                                     builder.indices(indices);
                                 } else if ("failures".equals(currentFieldName)) {
-                                    ArrayList<SnapshotShardFailure> failures = new ArrayList<SnapshotShardFailure>();
+                                    ArrayList<SnapshotShardFailure> failures = new ArrayList<>();
                                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                         failures.add(SnapshotShardFailure.fromXContent(parser));
                                     }

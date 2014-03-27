@@ -176,7 +176,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     public MultiMatchQueryBuilder field(String field, float boost) {
         fields.add(field);
         if (fieldsBoosts == null) {
-            fieldsBoosts = new ObjectFloatOpenHashMap<String>();
+            fieldsBoosts = new ObjectFloatOpenHashMap<>();
         }
         fieldsBoosts.put(field, boost);
         return this;

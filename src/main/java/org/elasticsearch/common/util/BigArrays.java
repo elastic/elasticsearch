@@ -611,12 +611,12 @@ public class BigArrays extends AbstractComponent {
      */
     public <T> ObjectArray<T> newObjectArray(long size) {
         if (size > OBJECT_PAGE_SIZE) {
-            return new BigObjectArray<T>(size, recycler);
+            return new BigObjectArray<>(size, recycler);
         } else if (size >= OBJECT_PAGE_SIZE / 2 && recycler != null) {
             final Recycler.V<Object[]> page = recycler.objectPage();
-            return new ObjectArrayWrapper<T>(page.v(), size, page);
+            return new ObjectArrayWrapper<>(page.v(), size, page);
         } else {
-            return new ObjectArrayWrapper<T>(new Object[(int) size], size, null);
+            return new ObjectArrayWrapper<>(new Object[(int) size], size, null);
         }
     }
 

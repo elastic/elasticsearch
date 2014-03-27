@@ -384,9 +384,9 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         }
 
         // recursive map
-        Map<String, Object> testMap = new HashMap<String, Object>();
-        Map<String, Object> testMap2 = new HashMap<String, Object>();
-        Map<String, Object> testMap3 = new HashMap<String, Object>();
+        Map<String, Object> testMap = new HashMap<>();
+        Map<String, Object> testMap2 = new HashMap<>();
+        Map<String, Object> testMap3 = new HashMap<>();
         testMap3.put("commonkey", testMap);
         testMap3.put("map3", 5);
         testMap2.put("map2", 6);
@@ -455,7 +455,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         int numberOfThreads = between(2,5);
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);
         final int numberOfUpdatesPerThread = between(1000, 10000);
-        final List<Throwable> failures = new CopyOnWriteArrayList<Throwable>();
+        final List<Throwable> failures = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             Runnable r = new Runnable() {
 

@@ -204,7 +204,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         }
 
         DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.found());
-        return new PrimaryResponse<DeleteResponse, DeleteRequest>(shardRequest.request, response, null);
+        return new PrimaryResponse<>(shardRequest.request, response, null);
     }
 
     @Override

@@ -223,7 +223,7 @@ public class TransportClientNodesService extends AbstractComponent {
             index = 0;
             randomNodeGenerator.set(0);
         }
-        RetryListener<Response> retryListener = new RetryListener<Response>(callback, listener, nodes, index);
+        RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);
         try {
             callback.doWithNode(nodes.get((index) % nodes.size()), retryListener);
         } catch (ElasticsearchException e) {
@@ -345,8 +345,8 @@ public class TransportClientNodesService extends AbstractComponent {
 
         @Override
         protected void doSample() {
-            HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
-            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<DiscoveryNode>();
+            HashSet<DiscoveryNode> newNodes = new HashSet<>();
+            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (DiscoveryNode listedNode : listedNodes) {
                 if (!transportService.nodeConnected(listedNode)) {
                     try {
@@ -474,8 +474,8 @@ public class TransportClientNodesService extends AbstractComponent {
                 return;
             }
 
-            HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>(listedNodes);
-            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<DiscoveryNode>();
+            HashSet<DiscoveryNode> newNodes = new HashSet<>(listedNodes);
+            HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
                     logger.warn("node {} not part of the cluster {}, ignoring...", entry.getValue().getState().nodes().localNode(), clusterName);

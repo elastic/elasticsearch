@@ -310,7 +310,7 @@ public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {
                         //test section name argument needs to be unique here
                         long thisSeed = (fixedSeed ? testSectionSeed : testSectionSeed ^ MurmurHash3.hash((long) i));
 
-                        final LinkedHashMap<String, Object> args = new LinkedHashMap<String, Object>();
+                        final LinkedHashMap<String, Object> args = new LinkedHashMap<>();
                         if (hasRepetitions) {
                             args.put("#", i);
                         }

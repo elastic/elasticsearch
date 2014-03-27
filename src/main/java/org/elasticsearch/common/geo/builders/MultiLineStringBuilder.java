@@ -35,7 +35,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
-    private final ArrayList<BaseLineStringBuilder<?>> lines = new ArrayList<BaseLineStringBuilder<?>>();
+    private final ArrayList<BaseLineStringBuilder<?>> lines = new ArrayList<>();
 
     public InternalLineStringBuilder linestring() {
         InternalLineStringBuilder line = new InternalLineStringBuilder(this);
@@ -79,7 +79,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
     public Shape build() {
         final Geometry geometry;
         if(wrapdateline) {
-            ArrayList<LineString> parts = new ArrayList<LineString>();
+            ArrayList<LineString> parts = new ArrayList<>();
             for (BaseLineStringBuilder<?> line : lines) {
                 BaseLineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
             }

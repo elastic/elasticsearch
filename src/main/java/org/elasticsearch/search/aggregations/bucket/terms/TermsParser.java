@@ -222,7 +222,7 @@ public class TermsParser implements Aggregator.Parser {
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
-            ValuesSourceConfig<?> config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
+            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(BytesValuesSource.class);
             config.unmapped(true);
             return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
         }
@@ -235,23 +235,23 @@ public class TermsParser implements Aggregator.Parser {
             ValueFormatter formatter = format == null ?
                     new ValueFormatter.DateTime(dateMapper.dateTimeFormatter()) :
                     new ValueFormatter.DateTime(format);
-            config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class)
+            config = new ValuesSourceConfig<>(NumericValuesSource.class)
                     .formatter(formatter)
                     .parser(new ValueParser.DateMath(dateMapper.dateMathParser()));
 
         } else if (mapper instanceof IpFieldMapper) {
-            config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class)
+            config = new ValuesSourceConfig<>(NumericValuesSource.class)
                     .formatter(ValueFormatter.IPv4)
                     .parser(ValueParser.IPv4);
 
         } else if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class);
+            config = new ValuesSourceConfig<>(NumericValuesSource.class);
             if (format != null) {
                 config.formatter(new ValueFormatter.Number.Pattern(format));
             }
 
         } else {
-            config = new ValuesSourceConfig<BytesValuesSource>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(BytesValuesSource.class);
             // TODO: it will make sense to set false instead here if the aggregator factory uses
             // ordinals instead of hash tables
             config.needsHashes(true);

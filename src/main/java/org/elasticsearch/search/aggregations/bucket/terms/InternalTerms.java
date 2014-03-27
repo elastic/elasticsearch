@@ -65,7 +65,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
                 return bucket;
             }
             Bucket reduced = null;
-            List<InternalAggregations> aggregationsList = new ArrayList<InternalAggregations>(buckets.size());
+            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             for (Bucket bucket : buckets) {
                 if (reduced == null) {
                     reduced = bucket;
@@ -133,12 +133,12 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
                 reduced = terms;
             }
             if (buckets == null) {
-                buckets = new HashMap<Text, List<Bucket>>(terms.buckets.size());
+                buckets = new HashMap<>(terms.buckets.size());
             }
             for (Bucket bucket : terms.buckets) {
                 List<Bucket> existingBuckets = buckets.get(bucket.getKeyAsText());
                 if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<Bucket>(aggregations.size());
+                    existingBuckets = new ArrayList<>(aggregations.size());
                     buckets.put(bucket.getKeyAsText(), existingBuckets);
                 }
                 existingBuckets.add(bucket);

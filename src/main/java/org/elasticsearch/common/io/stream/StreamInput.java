@@ -42,14 +42,14 @@ import java.util.*;
  */
 public abstract class StreamInput extends InputStream {
 
-    private static final ThreadLocal<SoftReference<char[]>> charCache = new ThreadLocal<SoftReference<char[]>>();
+    private static final ThreadLocal<SoftReference<char[]>> charCache = new ThreadLocal<>();
 
     private static char[] charCache(int size) {
         SoftReference<char[]> ref = charCache.get();
         char[] arr = (ref == null) ? null : ref.get();
         if (arr == null || arr.length < size) {
             arr = new char[ArrayUtil.oversize(size, RamUsageEstimator.NUM_BYTES_CHAR)];
-            charCache.set(new SoftReference<char[]>(arr));
+            charCache.set(new SoftReference<>(arr));
         }
         return arr;
     }

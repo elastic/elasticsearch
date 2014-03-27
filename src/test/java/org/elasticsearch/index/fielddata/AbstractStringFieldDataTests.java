@@ -339,7 +339,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             values[i] = _TestUtil.randomSimpleString(getRandom());
         }
         final int numParents = scaledRandomIntBetween(100, 10000);
-        List<Document> docs = new ArrayList<Document>();
+        List<Document> docs = new ArrayList<>();
         final OpenBitSet parents = new OpenBitSet();
         for (int i = 0; i < numParents; ++i) {
             docs.clear();

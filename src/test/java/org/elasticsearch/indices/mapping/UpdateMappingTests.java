@@ -416,7 +416,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] threads = new Thread[3];
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
-        final ArrayList<Client> clientArray = new ArrayList<Client>();
+        final ArrayList<Client> clientArray = new ArrayList<>();
         for (Client c : clients()) {
             clientArray.add(c);
         }

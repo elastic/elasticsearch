@@ -83,7 +83,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
 
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest clusterStatsRequest, AtomicReferenceArray responses) {
-        final List<ClusterStatsNodeResponse> nodeStats = new ArrayList<ClusterStatsNodeResponse>(responses.length());
+        final List<ClusterStatsNodeResponse> nodeStats = new ArrayList<>(responses.length());
         for (int i = 0; i < responses.length(); i++) {
             Object resp = responses.get(i);
             if (resp instanceof ClusterStatsNodeResponse) {
@@ -118,7 +118,7 @@ public class TransportClusterStatsAction extends TransportNodesOperationAction<C
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) throws ElasticsearchException {
         NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, false, true, false, true);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, false, true, false, false, false);
-        List<ShardStats> shardsStats = new ArrayList<ShardStats>();
+        List<ShardStats> shardsStats = new ArrayList<>();
         for (String index : indicesService.indices()) {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {

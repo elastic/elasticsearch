@@ -64,7 +64,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
         if (docIdSets == null) {
             assert searcher == null;
             IndexSearcher searcher = searchContext.searcher();
-            docIdSets = new IdentityHashMap<AtomicReader, DocIdSet>();
+            docIdSets = new IdentityHashMap<>();
             this.searcher = searcher;
             searchContext.addReleasable(this);
 

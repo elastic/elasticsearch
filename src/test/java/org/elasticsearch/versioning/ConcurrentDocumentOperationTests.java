@@ -47,7 +47,7 @@ public class ConcurrentDocumentOperationTests extends ElasticsearchIntegrationTe
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;
-        final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
             client().prepareIndex("test", "type1", "1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {

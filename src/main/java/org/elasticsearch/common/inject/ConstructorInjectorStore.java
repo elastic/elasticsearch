@@ -66,11 +66,11 @@ class ConstructorInjectorStore {
                 = injector.getParametersInjectors(injectionPoint.getDependencies(), errors);
         MembersInjectorImpl<T> membersInjector = injector.membersInjectorStore.get(type, errors);
 
-        ConstructionProxyFactory<T> factory = new DefaultConstructionProxyFactory<T>(injectionPoint);
+        ConstructionProxyFactory<T> factory = new DefaultConstructionProxyFactory<>(injectionPoint);
 
         errors.throwIfNewErrors(numErrorsBefore);
 
-        return new ConstructorInjector<T>(membersInjector.getInjectionPoints(), factory.create(),
+        return new ConstructorInjector<>(membersInjector.getInjectionPoints(), factory.create(),
                 constructorParameterInjectors, membersInjector);
     }
 }

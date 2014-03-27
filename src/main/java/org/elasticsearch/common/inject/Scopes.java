@@ -109,8 +109,8 @@ public class Scopes {
         Scope scope = scoping.getScopeInstance();
 
         Provider<T> scoped
-                = scope.scope(key, new ProviderToInternalFactoryAdapter<T>(injector, creator));
-        return new InternalFactoryToProviderAdapter<T>(
+                = scope.scope(key, new ProviderToInternalFactoryAdapter<>(injector, creator));
+        return new InternalFactoryToProviderAdapter<>(
                 Initializables.<Provider<? extends T>>of(scoped));
     }
 

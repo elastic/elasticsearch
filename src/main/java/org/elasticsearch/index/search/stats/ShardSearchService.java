@@ -62,12 +62,12 @@ public class ShardSearchService extends AbstractIndexShardComponent {
         Map<String, SearchStats.Stats> groupsSt = null;
         if (groups != null && groups.length > 0) {
             if (groups.length == 1 && groups[0].equals("_all")) {
-                groupsSt = new HashMap<String, SearchStats.Stats>(groupsStats.size());
+                groupsSt = new HashMap<>(groupsStats.size());
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
                     groupsSt.put(entry.getKey(), entry.getValue().stats());
                 }
             } else {
-                groupsSt = new HashMap<String, SearchStats.Stats>(groups.length);
+                groupsSt = new HashMap<>(groups.length);
                 for (String group : groups) {
                     StatsHolder statsHolder = groupsStats.get(group);
                     if (statsHolder != null) {

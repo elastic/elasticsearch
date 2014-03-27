@@ -36,8 +36,8 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
 
     MultiTermVectorsShardResponse() {
         locations = new IntArrayList();
-        responses = new ArrayList<TermVectorResponse>();
-        failures = new ArrayList<MultiTermVectorsResponse.Failure>();
+        responses = new ArrayList<>();
+        failures = new ArrayList<>();
     }
 
     public void add(int location, TermVectorResponse response) {
@@ -57,8 +57,8 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
         super.readFrom(in);
         int size = in.readVInt();
         locations = new IntArrayList(size);
-        responses = new ArrayList<TermVectorResponse>(size);
-        failures = new ArrayList<MultiTermVectorsResponse.Failure>(size);
+        responses = new ArrayList<>(size);
+        failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {

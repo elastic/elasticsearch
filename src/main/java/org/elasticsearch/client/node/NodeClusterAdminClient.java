@@ -44,7 +44,7 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
     @Inject
     public NodeClusterAdminClient(Settings settings, ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
         this.threadPool = threadPool;
-        MapBuilder<ClusterAction, TransportAction> actionsBuilder = new MapBuilder<ClusterAction, TransportAction>();
+        MapBuilder<ClusterAction, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
             if (entry.getKey() instanceof ClusterAction) {
                 actionsBuilder.put((ClusterAction) entry.getKey(), entry.getValue());

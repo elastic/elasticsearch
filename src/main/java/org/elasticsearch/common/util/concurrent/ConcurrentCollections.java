@@ -51,27 +51,27 @@ public abstract class ConcurrentCollections {
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentMapWithAggressiveConcurrency() {
         if (useConcurrentHashMapV8) {
-            return new ConcurrentHashMapV8<K, V>(16, 0.75f, aggressiveConcurrencyLevel);
+            return new ConcurrentHashMapV8<>(16, 0.75f, aggressiveConcurrencyLevel);
         }
-        return new ConcurrentHashMap<K, V>(16, 0.75f, aggressiveConcurrencyLevel);
+        return new ConcurrentHashMap<>(16, 0.75f, aggressiveConcurrencyLevel);
     }
 
     public static <K, V> ConcurrentMap<K, V> newConcurrentMap() {
         if (useConcurrentHashMapV8) {
-            return new ConcurrentHashMapV8<K, V>();
+            return new ConcurrentHashMapV8<>();
         }
-        return new ConcurrentHashMap<K, V>();
+        return new ConcurrentHashMap<>();
     }
 
     /**
      * Creates a new CHM with an aggressive concurrency level, aimed at highly updateable long living maps.
      */
     public static <V> ConcurrentMapLong<V> newConcurrentMapLongWithAggressiveConcurrency() {
-        return new ConcurrentHashMapLong<V>(ConcurrentCollections.<Long, V>newConcurrentMapWithAggressiveConcurrency());
+        return new ConcurrentHashMapLong<>(ConcurrentCollections.<Long, V>newConcurrentMapWithAggressiveConcurrency());
     }
 
     public static <V> ConcurrentMapLong<V> newConcurrentMapLong() {
-        return new ConcurrentHashMapLong<V>(ConcurrentCollections.<Long, V>newConcurrentMap());
+        return new ConcurrentHashMapLong<>(ConcurrentCollections.<Long, V>newConcurrentMap());
     }
 
     public static <V> Set<V> newConcurrentSet() {
@@ -80,17 +80,17 @@ public abstract class ConcurrentCollections {
 
     public static <T> Queue<T> newQueue() {
         if (useLinkedTransferQueue) {
-            return new LinkedTransferQueue<T>();
+            return new LinkedTransferQueue<>();
         }
-        return new ConcurrentLinkedQueue<T>();
+        return new ConcurrentLinkedQueue<>();
     }
 
     public static <T> Deque<T> newDeque() {
-        return new ConcurrentLinkedDeque<T>();
+        return new ConcurrentLinkedDeque<>();
     }
 
     public static <T> BlockingQueue<T> newBlockingQueue() {
-        return new LinkedTransferQueue<T>();
+        return new LinkedTransferQueue<>();
     }
 
     private ConcurrentCollections() {

@@ -608,7 +608,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     protected ImmutableList<SnapshotId> readSnapshotList() throws IOException {
         byte[] data = snapshotsBlobContainer.readBlobFully(SNAPSHOTS_FILE);
-        ArrayList<SnapshotId> snapshots = new ArrayList<SnapshotId>();
+        ArrayList<SnapshotId> snapshots = new ArrayList<>();
         XContentParser parser = null;
         try {
             parser = XContentHelper.createParser(data, 0, data.length);

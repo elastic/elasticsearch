@@ -45,7 +45,7 @@ public class ScriptsScoreBenchmark extends BasicScriptBenchmark {
 
         boolean runMVEL = false;
         init(maxTerms);
-        List<Results> allResults = new ArrayList<BasicScriptBenchmark.Results>();
+        List<Results> allResults = new ArrayList<>();
         Settings settings = settingsBuilder().put("plugin.types", NativeScriptExamplesPlugin.class.getName()).build();
 
         String clusterName = ScriptsScoreBenchmark.class.getSimpleName();

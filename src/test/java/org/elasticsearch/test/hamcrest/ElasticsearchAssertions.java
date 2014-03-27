@@ -120,7 +120,7 @@ public class ElasticsearchAssertions {
         String shardStatus = formatShardStatus(searchResponse);
         assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
 
-        Set<String> idsSet = new HashSet<String>(Arrays.asList(ids));
+        Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat("Expected id: " + hit.getId() + " in the result but wasn't." + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));

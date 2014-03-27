@@ -149,7 +149,7 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
         TokenStream tokenStream = doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer());
         tokenStream.reset();
         NumericTermAttribute nta = tokenStream.addAttribute(NumericTermAttribute.class);
-        List<Long> values = new ArrayList<Long>();
+        List<Long> values = new ArrayList<>();
         while(tokenStream.incrementToken()) {
             values.add(nta.getRawValue());
         }

@@ -58,7 +58,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("1")
@@ -89,7 +89,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
 
         // Test Gauss
-        List<Float> lonlat = new ArrayList<Float>();
+        List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);
         lonlat.add(11f);
 
@@ -159,7 +159,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         ensureYellow();
 
         // add tw docs within offset
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex().setType("type1").setId("1").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 0.5).endObject()));
         indexBuilders.add(client().prepareIndex().setType("type1").setId("2").setIndex("test")
@@ -237,7 +237,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("1")
@@ -257,7 +257,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
 
         // Test Gauss
-        List<Float> lonlat = new ArrayList<Float>();
+        List<Float> lonlat = new ArrayList<>();
         lonlat.add(20f);
         lonlat.add(11f);
 
@@ -294,7 +294,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("1")
@@ -340,7 +340,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
         ensureYellow();
 
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex().setType("type1").setId("1").setIndex("test")
                 .setSource(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()));
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
@@ -592,7 +592,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
         ensureYellow();
         int numDocs = 200;
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
         for (int i = 0; i < numDocs; i++) {
             double lat = 100 + (int) (10.0 * (float) (i) / (float) (numDocs));
@@ -611,7 +611,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         }
         IndexRequestBuilder[] builders = indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]);
         indexRandom(true, builders);
-        List<Float> lonlat = new ArrayList<Float>();
+        List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
         lonlat.add(110f);
         ActionFuture<SearchResponse> response = client().search(
@@ -649,7 +649,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         jsonBuilder().startObject().field("test", "value").startObject("geo").field("lat", 1).field("lon", 2).endObject()
                                 .endObject())).actionGet();
         refresh();
-        List<Float> lonlat = new ArrayList<Float>();
+        List<Float> lonlat = new ArrayList<>();
         lonlat.add(100f);
         lonlat.add(110f);
         ActionFuture<SearchResponse> response = client().search(

@@ -46,7 +46,7 @@ import java.util.Map;
 public class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
     /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
-    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<SoftReference<UTF8StreamWriter>>();
+    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
 
     /** If exists, reset and return, otherwise create, reset and return a writer.*/
     private static UTF8StreamWriter utf8StreamWriter() {
@@ -54,7 +54,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         UTF8StreamWriter writer = (ref == null) ? null : ref.get();
         if (writer == null) {
             writer = new UTF8StreamWriter(1024 * 4);
-            utf8StreamWriter.set(new SoftReference<UTF8StreamWriter>(writer));
+            utf8StreamWriter.set(new SoftReference<>(writer));
         }
         writer.reset();
         return writer;

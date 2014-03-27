@@ -79,7 +79,7 @@ public class GetField implements Streamable, Iterable<Object> {
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         int size = in.readVInt();
-        values = new ArrayList<Object>(size);
+        values = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             values.add(in.readGenericValue());
         }

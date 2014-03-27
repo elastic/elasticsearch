@@ -101,7 +101,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
                 facets.release();
                 return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), shardSize);
+                BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
                 for (int i = 0; i < states.length; i++) {
                     if (states[i]) {
                         BytesRef key = (BytesRef) keys[i];

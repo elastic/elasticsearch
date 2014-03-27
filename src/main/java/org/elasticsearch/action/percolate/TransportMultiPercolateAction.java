@@ -75,11 +75,11 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
         final ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-        final List<Object> percolateRequests = new ArrayList<Object>(request.requests().size());
+        final List<Object> percolateRequests = new ArrayList<>(request.requests().size());
         // Can have a mixture of percolate requests. (normal percolate requests & percolate existing doc),
         // so we need to keep track for what percolate request we had a get request
         final IntArrayList getRequestSlots = new IntArrayList();
-        List<GetRequest> existingDocsRequests = new ArrayList<GetRequest>();
+        List<GetRequest> existingDocsRequests = new ArrayList<>();
         for (int slot = 0;  slot < request.requests().size(); slot++) {
             PercolateRequest percolateRequest = request.requests().get(slot);
             percolateRequest.startTime = System.currentTimeMillis();
@@ -150,14 +150,14 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
         ASyncAction(List<Object> percolateRequests, ActionListener<MultiPercolateResponse> finalListener, ClusterState clusterState) {
             this.finalListener = finalListener;
             this.percolateRequests = percolateRequests;
-            responsesByItemAndShard = new AtomicReferenceArray<AtomicReferenceArray>(percolateRequests.size());
-            expectedOperationsPerItem = new AtomicReferenceArray<AtomicInteger>(percolateRequests.size());
-            reducedResponses = new AtomicArray<Object>(percolateRequests.size());
+            responsesByItemAndShard = new AtomicReferenceArray<>(percolateRequests.size());
+            expectedOperationsPerItem = new AtomicReferenceArray<>(percolateRequests.size());
+            reducedResponses = new AtomicArray<>(percolateRequests.size());
 
             // Resolving concrete indices and routing and grouping the requests by shard
-            requestsByShard = new HashMap<ShardId, TransportShardMultiPercolateAction.Request>();
+            requestsByShard = new HashMap<>();
             // Keep track what slots belong to what shard, in case a request to a shard fails on all copies
-            shardToSlots = new HashMap<ShardId, IntArrayList>();
+            shardToSlots = new HashMap<>();
             int expectedResults = 0;
             for (int slot = 0;  slot < percolateRequests.size(); slot++) {
                 Object element = percolateRequests.get(slot);

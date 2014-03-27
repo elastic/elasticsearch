@@ -44,7 +44,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
     private BytesRef current;
 
     ParentChildIntersectTermsEnum(AtomicReader atomicReader, String... fields) throws IOException {
-        List<TermsEnum> fieldEnums = new ArrayList<TermsEnum>();
+        List<TermsEnum> fieldEnums = new ArrayList<>();
         for (String field : fields) {
             Terms terms = atomicReader.terms(field);
             if (terms != null) {
@@ -52,7 +52,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
             }
         }
         this.comparator = fieldEnums.get(0).getComparator();
-        states = new ArrayList<TermsEnumState>(fieldEnums.size());
+        states = new ArrayList<>(fieldEnums.size());
         for (TermsEnum tEnum : fieldEnums) {
             states.add(new TermsEnumState(tEnum));
         }
@@ -77,7 +77,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
             // Can't use 'reuse' since we don't know to which previous TermsEnum it belonged to.
             return states.get(stateSlots.get(0)).termsEnum.docs(liveDocs, null, flags);
         } else {
-            List<DocsEnum> docsEnums = new ArrayList<DocsEnum>(stateSlots.size());
+            List<DocsEnum> docsEnums = new ArrayList<>(stateSlots.size());
             for (int i = 0; i < stateSlots.size(); i++) {
                 docsEnums.add(states.get(stateSlots.get(i)).termsEnum.docs(liveDocs, null, flags));
             }
@@ -226,7 +226,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
         int current = -1;
 
         CompoundDocsEnum(List<DocsEnum> docsEnums) {
-            this.states = new ArrayList<State>(docsEnums.size());
+            this.states = new ArrayList<>(docsEnums.size());
             for (DocsEnum docsEnum : docsEnums) {
                 states.add(new State(docsEnum));
             }

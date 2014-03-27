@@ -130,7 +130,7 @@ public final class XTermsFilter extends Filter {
         this.offsets = new int[length+1];
         int lastEndOffset = 0;
         int index = 0;
-        ArrayList<TermsAndField> termsAndFields = new ArrayList<TermsAndField>();
+        ArrayList<TermsAndField> termsAndFields = new ArrayList<>();
         TermsAndField lastTermsAndField = null;
         BytesRef previousTerm = null;
         String previousField = null;

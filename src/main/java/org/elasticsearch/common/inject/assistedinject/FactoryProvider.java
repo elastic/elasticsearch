@@ -152,9 +152,9 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
                 = createMethodMapping(factoryType, implementationType);
 
         if (!factoryMethodToConstructor.isEmpty()) {
-            return new FactoryProvider<F>(factoryType, factoryMethodToConstructor);
+            return new FactoryProvider<>(factoryType, factoryMethodToConstructor);
         } else {
-            return new FactoryProvider2<F>(factoryType, Key.get(implementationType));
+            return new FactoryProvider2<>(factoryType, Key.get(implementationType));
         }
     }
 

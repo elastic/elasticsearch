@@ -200,7 +200,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
         }
 
         ignoreAfterMaxFailuresDelegate =
-                new AtomicReference<TestRuleIgnoreAfterMaxFailures>(
+                new AtomicReference<>(
                         new TestRuleIgnoreAfterMaxFailures(maxFailures));
         ignoreAfterMaxFailures = TestRuleDelegate.of(ignoreAfterMaxFailuresDelegate);
     }
@@ -224,7 +224,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      * By-name list of ignored types like loggers etc.
      */
     private final static Set<String> STATIC_LEAK_IGNORED_TYPES =
-            Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
                     EnumSet.class.getName())));
 
     private final static Set<Class<?>> TOP_LEVEL_CLASSES =

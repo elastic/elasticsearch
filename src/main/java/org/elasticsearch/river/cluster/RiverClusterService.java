@@ -44,7 +44,7 @@ public class RiverClusterService extends AbstractLifecycleComponent<RiverCluster
 
     private final PublishRiverClusterStateAction publishAction;
 
-    private final List<RiverClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<RiverClusterStateListener>();
+    private final List<RiverClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
 
     private volatile ExecutorService updateTasksExecutor;
 

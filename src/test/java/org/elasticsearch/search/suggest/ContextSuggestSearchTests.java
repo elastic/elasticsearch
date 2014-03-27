@@ -496,7 +496,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .size(hits.length + 1).addCategory("st", Long.toString(prefix));
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
-        ArrayList<String> suggestions = new ArrayList<String>();
+        ArrayList<String> suggestions = new ArrayList<>();
         Suggest suggest2 = suggestResponse.getSuggest();
         assertTrue(suggest2.iterator().hasNext());
         for (Suggestion<? extends Entry<? extends Option>> s : suggest2) {
@@ -522,7 +522,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
 
-        ArrayList<String> suggestions = new ArrayList<String>();
+        ArrayList<String> suggestions = new ArrayList<>();
 
         Suggest suggest2 = suggestResponse.getSuggest();
         assertTrue(suggest2.iterator().hasNext());
@@ -550,7 +550,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
 
-        ArrayList<String> suggestions = new ArrayList<String>();
+        ArrayList<String> suggestions = new ArrayList<>();
 
         Suggest suggest2 = suggestResponse.getSuggest();
         for (Suggestion<? extends Entry<? extends Option>> s : suggest2) {
@@ -574,7 +574,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .addContextField("st", field1).addContextField("nd", field2);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
-        ArrayList<String> suggestions = new ArrayList<String>();
+        ArrayList<String> suggestions = new ArrayList<>();
 
         Suggest suggest2 = suggestResponse.getSuggest();
         for (Suggestion<? extends Entry<? extends Option>> s : suggest2) {
@@ -599,7 +599,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
         SuggestResponse suggestResponse = suggestionRequest.execute().actionGet();
-        ArrayList<String> suggestions = new ArrayList<String>();
+        ArrayList<String> suggestions = new ArrayList<>();
 
         Suggest suggest2 = suggestResponse.getSuggest();
         for (Suggestion<? extends Entry<? extends Option>> s : suggest2) {

@@ -56,11 +56,11 @@ public class ExposedBindingImpl<T> extends BindingImpl<T> implements ExposedBind
     }
 
     public BindingImpl<T> withScoping(Scoping scoping) {
-        return new ExposedBindingImpl<T>(getSource(), getKey(), scoping, privateElements);
+        return new ExposedBindingImpl<>(getSource(), getKey(), scoping, privateElements);
     }
 
     public ExposedBindingImpl<T> withKey(Key<T> key) {
-        return new ExposedBindingImpl<T>(getSource(), key, getScoping(), privateElements);
+        return new ExposedBindingImpl<>(getSource(), key, getScoping(), privateElements);
     }
 
     @Override

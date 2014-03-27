@@ -90,7 +90,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
                 }
             }
             // build the current commits list (all the ones that are not deleted by the primary)
-            List<SnapshotIndexCommit> newCommits = new ArrayList<SnapshotIndexCommit>();
+            List<SnapshotIndexCommit> newCommits = new ArrayList<>();
             for (SnapshotIndexCommit commit : snapshotCommits) {
                 if (!commit.isDeleted()) {
                     newCommits.add(commit);
@@ -112,7 +112,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
             if (snapshots == null) {
                 throw new IllegalStateException("Snapshot deletion policy has not been init yet...");
             }
-            List<SnapshotIndexCommit> result = new ArrayList<SnapshotIndexCommit>(commits.size());
+            List<SnapshotIndexCommit> result = new ArrayList<>(commits.size());
             for (SnapshotIndexCommit commit : commits) {
                 result.add(snapshot(commit));
             }
@@ -212,7 +212,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
 
     private List<SnapshotIndexCommit> wrapCommits(List<? extends IndexCommit> commits) throws IOException {
         final int count = commits.size();
-        List<SnapshotIndexCommit> snapshotCommits = new ArrayList<SnapshotIndexCommit>(count);
+        List<SnapshotIndexCommit> snapshotCommits = new ArrayList<>(count);
         for (int i = 0; i < count; i++)
             snapshotCommits.add(new SnapshotIndexCommit(this, commits.get(i)));
         return snapshotCommits;

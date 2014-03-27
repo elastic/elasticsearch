@@ -74,7 +74,7 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
                 .setSettings(settingsBuilder().put("index.number_of_shards", numShards).put("index.number_of_replicas", numberOfReplicas))
                 .addMapping("type1", "loc", "type=geo_point", "test", "type=string").execute().actionGet();
         ensureGreen();
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         final int numDocs = between(10, 20);
         for (int i = 0; i < numDocs; i++) {
             indexBuilders.add(client().prepareIndex("test", "type", Integer.toString(i))
@@ -87,8 +87,8 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
-            final List<Throwable> thrownExceptions = new CopyOnWriteArrayList<Throwable>();
-            final List<Throwable> nonCriticalExceptions = new CopyOnWriteArrayList<Throwable>();
+            final List<Throwable> thrownExceptions = new CopyOnWriteArrayList<>();
+            final List<Throwable> nonCriticalExceptions = new CopyOnWriteArrayList<>();
 
             Thread[] threads = new Thread[scaledRandomIntBetween(1, 3)];
             for (int j = 0; j < threads.length; j++) {

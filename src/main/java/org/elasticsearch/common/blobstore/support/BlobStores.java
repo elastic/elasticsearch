@@ -34,7 +34,7 @@ public class BlobStores {
 
     public static void syncWriteBlob(ImmutableBlobContainer blobContainer, String blobName, InputStream is, long sizeInBytes) throws IOException {
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
         blobContainer.writeBlob(blobName, is, sizeInBytes, new ImmutableBlobContainer.WriterListener() {
             @Override
             public void onCompleted() {

@@ -36,8 +36,8 @@ public class MultiGetShardResponse extends ActionResponse {
 
     MultiGetShardResponse() {
         locations = new IntArrayList();
-        responses = new ArrayList<GetResponse>();
-        failures = new ArrayList<MultiGetResponse.Failure>();
+        responses = new ArrayList<>();
+        failures = new ArrayList<>();
     }
 
     public void add(int location, GetResponse response) {
@@ -57,8 +57,8 @@ public class MultiGetShardResponse extends ActionResponse {
         super.readFrom(in);
         int size = in.readVInt();
         locations = new IntArrayList(size);
-        responses = new ArrayList<GetResponse>(size);
-        failures = new ArrayList<MultiGetResponse.Failure>(size);
+        responses = new ArrayList<>(size);
+        failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {

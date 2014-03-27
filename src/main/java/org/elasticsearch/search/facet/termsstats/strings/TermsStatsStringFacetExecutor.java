@@ -82,7 +82,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
         if (size == 0) { // all terms
             // all terms, just return the collection, we will sort it on the way back
-            List<InternalTermsStatsStringFacet.StringEntry> stringEntries = new ArrayList<InternalTermsStatsStringFacet.StringEntry>();
+            List<InternalTermsStatsStringFacet.StringEntry> stringEntries = new ArrayList<>();
             final boolean[] states = entries.v().allocated;
             final Object[] values = entries.v().values;
             for (int i = 0; i < states.length; i++) {

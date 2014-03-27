@@ -147,7 +147,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
         private long seq = 0;
 
-        private final Set<DeadlockAnalyzer.Deadlock> lastSeenDeadlocks = new HashSet<DeadlockAnalyzer.Deadlock>();
+        private final Set<DeadlockAnalyzer.Deadlock> lastSeenDeadlocks = new HashSet<>();
 
         public JvmMonitor() {
         }

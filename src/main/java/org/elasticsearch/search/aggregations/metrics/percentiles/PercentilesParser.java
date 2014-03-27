@@ -55,7 +55,7 @@ public class PercentilesParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class);
+        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
 
         String field = null;
         String script = null;
@@ -80,7 +80,7 @@ public class PercentilesParser implements Aggregator.Parser {
                     scriptLang = parser.text();
                 } else {
                     if (settings == null) {
-                        settings = new HashMap<String, Object>();
+                        settings = new HashMap<>();
                     }
                     settings.put(currentFieldName, parser.text());
                 }
@@ -114,13 +114,13 @@ public class PercentilesParser implements Aggregator.Parser {
                     keyed = parser.booleanValue();
                 } else {
                     if (settings == null) {
-                        settings = new HashMap<String, Object>();
+                        settings = new HashMap<>();
                     }
                     settings.put(currentFieldName, parser.booleanValue());
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (settings == null) {
-                    settings = new HashMap<String, Object>();
+                    settings = new HashMap<>();
                 }
                 settings.put(currentFieldName, parser.numberValue());
             } else {

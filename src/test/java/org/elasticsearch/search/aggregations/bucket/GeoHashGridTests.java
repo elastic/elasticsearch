@@ -68,9 +68,9 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
         createIndex("idx_unmapped");
 
-        List<IndexRequestBuilder> cities = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = getRandom();
-        expectedDocCountsForGeoHash = new ObjectIntOpenHashMap<String>(numRandomPoints * 2);
+        expectedDocCountsForGeoHash = new ObjectIntOpenHashMap<>(numRandomPoints * 2);
         for (int i = 0; i < numRandomPoints; i++) {
             //generate random point
             double lat = (180d * random.nextDouble()) - 90d;

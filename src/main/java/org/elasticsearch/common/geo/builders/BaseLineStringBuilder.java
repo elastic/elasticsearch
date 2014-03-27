@@ -85,7 +85,7 @@ public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> 
      */
     protected static Coordinate[][] decompose(double dateline, Coordinate[] coordinates) {
         int offset = 0;
-        ArrayList<Coordinate[]> parts = new ArrayList<Coordinate[]>();
+        ArrayList<Coordinate[]> parts = new ArrayList<>();
         
         double shift = coordinates[0].x > DATELINE ? DATELINE : (coordinates[0].x < -DATELINE ? -DATELINE : 0);
 

@@ -37,7 +37,7 @@ public class SingleOrdinalsTests extends ElasticsearchTestCase {
     public void testSvValues() throws IOException {
         int numDocs = 1000000;
         int numOrdinals = numDocs / 4;
-        Map<Integer, Long> controlDocToOrdinal = new HashMap<Integer, Long>();
+        Map<Integer, Long> controlDocToOrdinal = new HashMap<>();
         OrdinalsBuilder builder = new OrdinalsBuilder(numDocs);
         long ordinal = builder.nextOrdinal();
         for (int doc = 0; doc < numDocs; doc++) {

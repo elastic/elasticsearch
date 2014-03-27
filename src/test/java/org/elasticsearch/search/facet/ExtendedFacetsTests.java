@@ -110,20 +110,20 @@ public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
             queryValues[i] = randomAsciiOfLength(5);
         }
 
-        Set<String> uniqueValuesSet = new HashSet<String>();
+        Set<String> uniqueValuesSet = new HashSet<>();
         int numOfVals = 400;
         for (int i = 0; i < numOfVals; i++) {
             uniqueValuesSet.add(randomAsciiOfLength(10));
         }
         String[] allUniqueFieldValues = uniqueValuesSet.toArray(new String[uniqueValuesSet.size()]);
 
-        Set<String> allField1Values = new HashSet<String>();
-        Set<String> allField1AndField2Values = new HashSet<String>();
-        Map<String, Map<String, Integer>> queryValToField1FacetEntries = new HashMap<String, Map<String, Integer>>();
-        Map<String, Map<String, Integer>> queryValToField1and2FacetEntries = new HashMap<String, Map<String, Integer>>();
+        Set<String> allField1Values = new HashSet<>();
+        Set<String> allField1AndField2Values = new HashSet<>();
+        Map<String, Map<String, Integer>> queryValToField1FacetEntries = new HashMap<>();
+        Map<String, Map<String, Integer>> queryValToField1and2FacetEntries = new HashMap<>();
         for (int i = 1; i <= numDocs(); i++) {
             int numField1Values = random.nextInt(17);
-            Set<String> field1Values = new HashSet<String>(numField1Values);
+            Set<String> field1Values = new HashSet<>(numField1Values);
             for (int j = 0; j <= numField1Values; j++) {
                 boolean added = false;
                 while (!added) {
@@ -186,10 +186,10 @@ public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
                 if (random.nextBoolean()) {
                     termsFacetBuilder.executionHint("map");
                 }
-                List<String> excludes = new ArrayList<String>();
+                List<String> excludes = new ArrayList<>();
                 if (random.nextBoolean()) {
                     int numExcludes = random.nextInt(5) + 1;
-                    List<String> facetValues = new ArrayList<String>(queryControlFacets.keySet());
+                    List<String> facetValues = new ArrayList<>(queryControlFacets.keySet());
                     for (int i = 0; i < numExcludes; i++) {
                         excludes.add(facetValues.get(random.nextInt(facetValues.size())));
                     }
@@ -197,7 +197,7 @@ public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
                 }
                 String regex = null;
                 if (random.nextBoolean()) {
-                    List<String> facetValues = new ArrayList<String>(queryControlFacets.keySet());
+                    List<String> facetValues = new ArrayList<>(queryControlFacets.keySet());
                     regex = facetValues.get(random.nextInt(facetValues.size()));
                     regex = "^" + regex.substring(0, regex.length() / 2) + ".*";
                     termsFacetBuilder.regex(regex);
@@ -226,7 +226,7 @@ public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
     private void addControlValues(Map<String, Map<String, Integer>> queryValToFacetFieldEntries, String fieldVal, String queryVal) {
         Map<String, Integer> controlFieldFacets = queryValToFacetFieldEntries.get(queryVal);
         if (controlFieldFacets == null) {
-            controlFieldFacets = new HashMap<String, Integer>();
+            controlFieldFacets = new HashMap<>();
             queryValToFacetFieldEntries.put(queryVal, controlFieldFacets);
         }
         Integer controlCount = controlFieldFacets.get(fieldVal);
@@ -254,7 +254,7 @@ public class ExtendedFacetsTests extends ElasticsearchIntegrationTest {
             pattern = Regex.compile(regex, null);
         }
 
-        List<Tuple<Text, Integer>> entries = new ArrayList<Tuple<Text, Integer>>();
+        List<Tuple<Text, Integer>> entries = new ArrayList<>();
         for (Map.Entry<String, Integer> e : controlFacetsField.entrySet()) {
             if (excludes.contains(e.getKey())) {
                 continue;

@@ -67,8 +67,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
         private AsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             super(request, listener);
-            fetchResults = new AtomicArray<FetchSearchResult>(firstResults.length());
-            docIdsToLoad = new AtomicArray<IntArrayList>(firstResults.length());
+            fetchResults = new AtomicArray<>(firstResults.length());
+            docIdsToLoad = new AtomicArray<>(firstResults.length());
         }
 
         @Override

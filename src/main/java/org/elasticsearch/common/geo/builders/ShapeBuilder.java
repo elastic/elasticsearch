@@ -207,7 +207,7 @@ public abstract class ShapeBuilder implements ToXContent {
             return new CoordinateNode(new Coordinate(lon, lat));
         }
 
-        List<CoordinateNode> nodes = new ArrayList<CoordinateNode>();
+        List<CoordinateNode> nodes = new ArrayList<>();
         while (token != XContentParser.Token.END_ARRAY) {
             nodes.add(parseCoordinates(parser));
             token = parser.nextToken();

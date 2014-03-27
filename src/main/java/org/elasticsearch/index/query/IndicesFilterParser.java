@@ -90,7 +90,7 @@ public class IndicesFilterParser implements FilterParser {
                         throw  new QueryParsingException(parseContext.index(), "[indices] indices or index already specified");
                     }
                     indicesFound = true;
-                    Collection<String> indices = new ArrayList<String>();
+                    Collection<String> indices = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {

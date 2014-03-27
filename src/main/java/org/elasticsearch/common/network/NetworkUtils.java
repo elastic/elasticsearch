@@ -278,7 +278,7 @@ public abstract class NetworkUtils {
      * Returns all the available interfaces, including first level sub interfaces.
      */
     public static List<NetworkInterface> getAllAvailableInterfaces() throws SocketException {
-        List<NetworkInterface> allInterfaces = new ArrayList<NetworkInterface>();
+        List<NetworkInterface> allInterfaces = new ArrayList<>();
         for (Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces(); interfaces.hasMoreElements(); ) {
             NetworkInterface intf = interfaces.nextElement();
             allInterfaces.add(intf);
@@ -294,7 +294,7 @@ public abstract class NetworkUtils {
     }
 
     public static Collection<InetAddress> getAllAvailableAddresses() {
-        Set<InetAddress> retval = new HashSet<InetAddress>();
+        Set<InetAddress> retval = new HashSet<>();
         Enumeration en;
 
         try {

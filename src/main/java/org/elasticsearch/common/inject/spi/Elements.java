@@ -169,12 +169,12 @@ public final class Elements {
         }
 
         public <T> void requestInjection(TypeLiteral<T> type, T instance) {
-            elements.add(new InjectionRequest<T>(getSource(), type, instance));
+            elements.add(new InjectionRequest<>(getSource(), type, instance));
         }
 
         public <T> MembersInjector<T> getMembersInjector(final TypeLiteral<T> typeLiteral) {
             final MembersInjectorLookup<T> element
-                    = new MembersInjectorLookup<T>(getSource(), typeLiteral);
+                    = new MembersInjectorLookup<>(getSource(), typeLiteral);
             elements.add(element);
             return element.getMembersInjector();
         }
@@ -232,7 +232,7 @@ public final class Elements {
         }
 
         public <T> AnnotatedBindingBuilder<T> bind(Key<T> key) {
-            return new BindingBuilder<T>(this, elements, getSource(), key);
+            return new BindingBuilder<>(this, elements, getSource(), key);
         }
 
         public <T> AnnotatedBindingBuilder<T> bind(TypeLiteral<T> typeLiteral) {
@@ -248,7 +248,7 @@ public final class Elements {
         }
 
         public <T> Provider<T> getProvider(final Key<T> key) {
-            final ProviderLookup<T> element = new ProviderLookup<T>(getSource(), key);
+            final ProviderLookup<T> element = new ProviderLookup<>(getSource(), key);
             elements.add(element);
             return element.getProvider();
         }
@@ -307,7 +307,7 @@ public final class Elements {
                 };
             }
 
-            ExposureBuilder<T> builder = new ExposureBuilder<T>(this, getSource(), key);
+            ExposureBuilder<T> builder = new ExposureBuilder<>(this, getSource(), key);
             privateElements.addExposureBuilder(builder);
             return builder;
         }

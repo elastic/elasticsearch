@@ -49,7 +49,7 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
 
     private volatile Settings lastSettingsApplied;
 
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public NodeSettingsService(Settings settings) {

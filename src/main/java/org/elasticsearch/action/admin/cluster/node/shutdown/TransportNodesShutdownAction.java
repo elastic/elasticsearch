@@ -101,7 +101,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
         if (disabled) {
             throw new ElasticsearchIllegalStateException("Shutdown is disabled");
         }
-        final ObjectOpenHashSet<DiscoveryNode> nodes = new ObjectOpenHashSet<DiscoveryNode>();
+        final ObjectOpenHashSet<DiscoveryNode> nodes = new ObjectOpenHashSet<>();
         if (state.nodes().isAllNodes(request.nodesIds)) {
             logger.info("[cluster_shutdown]: requested, shutting down in [{}]", request.delay);
             nodes.addAll(state.nodes().dataNodes().values());

@@ -66,7 +66,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         final DiscoveryNodes nodes;
         final CountDown expectedOps;
         final ClearScrollRequest request;
-        final List<Tuple<String, Long>[]> contexts = new ArrayList<Tuple<String, Long>[]>();
+        final List<Tuple<String, Long>[]> contexts = new ArrayList<>();
         final AtomicReference<Throwable> expHolder;
         final ActionListener<ClearScrollResponse> listener;
 
@@ -85,7 +85,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
             this.request = request;
             this.listener = listener;
-            this.expHolder = new AtomicReference<Throwable>();
+            this.expHolder = new AtomicReference<>();
             this.expectedOps = new CountDown(expectedOps);
         }
 

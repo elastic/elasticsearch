@@ -77,7 +77,7 @@ public class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
             }
             SearchHitField hitField = hitContext.hit().fields().get(field.name());
             if (hitField == null) {
-                hitField = new InternalSearchHitField(field.name(), new ArrayList<Object>(2));
+                hitField = new InternalSearchHitField(field.name(), new ArrayList<>(2));
                 hitContext.hit().fields().put(field.name(), hitField);
             }
             FieldMapper mapper = context.mapperService().smartNameFieldMapper(field.name());

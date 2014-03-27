@@ -42,7 +42,7 @@ public class SnapshotIndexCommit extends IndexCommitDelegate implements Releasab
     SnapshotIndexCommit(SnapshotDeletionPolicy deletionPolicy, IndexCommit cp) throws IOException {
         super(cp);
         this.deletionPolicy = deletionPolicy;
-        ArrayList<String> tmpFiles = new ArrayList<String>();
+        ArrayList<String> tmpFiles = new ArrayList<>();
         for (String o : cp.getFileNames()) {
             tmpFiles.add(o);
         }

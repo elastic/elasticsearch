@@ -89,7 +89,7 @@ public class HotThreads {
             } else {
                 throw new IllegalStateException("MBean doesn't support thread CPU Time");
             }
-            Map<Long, MyThreadInfo> threadInfos = new HashMap<Long, MyThreadInfo>();
+            Map<Long, MyThreadInfo> threadInfos = new HashMap<>();
             for (long threadId : threadBean.getAllThreadIds()) {
                 // ignore our own thread...
                 if (Thread.currentThread().getId() == threadId) {
@@ -129,7 +129,7 @@ public class HotThreads {
                 }
             }
             // sort by delta CPU time on thread.
-            List<MyThreadInfo> hotties = new ArrayList<MyThreadInfo>(threadInfos.values());
+            List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
             final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
             // skip that for now
             CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {

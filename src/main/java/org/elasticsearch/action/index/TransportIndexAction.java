@@ -239,7 +239,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         assert request.versionType().validateVersion(request.version());
 
         IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, created);
-        return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
+        return new PrimaryResponse<>(shardRequest.request, response, op);
     }
 
     @Override

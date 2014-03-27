@@ -78,7 +78,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
     }
 
-    public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
 
     static {
         // register non plugin custom metadata
@@ -208,7 +208,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             IndexMetaData indexMetaData = cursor.value;
             ObjectArrayList<String> indicesLst = (ObjectArrayList<String>) aliasAndIndexToIndexMap.get(indexMetaData.index());
             if (indicesLst == null) {
-                indicesLst = new ObjectArrayList<String>();
+                indicesLst = new ObjectArrayList<>();
                 aliasAndIndexToIndexMap.put(indexMetaData.index(), indicesLst);
             }
             indicesLst.add(indexMetaData.index());
@@ -217,7 +217,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 String alias = cursor1.value;
                 indicesLst = (ObjectArrayList<String>) aliasAndIndexToIndexMap.get(alias);
                 if (indicesLst == null) {
-                    indicesLst = new ObjectArrayList<String>();
+                    indicesLst = new ObjectArrayList<>();
                     aliasAndIndexToIndexMap.put(alias, indicesLst);
                 }
                 indicesLst.add(indexMetaData.index());
@@ -490,7 +490,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         Map<String, Set<String>> routings = null;
         Set<String> paramRouting = null;
         // List of indices that don't require any routing
-        Set<String> norouting = new HashSet<String>();
+        Set<String> norouting = new HashSet<>();
         if (routing != null) {
             paramRouting = Strings.splitStringByCommaToSet(routing);
         }
@@ -507,7 +507,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                             }
                             Set<String> r = routings.get(indexRouting.key);
                             if (r == null) {
-                                r = new HashSet<String>();
+                                r = new HashSet<>();
                                 routings.put(indexRouting.key, r);
                             }
                             r.addAll(indexRouting.value.searchRoutingValues());
@@ -522,7 +522,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                             if (!norouting.contains(indexRouting.key)) {
                                 norouting.add(indexRouting.key);
                                 if (paramRouting != null) {
-                                    Set<String> r = new HashSet<String>(paramRouting);
+                                    Set<String> r = new HashSet<>(paramRouting);
                                     if (routings == null) {
                                         routings = newHashMap();
                                     }
@@ -541,7 +541,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 if (!norouting.contains(aliasOrIndex)) {
                     norouting.add(aliasOrIndex);
                     if (paramRouting != null) {
-                        Set<String> r = new HashSet<String>(paramRouting);
+                        Set<String> r = new HashSet<>(paramRouting);
                         if (routings == null) {
                             routings = newHashMap();
                         }
@@ -574,7 +574,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             for (ObjectObjectCursor<String, AliasMetaData> indexRouting : indexToRoutingMap) {
                 if (!indexRouting.value.searchRoutingValues().isEmpty()) {
                     // Routing alias
-                    Set<String> r = new HashSet<String>(indexRouting.value.searchRoutingValues());
+                    Set<String> r = new HashSet<>(indexRouting.value.searchRoutingValues());
                     if (paramRouting != null) {
                         r.retainAll(paramRouting);
                     }
@@ -587,7 +587,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 } else {
                     // Non-routing alias
                     if (paramRouting != null) {
-                        Set<String> r = new HashSet<String>(paramRouting);
+                        Set<String> r = new HashSet<>(paramRouting);
                         if (routings == null) {
                             routings = newHashMap();
                         }
@@ -685,7 +685,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             return aliasesOrIndices;
         }
 
-        Set<String> actualIndices = new HashSet<String>();
+        Set<String> actualIndices = new HashSet<>();
         for (String index : aliasesOrIndices) {
             String[] actualLst = aliasAndIndexToIndexMap.get(index);
             if (actualLst == null) {
@@ -743,7 +743,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             if (aliasOrIndex.charAt(0) == '+') {
                 // if its the first, add empty result set
                 if (i == 0) {
-                    result = new HashSet<String>();
+                    result = new HashSet<>();
                 }
                 add = true;
                 aliasOrIndex = aliasOrIndex.substring(1);
@@ -761,7 +761,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                         assert false : "Shouldn't end up here";
                         concreteIndices = Strings.EMPTY_ARRAY;
                     }
-                    result = new HashSet<String>(Arrays.asList(concreteIndices));
+                    result = new HashSet<>(Arrays.asList(concreteIndices));
                 }
                 add = false;
                 aliasOrIndex = aliasOrIndex.substring(1);
@@ -781,7 +781,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             if (result == null) {
                 // add all the previous ones...
-                result = new HashSet<String>();
+                result = new HashSet<>();
                 result.addAll(Arrays.asList(aliasesOrIndices).subList(0, i));
             }
             String[] indices;

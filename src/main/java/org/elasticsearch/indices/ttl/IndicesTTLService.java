@@ -138,7 +138,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
          * Returns the shards to purge, i.e. the local started primary shards that have ttl enabled and disable_purge to false
          */
         private List<IndexShard> getShardsToPurge() {
-            List<IndexShard> shardsToPurge = new ArrayList<IndexShard>();
+            List<IndexShard> shardsToPurge = new ArrayList<>();
             MetaData metaData = clusterService.state().metaData();
             for (IndexService indexService : indicesService) {
                 // check the value of disable_purge for this index
@@ -216,7 +216,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     private class ExpiredDocsCollector extends Collector {
         private final MapperService mapperService;
         private AtomicReaderContext context;
-        private List<DocToPurge> docsToPurge = new ArrayList<DocToPurge>();
+        private List<DocToPurge> docsToPurge = new ArrayList<>();
 
         public ExpiredDocsCollector(String index) {
             mapperService = indicesService.indexService(index).mapperService();

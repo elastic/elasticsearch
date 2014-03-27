@@ -151,7 +151,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
         this.defaultKeepAlive = componentSettings.getAsTime(DEFAUTL_KEEPALIVE_COMPONENENT_KEY, timeValueMinutes(5)).millis();
 
-        Map<String, SearchParseElement> elementParsers = new HashMap<String, SearchParseElement>();
+        Map<String, SearchParseElement> elementParsers = new HashMap<>();
         elementParsers.putAll(dfsPhase.parseElements());
         elementParsers.putAll(queryPhase.parseElements());
         elementParsers.putAll(fetchPhase.parseElements());
@@ -709,7 +709,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final Loading defaultLoading = Loading.parse(indexMetaData.settings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
-            final ObjectSet<String> warmUp = new ObjectOpenHashSet<String>();
+            final ObjectSet<String> warmUp = new ObjectOpenHashSet<>();
             for (DocumentMapper docMapper : mapperService) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
                     final String indexName = fieldMapper.names().indexName();
@@ -760,7 +760,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         @Override
         public TerminationHandle warm(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
-            final Map<String, FieldMapper<?>> warmUp = new HashMap<String, FieldMapper<?>>();
+            final Map<String, FieldMapper<?>> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService) {
                 for (FieldMapper<?> fieldMapper : docMapper.mappers().mappers()) {
                     final FieldDataType fieldDataType = fieldMapper.fieldDataType();

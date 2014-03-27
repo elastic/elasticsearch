@@ -72,7 +72,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
         IndexReader ir = iw.getReader();
         iw.close();
 
-        List<Object> fieldValues = new ArrayList<Object>();
+        List<Object> fieldValues = new ArrayList<>();
         fieldValues.add(firstValue);
         fieldValues.add(secondValue);
         fieldValues.add(thirdValue);
@@ -183,7 +183,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
 
         int docId = topDocs.scoreDocs[0].doc;
 
-        List<Object> fieldValues = new ArrayList<Object>();
+        List<Object> fieldValues = new ArrayList<>();
         fieldValues.add(firstValue);
         fieldValues.add(secondValue);
         fieldValues.add(thirdValue);
@@ -204,7 +204,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
         //Let's highlight each separate value and check how the snippets are scored
         mergeValues = false;
         highlighter = new CustomPostingsHighlighter(new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()), fieldValues, mergeValues, Integer.MAX_VALUE-1, 0);
-        List<Snippet> snippets2 = new ArrayList<Snippet>();
+        List<Snippet> snippets2 = new ArrayList<>();
         for (int i = 0; i < fieldValues.size(); i++) {
             snippets2.addAll(Arrays.asList(highlighter.highlightDoc("body", queryTerms, searcher, docId, 5)));
         }
@@ -298,7 +298,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
 
         int docId = topDocs.scoreDocs[0].doc;
 
-        List<Object> fieldValues = new ArrayList<Object>();
+        List<Object> fieldValues = new ArrayList<>();
         fieldValues.add(firstValue);
         fieldValues.add(secondValue);
         fieldValues.add(thirdValue);
@@ -385,7 +385,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
         assertThat(topDocs.totalHits, equalTo(1));
         int docId = topDocs.scoreDocs[0].doc;
 
-        List<Object> values = new ArrayList<Object>();
+        List<Object> values = new ArrayList<>();
         values.add(firstValue);
 
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder());
@@ -441,7 +441,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
         assertThat(topDocs.totalHits, equalTo(1));
         int docId = topDocs.scoreDocs[0].doc;
 
-        List<Object> values = new ArrayList<Object>();
+        List<Object> values = new ArrayList<>();
         values.add(firstValue);
 
         BytesRef[] filteredQueryTerms = filterTerms(queryTerms, "body", true);
@@ -461,7 +461,7 @@ public class CustomPostingsHighlighterTests extends ElasticsearchLuceneTestCase 
     }
 
     private static SortedSet<Term> extractTerms(Query query) {
-        SortedSet<Term> queryTerms = new TreeSet<Term>();
+        SortedSet<Term> queryTerms = new TreeSet<>();
         query.extractTerms(queryTerms);
         return queryTerms;
     }

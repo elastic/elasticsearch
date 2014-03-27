@@ -55,7 +55,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
         for (int i = 0; i < values.length; ++i) {
             values[i] = new BytesRef(randomAsciiOfLength(5));
         }
-        final ObjectLongMap<BytesRef> valueToId = new ObjectLongOpenHashMap<BytesRef>();
+        final ObjectLongMap<BytesRef> valueToId = new ObjectLongOpenHashMap<>();
         final BytesRef[] idToValue = new BytesRef[values.length];
         final int iters = randomInt(1000000);
         for (int i = 0; i < iters; ++i) {
@@ -128,7 +128,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
-            Map<String, Long> strings = new HashMap<String, Long>();
+            Map<String, Long> strings = new HashMap<>();
             int uniqueCount = 0;
             for (int i = 0; i < 797; i++) {
                 String str;
@@ -168,7 +168,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
-            Set<String> strings = new HashSet<String>();
+            Set<String> strings = new HashSet<>();
             int uniqueCount = 0;
             for (int i = 0; i < 797; i++) {
                 String str;
@@ -204,7 +204,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
         BytesRef scratch = new BytesRef();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
-            Set<String> strings = new HashSet<String>();
+            Set<String> strings = new HashSet<>();
             int uniqueCount = 0;
             for (int i = 0; i < 797; i++) {
                 String str;

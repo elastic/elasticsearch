@@ -2526,7 +2526,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         int COUNT = between(20, 100);
-        Map<String, String> prefixes = new HashMap<String, String>(COUNT);
+        Map<String, String> prefixes = new HashMap<>(COUNT);
 
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[COUNT];
         for (int i = 0; i < COUNT; i++) {

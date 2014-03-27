@@ -302,7 +302,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         // index simple data
         for (int i = 0; i < 10; i++) {
             builders.add(client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i));
@@ -354,7 +354,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         String previousParentId = null;
         int numChildDocs = 32;
         int numChildDocsPerParent = 0;
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 1; i <= numChildDocs; i++) {
 
             if (previousParentId == null || i % numChildDocsPerParent == 0) {
@@ -767,7 +767,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     List<IndexRequestBuilder> createDocBuilders() {
-        List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         // Parent 1 and its children
         indexBuilders.add(client().prepareIndex().setType("parent").setId("1").setIndex("test").setSource("p_field", "p_value1"));
         indexBuilders.add(client().prepareIndex().setType("child").setId("1").setIndex("test")
@@ -1494,7 +1494,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         int numThreads = 10;
         final CountDownLatch latch = new CountDownLatch(numThreads);
-        final AtomicReference<AssertionError> holder = new AtomicReference<AssertionError>();
+        final AtomicReference<AssertionError> holder = new AtomicReference<>();
         Runnable r = new Runnable() {
             @Override
             public void run() {

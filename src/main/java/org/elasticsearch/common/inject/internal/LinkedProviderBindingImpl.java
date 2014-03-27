@@ -50,11 +50,11 @@ public final class LinkedProviderBindingImpl<T>
     }
 
     public BindingImpl<T> withScoping(Scoping scoping) {
-        return new LinkedProviderBindingImpl<T>(getSource(), getKey(), scoping, providerKey);
+        return new LinkedProviderBindingImpl<>(getSource(), getKey(), scoping, providerKey);
     }
 
     public BindingImpl<T> withKey(Key<T> key) {
-        return new LinkedProviderBindingImpl<T>(getSource(), key, getScoping(), providerKey);
+        return new LinkedProviderBindingImpl<>(getSource(), key, getScoping(), providerKey);
     }
 
     public void applyTo(Binder binder) {

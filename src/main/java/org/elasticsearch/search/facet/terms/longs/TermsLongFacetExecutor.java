@@ -121,7 +121,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                 facets.release();
                 return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
-                BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), shardSize);
+                BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
                 for (int i = 0; i < states.length; i++) {
                     if (states[i]) {
                         ordered.add(new InternalLongTermsFacet.LongEntry(keys[i], values[i]));

@@ -125,12 +125,12 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
 
         // first we collect all aggregations of the same type and list them together
 
-        Map<String, List<InternalAggregation>> aggByName = new HashMap<String, List<InternalAggregation>>();
+        Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
         for (InternalAggregations aggregations : aggregationsList) {
             for (InternalAggregation aggregation : aggregations.aggregations) {
                 List<InternalAggregation> aggs = aggByName.get(aggregation.getName());
                 if (aggs == null) {
-                    aggs = new ArrayList<InternalAggregation>(aggregationsList.size());
+                    aggs = new ArrayList<>(aggregationsList.size());
                     aggByName.put(aggregation.getName(), aggs);
                 }
                 aggs.add(aggregation);
@@ -139,7 +139,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
 
         // now we can use the first aggregation of each list to handle the reduce of its list
 
-        List<InternalAggregation> reducedAggregations = new ArrayList<InternalAggregation>();
+        List<InternalAggregation> reducedAggregations = new ArrayList<>();
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
             List<InternalAggregation> aggregations = entry.getValue();
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand

@@ -77,7 +77,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
     public Suggest execute(SuggestionSearchContext suggest, IndexReader reader) {
         try {
             CharsRef spare = new CharsRef(); // Maybe add CharsRef to CacheRecycler?
-            final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(suggest.suggestions().size());
+            final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>(suggest.suggestions().size());
 
             for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
                 SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();

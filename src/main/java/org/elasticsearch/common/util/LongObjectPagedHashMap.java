@@ -130,7 +130,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
             boolean cached;
             final Cursor<T> cursor;
             {
-                cursor = new Cursor<T>();
+                cursor = new Cursor<>();
                 cursor.index = -1;
                 cached = false;
             }

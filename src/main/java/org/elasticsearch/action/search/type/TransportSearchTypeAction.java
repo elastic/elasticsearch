@@ -122,7 +122,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             // we need to add 1 for non active partition, since we count it in the total!
             expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
-            firstResults = new AtomicArray<FirstResult>(shardsIts.size());
+            firstResults = new AtomicArray<>(shardsIts.size());
             // Not so nice, but we need to know if there're nodes below the supported version
             // and if so fall back to classic scroll (based on from). We need to check every node
             // because we don't to what nodes we end up sending the request (shard may fail or relocate)
@@ -359,7 +359,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             if (shardFailures == null) {
                 synchronized (shardFailuresMutex) {
                     if (shardFailures == null) {
-                        shardFailures = new AtomicArray<ShardSearchFailure>(shardsIts.size());
+                        shardFailures = new AtomicArray<>(shardsIts.size());
                     }
                 }
             }

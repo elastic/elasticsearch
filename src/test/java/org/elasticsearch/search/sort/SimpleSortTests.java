@@ -120,8 +120,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                                 .endObject()));
         ensureGreen();
 
-        TreeMap<BytesRef, String> sparseBytes = new TreeMap<BytesRef, String>();
-        TreeMap<BytesRef, String> denseBytes = new TreeMap<BytesRef, String>();
+        TreeMap<BytesRef, String> sparseBytes = new TreeMap<>();
+        TreeMap<BytesRef, String> denseBytes = new TreeMap<>();
         int numDocs = randomIntBetween(200, 300);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
@@ -353,7 +353,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                         .startObject("double_value").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             IndexRequestBuilder builder = client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("str_value", new String(new char[]{(char) (97 + i), (char) (97 + i)}))

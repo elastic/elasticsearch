@@ -159,7 +159,7 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        stats = new ArrayList<Stats>(size);
+        stats = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             Stats stats1 = new Stats();
             stats1.readFrom(in);

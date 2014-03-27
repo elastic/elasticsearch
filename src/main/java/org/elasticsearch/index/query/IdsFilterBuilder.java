@@ -33,7 +33,7 @@ public class IdsFilterBuilder extends BaseFilterBuilder {
 
     private final List<String> types;
 
-    private List<String> values = new ArrayList<String>();
+    private List<String> values = new ArrayList<>();
 
     private String filterName;
 

@@ -58,14 +58,14 @@ public class PartialFieldsParseElement implements SearchParseElement {
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if ("includes".equals(currentFieldName) || "include".equals(currentFieldName)) {
                             if (includes == null) {
-                                includes = new ArrayList<String>(2);
+                                includes = new ArrayList<>(2);
                             }
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 includes.add(parser.text());
                             }
                         } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
                             if (excludes == null) {
-                                excludes = new ArrayList<String>(2);
+                                excludes = new ArrayList<>(2);
                             }
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 excludes.add(parser.text());
@@ -74,12 +74,12 @@ public class PartialFieldsParseElement implements SearchParseElement {
                     } else if (token.isValue()) {
                         if ("include".equals(currentFieldName)) {
                             if (includes == null) {
-                                includes = new ArrayList<String>(2);
+                                includes = new ArrayList<>(2);
                             }
                             includes.add(parser.text());
                         } else if ("exclude".equals(currentFieldName)) {
                             if (excludes == null) {
-                                excludes = new ArrayList<String>(2);
+                                excludes = new ArrayList<>(2);
                             }
                             excludes.add(parser.text());
                         }

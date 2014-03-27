@@ -40,14 +40,14 @@ import java.util.Map;
  */
 public abstract class StreamOutput extends OutputStream {
 
-    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<SoftReference<UTF8StreamWriter>>();
+    private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
 
     public static UTF8StreamWriter utf8StreamWriter() {
         SoftReference<UTF8StreamWriter> ref = utf8StreamWriter.get();
         UTF8StreamWriter writer = (ref == null) ? null : ref.get();
         if (writer == null) {
             writer = new UTF8StreamWriter(1024 * 4);
-            utf8StreamWriter.set(new SoftReference<UTF8StreamWriter>(writer));
+            utf8StreamWriter.set(new SoftReference<>(writer));
         }
         writer.reset();
         return writer;

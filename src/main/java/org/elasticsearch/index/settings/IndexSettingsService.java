@@ -34,7 +34,7 @@ public class IndexSettingsService extends AbstractIndexComponent {
 
     private volatile Settings settings;
 
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
     public IndexSettingsService(Index index, Settings settings) {

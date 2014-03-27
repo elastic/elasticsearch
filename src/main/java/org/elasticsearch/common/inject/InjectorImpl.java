@@ -187,11 +187,11 @@ class InjectorImpl implements Injector, Lookups {
                 ((ParameterizedType) membersInjectorType).getActualTypeArguments()[0]);
         MembersInjector<T> membersInjector = membersInjectorStore.get(instanceType, errors);
 
-        InternalFactory<MembersInjector<T>> factory = new ConstantFactory<MembersInjector<T>>(
+        InternalFactory<MembersInjector<T>> factory = new ConstantFactory<>(
                 Initializables.of(membersInjector));
 
 
-        return new InstanceBindingImpl<MembersInjector<T>>(this, key, SourceProvider.UNKNOWN_SOURCE,
+        return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE,
                 factory, ImmutableSet.<InjectionPoint>of(), membersInjector);
     }
 
@@ -214,7 +214,7 @@ class InjectorImpl implements Injector, Lookups {
                 Key<T> providedKey = (Key<T>) key.ofType(entryType);
 
         BindingImpl<T> delegate = getBindingOrThrow(providedKey, errors);
-        return new ProviderBindingImpl<T>(this, key, delegate);
+        return new ProviderBindingImpl<>(this, key, delegate);
     }
 
     static class ProviderBindingImpl<T> extends BindingImpl<Provider<T>>
@@ -300,7 +300,7 @@ class InjectorImpl implements Injector, Lookups {
                         .toException();
             }
 
-            return new ConvertedConstantBindingImpl<T>(this, key, converted, stringBinding);
+            return new ConvertedConstantBindingImpl<>(this, key, converted, stringBinding);
         } catch (ErrorsException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -318,7 +318,7 @@ class InjectorImpl implements Injector, Lookups {
         ConvertedConstantBindingImpl(
                 Injector injector, Key<T> key, T value, Binding<String> originalBinding) {
             super(injector, key, originalBinding.getSource(),
-                    new ConstantFactory<T>(Initializables.of(value)), Scoping.UNSCOPED);
+                    new ConstantFactory<>(Initializables.of(value)), Scoping.UNSCOPED);
             this.value = value;
             provider = Providers.of(value);
             this.originalBinding = originalBinding;
@@ -461,9 +461,9 @@ class InjectorImpl implements Injector, Lookups {
 
         @SuppressWarnings("unchecked") // by definition, innerType == T, so this is safe
                 TypeLiteral<T> value = (TypeLiteral<T>) TypeLiteral.get(innerType);
-        InternalFactory<TypeLiteral<T>> factory = new ConstantFactory<TypeLiteral<T>>(
+        InternalFactory<TypeLiteral<T>> factory = new ConstantFactory<>(
                 Initializables.of(value));
-        return new InstanceBindingImpl<TypeLiteral<T>>(this, key, SourceProvider.UNKNOWN_SOURCE,
+        return new InstanceBindingImpl<>(this, key, SourceProvider.UNKNOWN_SOURCE,
                 factory, ImmutableSet.<InjectionPoint>of(), value);
     }
 
@@ -507,7 +507,7 @@ class InjectorImpl implements Injector, Lookups {
             }
         };
 
-        return new LinkedProviderBindingImpl<T>(
+        return new LinkedProviderBindingImpl<>(
                 this,
                 key,
                 rawType /* source */,
@@ -550,7 +550,7 @@ class InjectorImpl implements Injector, Lookups {
             }
         };
 
-        return new LinkedBindingImpl<T>(
+        return new LinkedBindingImpl<>(
                 this,
                 key,
                 rawType /* source */,
@@ -706,7 +706,7 @@ class InjectorImpl implements Injector, Lookups {
     <T> SingleParameterInjector<T> createParameterInjector(final Dependency<T> dependency,
                                                            final Errors errors) throws ErrorsException {
         InternalFactory<? extends T> factory = getInternalFactory(dependency.getKey(), errors);
-        return new SingleParameterInjector<T>(dependency, factory);
+        return new SingleParameterInjector<>(dependency, factory);
     }
 
     /**

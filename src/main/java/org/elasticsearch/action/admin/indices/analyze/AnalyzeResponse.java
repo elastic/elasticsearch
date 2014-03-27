@@ -137,7 +137,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        tokens = new ArrayList<AnalyzeToken>(size);
+        tokens = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             tokens.add(AnalyzeToken.readAnalyzeToken(in));
         }

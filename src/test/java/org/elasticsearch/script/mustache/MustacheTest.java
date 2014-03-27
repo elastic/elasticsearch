@@ -35,7 +35,7 @@ public class MustacheTest extends ElasticsearchTestCase {
 
     @Test
     public void test() {
-        HashMap<String, Object> scopes = new HashMap<String, Object>();
+        HashMap<String, Object> scopes = new HashMap<>();
         scopes.put("boost_val", "0.2");
 
         String template = "GET _search {\"query\": " + "{\"boosting\": {"

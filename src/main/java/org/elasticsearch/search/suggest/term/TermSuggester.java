@@ -75,7 +75,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
 
 
     private List<Token> queryTerms(SuggestionContext suggestion, CharsRef spare) throws IOException {
-        final List<Token> result = new ArrayList<TermSuggester.Token>();
+        final List<Token> result = new ArrayList<>();
         final String field = suggestion.getField();
         SuggestUtils.analyze(suggestion.getAnalyzer(), suggestion.getText(), field, new SuggestUtils.TokenConsumer() {
             @Override

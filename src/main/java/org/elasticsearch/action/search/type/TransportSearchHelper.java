@@ -110,7 +110,7 @@ public abstract class TransportSearchHelper {
             if (sep == -1) {
                 throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
             }
-            context[i] = new Tuple<String, Long>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
+            context[i] = new Tuple<>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }
         Map<String, String> attributes;
         int attributesSize = Integer.parseInt(elements[index++]);

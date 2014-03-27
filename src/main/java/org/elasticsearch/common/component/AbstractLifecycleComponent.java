@@ -32,7 +32,7 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     protected final Lifecycle lifecycle = new Lifecycle();
 
-    private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<LifecycleListener>();
+    private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
     protected AbstractLifecycleComponent(Settings settings) {
         super(settings);

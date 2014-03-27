@@ -353,7 +353,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
         BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.shardId()), responses);
-        return new PrimaryResponse<BulkShardResponse, BulkShardRequest>(shardRequest.request, response, ops);
+        return new PrimaryResponse<>(shardRequest.request, response, ops);
     }
 
     static class WriteResult {

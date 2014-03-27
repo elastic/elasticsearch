@@ -39,7 +39,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
         final int BYTES_PER_THREAD = 1000;
         final Thread[] threads = new Thread[NUM_THREADS];
         final AtomicBoolean tripped = new AtomicBoolean(false);
-        final AtomicReference<Throwable> lastException = new AtomicReference<Throwable>(null);
+        final AtomicReference<Throwable> lastException = new AtomicReference<>(null);
 
         final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue((BYTES_PER_THREAD * NUM_THREADS) - 1), 1.0, logger);
 

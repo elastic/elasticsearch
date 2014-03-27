@@ -133,7 +133,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -156,7 +156,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValueBuckets - i - 1);
             assertThat(bucket, notNullValue());
@@ -180,7 +180,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
         LongOpenHashSet buckets = new LongOpenHashSet();
-        List<Histogram.Bucket> histoBuckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
         long previousCount = Long.MIN_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
@@ -209,7 +209,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
         LongOpenHashSet buckets = new LongOpenHashSet();
-        List<Histogram.Bucket> histoBuckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
         long previousCount = Long.MAX_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
@@ -238,7 +238,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -272,7 +272,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -308,7 +308,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.NEGATIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -348,7 +348,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.POSITIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -388,7 +388,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.NEGATIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -428,7 +428,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.POSITIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -470,7 +470,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double prevMax = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -553,7 +553,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValuesBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValuesBuckets - i - 1);
             assertThat(bucket, notNullValue());
@@ -676,7 +676,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -791,7 +791,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void emptyAggregation() throws Exception {
         prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
                     .startObject()

@@ -38,7 +38,7 @@ public class FieldLookup {
 
     private boolean valueLoaded = false;
 
-    private List<Object> values = new ArrayList<Object>();
+    private List<Object> values = new ArrayList<>();
 
     private boolean valuesLoaded = false;
 

@@ -34,7 +34,7 @@ public class TemplateQueryBuilderTest extends ElasticsearchTestCase {
 
     @Test
     public void testJSONGeneration() throws IOException {
-        Map<String, Object> vars = new HashMap<String, Object>();
+        Map<String, Object> vars = new HashMap<>();
         vars.put("template", "filled");
         TemplateQueryBuilder builder = new TemplateQueryBuilder("I am a $template string", vars);
         XContentBuilder content = XContentFactory.jsonBuilder();

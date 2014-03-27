@@ -52,7 +52,7 @@ public class DateRangeParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<NumericValuesSource>(NumericValuesSource.class);
+        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
 
         String field = null;
         List<RangeAggregator.Range> ranges = null;
@@ -82,7 +82,7 @@ public class DateRangeParser implements Aggregator.Parser {
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
-                    ranges = new ArrayList<RangeAggregator.Range>();
+                    ranges = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         double from = Double.NEGATIVE_INFINITY;
                         String fromAsStr = null;

@@ -29,7 +29,7 @@ import java.util.List;
  */
 public class ActionRequestValidationException extends ElasticsearchException {
 
-    private final List<String> validationErrors = new ArrayList<String>();
+    private final List<String> validationErrors = new ArrayList<>();
 
     public ActionRequestValidationException() {
         super(null);

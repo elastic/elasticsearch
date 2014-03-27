@@ -56,7 +56,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     }
 
     public ClusterStatsIndices(ClusterStatsNodeResponse[] nodeResponses) {
-        ObjectObjectOpenHashMap<String, ShardStats> countsPerIndex = new ObjectObjectOpenHashMap<String, ShardStats>();
+        ObjectObjectOpenHashMap<String, ShardStats> countsPerIndex = new ObjectObjectOpenHashMap<>();
 
         this.docs = new DocsStats();
         this.store = new StoreStats();

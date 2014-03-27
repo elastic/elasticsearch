@@ -41,7 +41,7 @@ public class LongAdderTable<K> implements Serializable {
      * Creates a new empty table.
      */
     public LongAdderTable() {
-        map = new ConcurrentHashMapV8<K, LongAdder>();
+        map = new ConcurrentHashMapV8<>();
     }
 
     /**

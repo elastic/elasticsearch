@@ -75,7 +75,7 @@ public class ClusterState implements ToXContent {
         }
     }
 
-    public static Map<String, Custom.Factory> customFactories = new HashMap<String, Custom.Factory>();
+    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.

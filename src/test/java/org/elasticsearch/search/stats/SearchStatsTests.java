@@ -133,7 +133,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     private Set<String> nodeIdsWithIndex(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
-        Set<String> nodes = new HashSet<String>();
+        Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
             for (ShardRouting routing : shardIterator.asUnordered()) {
                 if (routing.active()) {

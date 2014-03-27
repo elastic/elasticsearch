@@ -56,7 +56,7 @@ public class MasterFaultDetection extends AbstractComponent {
 
     private final DiscoveryNodesProvider nodesProvider;
 
-    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<Listener>();
+    private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
 
     private final boolean connectOnNetworkDisconnect;

@@ -87,7 +87,7 @@ public class TypeParsers {
                             mainFieldBuilder = (AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext);
                         } else {
                             if (fields == null) {
-                                fields = new ArrayList<AbstractFieldMapper.Builder>(2);
+                                fields = new ArrayList<>(2);
                             }
                             fields.add((AbstractFieldMapper.Builder) typeParser.parse(propName, propNode, parserContext));
                         }

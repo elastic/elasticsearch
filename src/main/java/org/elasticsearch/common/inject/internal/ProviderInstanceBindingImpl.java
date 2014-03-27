@@ -66,12 +66,12 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T>
     }
 
     public BindingImpl<T> withScoping(Scoping scoping) {
-        return new ProviderInstanceBindingImpl<T>(
+        return new ProviderInstanceBindingImpl<>(
                 getSource(), getKey(), scoping, injectionPoints, providerInstance);
     }
 
     public BindingImpl<T> withKey(Key<T> key) {
-        return new ProviderInstanceBindingImpl<T>(
+        return new ProviderInstanceBindingImpl<>(
                 getSource(), key, getScoping(), injectionPoints, providerInstance);
     }
 

@@ -364,7 +364,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
         ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
         ObjectOpenHashSet<String> nodeIds;
         if (shardStates == null) {
-            shardStates = new ObjectLongOpenHashMap<DiscoveryNode>();
+            shardStates = new ObjectLongOpenHashMap<>();
             cachedShardsState.put(shard.shardId(), shardStates);
             nodeIds = ObjectOpenHashSet.from(nodes.dataNodes().keys());
         } else {

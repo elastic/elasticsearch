@@ -102,7 +102,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     private final PluginsService pluginsService;
 
-    private final Map<String, Injector> indicesInjectors = new HashMap<String, Injector>();
+    private final Map<String, Injector> indicesInjectors = new HashMap<>();
 
     private volatile ImmutableMap<String, IndexService> indices = ImmutableMap.of();
 

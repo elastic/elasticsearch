@@ -126,7 +126,7 @@ public class FetchPhase implements SearchPhase {
                     }
                 } else if (x.mapper().fieldType().stored()) {
                     if (fieldNames == null) {
-                        fieldNames = new HashSet<String>();
+                        fieldNames = new HashSet<>();
                     }
                     fieldNames.add(x.mapper().names().indexName());
                 } else {
@@ -158,7 +158,7 @@ public class FetchPhase implements SearchPhase {
 
             Map<String, SearchHitField> searchFields = null;
             if (!fieldsVisitor.fields().isEmpty()) {
-                searchFields = new HashMap<String, SearchHitField>(fieldsVisitor.fields().size());
+                searchFields = new HashMap<>(fieldsVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
                     searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
                 }
@@ -195,7 +195,7 @@ public class FetchPhase implements SearchPhase {
 
                         SearchHitField hitField = searchHit.fields().get(extractFieldName);
                         if (hitField == null) {
-                            hitField = new InternalSearchHitField(extractFieldName, new ArrayList<Object>(2));
+                            hitField = new InternalSearchHitField(extractFieldName, new ArrayList<>(2));
                             searchHit.fields().put(extractFieldName, hitField);
                         }
                         for (Object value : values) {

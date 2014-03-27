@@ -71,25 +71,25 @@ class RecoveryFilesInfoRequest extends TransportRequest {
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
         int size = in.readVInt();
-        phase1FileNames = new ArrayList<String>(size);
+        phase1FileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1FileNames.add(in.readString());
         }
 
         size = in.readVInt();
-        phase1FileSizes = new ArrayList<Long>(size);
+        phase1FileSizes = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1FileSizes.add(in.readVLong());
         }
 
         size = in.readVInt();
-        phase1ExistingFileNames = new ArrayList<String>(size);
+        phase1ExistingFileNames = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1ExistingFileNames.add(in.readString());
         }
 
         size = in.readVInt();
-        phase1ExistingFileSizes = new ArrayList<Long>(size);
+        phase1ExistingFileSizes = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             phase1ExistingFileSizes.add(in.readVLong());
         }

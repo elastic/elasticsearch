@@ -402,7 +402,7 @@
                                         showStatusIgnored="true"
                                         showSuiteSummary="true"
                                         timestamps="false"/>
-                                <report-execution-times historyLength="20" file="${basedir}/.local-execution-hints.log"/>
+                                <report-execution-times historyLength="20" file="${basedir}/.local-${project.version}-execution-hints.log"/>
                             </listeners>
                             <assertions>
                                 <enable/>

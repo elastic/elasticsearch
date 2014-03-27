@@ -30,7 +30,7 @@ public class FloatFieldDataTests extends AbstractNumericFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("float");
+        return new FieldDataType("float", getFieldDataSettings());
     }
 
     protected String one() {

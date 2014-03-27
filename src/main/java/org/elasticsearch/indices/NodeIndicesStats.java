@@ -47,6 +47,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
@@ -148,6 +149,11 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Nullable
     public SegmentsStats getSegments() {
         return stats.getSegments();
+    }
+
+    @Nullable
+    public SuggestStats getSuggest() {
+        return stats.getSuggest();
     }
 
     public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {

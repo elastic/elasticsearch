@@ -53,6 +53,8 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.suggest.stats.ShardSuggestService;
+import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorService;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
@@ -108,11 +110,15 @@ public interface IndexShard extends IndexShardComponent {
 
     TranslogStats translogStats();
 
+    SuggestStats suggestStats();
+
     PercolatorQueriesRegistry percolateRegistry();
 
     ShardPercolateService shardPercolateService();
 
     ShardTermVectorService termVectorService();
+
+    ShardSuggestService shardSuggestService();
 
     MapperService mapperService();
 

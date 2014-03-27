@@ -201,6 +201,10 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("segments.count", "alias:sc,segmentsCount;default:false;text-align:right;desc:number of segments");
         table.addCell("segments.memory", "alias:sm,segmentsMemory;default:false;text-align:right;desc:memory used by segments");
 
+        table.addCell("suggest.current", "alias:suc,suggestCurrent;default:false;text-align:right;desc:number of current suggest ops");
+        table.addCell("suggest.time", "alias:suti,suggestTime;default:false;text-align:right;desc:time spend in suggest");
+        table.addCell("suggest.total", "alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
+
         table.endHeaders();
         return table;
     }
@@ -298,6 +302,10 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getCount());
             table.addCell(stats == null ? null : stats.getIndices().getSegments().getMemory());
+
+            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCurrent());
+            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getTime());
+            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCount());
 
             table.endRow();
         }

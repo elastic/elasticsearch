@@ -587,9 +587,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
         };
 
-        BulkProcessor processor = null;
-        try {
-            processor = BulkProcessor.builder(client(), listener).setBulkActions(5).setConcurrentRequests(1).setName("foo").build();
+        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(5)
+                                        .setConcurrentRequests(1).setName("foo").build()) {
             Map<String, Object> data = Maps.newHashMap();
             data.put("foo", "bar");
 
@@ -602,10 +601,6 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             BulkResponse response = responseQueue.poll(5, TimeUnit.SECONDS);
             assertThat("Could not get a bulk response in 5 seconds", response, is(notNullValue()));
             assertThat(response.getItems().length, is(5));
-        } finally {
-            if (processor != null) {
-                processor.close();
-            }
         }
     }
 
@@ -624,6 +619,42 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkResponse.getItems().length, is(bulkEntryCount));
         for (int i = 0; i < bulkEntryCount; i++) {
             assertThat(bulkResponse.getItems()[i].isFailed(), is(expectedFailures[i]));
+        }
+    }
+
+    @Test
+    public void testBulkProcessorFlush() throws InterruptedException {
+        final BlockingQueue<BulkResponse> responseQueue = new SynchronousQueue();
+
+        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                responseQueue.add(response);
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+        };
+
+        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(6)
+                                        .setConcurrentRequests(1).setName("foo").build()) {
+            Map<String, Object> data = Maps.newHashMap();
+            data.put("foo", "bar");
+
+            processor.add(new IndexRequest("test", "test", "1").source(data));
+            processor.add(new IndexRequest("test", "test", "2").source(data));
+            processor.add(new IndexRequest("test", "test", "3").source(data));
+            processor.add(new IndexRequest("test", "test", "4").source(data));
+            processor.add(new IndexRequest("test", "test", "5").source(data));
+
+            processor.flush();
+
+            BulkResponse response = responseQueue.poll(1, TimeUnit.SECONDS);
+            assertThat("Could not get a bulk response even after an explicit flush.", response, is(notNullValue()));
+            assertThat(response.getItems().length, is(5));
         }
     }
 }

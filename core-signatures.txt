@@ -40,3 +40,7 @@ java.lang.Object#wait(long)
 java.lang.Object#wait(long,int)
 java.lang.Object#notify()
 java.lang.Object#notifyAll()
+
+@defaultMessage Beware of the behavior of this method on MIN_VALUE
+java.lang.Math#abs(int)
+java.lang.Math#abs(long)

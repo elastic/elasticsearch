@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-lang-python</artifactId>
-    <version>2.1.0-SNAPSHOT</version>
+    <version>3.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Elasticsearch Python language plugin</name>
     <description>The Python language plugin allows to have python as the language of scripts to execute.</description>
@@ -31,8 +31,8 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>1.0.0</elasticsearch.version>
-        <lucene.version>4.6.1</lucene.version>
+        <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
+        <lucene.version>4.7.0</lucene.version>
         <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>

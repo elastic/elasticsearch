@@ -98,7 +98,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     }
 
     public void testStreamInput() throws IOException {
-        int length = randomIntBetween(10, PAGE_SIZE * 3);
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         StreamInput si = pbr.streamInput();
         assertNotNull(si);
@@ -107,6 +107,8 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         assertEquals(pbr.get(0), si.readByte());
         assertEquals(pbr.get(1), si.readByte());
         assertEquals(pbr.get(2), si.readByte());
+
+        // reset the stream for bulk reading
         si.reset();
 
         // buffer for bulk reads
@@ -151,10 +153,34 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         }
     }
 
-    public void testSliceStreamInput() throws IOException {
-        int length = randomIntBetween(10, PAGE_SIZE * 3);
+    public void testStreamInputBulkReadWithOffset() throws IOException {
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         StreamInput si = pbr.streamInput();
+        assertNotNull(si);
+
+        // read a bunch of single bytes one by one
+        int offset = randomIntBetween(1, length / 2);
+        for (int i = 0; i < offset ; i++) {
+            assertEquals(pbr.get(i), si.readByte());
+        }
+
+        // now do NOT reset the stream - keep the stream's offset!
+
+        // buffer to compare remaining bytes against bulk read
+        byte[] pbrBytesWithOffset = Arrays.copyOfRange(pbr.toBytes(), offset, length);
+        // randomized target buffer to ensure no stale slots
+        byte[] targetBytes = new byte[pbrBytesWithOffset.length];
+        getRandom().nextBytes(targetBytes);
+
+        // bulk-read all
+        si.readFully(targetBytes);
+        assertArrayEquals(pbrBytesWithOffset, targetBytes);
+    }
+
+    public void testSliceStreamInput() throws IOException {
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        BytesReference pbr = getRandomizedPagedBytesReference(length);
 
         // test stream input over slice (upper half of original)
         int sliceOffset = randomIntBetween(1, length / 2);
@@ -166,7 +192,9 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         assertEquals(slice.get(0), sliceInput.readByte());
         assertEquals(slice.get(1), sliceInput.readByte());
         assertEquals(slice.get(2), sliceInput.readByte());
-        si.reset();
+
+        // reset the slice stream for bulk reading
+        sliceInput.reset();
 
         // bulk read
         byte[] sliceBytes = new byte[sliceLength];

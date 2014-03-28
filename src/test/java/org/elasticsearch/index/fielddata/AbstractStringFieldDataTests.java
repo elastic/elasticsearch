@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -203,12 +202,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
-    @Repeat(iterations=10)
     public void testActualMissingValue() throws IOException {
         testActualMissingValue(false);
     }
 
-    @Repeat(iterations=10)
     public void testActualMissingValueReverse() throws IOException {
         testActualMissingValue(true);
     }
@@ -222,7 +219,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         for (int i = 1; i < values.length; ++i) {
             values[i] = _TestUtil.randomUnicodeString(getRandom());
         }
-        final int numDocs = scaledRandomIntBetween(100, 10000);
+        final int numDocs = scaledRandomIntBetween(10, 10000);
         for (int i = 0; i < numDocs; ++i) {
             final String value = RandomPicks.randomFrom(getRandom(), values);
             if (value == null) {
@@ -256,22 +253,18 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         searcher.getIndexReader().close();
     }
 
-    @Repeat(iterations=3)
     public void testSortMissingFirst() throws IOException {
         testSortMissing(true, false);
     }
 
-    @Repeat(iterations=3)
     public void testSortMissingFirstReverse() throws IOException {
         testSortMissing(true, true);
     }
 
-    @Repeat(iterations=3)
     public void testSortMissingLast() throws IOException {
         testSortMissing(false, false);
     }
 
-    @Repeat(iterations=3)
     public void testSortMissingLastReverse() throws IOException {
         testSortMissing(false, true);
     }
@@ -284,7 +277,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         for (int i = 1; i < values.length; ++i) {
             values[i] = _TestUtil.randomUnicodeString(getRandom());
         }
-        final int numDocs = scaledRandomIntBetween(100, 10000);
+        final int numDocs = scaledRandomIntBetween(10, 10000);
         for (int i = 0; i < numDocs; ++i) {
             final String value = RandomPicks.randomFrom(getRandom(), values);
             if (value == null) {
@@ -323,12 +316,10 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         searcher.getIndexReader().close();
     }
 
-    @Repeat(iterations=3)
     public void testNestedSortingMin() throws IOException {
         testNestedSorting(SortMode.MIN);
     }
 
-    @Repeat(iterations=3)
     public void testNestedSortingMax() throws IOException {
         testNestedSorting(SortMode.MAX);
     }
@@ -338,7 +329,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         for (int i = 0; i < values.length; ++i) {
             values[i] = _TestUtil.randomSimpleString(getRandom());
         }
-        final int numParents = scaledRandomIntBetween(100, 10000);
+        final int numParents = scaledRandomIntBetween(10, 10000);
         List<Document> docs = new ArrayList<>();
         final OpenBitSet parents = new OpenBitSet();
         for (int i = 0; i < numParents; ++i) {

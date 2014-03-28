@@ -486,20 +486,22 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test", "field2", "this is another test").get();
+                .setSource("field1", new String[]{"this is a test", "this is the second test"},
+                        "field2", new String[]{"this is another test", "yet another test"}).get();
         refresh();
 
         logger.info("--> highlighting and searching on field1 and field2 produces different tags");
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("field1", "test"))
                 .from(0).size(60).explain(true)
-                .highlight(highlight().order("score").preTags("<global>").postTags("</global>")
-                        .field(new HighlightBuilder.Field("field1"))
-                        .field(new HighlightBuilder.Field("field2").preTags("<field2>").postTags("</field2>")));
+                .highlight(highlight().order("score").preTags("<global>").postTags("</global>").fragmentSize(1).numOfFragments(1)
+                        .field(new HighlightBuilder.Field("field1").numOfFragments(2))
+                        .field(new HighlightBuilder.Field("field2").preTags("<field2>").postTags("</field2>").fragmentSize(50)));
 
         SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
 
-        assertHighlight(searchResponse, 0, "field1", 0, 1, equalTo("this is a <global>test</global>"));
+        assertHighlight(searchResponse, 0, "field1", 0, 2, equalTo(" <global>test</global>"));
+        assertHighlight(searchResponse, 0, "field1", 1, 2, equalTo(" <global>test</global>"));
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("this is another <field2>test</field2>"));
     }
 

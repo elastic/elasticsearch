@@ -706,6 +706,29 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder setHighlighterFragmentSize(Integer fragmentSize) {
+        highlightBuilder().fragmentSize(fragmentSize);
+        return this;
+    }
+
+    public SearchRequestBuilder setHighlighterNumOfFragments(Integer numOfFragments) {
+        highlightBuilder().numOfFragments(numOfFragments);
+        return this;
+    }
+
+    public SearchRequestBuilder setHighlighterFilter(Boolean highlightFilter) {
+        highlightBuilder().highlightFilter(highlightFilter);
+        return this;
+    }
+
+    /**
+     * The encoder to set for highlighting
+     */
+    public SearchRequestBuilder setHighlighterEncoder(String encoder) {
+        highlightBuilder().encoder(encoder);
+        return this;
+    }
+
     /**
      * Explicitly set the pre tags that will be used for highlighting.
      */
@@ -732,25 +755,18 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-
-    /**
-     * The encoder to set for highlighting
-     */
-    public SearchRequestBuilder setHighlighterEncoder(String encoder) {
-        highlightBuilder().encoder(encoder);
-        return this;
-    }
-
-    /**
-     * Sets a query to be used for highlighting all fields instead of the search query.
-     */
-    public SearchRequestBuilder setHighlighterQuery(QueryBuilder highlightQuery) {
-        highlightBuilder().highlightQuery(highlightQuery);
-        return this;
-    }
-
     public SearchRequestBuilder setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
         highlightBuilder().requireFieldMatch(requireFieldMatch);
+        return this;
+    }
+
+    public SearchRequestBuilder setHighlighterBoundaryMaxScan(Integer boundaryMaxScan) {
+        highlightBuilder().boundaryMaxScan(boundaryMaxScan);
+        return this;
+    }
+
+    public SearchRequestBuilder setHighlighterBoundaryChars(char[] boundaryChars) {
+        highlightBuilder().boundaryChars(boundaryChars);
         return this;
     }
 
@@ -759,6 +775,19 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setHighlighterType(String type) {
         highlightBuilder().highlighterType(type);
+        return this;
+    }
+
+    public SearchRequestBuilder setHighlighterFragmenter(String fragmenter) {
+        highlightBuilder().fragmenter(fragmenter);
+        return this;
+    }
+
+    /**
+     * Sets a query to be used for highlighting all fields instead of the search query.
+     */
+    public SearchRequestBuilder setHighlighterQuery(QueryBuilder highlightQuery) {
+        highlightBuilder().highlightQuery(highlightQuery);
         return this;
     }
 
@@ -773,8 +802,24 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
+     */
+    public SearchRequestBuilder setHighlighterPhraseLimit(Integer phraseLimit) {
+        highlightBuilder().phraseLimit(phraseLimit);
+        return this;
+    }
+
     public SearchRequestBuilder setHighlighterOptions(Map<String, Object> options) {
         highlightBuilder().options(options);
+        return this;
+    }
+
+    /**
+     * Forces to highlight fields based on the source even if fields are stored separately.
+     */
+    public SearchRequestBuilder setHighlighterForceSource(Boolean forceSource) {
+        highlightBuilder().forceSource(forceSource);
         return this;
     }
 

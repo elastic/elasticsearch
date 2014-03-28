@@ -5,13 +5,18 @@ The JavaScript language plugin allows to have `javascript` (or `js`) as the lang
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-javascript/2.0.0.RC1`.
 
-* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/master).
-* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/1.x).
+* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/master).
+* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-1.1).
+* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-1.0).
+* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-0.90).
 
 |   JavaScript Lang Plugin    |    elasticsearch    |  rhino   | Release date |
 |-----------------------------|---------------------|----------|:------------:|
-| 2.0.0-SNAPSHOT              | 1.0.0.RC1 -> master |  1.7R4   |  XXXX-XX-XX  |
-| 2.0.0.RC1                   | 1.0.0.RC1 -> master |  1.7R4   |  2014-01-15  |
+| 3.0.0-SNAPSHOT              | master              |  1.7R4   |  XXXX-XX-XX  |
+
+Please read documentation relative to the version you are using:
+
+* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-lang-javascript/blob/master/README.md)
 
 Using javascript with function_score
 ------------------------------------

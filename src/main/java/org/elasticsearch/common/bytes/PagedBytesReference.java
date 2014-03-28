@@ -381,12 +381,14 @@ public final class PagedBytesReference implements BytesReference {
     private static class PagedBytesReferenceStreamInput extends StreamInput {
 
         private final ByteArray bytearray;
+        private final BytesRef ref;
         private final int offset;
         private final int length;
         private int pos;
 
         public PagedBytesReferenceStreamInput(ByteArray bytearray, int offset, int length) {
             this.bytearray = bytearray;
+            this.ref = new BytesRef();
             this.offset = offset;
             this.length = length;
             this.pos = 0;
@@ -420,7 +422,7 @@ public final class PagedBytesReference implements BytesReference {
         }
 
         @Override
-        public int read(byte[] b, int bOffset, int len) throws IOException {
+        public int read(final byte[] b, final int bOffset, final int len) throws IOException {
             if (len == 0) {
                 return 0;
             }
@@ -430,17 +432,25 @@ public final class PagedBytesReference implements BytesReference {
             }
 
             // we need to stop at the end
-            len = Math.min(length, len);
+            int todo = Math.min(len, length);
 
-            // ByteArray.get(BytesRef) does not work since it flips the
-            // ref's byte[] pointer, so for now we copy byte-by-byte
+            // current offset into the underlying ByteArray
+            long bytearrayOffset = offset + pos;
+
+            // bytes already copied
             int written = 0;
-            while (written < len) {
-                b[bOffset + written] = bytearray.get(offset + written);
-                written++;
+
+            while (written < todo) {
+                long pagefragment = PAGE_SIZE - (bytearrayOffset % PAGE_SIZE); // how much can we read until hitting N*PAGE_SIZE?
+                int bulksize = (int)Math.min(pagefragment, todo - written); // we cannot copy more than a page fragment
+                boolean copied = bytearray.get(bytearrayOffset, bulksize, ref); // get the fragment
+                assert (copied == false); // we should never ever get back a materialized byte[]
+                System.arraycopy(ref.bytes, ref.offset, b, bOffset + written, bulksize); // copy fragment contents
+                written += bulksize; // count how much we copied
+                bytearrayOffset += bulksize; // advance ByteArray index
             }
 
-            pos += written;
+            pos += written; // finally advance our stream position
             return written;
         }
 

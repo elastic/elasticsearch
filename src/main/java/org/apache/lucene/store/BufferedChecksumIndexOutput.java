@@ -91,11 +91,8 @@ public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
 
     @Override
     public void seek(long pos) throws IOException {
-        // seek might be called on files, which means that the checksum is not file checksum
-        // but a checksum of the bytes written to this stream, which is the same for each
-        // type of file in lucene
-        super.seek(pos);
-        delegate.seek(pos);
+        // in order to calculate true checksum of the file this method is no longer supported
+        throw new UnsupportedOperationException("only append-only codecs are supported");
     }
 
     @Override

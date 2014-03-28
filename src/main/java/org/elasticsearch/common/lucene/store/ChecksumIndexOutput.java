@@ -87,7 +87,7 @@ public class ChecksumIndexOutput extends IndexOutput {
 
     @Override
     public void seek(long pos) throws IOException {
-        out.seek(pos);
+        throw new UnsupportedOperationException("only append-only codecs are supported");
     }
 
     @Override

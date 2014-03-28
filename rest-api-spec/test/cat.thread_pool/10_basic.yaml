@@ -1,9 +1,4 @@
 ---
-setup:
-  - skip:
-      features: regex
-
----
 "Test cat thread_pool output":
 
   - do:

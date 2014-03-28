@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+
 public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
     private int numRuns = -1;
 
@@ -301,14 +302,14 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testConcurrentFacets() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
-        .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("byte").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                .startObject("short").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                .startObject("integer").field("type", "integer").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                .startObject("long").field("type", "long").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                .startObject("float").field("type", "float").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                .startObject("double").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                .endObject().endObject().endObject()));
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("byte").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("short").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("integer").field("type", "integer").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("long").field("type", "long").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("float").field("type", "float").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("double").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
 
         for (int i = 0; i < 100; i++) {
@@ -329,7 +330,9 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .endObject()).execute().actionGet();
         }
 
+        logger.info("done indexing. issue a refresh.");
         flushAndRefresh();
+        final AtomicInteger searchId = new AtomicInteger(0);
         ConcurrentDuel<Facets> duel = new ConcurrentDuel<>(5);
         {
             final Client cl = client();
@@ -364,7 +367,11 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                           @Override
                           public Facets run() {
                               final SearchRequestBuilder facetRequest;
-                              if (count.incrementAndGet() % 2 == 0) { // every second request is mapped
+                              int searchId = count.incrementAndGet();
+                              if (searchId % 100 == 0) {
+                                  logger.info("-> run {} searches", searchId);
+                              }
+                              if (searchId % 2 == 0) { // every second request is mapped
                                   facetRequest = cl.prepareSearch().setQuery(matchAllQuery())
                                           .addFacet(termsFacet("double").field("double").size(10))
                                           .addFacet(termsFacet("float").field("float").size(10))
@@ -391,6 +398,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                       }, 5000
             );
         }
+        logger.info("starting second duel");
         {
             duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
 
@@ -422,7 +430,12 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                           @Override
                           public Facets run() {
                               final SearchRequestBuilder facetRequest;
-                              switch (count.incrementAndGet() % 6) {
+                              int searchId = count.incrementAndGet();
+                              if (searchId % 100 == 0) {
+                                  logger.info("->  run {} searches", searchId);
+                              }
+
+                              switch (searchId % 6) {
                                   case 4:
                                       facetRequest = client().prepareSearch()
                                               .setQuery(matchAllQuery())
@@ -498,7 +511,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                         .startObject("filtered")
                         .field("type", "string")
                         .startObject("fielddata").field("format", "fst").field("loading", randomBoolean() ? "eager" : "lazy").startObject("filter")
-                       .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
+                        .startObject("regex").field("pattern", "\\d{1,2}").endObject().endObject()
                         .endObject()
                                 // only 1 or 2 digits 
                         .endObject()
@@ -527,6 +540,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                     .endObject()).execute().actionGet();
         }
 
+        logger.info("done indexing. refreshing.");
         flushAndRefresh();
         ConcurrentDuel<Facets> duel = new ConcurrentDuel<>(5);
         String[] fieldPostFix = new String[]{"", "_mv"};
@@ -569,6 +583,9 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                               final SearchRequestBuilder facetRequest;
                               int incrementAndGet = count.incrementAndGet();
                               final String field;
+                              if (incrementAndGet % 100 == 0) {
+                                  logger.info("-> run {} searches", incrementAndGet);
+                              }
                               switch (incrementAndGet % 2) {
                                   case 1:
                                       field = "filtered" + postfix;
@@ -614,7 +631,7 @@ public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
                               SearchResponse actionGet = facetRequest.execute().actionGet();
                               return actionGet.getFacets();
                           }
-                      }, 5000
+                      }, 2000
             );
         }
 

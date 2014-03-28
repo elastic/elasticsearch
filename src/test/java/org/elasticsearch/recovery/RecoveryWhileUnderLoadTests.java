@@ -26,124 +26,28 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
-
-
-    public class BackgroundIndexer implements AutoCloseable {
-
-        final Thread[] writers;
-        final CountDownLatch stopLatch;
-        final CopyOnWriteArrayList<Throwable> failures;
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        final AtomicLong idGenerator = new AtomicLong();
-        final AtomicLong indexCounter = new AtomicLong();
-        final CountDownLatch startLatch = new CountDownLatch(1);
-
-        public BackgroundIndexer() {
-            this(scaledRandomIntBetween(3, 10));
-        }
-
-        public BackgroundIndexer(int writerCount) {
-            this(writerCount, true);
-        }
-
-        public BackgroundIndexer(int writerCount, boolean autoStart) {
-
-            failures = new CopyOnWriteArrayList<>();
-            writers = new Thread[writerCount];
-            stopLatch = new CountDownLatch(writers.length);
-            logger.info("--> starting {} indexing threads", writerCount);
-            for (int i = 0; i < writers.length; i++) {
-                final int indexerId = i;
-                final Client client = client();
-                writers[i] = new Thread() {
-                    @Override
-                    public void run() {
-                        long id = -1;
-                        try {
-                            startLatch.await();
-                            logger.info("**** starting indexing thread {}", indexerId);
-                            while (!stop.get()) {
-                                id = idGenerator.incrementAndGet();
-                                client.prepareIndex("test", "type1", Long.toString(id) + "-" + indexerId)
-                                        .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + id).map()).execute().actionGet();
-                                indexCounter.incrementAndGet();
-                            }
-                            logger.info("**** done indexing thread {}", indexerId);
-                        } catch (Throwable e) {
-                            failures.add(e);
-                            logger.warn("**** failed indexing thread {} on doc id {}", e, indexerId, id);
-                        } finally {
-                            stopLatch.countDown();
-                        }
-                    }
-                };
-                writers[i].start();
-            }
-
-            if (autoStart) {
-                startLatch.countDown();
-            }
-        }
-
-        public void start() {
-            startLatch.countDown();
-        }
-
-        public void stop() throws InterruptedException {
-            if (stop.get()) {
-                return;
-            }
-            stop.set(true);
-
-            assertThat("timeout while waiting for indexing threads to stop", stopLatch.await(6, TimeUnit.MINUTES), equalTo(true));
-            assertNoFailures();
-        }
-
-        public long totalIndexedDocs() {
-            return indexCounter.get();
-        }
-
-        public Throwable[] getFailures() {
-            return failures.toArray(new Throwable[failures.size()]);
-        }
-
-        public void assertNoFailures() {
-            assertThat(failures, emptyIterable());
-        }
-
-        @Override
-        public void close() throws Exception {
-            stop();
-        }
-    }
 
     @Test
     @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
@@ -154,12 +58,12 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 20000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer()) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
             int waitFor = totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
-            waitForDocs(waitFor);
+            waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
-            logger.info("--> {} docs indexed",  waitFor);
+            logger.info("--> {} docs indexed", waitFor);
 
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
@@ -167,9 +71,9 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
             waitFor += totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
-            waitForDocs(waitFor);
+            waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
-            logger.info("--> {} docs indexed",  waitFor);
+            logger.info("--> {} docs indexed", waitFor);
 
             logger.info("--> allow 2 nodes for index [test] ...");
             // now start another node, while we index
@@ -180,7 +84,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
             assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForNodes(">=2").execute().actionGet().isTimedOut(), equalTo(false));
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
-            waitForDocs(totalNumDocs);
+            waitForDocs(totalNumDocs, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", totalNumDocs);
 
@@ -204,12 +108,12 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 20000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer()) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
             int waitFor = totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
-            waitForDocs(waitFor);
+            waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
-            logger.info("--> {} docs indexed",  waitFor);
+            logger.info("--> {} docs indexed", waitFor);
 
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
@@ -217,9 +121,9 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
             waitFor += totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
-            waitForDocs(waitFor);
+            waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
-            logger.info("--> {} docs indexed",  waitFor);
+            logger.info("--> {} docs indexed", waitFor);
             logger.info("--> allow 4 nodes for index [test] ...");
             allowNodes("test", 4);
 
@@ -228,7 +132,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
-            waitForDocs(totalNumDocs);
+            waitForDocs(totalNumDocs, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", totalNumDocs);
 
@@ -252,12 +156,12 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 20000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer()) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
             int waitFor = totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
-            waitForDocs(waitFor);
+            waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
-            logger.info("--> {} docs indexed",  waitFor);
+            logger.info("--> {} docs indexed", waitFor);
 
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
@@ -265,9 +169,9 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
             waitFor += totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
-            waitForDocs(waitFor);
+            waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
-            logger.info("--> {} docs indexed",  waitFor);
+            logger.info("--> {} docs indexed", waitFor);
 
             // now start more nodes, while we index
             logger.info("--> allow 4 nodes for index [test] ...");
@@ -278,10 +182,10 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
-            waitForDocs(totalNumDocs);
+            waitForDocs(totalNumDocs, indexer);
             indexer.assertNoFailures();
 
-            logger.info("--> {} docs indexed",  totalNumDocs);
+            logger.info("--> {} docs indexed", totalNumDocs);
             // now, shutdown nodes
             logger.info("--> allow 3 nodes for index [test] ...");
             allowNodes("test", 3);
@@ -323,12 +227,12 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
         final int numDocs = scaledRandomIntBetween(200, 50000);
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer()) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
 
             for (int i = 0; i < numDocs; i += scaledRandomIntBetween(100, Math.min(1000, numDocs))) {
                 indexer.assertNoFailures();
                 logger.info("--> waiting for {} docs to be indexed ...", i);
-                waitForDocs(i);
+                waitForDocs(i, indexer);
                 logger.info("--> {} docs indexed", i);
                 allowNodes = 2 / allowNodes;
                 allowNodes("test", allowNodes);
@@ -416,26 +320,5 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
                 }
             }
         }, 5, TimeUnit.MINUTES), equalTo(true));
-    }
-
-    private void waitForDocs(final long numDocs) throws InterruptedException {
-        final long[] lastKnownCount = {-1};
-        long lastStartCount = -1;
-        Predicate<Object> testDocs = new Predicate<Object>() {
-            public boolean apply(Object o) {
-                lastKnownCount[0] = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount[0], numDocs);
-                return lastKnownCount[0] > numDocs;
-            }
-        };
-        // 5 minutes seems like a long time but while relocating,    indexing threads can wait for up to ~1m before retrying when
-        // they first try to index into a shard which is not STARTED.
-        while (!awaitBusy(testDocs, 5, TimeUnit.MINUTES)) {
-            if (lastStartCount == lastKnownCount[0]) {
-                // we didn't make any progress
-                fail("failed to reach " + numDocs + "docs");
-            }
-            lastStartCount = lastKnownCount[0];
-        }
     }
 }

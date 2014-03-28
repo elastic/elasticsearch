@@ -75,7 +75,11 @@ public class NettyHttpChannel implements HttpChannel {
         if (RestUtils.isBrowser(request.headers().get(HttpHeaders.Names.USER_AGENT))) {
             if (transport.settings().getAsBoolean("http.cors.enabled", true)) {
                 // Add support for cross-origin Ajax requests (CORS)
-                resp.headers().add("Access-Control-Allow-Origin", transport.settings().get("http.cors.allow-origin", "*"));
+                String origin = request.headers().get(HttpHeaders.Names.ORIGIN);
+                if (origin == null) {
+                  origin = "*";
+                }
+                resp.headers().add("Access-Control-Allow-Origin", transport.settings().get("http.cors.allow-origin", origin));
                 if (request.getMethod() == HttpMethod.OPTIONS) {
                     // Allow Ajax requests based on the CORS "preflight" request
                     resp.headers().add("Access-Control-Max-Age", transport.settings().getAsInt("http.cors.max-age", 1728000));

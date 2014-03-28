@@ -275,20 +275,22 @@ public class ElasticsearchAssertions {
 
     public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {
         assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), greaterThanOrEqualTo(1));
-        assertThat(searchSuggest.getSuggestion(key).getName(), equalTo(key));
-        assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
-        assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), equalTo(size));
+        String msg = "Suggest result: " + searchSuggest.toString();
+        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));
+        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));
+        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
+        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), equalTo(size));
         assertVersionSerializable(searchSuggest);
     }
 
     public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
         assertThat(searchSuggest, notNullValue());
-        assertThat(searchSuggest.size(), greaterThanOrEqualTo(1));
-        assertThat(searchSuggest.getSuggestion(key).getName(), equalTo(key));
-        assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
-        assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), greaterThan(ord));
-        assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));
+        String msg = "Suggest result: " + searchSuggest.toString();
+        assertThat(msg, searchSuggest.size(), greaterThanOrEqualTo(1));
+        assertThat(msg, searchSuggest.getSuggestion(key).getName(), equalTo(key));
+        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
+        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), greaterThan(ord));
+        assertThat(msg, searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));
         assertVersionSerializable(searchSuggest);
     }
 

@@ -11,12 +11,6 @@ You can query documents using this type using
 or <<query-dsl-geo-shape-query,geo_shape
 Query>>.
 
-Note, the `geo_shape` type uses
-https://github.com/spatial4j/spatial4j[Spatial4J] and
-http://www.vividsolutions.com/jts/jtshome.htm[JTS], both of which are
-optional dependencies. Consequently you must add Spatial4J v0.3 and JTS
-v1.12 to your classpath in order to use this type.
-
 [float]
 ==== Mapping Options
 

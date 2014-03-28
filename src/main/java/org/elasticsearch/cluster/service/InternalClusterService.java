@@ -376,6 +376,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                     }
                 }
 
+                newClusterState.status(ClusterState.ClusterStateStatus.BEING_APPLIED);
+
                 if (logger.isTraceEnabled()) {
                     StringBuilder sb = new StringBuilder("cluster state updated:\nversion [").append(newClusterState.version()).append("], source [").append(source).append("]\n");
                     sb.append(newClusterState.nodes().prettyPrint());
@@ -441,6 +443,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         }
                     });
                 }
+
+                newClusterState.status(ClusterState.ClusterStateStatus.APPLIED);
 
                 //manual ack only from the master at the end of the publish
                 if (newClusterState.nodes().localNodeMaster()) {

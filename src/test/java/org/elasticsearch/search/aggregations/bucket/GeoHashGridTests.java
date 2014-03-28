@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -43,6 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class GeoHashGridTests extends ElasticsearchIntegrationTest {
 
     private IndexRequestBuilder indexCity(String name, String latLon) throws Exception {
@@ -55,14 +55,14 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
     }
 
 
-    ObjectIntMap<String> expectedDocCountsForGeoHash = null;
-    int highestPrecisionGeohash = 12;
-    int numRandomPoints = 100;
+    static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
+    static int highestPrecisionGeohash = 12;
+    static int numRandomPoints = 100;
 
-    String smallestGeoHash = null;
+    static String smallestGeoHash = null;
 
-    @Before
-    public void init() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed"));
 

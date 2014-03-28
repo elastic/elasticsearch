@@ -27,7 +27,6 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.Map;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=1)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1)
 public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
     @Override

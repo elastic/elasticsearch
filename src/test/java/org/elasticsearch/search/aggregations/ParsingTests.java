@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;

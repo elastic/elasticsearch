@@ -33,10 +33,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
-import org.junit.Before;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -47,15 +45,15 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 
 
-@TestLogging("_root:TRACE")
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class MinDocCountTests extends ElasticsearchIntegrationTest {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
 
-    private int cardinality;
+    private static int cardinality;
 
-    @Before
-    public void indexData() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
 
         cardinality = randomIntBetween(8, 30);

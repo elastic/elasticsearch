@@ -162,30 +162,6 @@ public class PluginManager {
         }
     }
 
-    private boolean topLevelDirInExcess(ZipFile zipFile) {
-        //We don't rely on ZipEntry#isDirectory because it might be that there is no explicit dir
-        //but the files path do contain dirs, thus they are going to be extracted on sub-folders anyway
-        Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
-        Set<String> topLevelDirNames = new HashSet<>();
-        while (zipEntries.hasMoreElements()) {
-            ZipEntry zipEntry = zipEntries.nextElement();
-            String zipEntryName = zipEntry.getName().replace('\\', '/');
-
-            int slash = zipEntryName.indexOf('/');
-            //if there isn't a slash in the entry name it means that we have a file in the top-level
-            if (slash == -1) {
-                return false;
-            }
-
-            topLevelDirNames.add(zipEntryName.substring(0, slash));
-            //if we have more than one top-level folder
-            if (topLevelDirNames.size() > 1) {
-                return false;
-            }
-        }
-        return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
-    }
-
     private static final int EXIT_CODE_OK = 0;
     private static final int EXIT_CODE_CMD_USAGE = 64;
     private static final int EXIT_CODE_IO_ERROR = 74;
@@ -585,6 +561,29 @@ public class PluginManager {
             return removed;
         }
 
+        private boolean topLevelDirInExcess(ZipFile zipFile) {
+            //We don't rely on ZipEntry#isDirectory because it might be that there is no explicit dir
+            //but the files path do contain dirs, thus they are going to be extracted on sub-folders anyway
+            Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+            Set<String> topLevelDirNames = new HashSet<>();
+            while (zipEntries.hasMoreElements()) {
+                ZipEntry zipEntry = zipEntries.nextElement();
+                String zipEntryName = zipEntry.getName().replace('\\', '/');
+
+                int slash = zipEntryName.indexOf('/');
+                //if there isn't a slash in the entry name it means that we have a file in the top-level
+                if (slash == -1) {
+                    return false;
+                }
+
+                topLevelDirNames.add(zipEntryName.substring(0, slash));
+                //if we have more than one top-level folder
+                if (topLevelDirNames.size() > 1) {
+                    return false;
+                }
+            }
+            return topLevelDirNames.size() == 1 && !"_site".equals(topLevelDirNames.iterator().next());
+        }
     }
 
 }

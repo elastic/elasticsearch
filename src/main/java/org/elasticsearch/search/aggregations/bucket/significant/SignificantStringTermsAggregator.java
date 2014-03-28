@@ -68,10 +68,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
-
-        ContextIndexSearcher searcher = context.searchContext().searcher();
-        IndexReader topReader = searcher.getIndexReader();
-        long supersetSize = topReader.numDocs();
+        long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
@@ -79,7 +76,6 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         for (int i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null);
-                termsAggFactory.buildTermsEnum(context);
             }
 
             bucketOrds.get(i, spare.termBytes);

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -57,11 +56,12 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private final String executionHint;
     private String indexedFieldName;
     private FieldMapper mapper;
-    private TermsEnum termsEnum;
+    private FilterableTermsEnum termsEnum;
     private int numberOfAggregatorsCreated = 0;
+    private Filter filter;
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, int requiredSize,
-                                             int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
+                                             int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint, Filter filter) {
 
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.requiredSize = requiredSize;
@@ -73,6 +73,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
             this.indexedFieldName = valuesSourceConfig.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
+        this.filter = filter;
     }
 
     @Override
@@ -151,35 +152,31 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
                 "]. It can only be applied to numeric or string fields.");
     }
 
-    public TermsEnum buildTermsEnum(AggregationContext context) {
+    /**
+     * Creates the TermsEnum (if not already created) and must be called before any calls to getBackgroundFrequency
+     * @param context The aggregation context 
+     * @return The number of documents in the index (after an optional filter might have been applied)
+     */
+    public long prepareBackground(AggregationContext context) {
         if (termsEnum != null) {
-            return termsEnum;
+            // already prepared - return 
+            return termsEnum.getNumDocs();
         }
-        if (numberOfAggregatorsCreated == 1) {
-            try {
-                // Setup a termsEnum for use by first aggregator
-                SearchContext searchContext = context.searchContext();
-                ContextIndexSearcher searcher = searchContext.searcher();
-                Terms terms = MultiFields.getTerms(searcher.getIndexReader(), indexedFieldName);
-                // terms can be null if the choice of field is not found in this index
-                if (terms != null) {
-                    termsEnum = terms.iterator(null);
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to build terms enumeration", e);
+        SearchContext searchContext = context.searchContext();
+        IndexReader reader = searchContext.searcher().getIndexReader();
+        try {
+            if (numberOfAggregatorsCreated == 1) {
+                // Setup a termsEnum for sole use by one aggregator
+                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, true, false, filter);
+            } else {
+                // When we have > 1 agg we have possibility of duplicate term frequency lookups 
+                // and so use a TermsEnum that caches results of all term lookups
+                termsEnum = new FreqTermsEnum(reader, indexedFieldName, true, false, filter, searchContext.bigArrays());
             }
-        } else {
-            try {
-                // When we have > 1 agg we have possibility of duplicate term frequency lookups and
-                // so introduce a cache in the form of a wrapper around the plain termsEnum created
-                // for use with the first agg
-                SearchContext searchContext = context.searchContext();
-                termsEnum = new FreqTermsEnum(searchContext.searcher().getIndexReader(), indexedFieldName, true, false, null, context.searchContext().bigArrays());
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to build terms enumeration", e);
-            }
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to build terms enumeration", e);
         }
-        return termsEnum;
+        return termsEnum.getNumDocs();
     }
 
     public long getBackgroundFrequency(BytesRef termBytes) {

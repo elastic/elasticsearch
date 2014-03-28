@@ -666,11 +666,11 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         searchSuggest = searchSuggest( "Xorr the Gut-Jewel", phraseSuggestion);
         assertSuggestion(searchSuggest, 0, "simple_phrase", "xorr the god jewel");
     }
-    
+
     @Test
     public void testPhraseBoundaryCases() throws ElasticsearchException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
-                .put(indexSettings())
+                .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
                 .put("index.analysis.analyzer.body.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.body.filter", "lowercase")
                 .put("index.analysis.analyzer.bigram.tokenizer", "standard")

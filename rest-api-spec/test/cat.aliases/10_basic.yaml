@@ -1,9 +1,4 @@
 ---
-setup:
-  - skip:
-      features: regex
-
----
 "Help":
   - do:
       cat.aliases:

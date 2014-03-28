@@ -23,7 +23,6 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -39,11 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MultipleAttachmentIntegrationTests extends ElasticsearchIntegrationTest {
     private boolean ignore_errors = true;
-
-    @Before
-    public void cleanTestIndex() throws Exception {
-        wipeIndices("test");
-    }
 
     @Override
     public Settings indexSettings() {

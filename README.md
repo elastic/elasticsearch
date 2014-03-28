@@ -5,16 +5,19 @@ The mapper attachments plugin adds the `attachment` type to Elasticsearch using 
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-mapper-attachments/2.0.0`.
 
-* For 1.0.x elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/master).
-* For 0.90.x elasticsearch versions, look at [1.x branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/1.x).
+* For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/master).
+* For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.1).
+* For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.0).
+* For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-0.90).
 
 
 |   Attachment Mapper Plugin  | elasticsearch         |  Tika  | Release date |
 |-----------------------------|-----------------------|--------|:------------:|
-| 2.1.0-SNAPSHOT              | 1.0.0.RC1 -> master   |  1.5   |  XXXX-XX-XX  |
-| 2.0.0                       | 1.0.0.RC1 -> master   |  1.5   |  2014-03-25  |
-| 2.0.0.RC1                   | 1.0.0.RC1 -> master   |  1.4   |  2014-01-15  |
+| 3.0.0-SNAPSHOT              | master                |  1.5   |  XXXX-XX-XX  |
 
+Please read documentation relative to the version you are using:
+
+* [3.0.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-stempel/blob/master/README.md)
 
 The `attachment` type allows to index different "attachment" type field (encoded as `base64`), for example,
 microsoft office formats, open document formats, ePub, HTML, and so on (full list can be found [here](http://tika.apache.org/1.5/formats.html)).

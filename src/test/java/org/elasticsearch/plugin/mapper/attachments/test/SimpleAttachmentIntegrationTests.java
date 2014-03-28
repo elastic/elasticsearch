@@ -42,7 +42,6 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
     @Before
     public void createEmptyIndex() throws Exception {
         logger.info("creating index [test]");
-        wipeIndices("test");
         createIndex("test");
         ensureGreen();
     }

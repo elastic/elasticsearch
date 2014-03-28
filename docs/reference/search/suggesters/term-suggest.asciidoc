@@ -33,7 +33,7 @@ doesn't take the query into account that is part of request.
     Defines how suggestions should be sorted per suggest text
     term. Two possible values:
 +
-    ** `score`:     Sort by sore first, then document frequency and 
+    ** `score`:     Sort by score first, then document frequency and 
                     then the term itself. 
     ** `frequency`: Sort by document frequency first, then similarity
                     score and then the term itself. 

@@ -452,9 +452,10 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         createIndex();
         ensureGreen();
 
-        int numberOfThreads = between(2,5);
+        int numberOfThreads = scaledRandomIntBetween(2,5);
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);
-        final int numberOfUpdatesPerThread = between(1000, 10000);
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final int numberOfUpdatesPerThread = scaledRandomIntBetween(100, 10000);
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfThreads; i++) {
             Runnable r = new Runnable() {
@@ -462,6 +463,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 @Override
                 public void run() {
                     try {
+                        startLatch.await();
                         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
                             if (useBulkApi) {
                                 UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "type1", Integer.toString(i))
@@ -486,6 +488,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
             };
             new Thread(r).start();
         }
+        startLatch.countDown();
         latch.await();
         for (Throwable throwable : failures) {
             logger.info("Captured failure on concurrent update:", throwable);

@@ -11,8 +11,8 @@ suggest-selection is left to the API consumer. Yet, often pre-selected
 suggestions are required in order to present to the end-user. The
 `phrase` suggester adds additional logic on top of the `term` suggester
 to select entire corrected phrases instead of individual tokens weighted
-based on `ngram-langugage` models. In practice it this suggester will be
-able to make better decision about which tokens to pick based on
+based on `ngram-langugage` models. In practice this suggester will be
+able to make better decisions about which tokens to pick based on
 co-occurence and frequencies.
 
 ==== API Example

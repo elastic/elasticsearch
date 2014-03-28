@@ -509,7 +509,7 @@ it is just fine not to list the field to which the matches are combined
 Technically it is also fine to add fields to `matched_fields` that
 don't share the same underlying string as the field to which the matches
 are combined.  The results might not make much sense and if one of the
-matches is off the end of the text then the whole the query will fail.
+matches is off the end of the text then the whole query will fail.
 
 [NOTE]
 ===================================================================

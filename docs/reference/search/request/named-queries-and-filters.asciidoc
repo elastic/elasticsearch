@@ -53,5 +53,5 @@ query (just so there will be a place to set a name for it), for example:
 
 ==== Named queries
 
-The support for the `_name` option on queries as available from version `0.90.4` and the support on filters is available
+The support for the `_name` option on queries is available from version `0.90.4` and the support on filters is available
 also in versions before `0.90.4`.

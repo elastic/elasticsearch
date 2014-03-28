@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -37,7 +36,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope=Scope.TEST, numNodes=1)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=1)
 public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest {
 
     @Override

@@ -35,9 +35,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
-import org.elasticsearch.test.*;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.junit.Test;
 
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  *
  */
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
 @Slow
 public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
 

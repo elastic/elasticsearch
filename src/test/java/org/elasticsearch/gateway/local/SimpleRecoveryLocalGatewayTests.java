@@ -34,7 +34,6 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
@@ -49,7 +48,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(numNodes = 0, scope = Scope.TEST)
+@ClusterScope(numNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST)
 @Slow
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 

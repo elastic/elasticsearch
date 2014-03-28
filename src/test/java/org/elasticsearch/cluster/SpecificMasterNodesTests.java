@@ -25,7 +25,6 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numNodes = 0)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
 public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
 
     protected final ImmutableSettings.Builder settingsBuilder() {

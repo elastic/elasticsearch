@@ -35,11 +35,12 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
-import org.junit.Before;
+import org.junit.After;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -54,6 +55,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     private DateTime date(int month, int day) {
@@ -86,19 +88,33 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .endObject());
     }
 
-    @Before
-    public void init() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx_unmapped");
         // TODO: would be nice to have more random data here
-        indexRandom(true,
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i*2)
+                    .endObject()));
+        }
+        builders.addAll(Arrays.asList(
                 indexDoc(1, 2, 1),  // date: Jan 2, dates: Jan 2, Feb 3
                 indexDoc(2, 2, 2),  // date: Feb 2, dates: Feb 2, Mar 3
                 indexDoc(2, 15, 3), // date: Feb 15, dates: Feb 15, Mar 16
                 indexDoc(3, 2, 4),  // date: Mar 2, dates: Mar 2, Apr 3
                 indexDoc(3, 15, 5), // date: Mar 15, dates: Mar 15, Apr 16
-                indexDoc(3, 23, 6)); // date: Mar 23, dates: Mar 23, Apr 24
+                indexDoc(3, 23, 6))); // date: Mar 23, dates: Mar 23, Apr 24
+        indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    @After
+    public void afterEachTest() throws IOException {
+        cluster().wipeIndices("idx2");
     }
 
     private static DateHistogram.Bucket getBucket(DateHistogram histogram, DateTime key) {
@@ -982,16 +998,6 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(dateHistogram("date_histo").interval(1)))

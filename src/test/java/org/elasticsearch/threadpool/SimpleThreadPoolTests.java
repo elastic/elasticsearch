@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.Test;
 
@@ -43,7 +42,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope=Scope.TEST, numNodes=2)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=2)
 public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override

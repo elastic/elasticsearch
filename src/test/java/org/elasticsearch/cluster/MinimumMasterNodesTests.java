@@ -30,7 +30,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -39,7 +38,7 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = Scope.TEST, numNodes=0)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test

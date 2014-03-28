@@ -20,8 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
-
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -33,7 +31,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-
 import org.junit.Test;
 
 import java.util.ArrayList;

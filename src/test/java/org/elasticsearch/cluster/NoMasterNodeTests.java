@@ -29,6 +29,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @TestLogging("action:TRACE,cluster.service:TRACE")
     public void testNoMasterActions() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

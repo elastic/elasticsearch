@@ -21,14 +21,9 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
-import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,14 +31,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -106,19 +99,14 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    public void testPrimaryRelocationWhileIndexingRandom() throws Exception {
-        int numRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
-        int numWriters = scaledRandomIntBetween(1, rarely() ? 10 : 4);
-        boolean batch = getRandom().nextBoolean();
-        logger.info("testPrimaryRelocationWhileIndexingRandom(numRelocations={}, numWriters={}, batch={}",
-                numRelocations, numWriters, batch);
-        testPrimaryRelocationWhileIndexing(numRelocations, numWriters, batch);
-    }
-    
-    
+    public void testRelocationWhileIndexingRandom() throws Exception {
+        int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
+        int numberOfReplicas = randomBoolean() ? 0 : 1;
+        int numberOfNodes = numberOfReplicas == 0 ? 2 : 3;
 
-    private void testPrimaryRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {
-        String[] nodes = new String[2];
+        logger.info("testRelocationWhileIndexingRandom(numRelocations={}, numberOfReplicas={}, numberOfNodes={})", numberOfRelocations, numberOfReplicas, numberOfNodes);
+
+        String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
         nodes[0] = cluster().startNode();
 
@@ -126,304 +114,93 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_replicas", numberOfReplicas)
                 ).execute().actionGet();
 
-        logger.info("--> starting [node2] ...");
-        nodes[1] = cluster().startNode();
 
-        final AtomicLong idGenerator = new AtomicLong();
-        final AtomicLong indexCounter = new AtomicLong();
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        Thread[] writers = new Thread[numberOfWriters];
-        final CountDownLatch stopLatch = new CountDownLatch(writers.length);
-        final CountDownLatch startLatch = new CountDownLatch(1);
-        logger.info("--> starting {} indexing threads", writers.length);
-        for (int i = 0; i < writers.length; i++) {
-            final Client perThreadClient = client();
-            final int indexerId = i;
-            writers[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        startLatch.await();
-                        logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get()) {
-                            if (batch) {
-                                BulkRequestBuilder bulkRequest = perThreadClient.prepareBulk();
-                                for (int i = 0; i < 100; i++) {
-                                    long id = idGenerator.incrementAndGet();
-                                    if (id % 1000 == 0) {
-                                        perThreadClient.admin().indices().prepareFlush().execute().actionGet();
-                                    }
-                                    bulkRequest.add(perThreadClient.prepareIndex("test", "type1", Long.toString(id))
-                                            .setSource("test", "value" + id));
-                                }
-                                BulkResponse bulkResponse = bulkRequest.execute().actionGet();
-                                for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                    if (!bulkItemResponse.isFailed()) {
-                                        indexCounter.incrementAndGet();
-                                    } else {
-                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.getFailure().getId(), bulkItemResponse.getFailure().getMessage());
-                                    }
-                                }
-                            } else {
-                                long id = idGenerator.incrementAndGet();
-                                if (id % 1000 == 0) {
-                                    perThreadClient.admin().indices().prepareFlush().execute().actionGet();
-                                }
-                                perThreadClient.prepareIndex("test", "type1", Long.toString(id))
-                                        .setSource("test", "value" + id).execute().actionGet();
-                                indexCounter.incrementAndGet();
+        for (int i = 1; i < numberOfNodes; i++) {
+            logger.info("--> starting [node{}] ...", i + 1);
+            nodes[i] = cluster().startNode();
+            if (i != numberOfNodes - 1) {
+                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNodes(Integer.toString(i + 1)).setWaitForGreenStatus().execute().actionGet();
+                assertThat(healthResponse.isTimedOut(), equalTo(false));
+            }
+        }
+
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client())) {
+            final int numDocs = scaledRandomIntBetween(200, 2500);
+            logger.info("--> waiting for {} docs to be indexed ...", numDocs);
+            waitForDocs(numDocs, indexer);
+            logger.info("--> {} docs indexed", numDocs);
+
+            logger.info("--> starting relocations...");
+            int nodeShiftBased = numberOfReplicas; // if we have replicas shift those
+            for (int i = 0; i < numberOfRelocations; i++) {
+                int fromNode = (i % 2);
+                int toNode = fromNode == 0 ? 1 : 0;
+                fromNode += nodeShiftBased;
+                toNode += nodeShiftBased;
+                logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
+                client().admin().cluster().prepareReroute()
+                        .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
+                        .get();
+                if (rarely()) {
+                    logger.debug("--> flushing");
+                    client().admin().indices().prepareFlush().get();
+                }
+                ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+                assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+                clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+                assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+                logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
+            }
+            logger.info("--> done relocations");
+            logger.info("--> waiting for indexing threads to stop ...");
+            indexer.stop();
+            logger.info("--> indexing threads stopped");
+
+            logger.info("--> refreshing the index");
+            client().admin().indices().prepareRefresh("test").execute().actionGet();
+            logger.info("--> searching the index");
+            boolean ranOnce = false;
+            for (int i = 0; i < 10; i++) {
+                try {
+                    logger.info("--> START search test round {}", i + 1);
+                    SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).setNoFields().execute().actionGet().getHits();
+                    ranOnce = true;
+                    if (hits.totalHits() != indexer.totalIndexedDocs()) {
+                        int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
+                        for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
+                            hitIds[hit] = hit + 1;
+                        }
+                        IntOpenHashSet set = IntOpenHashSet.from(hitIds);
+                        for (SearchHit hit : hits.hits()) {
+                            int id = Integer.parseInt(hit.id());
+                            if (!set.remove(id)) {
+                                logger.error("Extra id [{}]", id);
                             }
                         }
-                        logger.info("**** done indexing thread {}", indexerId);
-                    } catch (Exception e) {
-                        logger.warn("**** failed indexing thread {}", e, indexerId);
-                    } finally {
-                        stopLatch.countDown();
-                    }
-                }
-            };
-            writers[i].start();
-        }
-        startLatch.countDown();
-        final int numDocs = scaledRandomIntBetween(200, 2500);
-        logger.info("--> waiting for {} docs to be indexed ...", numDocs);
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                client().admin().indices().prepareRefresh().execute().actionGet();
-                return client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() >= numDocs;
-            }
-        });
-        logger.info("--> {} docs indexed", numDocs);
+                        set.forEach(new IntProcedure() {
 
-        logger.info("--> starting relocations...");
-        for (int i = 0; i < numberOfRelocations; i++) {
-            int fromNode = (i % 2);
-            int toNode = fromNode == 0 ? 1 : 0;
-            logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
-            client().admin().cluster().prepareReroute()
-                    .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
-                    .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
-        }
-        logger.info("--> done relocations");
-
-        logger.info("--> marking and waiting for indexing threads to stop ...");
-        stop.set(true);
-        stopLatch.await();
-        logger.info("--> indexing threads stopped");
-
-        logger.info("--> refreshing the index");
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        logger.info("--> searching the index");
-        boolean ranOnce = false;
-        for (int i = 0; i < 10; i++) {
-            try {
-                logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().getHits();
-                ranOnce = true;
-                if (hits.totalHits() != indexCounter.get()) {
-                    int[] hitIds = new int[(int) indexCounter.get()];
-                    for (int hit = 0; hit < indexCounter.get(); hit++) {
-                        hitIds[hit] = hit + 1;
-                    }
-                    IntOpenHashSet set = IntOpenHashSet.from(hitIds);
-                    for (SearchHit hit : hits.hits()) {
-                        int id = Integer.parseInt(hit.id());
-                        if (!set.remove(id)) {
-                            logger.error("Extra id [{}]", id);
-                        }
-                    }
-                    set.forEach(new IntProcedure() {
-
-                        @Override
-                        public void apply(int value) {
-                            logger.error("Missing id [{}]", value);
-                        }
-
-                    });
-                }
-                assertThat(hits.totalHits(), equalTo(indexCounter.get()));
-                logger.info("--> DONE search test round {}", i + 1);
-            } catch (SearchPhaseExecutionException ex) {
-                // TODO: the first run fails with this failure, waiting for relocating nodes set to 0 is not enough?
-                logger.warn("Got exception while searching.", ex);
-            }
-        }
-        if (!ranOnce) {
-            fail();
-        }
-    }
-
-    @Test
-    @Slow
-    public void testReplicaRelocationWhileIndexingRandom() throws Exception {
-        int numRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
-        int numWriters = scaledRandomIntBetween(1, rarely() ? 10 : 4);
-        boolean batch = getRandom().nextBoolean();
-        logger.info("testReplicaRelocationWhileIndexing(numRelocations={}, numWriters={}, batch={}", numRelocations, numWriters, batch);
-        testReplicaRelocationWhileIndexing(numRelocations, numWriters, batch);
-    }
-
-    private void testReplicaRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {
-        logger.info("--> starting [node1] ...");
-        String[] nodes = new String[3];
-        nodes[0] = cluster().startNode();
-
-        logger.info("--> creating test index ...");
-        client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1)
-                ).execute().actionGet();
-
-        logger.info("--> starting [node2] ...");
-        nodes[1] = cluster().startNode();
-
-        ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-
-        logger.info("--> starting [node3] ...");
-        nodes[2] = cluster().startNode();
-
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.isTimedOut(), equalTo(false));
-
-        final AtomicLong idGenerator = new AtomicLong();
-        final AtomicLong indexCounter = new AtomicLong();
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        Thread[] writers = new Thread[numberOfWriters];
-        final CountDownLatch stopLatch = new CountDownLatch(writers.length);
-        final CountDownLatch startLatch = new CountDownLatch(1);
-        logger.info("--> starting {} indexing threads", writers.length);
-        for (int i = 0; i < writers.length; i++) {
-            final Client perThreadClient = client();
-            final int indexerId = i;
-            writers[i] = new Thread() {
-                @Override
-                public void run() {
-                    
-                    try {
-                        startLatch.await();
-                        logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get()) {
-                            if (batch) {
-                                BulkRequestBuilder bulkRequest = perThreadClient.prepareBulk();
-                                for (int i = 0; i < 100; i++) {
-                                    long id = idGenerator.incrementAndGet();
-                                    if (id % 1000 == 0) {
-                                        perThreadClient.admin().indices().prepareFlush().execute().actionGet();
-                                    }
-                                    bulkRequest.add(perThreadClient.prepareIndex("test", "type1", Long.toString(id))
-                                            .setSource("test", "value" + id));
-                                }
-                                BulkResponse bulkResponse = bulkRequest.execute().actionGet();
-                                for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                    if (!bulkItemResponse.isFailed()) {
-                                        indexCounter.incrementAndGet();
-                                    } else {
-                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.getFailure().getId(), bulkItemResponse.getFailure().getMessage());
-                                    }
-                                }
-                            } else {
-                                long id = idGenerator.incrementAndGet();
-                                if (id % 1000 == 0) {
-                                    perThreadClient.admin().indices().prepareFlush().execute().actionGet();
-                                }
-                                perThreadClient.prepareIndex("test", "type1", Long.toString(id))
-                                        .setSource("test", "value" + id).execute().actionGet();
-                                indexCounter.incrementAndGet();
+                            @Override
+                            public void apply(int value) {
+                                logger.error("Missing id [{}]", value);
                             }
-                        }
-                        logger.info("**** done indexing thread {}", indexerId);
-                    } catch (Exception e) {
-                        logger.warn("**** failed indexing thread {}", e, indexerId);
-                    } finally {
-                        stopLatch.countDown();
+
+                        });
                     }
+                    assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
+                    logger.info("--> DONE search test round {}", i + 1);
+                } catch (SearchPhaseExecutionException ex) {
+                    // TODO: the first run fails with this failure, waiting for relocating nodes set to 0 is not enough?
+                    logger.warn("Got exception while searching.", ex);
                 }
-            };
-            writers[i].start();
-        }
-
-        startLatch.countDown();
-        final int numDocs = scaledRandomIntBetween(200, 2500);
-        logger.info("--> waiting for {} docs to be indexed ...", numDocs);
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                client().admin().indices().prepareRefresh().execute().actionGet();
-                return client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() >= numDocs;
             }
-        });
-        logger.info("--> {} docs indexed", numDocs);
-
-        logger.info("--> starting relocations...");
-        for (int i = 0; i < numberOfRelocations; i++) {
-            int fromNode = (1 + (i % 2));
-            int toNode = fromNode == 1 ? 2 : 1;
-            logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
-            client().admin().cluster().prepareReroute()
-                    .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
-                    .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
-        }
-        logger.info("--> done relocations");
-
-        logger.info("--> marking and waiting for indexing threads to stop ...");
-        stop.set(true);
-        stopLatch.await();
-        logger.info("--> indexing threads stopped");
-
-        logger.info("--> refreshing the index");
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        logger.info("--> searching the index");
-        boolean ranOnce = false;
-        for (int i = 0; i < 10; i++) {
-            try {
-                logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().getHits();
-                ranOnce = true;
-                if (hits.totalHits() != indexCounter.get()) {
-                    int[] hitIds = new int[(int) indexCounter.get()];
-                    for (int hit = 0; hit < indexCounter.get(); hit++) {
-                        hitIds[hit] = hit + 1;
-                    }
-                    IntOpenHashSet set = IntOpenHashSet.from(hitIds);
-                    for (SearchHit hit : hits.hits()) {
-                        int id = Integer.parseInt(hit.id());
-                        if (!set.remove(id)) {
-                            logger.error("Extra id [{}]", id);
-                        }
-                    }
-                    set.forEach(new IntProcedure() {
-
-                        @Override
-                        public void apply(int value) {
-                            logger.error("Missing id [{}]", value);
-                        }
-                    });
-                }
-                assertThat(hits.totalHits(), equalTo(indexCounter.get()));
-                logger.info("--> DONE search test round {}", i + 1);
-            } catch (SearchPhaseExecutionException ex) {
-                // TODO: the first run fails with this failure, waiting for relocating nodes set to 0 is not enough?
-                logger.warn("Got exception while searching.", ex);
+            if (!ranOnce) {
+                fail();
             }
-        }
-        if (!ranOnce) {
-            fail();
         }
     }
+
 }

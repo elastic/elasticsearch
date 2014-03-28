@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest;
 
+import com.carrotsearch.randomizedtesting.annotations.Nightly;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.Resources;
@@ -473,6 +474,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     
     @Test
     @Slow
+    @Nightly
     public void testMarvelHerosPhraseSuggest() throws ElasticsearchException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -668,6 +670,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @Nightly
     public void testPhraseBoundaryCases() throws ElasticsearchException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1) // to get reliable statistics we should put this all into one shard
@@ -937,6 +940,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
      * If the suggester finds tons of options then picking the right one is slow without <<<INSERT SOLUTION HERE>>>.
      */
     @Test
+    @Nightly
     public void suggestWithManyCandidates() throws InterruptedException, ExecutionException, IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())

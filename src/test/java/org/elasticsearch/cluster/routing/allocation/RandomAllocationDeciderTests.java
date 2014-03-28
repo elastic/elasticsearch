@@ -60,14 +60,14 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         AllocationService strategy = new AllocationService(settingsBuilder().build(), new AllocationDeciders(ImmutableSettings.EMPTY,
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(ImmutableSettings.EMPTY),
                         randomAllocationDecider))), new ShardsAllocators(), ClusterInfoService.EMPTY);
-        int indices = between(1, 20);
+        int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
         int maxNumReplicas = 1;
         int totalNumShards = 0;
         for (int i = 0; i < indices; i++) {
-            int replicas = between(0, 6);
+            int replicas = scaledRandomIntBetween(0, 6);
             maxNumReplicas = Math.max(maxNumReplicas, replicas + 1);
-            int numShards = between(1, 20);
+            int numShards = scaledRandomIntBetween(1, 20);
             totalNumShards += numShards * (replicas + 1);
             metaBuilder.put(IndexMetaData.builder("INDEX_" + i).numberOfShards(numShards).numberOfReplicas(replicas));
 
@@ -80,17 +80,18 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
 
         RoutingTable routingTable = routingTableBuilder.build();
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        int numIters = scaledRandomIntBetween(10, 30);
+        int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
-        int atMostNodes = between(Math.max(1, maxNumReplicas), numIters);
+        int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
         final boolean frequentNodes = randomBoolean();
         for (int i = 0; i < numIters; i++) {
+            logger.info("Start iteration [{}]", i);
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
             DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
 
             if (clusterState.nodes().size() <= atMostNodes &&
                     (nodeIdCounter == 0 || (frequentNodes ? frequently() : rarely()))) {
-                int numNodes = between(1, 3);
+                int numNodes = scaledRandomIntBetween(1, 3);
                 for (int j = 0; j < numNodes; j++) {
                     logger.info("adding node [{}]", nodeIdCounter);
                     newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));
@@ -98,7 +99,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
             }
 
             if (nodeIdCounter > 1 && rarely()) {
-                int nodeId = between(0, nodeIdCounter - 2);
+                int nodeId = scaledRandomIntBetween(0, nodeIdCounter - 2);
                 logger.info("removing node [{}]", nodeId);
                 newNodesBuilder.remove("NODE_" + nodeId);
             }

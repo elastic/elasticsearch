@@ -27,6 +27,8 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -34,18 +36,18 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoryName;
 
 import java.io.FilterInputStream;
@@ -57,7 +59,9 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.zip.Adler32;
+import java.util.zip.CheckedInputStream;
+import java.util.zip.Checksum;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -385,6 +389,8 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
 
         private final IndexShardSnapshotStatus snapshotStatus;
 
+        private final boolean verifyChecksums;
+
         /**
          * Constructs new context
          *
@@ -394,8 +400,13 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          */
         public SnapshotContext(SnapshotId snapshotId, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
             super(snapshotId, shardId);
-            store = indicesService.indexServiceSafe(shardId.getIndex()).shardInjectorSafe(shardId.id()).getInstance(Store.class);
+            IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            store = indexService.shardInjectorSafe(shardId.id()).getInstance(Store.class);
+            Settings indexSettings = indexService.settingsService().getSettings();
+            Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+            verifyChecksums = indexVersion != null && indexVersion.onOrAfter(Version.V_1_2_0);
             this.snapshotStatus = snapshotStatus;
+
         }
 
         /**
@@ -530,48 +541,104 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
          * @throws IOException
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final CountDownLatch latch, final List<Throwable> failures) throws IOException {
-            final AtomicLong counter = new AtomicLong(fileInfo.numberOfParts());
-            for (long i = 0; i < fileInfo.numberOfParts(); i++) {
+            final Checksum checksum;
+            if (verifyChecksums && fileInfo.checksum() != null) {
+                checksum = new Adler32();
+            } else {
+                checksum = null;
+            }
+            writeBlob(fileInfo, 0, checksum, latch, failures);
+        }
+
+        private class PartWriterListener implements ImmutableBlobContainer.WriterListener {
+
+            private final IndexInput indexInput;
+
+            private final InputStreamIndexInput inputStreamIndexInput;
+
+            private final InputStream inputStream;
+
+            private final int part;
+
+            private final FileInfo fileInfo;
+
+            private final Checksum checksum;
+
+            private final List<Throwable> failures;
+
+            private final CountDownLatch latch;
+
+            private PartWriterListener(FileInfo fileInfo, int part, Checksum checksum, CountDownLatch latch, List<Throwable> failures) throws IOException {
+                boolean success = false;
                 IndexInput indexInput = null;
+                this.part = part;
+                this.fileInfo = fileInfo;
+                this.checksum = checksum;
+                this.failures = failures;
+                this.latch = latch;
                 try {
-                    final String file = fileInfo.physicalName();
-                    indexInput = store.openInputRaw(file, IOContext.READONCE);
-                    indexInput.seek(i * fileInfo.partBytes());
-                    InputStreamIndexInput inputStreamIndexInput = new ThreadSafeInputStreamIndexInput(indexInput, fileInfo.partBytes());
-
-                    final IndexInput fIndexInput = indexInput;
-                    long size = inputStreamIndexInput.actualSizeToRead();
-                    InputStream inputStream;
+                    indexInput = store.openInputRaw(fileInfo.physicalName(), IOContext.READONCE);
+                    indexInput.seek(part * fileInfo.partBytes());
+                    this.indexInput = indexInput;
+                    inputStreamIndexInput = new InputStreamIndexInput(indexInput, fileInfo.partBytes());
+                    InputStream inputStream = inputStreamIndexInput;
                     if (snapshotRateLimiter != null) {
-                        inputStream = new RateLimitingInputStream(inputStreamIndexInput, snapshotRateLimiter, snapshotThrottleListener);
-                    } else {
-                        inputStream = inputStreamIndexInput;
+                        inputStream = new RateLimitingInputStream(inputStream, snapshotRateLimiter, snapshotThrottleListener);
                     }
-                    inputStream = new AbortableInputStream(inputStream, file);
-                    blobContainer.writeBlob(fileInfo.partName(i), inputStream, size, new ImmutableBlobContainer.WriterListener() {
-                        @Override
-                        public void onCompleted() {
-                            IOUtils.closeWhileHandlingException(fIndexInput);
-                            snapshotStatus.addProcessedFile(fileInfo.length());
-                            if (counter.decrementAndGet() == 0) {
-                                latch.countDown();
-                            }
-                        }
+                    if (checksum != null) {
+                        inputStream = new CheckedInputStream(inputStream, checksum);
+                    }
+                    this.inputStream = new AbortableInputStream(inputStream, fileInfo.physicalName());
+                    success = true;
+                } finally {
+                    if (!success) {
+                        IOUtils.closeWhileHandlingException(indexInput);
+                    }
+                }
+            }
 
-                        @Override
-                        public void onFailure(Throwable t) {
-                            IOUtils.closeWhileHandlingException(fIndexInput);
-                            snapshotStatus.addProcessedFile(0);
-                            failures.add(t);
-                            if (counter.decrementAndGet() == 0) {
-                                latch.countDown();
-                            }
+            @Override
+            public void onCompleted() {
+                IOUtils.closeWhileHandlingException(indexInput);
+                int nextPart = part + 1;
+                if (nextPart < fileInfo.numberOfParts()) {
+                    // We have more parts to go
+                    writeBlob(fileInfo, nextPart, checksum, latch, failures);
+                } else {
+                    // Last part - verify checksum
+                    if (checksum != null) {
+                        String checksumString = Long.toString(checksum.getValue(), Character.MAX_RADIX);
+                        if (!checksumString.equals(fileInfo.checksum())) {
+                            failures.add(new IndexShardSnapshotFailedException(shardId, "Invalid checksum for file " + fileInfo.physicalName() + " expected [" + fileInfo.checksum() + "], received [" + checksumString + "]"));
                         }
-                    });
-                } catch (Throwable e) {
-                    IOUtils.closeWhileHandlingException(indexInput);
-                    failures.add(e);
+                    }
+                    snapshotStatus.addProcessedFile(fileInfo.length());
                     latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                IOUtils.closeWhileHandlingException(indexInput);
+                snapshotStatus.addProcessedFile(0);
+                failures.add(t);
+                latch.countDown();
+            }
+
+            public void writeBlobPart() throws IOException {
+                blobContainer.writeBlob(fileInfo.partName(part), inputStream, inputStreamIndexInput.actualSizeToRead(), this);
+            }
+
+        }
+
+        private void writeBlob(FileInfo fileInfo, int part, Checksum checksum, CountDownLatch latch, List<Throwable> failures) {
+            PartWriterListener listener = null;
+            try {
+                listener = new PartWriterListener(fileInfo, part, checksum, latch, failures);
+                listener.writeBlobPart();
+            } catch (Throwable t) {
+                if (listener != null) {
+                    listener.onFailure(t);
                 }
             }
         }

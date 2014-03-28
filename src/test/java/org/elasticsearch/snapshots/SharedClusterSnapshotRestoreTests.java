@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -47,13 +49,16 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.store.CorruptibleFSIndexStoreModule;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.io.File;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.store.CorruptibleFSDirectoryService.enableCorruption;
 import static org.hamcrest.Matchers.*;
 
 @Slow
@@ -1076,6 +1081,94 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             // Expected
         }
 
+    }
+
+    @Test
+    public void snapshotCorruptedFileTest() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
+
+        assertAcked(prepareCreate("test-idx", 2,
+                settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.store.type", CorruptibleFSIndexStoreModule.class.getName())));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        flush();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        String node = cluster().nodesInclude("test-idx").iterator().next();
+        enableCorruption(node, "test-idx", "*.cfe,*.cfs,*.fdx,*.fdt");
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-bad").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(2));
+        enableCorruption(node, "test-idx", null);
+
+        createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-good").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(2));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(2));
+
+        logger.info("--> delete index");
+        cluster().wipeIndices("test-idx");
+
+        logger.info("--> restore index");
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-good").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(2));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(2));
+
+        ensureGreen();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+    }
+
+    @Test
+    public void snapshotCorruptedFileTestWithOlderVersion() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))));
+
+        assertAcked(prepareCreate("test-idx", 2,
+                settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.store.type", CorruptibleFSIndexStoreModule.class.getName())
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_0_1)));
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+        flush();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        String node = cluster().nodesInclude("test-idx").iterator().next();
+        enableCorruption(node, "test-idx", "*.cfe,*.cfs,*.fdx,*.fdt");
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-bad").setWaitForCompletion(true).setIndices("test-idx").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(2));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(2));
+        enableCorruption(node, "test-idx", null);
     }
 
     private boolean waitForIndex(String index, TimeValue timeout) throws InterruptedException {

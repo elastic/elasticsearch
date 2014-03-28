@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanc
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -47,6 +46,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
@@ -60,8 +60,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         return client().prepareIndex(idx, "type").setSource(source);
     }
 
-    @Before
-    public void init() throws Exception {
+    public void setupSuiteScopeCluster() throws Exception {
         prepareCreate("idx")
                 .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
                 .execute().actionGet();
@@ -104,7 +103,16 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
             }
         }
         indexRandom(true, cities);
-
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i * 2)
+                    .field("location", "52.0945, 5.116")
+                    .endObject()));
+        }
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
         ensureSearchable();
     }
 
@@ -348,17 +356,6 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i * 2)
-                    .field("location", "52.0945, 5.116")
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)

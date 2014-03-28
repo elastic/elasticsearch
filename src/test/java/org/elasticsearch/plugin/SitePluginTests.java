@@ -25,7 +25,6 @@ import org.elasticsearch.rest.helper.HttpClient;
 import org.elasticsearch.rest.helper.HttpClientResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * We want to test site plugins
  */
-@ClusterScope(scope = Scope.SUITE, numNodes = 1)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
 public class SitePluginTests extends ElasticsearchIntegrationTest {
 
 

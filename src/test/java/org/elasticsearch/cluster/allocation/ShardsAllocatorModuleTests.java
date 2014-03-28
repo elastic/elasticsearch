@@ -27,12 +27,11 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
 public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
 
 

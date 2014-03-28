@@ -28,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
 import org.junit.Test;
 
@@ -45,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(numNodes=0, scope=Scope.TEST)
+@ClusterScope(numNodes=0, scope= ElasticsearchIntegrationTest.Scope.TEST)
 public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -37,7 +38,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -51,8 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
 public class RelocationTests extends ElasticsearchIntegrationTest {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
@@ -138,7 +137,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] writers = new Thread[numberOfWriters];
         final CountDownLatch stopLatch = new CountDownLatch(writers.length);
-
+        final CountDownLatch startLatch = new CountDownLatch(1);
         logger.info("--> starting {} indexing threads", writers.length);
         for (int i = 0; i < writers.length; i++) {
             final Client perThreadClient = client();
@@ -147,6 +146,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                 @Override
                 public void run() {
                     try {
+                        startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {
                             if (batch) {
@@ -187,13 +187,17 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             };
             writers[i].start();
         }
-
-        logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
-            Thread.sleep(100);
-            client().admin().indices().prepareRefresh().execute().actionGet();
-        }
-        logger.info("--> 2000 docs indexed");
+        startLatch.countDown();
+        final int numDocs = scaledRandomIntBetween(200, 2500);
+        logger.info("--> waiting for {} docs to be indexed ...", numDocs);
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                client().admin().indices().prepareRefresh().execute().actionGet();
+                return client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() >= numDocs;
+            }
+        });
+        logger.info("--> {} docs indexed", numDocs);
 
         logger.info("--> starting relocations...");
         for (int i = 0; i < numberOfRelocations; i++) {
@@ -297,7 +301,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] writers = new Thread[numberOfWriters];
         final CountDownLatch stopLatch = new CountDownLatch(writers.length);
-
+        final CountDownLatch startLatch = new CountDownLatch(1);
         logger.info("--> starting {} indexing threads", writers.length);
         for (int i = 0; i < writers.length; i++) {
             final Client perThreadClient = client();
@@ -307,6 +311,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                 public void run() {
                     
                     try {
+                        startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
                         while (!stop.get()) {
                             if (batch) {
@@ -348,12 +353,17 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             writers[i].start();
         }
 
-        logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
-            Thread.sleep(100);
-            client().admin().indices().prepareRefresh().execute().actionGet();
-        }
-        logger.info("--> 2000 docs indexed");
+        startLatch.countDown();
+        final int numDocs = scaledRandomIntBetween(200, 2500);
+        logger.info("--> waiting for {} docs to be indexed ...", numDocs);
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                client().admin().indices().prepareRefresh().execute().actionGet();
+                return client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() >= numDocs;
+            }
+        });
+        logger.info("--> {} docs indexed", numDocs);
 
         logger.info("--> starting relocations...");
         for (int i = 0; i < numberOfRelocations; i++) {

@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -49,13 +48,14 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class NestedTests extends ElasticsearchIntegrationTest {
 
-    int numParents;
-    int[] numChildren;
+    static int numParents;
+    static int[] numChildren;
 
-    @Before
-    public void init() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
 
         assertAcked(prepareCreate("idx")
                 .addMapping("type", "nested", "type=nested"));
@@ -86,6 +86,21 @@ public class NestedTests extends ElasticsearchIntegrationTest {
             }
             source = source.endArray().endObject();
             builders.add(client().prepareIndex("idx", "type", ""+i+1).setSource(source));
+        }
+
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").execute().actionGet();
+        for (int i = 0; i < 2; i++) {
+            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i*2)
+                    .startArray("nested")
+                    .startObject().field("value", i + 1).endObject()
+                    .startObject().field("value", i + 2).endObject()
+                    .startObject().field("value", i + 3).endObject()
+                    .startObject().field("value", i + 4).endObject()
+                    .startObject().field("value", i + 5).endObject()
+                    .endArray()
+                    .endObject()));
         }
         indexRandom(true, builders);
         ensureSearchable();
@@ -224,23 +239,6 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "nested", "type=nested").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .startArray("nested")
-                        .startObject().field("value", i + 1).endObject()
-                        .startObject().field("value", i + 2).endObject()
-                        .startObject().field("value", i + 3).endObject()
-                        .startObject().field("value", i + 4).endObject()
-                        .startObject().field("value", i + 5).endObject()
-                    .endArray()
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)

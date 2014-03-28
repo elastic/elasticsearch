@@ -20,8 +20,9 @@
 package org.elasticsearch.search.aggregations;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
+import com.google.common.collect.Lists;
+import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -36,8 +37,11 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.util.List;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -46,6 +50,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like
  * the growth of dynamic arrays is tested.
  */
+@Slow
 public class RandomTests extends ElasticsearchIntegrationTest {
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
@@ -141,9 +146,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
     // test long/double/string terms aggs with high number of buckets that require array growth
     public void testDuelTerms() throws Exception {
-        // These high numbers of docs and terms are important to trigger page recycling
         final int numDocs = scaledRandomIntBetween(10000, 20000);
-        final int maxNumTerms = randomIntBetween(10, 100000);
+        final int maxNumTerms = randomIntBetween(10, 50000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
         immutableCluster().wipeIndices("idx");
@@ -162,6 +166,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                   .endObject()
                 .endObject()
               .endObject()).execute().actionGet();
+
+        List<IndexRequestBuilder> indexingRequests = Lists.newArrayList();
         for (int i = 0; i < numDocs; ++i) {
             final int[] values = new int[randomInt(4)];
             for (int j = 0; j < values.length; ++j) {
@@ -184,8 +190,14 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 source = source.value(Integer.toString(values[j]));
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx", "type").setSource(source).execute().actionGet();
+            indexingRequests.add(client().prepareIndex("idx", "type").setSource(source));
+            if (indexingRequests.size() == 5000) {
+                indexRandom(false, indexingRequests);
+                indexingRequests.clear();
+            }
         }
+        indexRandom(true, indexingRequests);
+
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenient()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
@@ -193,7 +205,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).subAggregation(max("max").field("num")))
                 .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
                 .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num"))).execute().actionGet();
-        assertEquals(0, resp.getFailedShards());
+        assertAllSuccessful(resp);
+        assertEquals(numDocs, resp.getHits().getTotalHits());
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
@@ -269,23 +282,19 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
         final int numDocs = scaledRandomIntBetween(25000, 50000);
         logger.info("Indexing [" + numDocs +"] docs");
-        int t = 0;
-        for (int i = 0; i < numDocs; ) {
-            BulkRequestBuilder request = client().prepareBulk();
-            final int bulkSize = Math.min(numDocs - i, 100);
-            client().prepareIndex("idx", "type").setSource("double_value", randomDouble()).execute().actionGet();
-            for (int j = 0; j < bulkSize; ++j) {
-                ++t;
-                request.add(client().prepareIndex("idx", "type", Integer.toString(i++)).setSource("double_value", randomDouble()));
+        List<IndexRequestBuilder> indexingRequests = Lists.newArrayList();
+        for (int i = 0; i < numDocs; ++i) {
+            indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));
+            if (indexingRequests.size() == 5000) {
+                indexRandom(false, indexingRequests);
+                indexingRequests.clear();
             }
-            BulkResponse response = request.execute().actionGet();
-            assertFalse(response.buildFailureMessage(), response.hasFailures());
         }
-        assertEquals(numDocs, t);
-        assertNoFailures(client().admin().indices().prepareRefresh("idx").execute().get());
+        indexRandom(true, indexingRequests);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
-        assertNoFailures(response);
+        assertAllSuccessful(response);
+        assertEquals(numDocs, response.getHits().getTotalHits());
     }
 
 }

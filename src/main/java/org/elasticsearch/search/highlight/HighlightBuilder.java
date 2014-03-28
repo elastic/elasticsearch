@@ -40,6 +40,12 @@ public class HighlightBuilder implements ToXContent {
 
     private String tagsSchema;
 
+    private Boolean highlightFilter;
+
+    private Integer fragmentSize;
+
+    private Integer numOfFragments;
+
     private String[] preTags;
 
     private String[] postTags;
@@ -49,6 +55,10 @@ public class HighlightBuilder implements ToXContent {
     private String encoder;
 
     private Boolean requireFieldMatch;
+
+    private Integer boundaryMaxScan;
+
+    private char[] boundaryChars;
 
     private String highlighterType;
 
@@ -149,6 +159,20 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    public HighlightBuilder highlightFilter(boolean highlightFilter) {
+        this.highlightFilter = highlightFilter;
+        return this;
+    }
+
+    public HighlightBuilder fragmentSize(Integer fragmentSize) {
+        this.fragmentSize = fragmentSize;
+        return this;
+    }
+
+    public HighlightBuilder numOfFragments(Integer numOfFragments) {
+        this.numOfFragments = numOfFragments;
+        return this;
+    }
 
     /**
      * Set encoder for the highlighting
@@ -189,6 +213,16 @@ public class HighlightBuilder implements ToXContent {
 
     public HighlightBuilder requireFieldMatch(boolean requireFieldMatch) {
         this.requireFieldMatch = requireFieldMatch;
+        return this;
+    }
+
+    public HighlightBuilder boundaryMaxScan(Integer boundaryMaxScan) {
+        this.boundaryMaxScan = boundaryMaxScan;
+        return this;
+    }
+
+    public HighlightBuilder boundaryChars(char[] boundaryChars) {
+        this.boundaryChars = boundaryChars;
         return this;
     }
 
@@ -270,11 +304,26 @@ public class HighlightBuilder implements ToXContent {
         if (order != null) {
             builder.field("order", order);
         }
+        if (highlightFilter != null) {
+            builder.field("highlight_filter", highlightFilter);
+        }
+        if (fragmentSize != null) {
+            builder.field("fragment_size", fragmentSize);
+        }
+        if (numOfFragments != null) {
+            builder.field("number_of_fragments", numOfFragments);
+        }
         if (encoder != null) {
             builder.field("encoder", encoder);
         }
         if (requireFieldMatch != null) {
             builder.field("require_field_match", requireFieldMatch);
+        }
+        if (boundaryMaxScan != null) {
+            builder.field("boundary_max_scan", boundaryMaxScan);
+        }
+        if (boundaryChars != null) {
+            builder.field("boundary_chars", boundaryChars);
         }
         if (highlighterType != null) {
             builder.field("type", highlighterType);

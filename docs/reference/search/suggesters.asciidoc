@@ -136,7 +136,7 @@ suggestion specific option. The suggest text specified on suggestion
 level override the suggest text on the global level.
 
 [float]
-=== Other suggest example.
+=== Other suggest example
 
 In the below example we request suggestions for the following suggest
 text: `devloping distibutd saerch engies` on the `title` field with a

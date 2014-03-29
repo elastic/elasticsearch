@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.fielddata.breaker;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.ElasticsearchException;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -176,6 +178,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 // successfully set back to zero. If there is a bug in the circuit
                 // breaker adjustment code, it should show up here by the breaker
                 // estimate being either positive or negative.
+                ensureGreen("test");  // make sure all shards are there - there could be shards that are still starting up.
                 assertAllSuccessful(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).execute().actionGet());
                 NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();

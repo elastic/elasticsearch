@@ -141,7 +141,7 @@ Because `.percolate` is a type it also has a mapping. By default the following m
 }
 --------------------------------------------------
 
-If needed this mapping can be modified wit the update mapping api.
+If needed this mapping can be modified with the update mapping api.
 
 In order to un-register a percolate query the delete api can be used. So if the previous added query needs to be deleted
 the following delete requests needs to be executed:

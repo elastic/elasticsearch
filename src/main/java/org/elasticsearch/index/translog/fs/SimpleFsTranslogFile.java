@@ -76,8 +76,17 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     }
 
     public void close(boolean delete) {
-        sync();
-        raf.decreaseRefCount(delete);
+        try {
+            if (!delete) {
+                try {
+                    sync();
+                } catch (Exception e) {
+                    throw new TranslogException(shardId, "failed to sync on close", e);
+                }
+            }
+        } finally {
+            raf.decreaseRefCount(delete);
+        }
     }
 
     /**
@@ -99,18 +108,14 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         return lastWrittenPosition.get() != lastSyncPosition;
     }
 
-    public void sync() {
-        try {
-            // check if we really need to sync here...
-            long last = lastWrittenPosition.get();
-            if (last == lastSyncPosition) {
-                return;
-            }
-            lastSyncPosition = last;
-            raf.channel().force(false);
-        } catch (Exception e) {
-            // ignore
+    public void sync() throws IOException {
+        // check if we really need to sync here...
+        long last = lastWrittenPosition.get();
+        if (last == lastSyncPosition) {
+            return;
         }
+        lastSyncPosition = last;
+        raf.channel().force(false);
     }
 
     @Override

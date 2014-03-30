@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -109,7 +110,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings());
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), meta);
         }
     }
 
@@ -141,15 +142,15 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, null, ImmutableSettings.EMPTY);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, null, ImmutableSettings.EMPTY, null);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                              boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
-                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                             @Nullable Settings fieldDataSettings, Settings indexSettings, ImmutableMap<String, Object> meta) {
         super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
-                similarity, normsLoading, fieldDataSettings, indexSettings);
+                similarity, normsLoading, fieldDataSettings, indexSettings, meta);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -345,12 +346,18 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
     }
 
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        AllFieldMapper fieldMergeWith = (AllFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.meta = fieldMergeWith.meta;
+        }
     }
 
     @Override

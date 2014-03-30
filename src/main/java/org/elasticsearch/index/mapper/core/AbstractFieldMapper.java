@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -107,6 +108,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected Settings fieldDataSettings;
         protected final MultiFields.Builder multiFieldsBuilder;
         protected CopyTo copyTo;
+        protected ImmutableMap<String, Object> meta;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
@@ -242,6 +244,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return builder;
         }
 
+        public Builder meta(ImmutableMap<String, Object> meta) {
+            this.meta = meta;
+            return this;
+        }
+
         public Names buildNames(BuilderContext context) {
             return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
@@ -276,19 +283,21 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected FieldDataType fieldDataType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
+    protected volatile ImmutableMap<String, Object> meta;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
-                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings,
+                                  ImmutableMap<String, Object> meta) {
         this(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity,
-                normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+                normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null, meta);
     }
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
                                   DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
-                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                                  Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, ImmutableMap<String, Object> meta) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -334,6 +343,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
+        this.meta = meta;
     }
 
     @Nullable
@@ -398,6 +408,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     @Override
     public CopyTo copyTo() {
         return copyTo;
+    }
+
+    @Override
+    public ImmutableMap<String, Object> meta() {
+        return this.meta;
     }
 
     @Override
@@ -626,6 +641,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             this.boost = fieldMergeWith.boost;
             this.normsLoading = fieldMergeWith.normsLoading;
             this.copyTo = fieldMergeWith.copyTo;
+            this.meta = fieldMergeWith.meta;
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
@@ -771,6 +787,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
         if (copyTo != null) {
             copyTo.toXContent(builder, params);
+        }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
         }
     }
 

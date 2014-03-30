@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.analyzer;
 
 /**
@@ -47,6 +49,8 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
 
         private String field = Defaults.PATH;
 
+        private ImmutableMap<String, Object> meta;
+
         public Builder() {
             super(CONTENT_TYPE);
             this.builder = this;
@@ -57,9 +61,14 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
             return this;
         }
 
+        public Builder meta(ImmutableMap<String, Object> meta) {
+            this.meta = meta;
+            return this;
+        }
+
         @Override
         public AnalyzerMapper build(BuilderContext context) {
-            return new AnalyzerMapper(field);
+            return new AnalyzerMapper(field, meta);
         }
     }
 
@@ -72,6 +81,8 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.field(fieldNode.toString());
+                } else if (fieldName.equals("_meta")) {
+                    builder.meta(ImmutableMap.copyOf(nodeMapValue(fieldNode, "_meta")));
                 }
             }
             return builder;
@@ -80,17 +91,24 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
 
     private final String path;
 
+    private ImmutableMap<String, Object> meta;
+
     public AnalyzerMapper() {
-        this(Defaults.PATH);
+        this(Defaults.PATH, null);
     }
 
-    public AnalyzerMapper(String path) {
+    public AnalyzerMapper(String path, ImmutableMap<String, Object> meta) {
         this.path = path.intern();
+        this.meta = meta;
     }
 
     @Override
     public String name() {
         return CONTENT_TYPE;
+    }
+
+    public ImmutableMap<String, Object> meta() {
+        return meta;
     }
 
     @Override
@@ -139,6 +157,10 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        AnalyzerMapper fieldMergeWith = (AnalyzerMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.meta = fieldMergeWith.meta;
+        }
     }
 
     @Override
@@ -151,12 +173,15 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (path.equals(Defaults.PATH)) {
+        if (path.equals(Defaults.PATH) && (meta == null || meta.isEmpty())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (!path.equals(Defaults.PATH)) {
             builder.field("path", path);
+        }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
         }
         builder.endObject();
         return builder;

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.parent;
 
 /**
@@ -78,6 +80,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
         private String type;
         protected PostingsFormatProvider postingsFormat;
+        private ImmutableMap<String, Object> meta;
 
         public Builder() {
             super(Defaults.NAME);
@@ -95,12 +98,17 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return builder;
         }
 
+        public Builder meta(ImmutableMap<String, Object> meta) {
+            this.meta = meta;
+            return this;
+        }
+
         @Override
         public ParentFieldMapper build(BuilderContext context) {
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, null, context.indexSettings());
+            return new ParentFieldMapper(name, indexName, type, postingsFormat, null, context.indexSettings(), meta);
         }
     }
 
@@ -116,6 +124,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 } else if (fieldName.equals("postings_format")) {
                     String postingFormatName = fieldNode.toString();
                     builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+                } else if (fieldName.equals("_meta")) {
+                    builder.meta(ImmutableMap.copyOf(nodeMapValue(fieldNode, "_meta")));
                 }
             }
             return builder;
@@ -125,15 +135,15 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final String type;
     private final BytesRef typeAsBytes;
 
-    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings, ImmutableMap<String, Object> meta) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, null, fieldDataSettings, indexSettings, meta);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
     public ParentFieldMapper() {
-        this(Defaults.NAME, Defaults.NAME, null, null, null, null);
+        this(Defaults.NAME, Defaults.NAME, null, null, null, null, null);
     }
 
     public String type() {
@@ -329,12 +339,15 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (!active()) {
+        if (!active() && (meta == null || meta.isEmpty())) {
             return builder;
         }
 
         builder.startObject(CONTENT_TYPE);
         builder.field("type", type);
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
         builder.endObject();
         return builder;
     }
@@ -342,12 +355,12 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         ParentFieldMapper other = (ParentFieldMapper) mergeWith;
-        if (active() == other.active()) {
-            return;
+        if (active() != other.active() || !(type == null ? other.type == null : type.equals(other.type))) {
+            mergeContext.addConflict("The _parent field can't be added or updated");
         }
 
-        if (active() != other.active() || !type.equals(other.type)) {
-            mergeContext.addConflict("The _parent field can't be added or updated");
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.meta = other.meta;
         }
     }
 

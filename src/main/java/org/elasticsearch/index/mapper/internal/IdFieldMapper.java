@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
@@ -97,7 +98,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings(), meta);
         }
     }
 
@@ -128,14 +129,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     protected IdFieldMapper(String name, String indexName, FieldType fieldType, Boolean docValues) {
-        this(name, indexName, Defaults.BOOST, fieldType, docValues, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY);
+        this(name, indexName, Defaults.BOOST, fieldType, docValues, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY, null);
     }
 
     protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, String path,
                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                            @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                            @Nullable Settings fieldDataSettings, Settings indexSettings, ImmutableMap<String, Object> meta) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, meta);
         this.path = path;
     }
 
@@ -335,7 +336,8 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
                 && path == Defaults.PATH
                 && customFieldDataSettings == null
                 && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
-                && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
+                && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))
+                && (meta == null || meta.isEmpty())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -378,12 +380,18 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        IdFieldMapper fieldMergeWith = (IdFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.meta = fieldMergeWith.meta;
+        }
     }
 }

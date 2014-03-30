@@ -1,22 +1,41 @@
 [[mapping-meta]]
 == Meta
 
-Each mapping can have custom meta data associated with it. These are
-simple storage elements that are simply persisted along with the mapping
+Each mapping and each field in mapping can have custom meta data associated with it.
+These are simple storage elements that are simply persisted along with the mapping
 and can be retrieved when fetching the mapping definition. The meta is
 defined under the `_meta` element, for example:
 
 [source,js]
 --------------------------------------------------
 {
-    "tweet" : {
-        "_meta" : {
-            "attr1" : "value1",
-            "attr2" : {
-                "attr3" : "value3"
-            }
+  "tweet": {
+    "_meta": {
+      "attr1": "value1",
+      "attr2": {
+        "attr3": "value3"
+      }
+    },
+    "_timestamp": {
+      "_meta": {
+        "attr1": "value1",
+        "attr2": {
+          "attr3": "value3"
         }
+      }
+    },
+    "properties": {
+      "message": {
+        "type": "string",
+        "_meta": {
+          "attr1": "value1",
+          "attr2": {
+            "attr3": "value3"
+          }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 

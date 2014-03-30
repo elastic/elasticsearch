@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper.geo;
 
+import com.google.common.collect.ImmutableMap;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -48,6 +49,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.geoShapeField;
 
 
@@ -154,7 +156,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             }
 
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, postingsProvider,
-                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
+                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo, meta);
         }
     }
 
@@ -186,6 +188,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
                 } else if (Names.STRATEGY.equals(fieldName)) {
                     builder.strategy(fieldNode.toString());
+                } else if ("_meta".equals(fieldName)) {
+                    builder.meta(ImmutableMap.copyOf(nodeMapValue(fieldNode, "_meta")));
                 }
             }
             return builder;
@@ -198,8 +202,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
                                FieldType fieldType, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                               MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
+                               MultiFields multiFields, CopyTo copyTo, ImmutableMap<String, Object> meta) {
+        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo, meta);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
@@ -274,6 +278,9 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
         if (includeDefaults || defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
             builder.field(Names.DISTANCE_ERROR_PCT, defaultStrategy.getDistErrPct());
+        }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
         }
     }
 

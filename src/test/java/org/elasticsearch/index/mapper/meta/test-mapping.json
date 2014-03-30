@@ -1,0 +1,137 @@
+{
+    "test": {
+        "_meta": {
+            "testattr1": "testvalue"
+        },
+        "_id": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_type": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_analyzer": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_routing": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_index": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_size": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_timestamp": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_ttl": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_all": {
+            "enabled": true,
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_source": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_parent": {
+            "type": "parenttest",
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_boost": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "_uid": {
+            "_meta": {
+                "testattr1": "testvalue"
+            }
+        },
+        "properties": {
+            "string": {
+                "type": "string",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "binary": {
+                "type": "binary",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "token_count": {
+                "type": "token_count",
+                "analyzer": "standard",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "date": {
+                "type": "date",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "boolean": {
+                "type": "boolean",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "integer": {
+                "type": "integer",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "completion": {
+                "type": "completion",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "ip": {
+                "type": "ip",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "geo_point": {
+                "type": "geo_point",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            },
+            "geo_shape": {
+                "type": "geo_shape",
+                "_meta": {
+                    "testattr1": "testvalue"
+                }
+            }
+        }
+    }
+}

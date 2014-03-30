@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
@@ -91,7 +92,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+                    precisionStep, boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings(), meta);
         }
     }
 
@@ -120,14 +121,16 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName) {
         this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
+                Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY, null);
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,
-                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings,
+                               ImmutableMap<String, Object> meta) {
         super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null,
+                meta);
         this.nullValue = nullValue;
     }
 
@@ -291,7 +294,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         if (!includeDefaults && name().equals(Defaults.NAME) && nullValue == null &&
                 fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
-                customFieldDataSettings == null) {
+                customFieldDataSettings == null
+                && (meta == null || meta.isEmpty())) {
             return builder;
         }
         builder.startObject(contentType());
@@ -313,12 +317,18 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
 
         }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // do nothing here, no merging, but also no exception
+        BoostFieldMapper fieldMergeWith = (BoostFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            this.meta = fieldMergeWith.meta;
+        }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.document.Field;
@@ -80,7 +81,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
-                    analyzer, multiFieldsBuilder.build(this, context), copyTo);
+                    analyzer, multiFieldsBuilder.build(this, context), copyTo, meta);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -117,9 +118,9 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     protected TokenCountFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Integer nullValue,
             Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
             SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
-            MultiFields multiFields, CopyTo copyTo) {
+            MultiFields multiFields, CopyTo copyTo, ImmutableMap<String, Object> meta) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce, postingsProvider, docValuesProvider, 
-                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+                similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo, meta);
 
         this.analyzer = analyzer;
     }

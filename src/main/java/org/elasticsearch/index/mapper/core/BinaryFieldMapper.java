@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
@@ -87,7 +88,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, postingsProvider,
-                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
+                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo, meta);
         }
     }
 
@@ -121,8 +122,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
     protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold,
                                 PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                                MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
+                                MultiFields multiFields, CopyTo copyTo, ImmutableMap<String, Object> meta) {
+        super(names, 1.0f, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo, meta);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }
@@ -221,6 +222,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         if (includeDefaults || fieldType.stored() != defaultFieldType().stored()) {
             builder.field("store", fieldType.stored());
         }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
     }
 
     @Override
@@ -233,6 +237,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             if (sourceMergeWith.compressThreshold != -1) {
                 this.compressThreshold = sourceMergeWith.compressThreshold;
             }
+            this.meta = sourceMergeWith.meta;
         }
     }
 

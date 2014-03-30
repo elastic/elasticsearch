@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Nullable;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.size;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
 
@@ -72,7 +74,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabledState, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new SizeFieldMapper(enabledState, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings(), meta);
         }
     }
 
@@ -87,6 +89,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                 } else if (fieldName.equals("store")) {
                     builder.store(parseStore(fieldName, fieldNode.toString()));
+                } else if (fieldName.equals("_meta")) {
+                    builder.meta(ImmutableMap.copyOf(nodeMapValue(fieldNode, "_meta")));
                 }
             }
             return builder;
@@ -96,14 +100,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private EnabledAttributeMapper enabledState;
 
     public SizeFieldMapper() {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY, null);
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings, ImmutableMap<String, Object> meta) {
         super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
                 Defaults.IGNORE_MALFORMED,  Defaults.COERCE, postingsProvider, docValuesProvider, null, null, fieldDataSettings, 
-                indexSettings, MultiFields.empty(), null);
+                indexSettings, MultiFields.empty(), null, meta);
         this.enabledState = enabled;
     }
 
@@ -161,7 +165,8 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()
+                && (meta == null || meta.isEmpty())) {
             return builder;
         }
         builder.startObject(contentType());
@@ -170,6 +175,9 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         }
         if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
             builder.field("store", fieldType().stored());
+        }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
         }
         builder.endObject();
         return builder;
@@ -182,6 +190,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
                 this.enabledState = sizeFieldMapperMergeWith.enabledState;
             }
+            this.meta = sizeFieldMapperMergeWith.meta;
         }
     }
 }

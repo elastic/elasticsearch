@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.source;
 
@@ -94,6 +96,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         private String[] includes = null;
         private String[] excludes = null;
 
+        private ImmutableMap<String, Object> meta;
+
         public Builder() {
             super(Defaults.NAME);
         }
@@ -128,9 +132,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             return this;
         }
 
+        public Builder meta(ImmutableMap<String, Object> meta) {
+            this.meta = meta;
+            return this;
+        }
+
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes);
+            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes, meta);
         }
     }
 
@@ -170,6 +179,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         excludes[i] = values.get(i).toString();
                     }
                     builder.excludes(excludes);
+                } else if (fieldName.equals("_meta")) {
+                    builder.meta(ImmutableMap.copyOf(nodeMapValue(fieldNode, "_meta")));
                 }
             }
             return builder;
@@ -190,13 +201,13 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     private XContentType formatContentType;
 
     public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null);
+        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, null);
     }
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
-                                String[] includes, String[] excludes) {
+                                String[] includes, String[] excludes, ImmutableMap<String, Object> meta) {
         super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null, null); // Only stored.
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null, null, meta); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -375,7 +386,8 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes == null && excludes == null) {
+        if (!includeDefaults && enabled == Defaults.ENABLED && compress == null && compressThreshold == -1 && includes == null && excludes == null
+                && (meta == null || meta.isEmpty())) {
             return builder;
         }
         builder.startObject(contentType());
@@ -407,6 +419,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         } else if (includeDefaults) {
             builder.field("excludes", Strings.EMPTY_ARRAY);
         }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
 
         builder.endObject();
         return builder;
@@ -428,6 +443,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             if (sourceMergeWith.excludes != null) {
                 this.excludes = sourceMergeWith.excludes;
             }
+            this.meta = sourceMergeWith.meta;
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -241,6 +242,8 @@ public class TypeParsers {
                 builder.fieldDataSettings(settings);
             } else if (propName.equals("copy_to")) {
                 parseCopyFields(propNode, builder);
+            } else if (propName.equals("_meta")) {
+                builder.meta(ImmutableMap.copyOf(nodeMapValue(propNode, "_meta")));
             }
         }
     }

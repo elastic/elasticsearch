@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
@@ -187,6 +188,11 @@ public interface FieldMapper<T> extends Mapper {
      * List of fields where this field should be copied to
      */
     public AbstractFieldMapper.CopyTo copyTo();
+
+    /**
+     * Field meta map
+     */
+    ImmutableMap<String, Object> meta();
 
     /**
      * Returns the actual value of the field.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
@@ -60,7 +61,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, ~0L,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading,
-                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+                    fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, meta);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -80,10 +81,10 @@ public class Murmur3FieldMapper extends LongFieldMapper {
             Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
             SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
-            Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+            Settings indexSettings, MultiFields multiFields, CopyTo copyTo, ImmutableMap<String, Object> meta) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce,
                 postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings,
-                indexSettings, multiFields, copyTo);
+                indexSettings, multiFields, copyTo, meta);
     }
 
     @Override

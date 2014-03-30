@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -49,6 +50,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.util.*;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 
@@ -138,7 +140,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
             return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, postingsProvider, similarity, payloads,
-                    preserveSeparators, preservePositionIncrements, maxInputLength, multiFieldsBuilder.build(this, context), copyTo, this.contextMapping);
+                    preserveSeparators, preservePositionIncrements, maxInputLength, multiFieldsBuilder.build(this, context), copyTo, this.contextMapping, meta);
         }
 
     }
@@ -174,6 +176,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                     parseMultiField(builder, name, node, parserContext, fieldName, fieldNode);
                 } else if (fieldName.equals(Fields.CONTEXT)) {
                     builder.contextMapping(ContextBuilder.loadMappings(fieldNode));
+                } else if ("_meta".equals(fieldName)) {
+                    builder.meta(ImmutableMap.copyOf(nodeMapValue(fieldNode, "_meta")));
                 } else {
                     throw new MapperParsingException("Unknown field [" + fieldName + "]");
                 }
@@ -215,8 +219,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
      * @param contextMappings Configuration of context type. If none should be used set {@link ContextMapping.EMPTY_MAPPING}
      */
     public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider, SimilarityProvider similarity, boolean payloads,
-                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null, null, multiFields, copyTo);
+                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings, ImmutableMap<String, Object> meta) {
+        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null, null, multiFields, copyTo, meta);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
         this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", postingsProvider, analyzingSuggestLookupProvider);
         this.preserveSeparators = preserveSeparators;
@@ -428,6 +432,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         builder.field(Fields.PRESERVE_POSITION_INCREMENTS.getPreferredName(), this.preservePositionIncrements);
         builder.field(Fields.MAX_INPUT_LENGTH.getPreferredName(), this.maxInputLength);
         multiFields.toXContent(builder, params);
+
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
 
         if(!contextMapping.isEmpty()) {
             builder.startObject(Fields.CONTEXT);

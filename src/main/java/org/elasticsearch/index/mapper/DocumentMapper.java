@@ -422,6 +422,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(BoostFieldMapper.class);
     }
 
+    public AnalyzerMapper analyzerMapper() {
+        return rootMapper(AnalyzerMapper.class);
+    }
+
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }

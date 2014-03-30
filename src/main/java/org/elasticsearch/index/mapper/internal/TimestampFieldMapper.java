@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -105,7 +106,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 roundCeil =  settings.getAsBoolean("index.mapping.date.round_ceil", settings.getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.ROUND_CEIL));
             }
             return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, roundCeil,
-                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, normsLoading, fieldDataSettings, context.indexSettings());
+                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, normsLoading, fieldDataSettings, context.indexSettings(), meta);
         }
     }
 
@@ -137,19 +138,19 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public TimestampFieldMapper() {
         this(new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
-                Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, ImmutableSettings.EMPTY);
+                Defaults.ROUND_CEIL, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, ImmutableSettings.EMPTY, null);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
                                    FormatDateTimeFormatter dateTimeFormatter, boolean roundCeil,
                                    Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider,
                                    DocValuesFormatProvider docValuesProvider, Loading normsLoading,
-                                   @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                                   @Nullable Settings fieldDataSettings, Settings indexSettings, ImmutableMap<String, Object> meta) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
                 roundCeil, ignoreMalformed, coerce, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, 
-                indexSettings, MultiFields.empty(), null);
+                indexSettings, MultiFields.empty(), null, meta);
         this.enabledState = enabledState;
         this.path = path;
     }
@@ -230,7 +231,8 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && fieldType.indexed() == Defaults.FIELD_TYPE.indexed() && customFieldDataSettings == null &&
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
-                && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
+                && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())
+                && (meta == null || meta.isEmpty())) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -255,7 +257,9 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             } else if (includeDefaults) {
                 builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
             }
-
+        }
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
         }
         builder.endObject();
         return builder;
@@ -268,6 +272,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             if (timestampFieldMapperMergeWith.enabledState != enabledState && !timestampFieldMapperMergeWith.enabledState.unset()) {
                 this.enabledState = timestampFieldMapperMergeWith.enabledState;
             }
+            this.meta = timestampFieldMapperMergeWith.meta;
         }
     }
 }

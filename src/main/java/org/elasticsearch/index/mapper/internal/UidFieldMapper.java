@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -86,7 +87,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            return new UidFieldMapper(name, indexName, docValues, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new UidFieldMapper(name, indexName, docValues, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings(), meta);
         }
     }
 
@@ -104,12 +105,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name) {
-        this(name, name, null, null, null, null, ImmutableSettings.EMPTY);
+        this(name, name, null, null, null, null, ImmutableSettings.EMPTY, null);
     }
 
-    protected UidFieldMapper(String name, String indexName, Boolean docValues, PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    protected UidFieldMapper(String name, String indexName, Boolean docValues, PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, @Nullable Settings fieldDataSettings, Settings indexSettings, ImmutableMap<String, Object> meta) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), docValues,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, docValuesFormat, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, docValuesFormat, null, null, fieldDataSettings, indexSettings, meta);
     }
 
     @Override
@@ -211,7 +212,8 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         // if defaults, don't output
         if (!includeDefaults && customFieldDataSettings == null
                 && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
-                && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
+                && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))
+                && (meta == null || meta.isEmpty())) {
             return builder;
         }
 
@@ -247,19 +249,23 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
         }
 
+        if (meta != null && !meta.isEmpty()) {
+            builder.field("_meta", meta);
+        }
+
         builder.endObject();
         return builder;
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        AbstractFieldMapper<?> fieldMergeWith = (AbstractFieldMapper<?>) mergeWith;
-        // do nothing here, no merging, but also no exception
+        UidFieldMapper fieldMergeWith = (UidFieldMapper) mergeWith;
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             if (fieldMergeWith.postingsFormatProvider() != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormatProvider();
             }
+            this.meta = fieldMergeWith.meta;
         }
     }
 }

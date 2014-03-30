@@ -172,7 +172,7 @@ public class FullRestartStressTest {
             for (int b = 0; b < numberOfBulks; b++) {
                 BulkRequestBuilder bulk = client.client().prepareBulk();
                 for (int k = 0; k < bulkSize; k++) {
-                    StringBuffer sb = new StringBuffer();
+                    StringBuilder sb = new StringBuilder();
                     XContentBuilder json = XContentFactory.jsonBuilder().startObject()
                             .field("field", "value" + ThreadLocalRandom.current().nextInt());
 

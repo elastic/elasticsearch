@@ -126,7 +126,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
     /**
      * Sync's the translog.
      */
-    void sync();
+    void sync() throws IOException;
 
     boolean syncNeeded();
 

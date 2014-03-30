@@ -27,6 +27,7 @@ import org.elasticsearch.index.translog.TranslogException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -39,10 +40,11 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     private final RafReference raf;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private volatile int operationCounter;
 
-    private long lastPosition;
+    private volatile long lastPosition;
     private volatile long lastWrittenPosition;
 
     private volatile long lastSyncPosition = 0;
@@ -98,6 +100,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     }
 
     private void flushBuffer() throws IOException {
+        assert (((ReentrantReadWriteLock.WriteLock) rwl.writeLock()).isHeldByCurrentThread());
         if (bufferCount > 0) {
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
@@ -146,40 +149,36 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
     }
 
     @Override
-    public void sync() {
-        try {
-            // check if we really need to sync here...
-            long last = lastPosition;
-            if (last == lastSyncPosition) {
-                return;
-            }
-            lastSyncPosition = last;
-            rwl.writeLock().lock();
-            try {
-                flushBuffer();
-            } finally {
-                rwl.writeLock().unlock();
-            }
-            raf.channel().force(false);
-        } catch (Exception e) {
-            // ignore
+    public void sync() throws IOException {
+        if (!syncNeeded()) {
+            return;
         }
+        rwl.writeLock().lock();
+        try {
+            flushBuffer();
+            lastSyncPosition = lastPosition;
+        } finally {
+            rwl.writeLock().unlock();
+        }
+        raf.channel().force(false);
     }
 
     @Override
     public void close(boolean delete) {
-        if (!delete) {
-            rwl.writeLock().lock();
-            try {
-                flushBuffer();
-                sync();
-            } catch (IOException e) {
-                throw new TranslogException(shardId, "failed to close", e);
-            } finally {
-                rwl.writeLock().unlock();
-            }
+        if (!closed.compareAndSet(false, true)) {
+            return;
         }
-        raf.decreaseRefCount(delete);
+        try {
+            if (!delete) {
+                try {
+                    sync();
+                } catch (Exception e) {
+                    throw new TranslogException(shardId, "failed to sync on close", e);
+                }
+            }
+        } finally {
+            raf.decreaseRefCount(delete);
+        }
     }
 
     @Override

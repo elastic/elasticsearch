@@ -26,6 +26,7 @@ import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -34,6 +35,7 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     private final long id;
     private final ShardId shardId;
     private final RafReference raf;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private final AtomicInteger operationCounter = new AtomicInteger();
 
@@ -76,8 +78,20 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     }
 
     public void close(boolean delete) {
-        sync();
-        raf.decreaseRefCount(delete);
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            if (!delete) {
+                try {
+                    sync();
+                } catch (Exception e) {
+                    throw new TranslogException(shardId, "failed to sync on close", e);
+                }
+            }
+        } finally {
+            raf.decreaseRefCount(delete);
+        }
     }
 
     /**
@@ -99,18 +113,14 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
         return lastWrittenPosition.get() != lastSyncPosition;
     }
 
-    public void sync() {
-        try {
-            // check if we really need to sync here...
-            long last = lastWrittenPosition.get();
-            if (last == lastSyncPosition) {
-                return;
-            }
-            lastSyncPosition = last;
-            raf.channel().force(false);
-        } catch (Exception e) {
-            // ignore
+    public void sync() throws IOException {
+        // check if we really need to sync here...
+        long last = lastWrittenPosition.get();
+        if (last == lastSyncPosition) {
+            return;
         }
+        lastSyncPosition = last;
+        raf.channel().force(false);
     }
 
     @Override

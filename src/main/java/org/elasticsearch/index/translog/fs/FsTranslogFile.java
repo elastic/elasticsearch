@@ -74,7 +74,7 @@ public interface FsTranslogFile {
 
     void updateBufferSize(int bufferSize) throws TranslogException;
 
-    void sync();
+    void sync() throws IOException;
 
     boolean syncNeeded();
 }

@@ -113,53 +113,58 @@ public class NettyHttpChannel implements HttpChannel {
 
         BytesReference content = response.content();
         ChannelBuffer buffer;
-        if (response.contentThreadSafe()) {
-            buffer = content.toChannelBuffer();
-        } else {
-            buffer = content.copyBytesArray().toChannelBuffer();
-            if (content instanceof Releasable) {
-                ((Releasable) content).release();
+        boolean addedReleaseListener = false;
+        try {
+            if (response.contentThreadSafe()) {
+                buffer = content.toChannelBuffer();
+            } else {
+                buffer = content.copyBytesArray().toChannelBuffer();
             }
-        }
-        // handle JSONP
-        String callback = request.param("callback");
-        if (callback != null) {
-            final BytesRef callbackBytes = new BytesRef(callback.length());
-            UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), callbackBytes);
-            callbackBytes.bytes[callbackBytes.length] = '(';
-            callbackBytes.length++;
-            buffer = ChannelBuffers.wrappedBuffer(
-                    ChannelBuffers.wrappedBuffer(callbackBytes.bytes, callbackBytes.offset, callbackBytes.length),
-                    buffer,
-                    ChannelBuffers.wrappedBuffer(END_JSONP)
-            );
-        }
-        resp.setContent(buffer);
-        resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
-        resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
+            // handle JSONP
+            String callback = request.param("callback");
+            if (callback != null) {
+                final BytesRef callbackBytes = new BytesRef(callback.length() * 4 + 1);
+                UnicodeUtil.UTF16toUTF8(callback, 0, callback.length(), callbackBytes);
+                callbackBytes.bytes[callbackBytes.length] = '(';
+                callbackBytes.length++;
+                buffer = ChannelBuffers.wrappedBuffer(
+                        ChannelBuffers.wrappedBuffer(callbackBytes.bytes, callbackBytes.offset, callbackBytes.length),
+                        buffer,
+                        ChannelBuffers.wrappedBuffer(END_JSONP)
+                );
+            }
+            resp.setContent(buffer);
+            resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
+            resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
 
-        if (transport.resetCookies) {
-            String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
-            if (cookieString != null) {
-                CookieDecoder cookieDecoder = new CookieDecoder();
-                Set<Cookie> cookies = cookieDecoder.decode(cookieString);
-                if (!cookies.isEmpty()) {
-                    // Reset the cookies if necessary.
-                    CookieEncoder cookieEncoder = new CookieEncoder(true);
-                    for (Cookie cookie : cookies) {
-                        cookieEncoder.addCookie(cookie);
+            if (transport.resetCookies) {
+                String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
+                if (cookieString != null) {
+                    CookieDecoder cookieDecoder = new CookieDecoder();
+                    Set<Cookie> cookies = cookieDecoder.decode(cookieString);
+                    if (!cookies.isEmpty()) {
+                        // Reset the cookies if necessary.
+                        CookieEncoder cookieEncoder = new CookieEncoder(true);
+                        for (Cookie cookie : cookies) {
+                            cookieEncoder.addCookie(cookie);
+                        }
+                        resp.headers().add(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
                     }
-                    resp.headers().add(HttpHeaders.Names.SET_COOKIE, cookieEncoder.encode());
                 }
             }
-        }
 
-        ChannelFuture future = channel.write(resp);
-        if (response.contentThreadSafe() && content instanceof Releasable) {
-            future.addListener(new ReleaseChannelFutureListener((Releasable) content));
-        }
-        if (close) {
-            future.addListener(ChannelFutureListener.CLOSE);
+            ChannelFuture future = channel.write(resp);
+            if (response.contentThreadSafe() && content instanceof Releasable) {
+                future.addListener(new ReleaseChannelFutureListener((Releasable) content));
+                addedReleaseListener = true;
+            }
+            if (close) {
+                future.addListener(ChannelFutureListener.CLOSE);
+            }
+        } finally {
+            if (!addedReleaseListener && content instanceof Releasable) {
+                ((Releasable) content).release();
+            }
         }
     }
 

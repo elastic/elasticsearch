@@ -60,7 +60,7 @@ public class SameShardRoutingTests extends ElasticsearchAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("--> adding two nodes with the same host");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()

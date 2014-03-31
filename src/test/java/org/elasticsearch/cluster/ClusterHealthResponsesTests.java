@@ -187,7 +187,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
             metaData.put(indexMetaData, true);
             routingTable.add(indexRoutingTable);
         }
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(null), clusterState);
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
 
@@ -208,7 +208,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         MetaData.Builder metaData = MetaData.builder();
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(null), clusterState);
         // currently we have no cluster level validation failures as index validation issues are reported per index.
         assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));

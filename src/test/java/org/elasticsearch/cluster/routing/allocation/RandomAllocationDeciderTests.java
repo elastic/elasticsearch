@@ -79,7 +79,7 @@ public class RandomAllocationDeciderTests extends ElasticsearchAllocationTestCas
         }
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         int numIters = scaledRandomIntBetween(10, 30);
         int nodeIdCounter = 0;
         int atMostNodes = between(Math.max(1, maxNumReplicas), numIters);

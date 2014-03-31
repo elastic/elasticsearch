@@ -42,14 +42,13 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.SearchService;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllFilesClosed;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSearchersClosed;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -122,6 +121,12 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
      * Returns the number of data nodes in the cluster.
      */
     public abstract int dataNodes();
+
+    /**
+     * Returns the http addresses of the nodes within the cluster.
+     * Can be used to run REST tests against the test cluster.
+     */
+    public abstract InetSocketAddress[] httpAddresses();
 
     /**
      * Closes the current cluster

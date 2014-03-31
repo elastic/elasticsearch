@@ -707,7 +707,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 synchronized (refreshMutex) {
                     if (dirty || refresh.force()) {
                         dirty = false;
-                        searcherManager.maybeRefresh();
+                        boolean refreshed = searcherManager.maybeRefresh();
+                        assert refreshed : "failed to refresh even though refreshMutex was acquired";
                     }
                 }
             } catch (AlreadyClosedException e) {

@@ -609,9 +609,7 @@ public class CommonStats implements Streamable, ToXContent {
             segments.writeTo(out);
         }
         out.writeOptionalStreamable(translog);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeOptionalStreamable(suggest);
-        }
+        out.writeOptionalStreamableOnOrAfter(suggest, Version.V_1_2_0);
     }
 
     // note, requires a wrapping object

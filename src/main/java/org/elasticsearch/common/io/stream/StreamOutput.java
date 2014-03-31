@@ -464,4 +464,18 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(false);
         }
     }
+
+    /**
+     * Serializes a potential null value only if a certain version is matched
+     */
+    public void writeOptionalStreamableOnOrAfter(@Nullable Streamable streamable, Version expectedVersion) throws IOException {
+        if (this.version.onOrAfter(expectedVersion)) {
+            if (streamable != null) {
+                writeBoolean(true);
+                streamable.writeTo(this);
+            } else {
+                writeBoolean(false);
+            }
+        }
+    }
 }

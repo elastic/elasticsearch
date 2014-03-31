@@ -20,15 +20,19 @@
 package org.elasticsearch.common.io.streams;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
+import java.io.EOFException;
+
+import static org.hamcrest.Matchers.*;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -299,6 +303,43 @@ public class BytesStreamsTests extends ElasticsearchTestCase {
         assertThat(in.readString(), equalTo("goodbye"));
         in.close();
         out.close();
+    }
+
+    @Test
+    public void testVersioningSupport() throws Exception {
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setVersion(Version.V_0_18_0);
+        out.writeOptionalStreamableOnOrAfter(new TranslogStats(), Version.CURRENT);
+        out.close();
+
+        BytesStreamInput input = new BytesStreamInput(out.bytes());
+        // exception coming
+        try {
+            input.readBoolean();
+            fail("Expected exception, but did not happen");
+        } catch (EOFException e) {}
+        input.close();
+
+        // todo check with null object
+        out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        out.writeOptionalStreamableOnOrAfter(null, Version.CURRENT);
+        out.close();
+        input = new BytesStreamInput(out.bytes());
+        assertThat(input.readBoolean(), is(false));
+        input.close();
+
+        // todo check with non null object
+        out = new BytesStreamOutput();
+        out.setVersion(Version.CURRENT);
+        out.writeOptionalStreamableOnOrAfter(new TranslogStats(), Version.CURRENT);
+        out.close();
+        input = new BytesStreamInput(out.bytes());
+        assertThat(input.readBoolean(), is(true));
+        TranslogStats stats = new TranslogStats();
+        stats.readFrom(input);
+        assertThat(stats, is(notNullValue()));
+        input.close();
     }
 
     // we ignore this test for now since all existing callers of BytesStreamOutput happily

@@ -1,0 +1,67 @@
+[[search-suggesters-freetext]]
+=== Freetext Suggester
+
+NOTE: In order to understand the format of suggestions, please
+read the <<search-suggesters>> page first.
+
+The `freetext` suggester is a statistical n-gram language model based
+suggester, used to predict the most likely next token.
+
+This means, it tries to find suggestions, which are not in the document,
+but are most likely to be returned, even though those suggestions
+were never explictely added.
+
+[[freetext-suggester-mapping]]
+==== Mapping
+
+In order to use this feature, you have to specify a special postings
+format for this field. Indexing works just like any other field.
+
+[source,js]
+--------------------------------------------------
+curl -X PUT localhost:9200/music
+curl -X PUT localhost:9200/music/song/_mapping -d '{
+  "song" : {
+        "properties" : {
+            "name" : { "type" : "string", "postings_format" : "freetext" }
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+[[querying]]
+==== Querying
+
+Suggesting works as usual, except that you have to specify the suggest
+type as `freetext`.
+
+[source,js]
+--------------------------------------------------
+curl -X POST 'localhost:9200/music/_suggest?pretty' -d '{
+    "song-suggest" : {
+        "text" : "come a",
+        "freetext" : {
+            "field" : "name"
+        }
+    }
+}'
+
+{
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "song-suggest" : [ {
+    "text" : "come a",
+    "offset" : 0,
+    "length" : 6,
+    "options" : [ {
+      "text" : "around",
+      "score" : 34.0
+    } ]
+  } ]
+}
+--------------------------------------------------
+

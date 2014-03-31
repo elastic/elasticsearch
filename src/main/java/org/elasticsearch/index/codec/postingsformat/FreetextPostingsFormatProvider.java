@@ -16,31 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.index.codec.postingsformat;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.suggest.SuggestStats;
-
-import java.io.IOException;
+import org.apache.lucene.codecs.PostingsFormat;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.search.suggest.freetext.FreeTextPostingsFormat;
 
 /**
  *
  */
-public class CompletionStats extends SuggestStats {
+public class FreetextPostingsFormatProvider extends AbstractPostingsFormatProvider {
 
-    public CompletionStats() {
-        super("completion");
+    private FreeTextPostingsFormat postingsFormat;
+
+    @Inject
+    public FreetextPostingsFormatProvider(@Assisted String name) {
+        super(name);
+        this.postingsFormat = new FreeTextPostingsFormat(new Elasticsearch090PostingsFormat());
     }
 
-    public CompletionStats(long size, @Nullable ObjectLongOpenHashMap<String> fields) {
-        super("completion", size, fields);
-    }
-
-    public static CompletionStats readCompletionStats(StreamInput in) throws IOException {
-        CompletionStats stats = new CompletionStats();
-        stats.readFrom(in);
-        return stats;
+    @Override
+    public PostingsFormat get() {
+        return postingsFormat;
     }
 }

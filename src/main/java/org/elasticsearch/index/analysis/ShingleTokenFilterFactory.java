@@ -110,6 +110,10 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
             return outputUnigramsIfNoShingles;
         }
 
+        public String getTokenSeparator() {
+            return tokenSeparator;
+        }
+
         @Override
         public String name() {
             return name;

@@ -36,6 +36,7 @@ import org.elasticsearch.index.percolator.stats.PercolateStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.freetext.FreeTextStats;
 
 import java.io.IOException;
 
@@ -49,6 +50,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
     private FilterCacheStats filterCache;
     private IdCacheStats idCache;
     private CompletionStats completion;
+    private FreeTextStats freeText;
     private SegmentsStats segments;
     private PercolateStats percolate;
 
@@ -66,6 +68,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
         this.percolate = new PercolateStats();
+        this.freeText = new FreeTextStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -90,6 +93,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
                 completion.add(shardCommonStats.completion);
                 segments.add(shardCommonStats.segments);
                 percolate.add(shardCommonStats.percolate);
+                freeText.add(shardCommonStats.freeText);
             }
         }
 
@@ -152,6 +156,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         completion = CompletionStats.readCompletionStats(in);
         segments = SegmentsStats.readSegmentsStats(in);
         percolate = PercolateStats.readPercolateStats(in);
+        freeText = FreeTextStats.readFreeTextStats(in);
     }
 
     @Override
@@ -166,6 +171,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         completion.writeTo(out);
         segments.writeTo(out);
         percolate.writeTo(out);
+        freeText.writeTo(out);
     }
 
     public static ClusterStatsIndices readIndicesStats(StreamInput in) throws IOException {
@@ -190,6 +196,7 @@ public class ClusterStatsIndices implements ToXContent, Streamable {
         completion.toXContent(builder, params);
         segments.toXContent(builder, params);
         percolate.toXContent(builder, params);
+        freeText.toXContent(builder, params);
         return builder;
     }
 

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.search.suggest.freetext;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.elasticsearch.common.Nullable;
@@ -28,19 +28,20 @@ import java.io.IOException;
 /**
  *
  */
-public class CompletionStats extends SuggestStats {
+public class FreeTextStats extends SuggestStats {
 
-    public CompletionStats() {
-        super("completion");
+    public FreeTextStats() {
+        super("freetext");
     }
 
-    public CompletionStats(long size, @Nullable ObjectLongOpenHashMap<String> fields) {
-        super("completion", size, fields);
+    public FreeTextStats(long size, @Nullable ObjectLongOpenHashMap<String> fields) {
+        super("freetext", size, fields);
     }
 
-    public static CompletionStats readCompletionStats(StreamInput in) throws IOException {
-        CompletionStats stats = new CompletionStats();
+    public static FreeTextStats readFreeTextStats(StreamInput in) throws IOException {
+        FreeTextStats stats = new FreeTextStats();
         stats.readFrom(in);
         return stats;
     }
+
 }

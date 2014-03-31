@@ -256,6 +256,24 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.Suggest);
     }
 
+    public String[] freeTextFields() {
+        return flags.freeTextDataFields();
+    }
+
+    public IndicesStatsRequest freeTextFields(String... freeTextDataFields) {
+        flags.freeTextDataFields(freeTextDataFields);
+        return this;
+    }
+
+    public boolean freeText() {
+        return flags.isSet(Flag.FreeText);
+    }
+
+    public IndicesStatsRequest freeText(boolean freeText) {
+        flags.set(Flag.FreeText, freeText);
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

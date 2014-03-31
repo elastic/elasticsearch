@@ -38,6 +38,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     private String[] groups = null;
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
+    private String[] freeTextDataFields = null;
 
 
     /**
@@ -62,6 +63,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = null;
         fieldDataFields = null;
         completionDataFields = null;
+        freeTextDataFields = null;
         return this;
     }
 
@@ -74,6 +76,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = null;
         fieldDataFields = null;
         completionDataFields = null;
+        freeTextDataFields = null;
         return this;
     }
 
@@ -137,6 +140,15 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         return this.completionDataFields;
     }
 
+    public CommonStatsFlags freeTextDataFields(String... freeTextDataFields) {
+        this.freeTextDataFields = freeTextDataFields;
+        return this;
+    }
+
+    public String[] freeTextDataFields() {
+        return this.freeTextDataFields;
+    }
+
     public boolean isSet(Flag flag) {
         return flags.contains(flag);
     }
@@ -177,6 +189,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
+        out.writeStringArrayNullable(freeTextDataFields);
     }
 
     @Override
@@ -192,6 +205,7 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
+        freeTextDataFields = in.readStringArray();
     }
 
     @Override
@@ -224,7 +238,8 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Completion("completion"),
         Segments("segments"),
         Translog("translog"),
-        Suggest("suggest");
+        Suggest("suggest"),
+        FreeText("freetext");
 
         private final String restName;
 

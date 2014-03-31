@@ -86,6 +86,8 @@ import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.freetext.FreeTextPostingsFormat;
+import org.elasticsearch.search.suggest.freetext.FreeTextStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -588,6 +590,22 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             currentSearcher.release();
         }
         return completionStats;
+    }
+
+    @Override
+    public FreeTextStats freeTextStats(String...  fields) {
+        FreeTextStats freeTextStats = new FreeTextStats();
+        final Engine.Searcher currentSearcher = acquireSearcher("freeText_stats");
+        try {
+            PostingsFormat postingsFormat = this.codecService.postingsFormatService().get(FreeTextPostingsFormat.CODEC_NAME).get();
+            if (postingsFormat instanceof FreeTextPostingsFormat) {
+                FreeTextPostingsFormat freeTextPostingsFormat = (FreeTextPostingsFormat) postingsFormat;
+                freeTextStats.add(freeTextPostingsFormat.freeTextStats(currentSearcher.reader(), fields));
+            }
+        } finally {
+            currentSearcher.release();
+        }
+        return freeTextStats;
     }
 
     @Override

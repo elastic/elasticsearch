@@ -44,6 +44,7 @@ import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.freetext.FreeTextStats;
 
 import java.io.IOException;
 
@@ -110,6 +111,8 @@ public class CommonStats implements Streamable, ToXContent {
                     break;
                 case Suggest:
                     suggest = new SuggestStats();
+                case FreeText:
+                    freeText = new FreeTextStats();
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -173,6 +176,8 @@ public class CommonStats implements Streamable, ToXContent {
                     break;
                 case Suggest:
                     suggest = indexShard.suggestStats();
+                case FreeText:
+                    freeText = indexShard.freeTextStats(flags.freeTextDataFields());
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -230,6 +235,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public SuggestStats suggest;
+
+    @Nullable
+    public FreeTextStats freeText;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -370,6 +378,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             suggest.add(stats.getSuggest());
         }
+        if (freeText == null) {
+            if (stats.getFreeText() != null) {
+                freeText = new FreeTextStats();
+                freeText.add(stats.getFreeText());
+            }
+        } else {
+            freeText.add(stats.getFreeText());
+        }
     }
 
     @Nullable
@@ -457,6 +473,11 @@ public class CommonStats implements Streamable, ToXContent {
         return suggest;
     }
 
+    @Nullable
+    public FreeTextStats getFreeText() {
+            return freeText;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -513,6 +534,7 @@ public class CommonStats implements Streamable, ToXContent {
         translog = in.readOptionalStreamable(new TranslogStats());
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
             suggest = in.readOptionalStreamable(new SuggestStats());
+            freeText = in.readOptionalStreamable(new FreeTextStats());
         }
     }
 
@@ -611,6 +633,7 @@ public class CommonStats implements Streamable, ToXContent {
         out.writeOptionalStreamable(translog);
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeOptionalStreamable(suggest);
+            out.writeOptionalStreamable(freeText);
         }
     }
 
@@ -667,6 +690,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);
+        }
+        if (freeText != null) {
+            freeText.toXContent(builder, params);
         }
         return builder;
     }

@@ -274,4 +274,5 @@ include::suggesters/completion-suggest.asciidoc[]
 
 include::suggesters/context-suggest.asciidoc[]
 
+include::suggesters/freetext-suggest.asciidoc[]
 

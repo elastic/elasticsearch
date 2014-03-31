@@ -29,6 +29,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -314,8 +315,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments, Flag.Translog, Flag.Suggest};
-
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
+                Flag.Translog, Flag.Suggest, Flag.FreeText};
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
             assertThat("ordinal has changed - this breaks the wire protocol. Only append to new values", i, equalTo(flags[i].ordinal()));
@@ -375,6 +376,9 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
             case Suggest:
                 builder.setSuggest(set);
                 break;
+            case FreeText:
+                builder.setFreeText(set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -417,6 +421,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
                 return response.getTranslog() != null;
             case Suggest:
                 return response.getSuggest() != null;
+            case FreeText:
+                return response.getFreeText() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

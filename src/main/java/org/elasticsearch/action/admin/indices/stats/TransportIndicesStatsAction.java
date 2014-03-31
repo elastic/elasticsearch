@@ -196,6 +196,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.suggest()) {
             flags.set(CommonStatsFlags.Flag.Suggest);
         }
+        if (request.request.freeText()) {
+            flags.set(CommonStatsFlags.Flag.FreeText);
+            flags.freeTextDataFields(request.request.freeTextFields());
+        }
 
         return new ShardStats(indexShard, flags);
     }

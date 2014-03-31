@@ -60,6 +60,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.freetext.FreeTextStats;
 
 /**
  *
@@ -107,6 +108,8 @@ public interface IndexShard extends IndexShardComponent {
     FieldDataStats fieldDataStats(String... fields);
 
     CompletionStats completionStats(String... fields);
+
+    FreeTextStats freeTextStats(String... fields);
 
     TranslogStats translogStats();
 

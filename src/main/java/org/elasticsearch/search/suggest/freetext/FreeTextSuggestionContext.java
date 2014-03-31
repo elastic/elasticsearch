@@ -16,31 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.search.suggest.freetext;
 
-import com.carrotsearch.hppc.ObjectLongOpenHashMap;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.search.suggest.SuggestStats;
-
-import java.io.IOException;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 /**
  *
  */
-public class CompletionStats extends SuggestStats {
+public class FreeTextSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
-    public CompletionStats() {
-        super("completion");
+    private FieldMapper<?> mapper;
+    private String separator = null;
+
+    public FreeTextSuggestionContext(Suggester suggester) {
+        super(suggester);
     }
 
-    public CompletionStats(long size, @Nullable ObjectLongOpenHashMap<String> fields) {
-        super("completion", size, fields);
+    public FieldMapper<?> mapper() {
+        return this.mapper;
     }
 
-    public static CompletionStats readCompletionStats(StreamInput in) throws IOException {
-        CompletionStats stats = new CompletionStats();
-        stats.readFrom(in);
-        return stats;
+    public void mapper(FieldMapper<?> mapper) {
+        this.mapper = mapper;
+    }
+
+    public void setSeparator(String separator) {
+        this.separator = separator;
+    }
+
+    public String getSeparator() {
+        return separator;
     }
 }

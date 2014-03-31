@@ -164,6 +164,16 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setFreeTextFields(String... fields) {
+        request.freeTextFields(fields);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setFreeText(boolean freeText) {
+        request.freeText(freeText);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         ((IndicesAdminClient) client).stats(request, listener);

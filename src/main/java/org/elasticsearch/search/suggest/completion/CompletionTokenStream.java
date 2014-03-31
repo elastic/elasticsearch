@@ -34,7 +34,7 @@ public final class CompletionTokenStream extends TokenStream {
 
     private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);
     private final PositionIncrementAttribute posAttr = addAttribute(PositionIncrementAttribute.class);
-    private final ByteTermAttribute bytesAtt = addAttribute(ByteTermAttribute.class);;
+    private final ByteTermAttribute bytesAtt = addAttribute(ByteTermAttribute.class);
 
 
     private final TokenStream input;

@@ -104,6 +104,9 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (nodesStatsRequest.indices().isSet(Flag.Completion) && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
             nodesStatsRequest.indices().completionDataFields(request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", null)));
         }
+        if (nodesStatsRequest.indices().isSet(Flag.FreeText) && (request.hasParam("fields") || request.hasParam("freetext_fields"))) {
+            nodesStatsRequest.indices().freeTextDataFields(request.paramAsStringArray("freetext_fields", request.paramAsStringArray("fields", null)));
+        }
         if (nodesStatsRequest.indices().isSet(Flag.Search) && (request.hasParam("groups"))) {
             nodesStatsRequest.indices().groups(request.paramAsStringArray("groups", null));
         }

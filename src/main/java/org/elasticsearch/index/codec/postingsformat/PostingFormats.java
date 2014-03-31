@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
 import org.apache.lucene.codecs.memory.DirectPostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.search.suggest.freetext.FreeTextPostingsFormat;
 
 /**
  * This class represents the set of Elasticsearch "build-in"
@@ -76,6 +77,7 @@ public class PostingFormats {
 
         buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", wrapInBloom(PostingsFormat.forName("Pulsing41"))));
         buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene41"))));
+        buildInPostingFormatsX.put("freetext", new PreBuiltPostingsFormatProvider.Factory("freetext", PostingsFormat.forName("freetext")));
 
         builtInPostingFormats = buildInPostingFormatsX.immutableMap();
     }

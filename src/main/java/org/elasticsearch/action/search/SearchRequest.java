@@ -422,9 +422,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The template of the search request.
      */
-    public SearchRequest templateSource(String source) {
-        this.source = new BytesArray(source);
-        this.sourceUnsafe = false;
+    public SearchRequest templateSource(String template) {
+        this.templateSource = new BytesArray(template);
+        this.templateSourceUnsafe = false;
         return this;
     }
 

@@ -1035,6 +1035,7 @@ public final class TestCluster extends ImmutableTestCluster {
         reset(wipeData);
     }
 
+    @Override
     public int dataNodes() {
         return dataNodeAndClients().size();
     }

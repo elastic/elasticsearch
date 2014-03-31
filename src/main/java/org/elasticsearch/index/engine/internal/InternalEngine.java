@@ -706,9 +706,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // but, we want to make sure not to loose ant refresh calls, if one is taking time
                 synchronized (refreshMutex) {
                     if (dirty || refresh.force()) {
+                        // we set dirty to false, even though the refresh hasn't happened yet
+                        // as the refresh only holds for data indexed before it. Any data indexed during
+                        // the refresh will not be part of it and will set the dirty flag back to true
+                        dirty = false;
                         boolean refreshed = searcherManager.maybeRefresh();
                         assert refreshed : "failed to refresh even though refreshMutex was acquired";
-                        dirty = false;
                     }
                 }
             } catch (AlreadyClosedException e) {

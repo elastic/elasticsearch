@@ -117,7 +117,7 @@ public class RestUpdateAction extends BaseRestHandler {
                 }                
             } catch (Exception e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                 }
@@ -147,7 +147,7 @@ public class RestUpdateAction extends BaseRestHandler {
                     if (response.isCreated()) {
                         status = CREATED;
                     }
-                    channel.sendResponse(new XContentRestResponse(request, status, builder));
+                    channel.sendResponse(new BytesRestResponse(status, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -156,7 +156,7 @@ public class RestUpdateAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

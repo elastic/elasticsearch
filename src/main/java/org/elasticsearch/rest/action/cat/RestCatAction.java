@@ -50,10 +50,10 @@ public class RestCatAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         try {
-            channel.sendResponse(new StringRestResponse(RestStatus.OK, HELP));
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, HELP));
         } catch (Throwable t) {
             try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, t));
+                channel.sendResponse(new BytesRestResponse(request, t));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }

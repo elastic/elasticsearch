@@ -58,7 +58,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             }
         } catch (Exception e) {
             try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                channel.sendResponse(new BytesRestResponse(request, e));
             } catch (IOException e1) {
                 logger.warn("Failed to send response", e1);
             }

@@ -90,7 +90,7 @@ public class RestDeleteAction extends BaseRestHandler {
                     if (!result.isFound()) {
                         status = NOT_FOUND;
                     }
-                    channel.sendResponse(new XContentRestResponse(request, status, builder));
+                    channel.sendResponse(new BytesRestResponse(status, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -99,7 +99,7 @@ public class RestDeleteAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

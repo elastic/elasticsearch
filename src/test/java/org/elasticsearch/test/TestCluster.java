@@ -59,6 +59,7 @@ import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
 import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransportModule;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
@@ -186,6 +187,7 @@ public final class TestCluster extends ImmutableTestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
+        builder.put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName());
         defaultSettings = builder.build();
 
     }
@@ -666,6 +668,13 @@ public final class TestCluster extends ImmutableTestCluster {
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
         if (wipeData) {
             wipeDataDirectories();
+        }
+        // clear all rules for mock transport services
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
+            if (transportService instanceof MockTransportService) {
+                ((MockTransportService) transportService).clearAllRules();
+            }
         }
         if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);

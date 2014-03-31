@@ -81,7 +81,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
 
-    private volatile ClusterState clusterState = ClusterState.builder().build();
+    private volatile ClusterState clusterState;
 
     private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder().addGlobalBlock(Discovery.NO_MASTER_BLOCK);
 
@@ -89,13 +89,14 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Inject
     public InternalClusterService(Settings settings, DiscoveryService discoveryService, OperationRouting operationRouting, TransportService transportService,
-                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool) {
+                                  NodeSettingsService nodeSettingsService, ThreadPool threadPool, ClusterName clusterName) {
         super(settings);
         this.operationRouting = operationRouting;
         this.transportService = transportService;
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         this.nodeSettingsService = nodeSettingsService;
+        this.clusterState = ClusterState.builder(clusterName).build();
 
         this.nodeSettingsService.setClusterService(this);
 
@@ -126,7 +127,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     @Override
     protected void doStart() throws ElasticsearchException {
         add(localNodeMasterListeners);
-        this.clusterState = ClusterState.builder().blocks(initialBlocks).build();
+        this.clusterState = ClusterState.builder(clusterState).blocks(initialBlocks).build();
         this.updateTasksExecutor = EsExecutors.newSinglePrioritizing(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
     }

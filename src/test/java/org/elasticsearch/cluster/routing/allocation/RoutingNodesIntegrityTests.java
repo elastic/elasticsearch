@@ -59,7 +59,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchAllocationTestCase 
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.routingNodes();
 
         logger.info("Adding three node and performing rerouting");
@@ -132,7 +132,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchAllocationTestCase 
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
@@ -224,7 +224,7 @@ public class RoutingNodesIntegrityTests extends ElasticsearchAllocationTestCase 
 
         RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState)

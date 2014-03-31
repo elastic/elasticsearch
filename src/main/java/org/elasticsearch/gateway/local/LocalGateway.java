@@ -24,10 +24,7 @@ import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -58,16 +55,18 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
     private final String initialMeta;
+    private final ClusterName clusterName;
 
     @Inject
     public LocalGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv,
                         LocalGatewayShardsState shardsState, LocalGatewayMetaState metaState,
-                        TransportNodesListGatewayMetaState listGatewayMetaState) {
+                        TransportNodesListGatewayMetaState listGatewayMetaState, ClusterName clusterName) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
+        this.clusterName = clusterName;
 
         this.shardsState = shardsState;
 
@@ -186,7 +185,7 @@ public class LocalGateway extends AbstractLifecycleComponent<Gateway> implements
                 }
             }
         }
-        ClusterState.Builder builder = ClusterState.builder();
+        ClusterState.Builder builder = ClusterState.builder(clusterName);
         builder.metaData(metaDataBuilder);
         listener.onSuccess(builder.build());
     }

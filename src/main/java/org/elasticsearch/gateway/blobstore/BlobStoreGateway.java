@@ -61,8 +61,8 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     private volatile int currentIndex;
 
-    protected BlobStoreGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
-        super(settings, threadPool, clusterService);
+    protected BlobStoreGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService, ClusterName clusterName) {
+        super(settings, threadPool, clusterService, clusterName);
     }
 
     protected void initialize(BlobStore blobStore, ClusterName clusterName, @Nullable ByteSizeValue defaultChunkSize) throws IOException {

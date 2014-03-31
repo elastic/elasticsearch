@@ -47,7 +47,7 @@ public class FsGateway extends BlobStoreGateway {
     @Inject
     public FsGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                      Environment environment, ClusterName clusterName) throws IOException {
-        super(settings, threadPool, clusterService);
+        super(settings, threadPool, clusterService, clusterName);
 
         File gatewayFile;
         String location = componentSettings.get("location");

@@ -22,10 +22,7 @@ package org.elasticsearch.gateway.shared;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -56,6 +53,8 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private final ThreadPool threadPool;
 
+    private final ClusterName clusterName;
+
     private ExecutorService writeStateExecutor;
 
     private volatile MetaData currentMetaData;
@@ -64,9 +63,10 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
 
     private NodeIndexDeletedAction nodeIndexDeletedAction;
 
-    public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
+    public SharedStorageGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService, ClusterName clusterName) {
         super(settings);
         this.threadPool = threadPool;
+        this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
         clusterService.addLast(this);
@@ -116,9 +116,9 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
                     logger.debug("read state from gateway {}, took {}", this, stopWatch.stop().totalTime());
                     if (metaData == null) {
                         logger.debug("no state read from gateway");
-                        listener.onSuccess(ClusterState.builder().build());
+                        listener.onSuccess(ClusterState.builder(clusterName).build());
                     } else {
-                        listener.onSuccess(ClusterState.builder().metaData(metaData).build());
+                        listener.onSuccess(ClusterState.builder(clusterName).metaData(metaData).build());
                     }
                 } catch (Exception e) {
                     logger.error("failed to read from gateway", e);

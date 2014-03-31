@@ -20,14 +20,18 @@
 package org.elasticsearch.transport.local;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTests;
 import org.elasticsearch.transport.TransportService;
 
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTests {
 
     @Override
-    protected TransportService build(Settings settings, Version version) {
-        return new TransportService(new LocalTransport(settings, threadPool, version), threadPool).start();
+    protected MockTransportService build(Settings settings, Version version) {
+        MockTransportService transportService = new MockTransportService(ImmutableSettings.EMPTY, new LocalTransport(settings, threadPool, version), threadPool);
+        transportService.start();
+        return transportService;
     }
 }

@@ -49,9 +49,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  */
 public class TransportService extends AbstractLifecycleComponent<TransportService> {
 
-    private final Transport transport;
-
-    private final ThreadPool threadPool;
+    protected final Transport transport;
+    protected final ThreadPool threadPool;
 
     volatile ImmutableMap<String, TransportRequestHandler> serverHandlers = ImmutableMap.of();
     final Object serverHandlersMutex = new Object();

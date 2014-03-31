@@ -37,6 +37,7 @@ public class TransportModule extends AbstractModule implements SpawnModules {
     private final Settings settings;
     
     public static final String TRANSPORT_TYPE_KEY = "transport.type";
+    public static final String TRANSPORT_SERVICE_TYPE_KEY = "transport.service.type";
 
     public TransportModule(Settings settings) {
         this.settings = settings;
@@ -55,6 +56,11 @@ public class TransportModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
-        bind(TransportService.class).asEagerSingleton();
+        Class<? extends TransportService> transportService = settings.getAsClass(TRANSPORT_SERVICE_TYPE_KEY, TransportService.class, "org.elasticsearch.transport.", "TransportService");
+        if (!TransportService.class.equals(transportService)) {
+            bind(TransportService.class).to(transportService).asEagerSingleton();
+        } else {
+            bind(TransportService.class).asEagerSingleton();
+        }
     }
 }

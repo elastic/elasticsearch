@@ -730,6 +730,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 } else if (currentWriter != indexWriter) {
                     // an index writer got replaced on us, ignore
                 } else {
+                    failEngine(e);
                     throw new RefreshFailedEngineException(shardId, e);
                 }
             }

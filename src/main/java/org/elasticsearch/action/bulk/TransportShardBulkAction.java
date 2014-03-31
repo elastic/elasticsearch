@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -44,6 +45,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -141,7 +143,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         final BulkShardRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.IndexingOperation[] ops = null;
-        Set<Tuple<String, String>> mappingsToUpdate = null;
+        final Set<Tuple<String, String>> mappingsToUpdate = Sets.newHashSet();
 
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         long[] preVersions = new long[request.items().length];
@@ -150,22 +152,28 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
                 try {
-                    WriteResult result = shardIndexOperation(request, indexRequest, clusterState, indexShard, true);
-                    // add the response
-                    IndexResponse indexResponse = result.response();
-                    responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse);
-                    preVersions[requestIndex] = result.preVersion;
-                    if (result.mappingToUpdate != null) {
-                        if (mappingsToUpdate == null) {
-                            mappingsToUpdate = Sets.newHashSet();
+
+                    try {
+                        WriteResult result = shardIndexOperation(request, indexRequest, clusterState, indexShard, true);
+                        // add the response
+                        IndexResponse indexResponse = result.response();
+                        responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse);
+                        preVersions[requestIndex] = result.preVersion;
+                        if (result.mappingToUpdate != null) {
+                            mappingsToUpdate.add(result.mappingToUpdate);
                         }
-                        mappingsToUpdate.add(result.mappingToUpdate);
-                    }
-                    if (result.op != null) {
-                        if (ops == null) {
-                            ops = new Engine.IndexingOperation[request.items().length];
+                        if (result.op != null) {
+                            if (ops == null) {
+                                ops = new Engine.IndexingOperation[request.items().length];
+                            }
+                            ops[requestIndex] = result.op;
                         }
-                        ops[requestIndex] = result.op;
+                    } catch (WriteFailure e){
+                        Tuple<String, String> mappingsToUpdateOnFailure = e.mappingsToUpdate;
+                        if (mappingsToUpdateOnFailure != null) {
+                            mappingsToUpdate.add(mappingsToUpdateOnFailure);
+                        }
+                        throw e.getCause();
                     }
                 } catch (Throwable e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
@@ -173,6 +181,9 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         // restore updated versions...
                         for (int j = 0; j < requestIndex; j++) {
                             applyVersion(request.items()[j], preVersions[j]);
+                        }
+                        for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
+                            updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
                         }
                         throw (ElasticsearchException) e;
                     }
@@ -239,9 +250,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update", updateResponse);
                                 preVersions[requestIndex] = result.preVersion;
                                 if (result.mappingToUpdate != null) {
-                                    if (mappingsToUpdate == null) {
-                                        mappingsToUpdate = Sets.newHashSet();
-                                    }
                                     mappingsToUpdate.add(result.mappingToUpdate);
                                 }
                                 if (result.op != null) {
@@ -277,8 +285,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 // we can't try any more
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update",
                                         new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), t));
-                                ;
-
                                 request.items()[requestIndex] = null; // do not send to replicas
                             }
                         } else {
@@ -331,10 +337,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
         }
 
-        if (mappingsToUpdate != null) {
-            for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-                updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
-            }
+        for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
+            updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
         }
 
         if (request.refresh()) {
@@ -369,6 +373,17 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     }
 
+    static class WriteFailure extends ElasticsearchException implements ElasticsearchWrapperException {
+        @Nullable
+        final Tuple<String, String> mappingsToUpdate;
+
+        WriteFailure(Throwable cause, Tuple<String, String> mappingsToUpdate) {
+            super(null, cause);
+            assert cause != null;
+            this.mappingsToUpdate = mappingsToUpdate;
+        }
+    }
+
     private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
                                             IndexShard indexShard, boolean processed) {
 
@@ -387,30 +402,38 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
                 .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
+        // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
+        Tuple<String, String> mappingsToUpdate = null;
+
         long version;
         boolean created;
         Engine.IndexingOperation op;
-        if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
-            indexShard.index(index);
-            version = index.version();
-            op = index;
-            created = index.created();
-        } else {
-            Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
-            indexShard.create(create);
-            version = create.version();
-            op = create;
-            created = true;
-        }
         long preVersion = indexRequest.version();
-        // update the version on request so it will happen on the replicas
-        indexRequest.version(version);
-
-        // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
-        Tuple<String, String> mappingsToUpdate = null;
-        if (op.parsedDoc().mappingsModified()) {
-            mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
+        try {
+            if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
+                Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                if (index.parsedDoc().mappingsModified()) {
+                    mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
+                }
+                indexShard.index(index);
+                version = index.version();
+                op = index;
+                created = index.created();
+            } else {
+                Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                if (create.parsedDoc().mappingsModified()) {
+                    mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
+                }
+                indexShard.create(create);
+                version = create.version();
+                op = create;
+                created = true;
+            }
+            // update the version on request so it will happen on the replicas
+            indexRequest.versionType(indexRequest.versionType());
+            indexRequest.version(version);
+        } catch (Throwable t) {
+            throw new WriteFailure(t, mappingsToUpdate);
         }
 
         IndexResponse indexResponse = new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version, created);

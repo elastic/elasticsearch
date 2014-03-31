@@ -21,6 +21,7 @@ package org.elasticsearch.gateway.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -43,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -61,8 +63,13 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
 
     private volatile int currentIndex;
 
+    private final ToXContent.Params persistentOnlyFormatParams;
+
     protected BlobStoreGateway(Settings settings, ThreadPool threadPool, ClusterService clusterService, ClusterName clusterName) {
         super(settings, threadPool, clusterService, clusterName);
+        Map<String, String> persistentOnlyParams = Maps.newHashMap();
+        persistentOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
+        persistentOnlyFormatParams = new ToXContent.MapParams(persistentOnlyParams);
     }
 
     protected void initialize(BlobStore blobStore, ClusterName clusterName, @Nullable ByteSizeValue defaultChunkSize) throws IOException {
@@ -158,7 +165,7 @@ public abstract class BlobStoreGateway extends SharedStorageGateway {
             }
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
             builder.startObject();
-            MetaData.Builder.toXContent(metaData, builder, ToXContent.EMPTY_PARAMS);
+            MetaData.Builder.toXContent(metaData, builder, persistentOnlyFormatParams);
             builder.endObject();
             builder.close();
             metaDataBlobContainer.writeBlob(newMetaData, bStream.bytes().streamInput(), bStream.bytes().length());

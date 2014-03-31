@@ -24,6 +24,7 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -46,10 +47,12 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
@@ -68,6 +71,7 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.File;
+import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -800,6 +804,15 @@ public final class TestCluster extends ImmutableTestCluster {
     @Override
     public synchronized int size() {
         return this.nodes.size();
+    }
+
+    @Override
+    public InetSocketAddress[] httpAddresses() {
+        List<InetSocketAddress> addresses = Lists.newArrayList();
+        for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
+            addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
+        }
+        return addresses.toArray(new InetSocketAddress[addresses.size()]);
     }
 
     /**

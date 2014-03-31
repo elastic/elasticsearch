@@ -48,9 +48,12 @@ import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -137,7 +140,7 @@ import static org.hamcrest.Matchers.equalTo;
 @Ignore
 @AbstractRandomizedTest.IntegrationTests
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
-    private static TestCluster GLOBAL_CLUSTER;
+    private static ImmutableTestCluster GLOBAL_CLUSTER;
 
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
@@ -177,8 +180,27 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         // Initialize lazily. No need for volatiles/ CASs since each JVM runs at most one test
         // suite at any given moment.
         if (GLOBAL_CLUSTER == null) {
-            long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
-            GLOBAL_CLUSTER = new TestCluster(masterSeed, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed));
+            String cluster = System.getProperty("tests.cluster");
+            if (Strings.hasLength(cluster)) {
+                String[] stringAddresses = cluster.split(",");
+                TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+                int i = 0;
+                for (String stringAddress : stringAddresses) {
+                    String[] split = stringAddress.split(":");
+                    if (split.length < 2) {
+                        throw new IllegalArgumentException("address [" + cluster + "] not valid");
+                    }
+                    try {
+                        transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
+                    } catch(NumberFormatException e) {
+                        throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
+                    }
+                }
+                GLOBAL_CLUSTER = new ExternalTestCluster(transportAddresses);
+            } else {
+                long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
+                GLOBAL_CLUSTER = new TestCluster(masterSeed, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed));
+            }
         }
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.context;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer;
@@ -235,16 +236,18 @@ public class CategoryContextMapping extends ContextMapping {
 
         @Override
         protected TokenStream wrapTokenStream(Document doc, TokenStream stream) {
-            if(values != null) {
+            if (values != null) {
                 return new PrefixAnalyzer.PrefixTokenFilter(stream, ContextMapping.SEPARATOR, values);
+            // if fieldname is default, BUT our default values are set, we take that one
+            } else if ((doc.getFields(fieldname).length == 0 || fieldname.equals(DEFAULT_FIELDNAME)) && defaultValues.iterator().hasNext()) {
+                return new PrefixAnalyzer.PrefixTokenFilter(stream, ContextMapping.SEPARATOR, defaultValues);
             } else {
                 IndexableField[] fields = doc.getFields(fieldname);
                 ArrayList<CharSequence> values = new ArrayList<>(fields.length);
-    
                 for (int i = 0; i < fields.length; i++) {
                     values.add(fields[i].stringValue());
                 }
-    
+
                 return new PrefixAnalyzer.PrefixTokenFilter(stream, ContextMapping.SEPARATOR, values);
             }
         }
@@ -252,12 +255,11 @@ public class CategoryContextMapping extends ContextMapping {
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder("FieldConfig(" + fieldname + " = [");
-            Iterator<? extends CharSequence> value = this.defaultValues.iterator();
-            if (value.hasNext()) {
-                sb.append(value.next());
-                while (value.hasNext()) {
-                    sb.append(", ").append(value.next());
-                }
+            if (this.values != null && this.values.iterator().hasNext()) {
+                sb.append("(").append(Joiner.on(", ").join(this.values.iterator())).append(")");
+            }
+            if (this.defaultValues != null && this.defaultValues.iterator().hasNext()) {
+                sb.append(" default(").append(Joiner.on(", ").join(this.defaultValues.iterator())).append(")");
             }
             return sb.append("])").toString();
         }

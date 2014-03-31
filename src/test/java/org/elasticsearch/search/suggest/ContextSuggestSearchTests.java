@@ -18,11 +18,14 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Sets;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -35,14 +38,16 @@ import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertDistance;
+import static org.hamcrest.Matchers.containsString;
 
 public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
@@ -96,7 +101,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         client().admin().indices().prepareRefresh(INDEX).get();
         
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         
@@ -106,7 +111,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertEquals(suggestResponse.getSuggest().size(), 1);
         assertEquals("Hotel Amsterdam in Berlin", suggestResponse.getSuggest().getSuggestion(suggestionName).iterator().next().getOptions().iterator().next().getText().string());
     }
-    
+
     @Test
     public void testGeoField() throws Exception {
 
@@ -158,7 +163,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         refresh();
         
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text("h").size(10)
                 .addGeoLocation("st", 52.52, 13.4);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -466,9 +471,225 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertFieldSuggestions(types[2], "w", "Whitemane, Kofi");
     }
 
-    public void assertGeoSuggestionsInRange(String location, String suggest, double precision) throws IOException {
+    @Test // issue 5525, default location didnt work with lat/lon map, and did not set default location appropriately
+    public void testGeoContextDefaultMapping() throws Exception {
+        GeoPoint berlinAlexanderplatz = GeoHashUtils.decode("u33dc1");
 
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+            .startObject("poi").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                    .field("type", "geo")
+                    .startObject("default").field("lat", berlinAlexanderplatz.lat()).field("lon", berlinAlexanderplatz.lon()).endObject()
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+            .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("poi", xContentBuilder));
+        ensureYellow();
+
+        index(INDEX, "poi", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().endObject());
+        refresh();
+
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", berlinAlexanderplatz.lat(), berlinAlexanderplatz.lon());
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
+    }
+
+    @Test // issue 5525, setting the path of a category context and then indexing a document without that field returned an error
+    public void testThatMissingPrefixesForContextReturnException() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+            .startObject("service").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("color")
+                    .field("type", "category")
+                    .field("path", "color")
+                .endObject().endObject()
+            .endObject().endObject().endObject()
+            .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("service", xContentBuilder));
+        ensureYellow();
+
+        // now index a document with color field
+        index(INDEX, "service", "1", jsonBuilder().startObject().field("color", "red").startObject("suggest").field("input", "backback").endObject().endObject());
+
+        // now index a document without a color field
+        try {
+            index(INDEX, "service", "2", jsonBuilder().startObject().startObject("suggest").field("input", "backback").endObject().endObject());
+            fail("index operation was not supposed to be succesful");
+        } catch (ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("one or more prefixes needed"));
+        }
+    }
+
+    @Test // issue 5525, the geo point parser did not work when the lat/lon values were inside of a value object
+    public void testThatLocationVenueCanBeParsedAsDocumented() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+            .startObject("poi").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                    .field("type", "geo")
+                .endObject().endObject()
+            .endObject().endObject().endObject()
+            .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("poi", xContentBuilder));
+        ensureYellow();
+
+        SuggestRequest suggestRequest = new SuggestRequest(INDEX);
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("suggest")
+                .field("text", "m")
+                .startObject("completion")
+                    .field("field", "suggest")
+                    .startObject("context").startObject("location").startObject("value").field("lat", 0).field("lon", 0).endObject().field("precision", "1km").endObject().endObject()
+                .endObject()
+            .endObject()
+            .endObject();
+        suggestRequest.suggest(builder.bytes());
+
+        SuggestResponse suggestResponse = client().suggest(suggestRequest).get();
+        assertNoFailures(suggestResponse);
+    }
+
+    @Test
+    public void testThatCategoryDefaultWorks() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("item").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("color")
+                .field("type", "category").field("default", "red")
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        ensureYellow();
+
+        index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie red").endObject().endObject());
+        index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie blue").startObject("context").field("color", "blue").endObject().endObject().endObject());
+        refresh();
+
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
+    }
+
+    @Test
+    public void testThatDefaultCategoryAndPathWorks() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("item").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("color")
+                .field("type", "category")
+                .field("default", "red")
+                .field("path", "color")
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        ensureYellow();
+
+        index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie red").endObject().endObject());
+        index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Hoodie blue").endObject().field("color", "blue").endObject());
+        refresh();
+
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("h").size(10).addContextField("color", "red");
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hoodie red");
+    }
+
+    @Test
+    public void testThatGeoPrecisionIsWorking() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("item").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                .field("type", "geo")
+                .field("precision", 4) // this means geo hashes with a length of four are used, like u345
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        ensureYellow();
+
+        // lets create some locations by geohashes in different cells with the precision 4
+        // this means, that poelchaustr is not a neighour to alexanderplatz, but they share the same prefix until the fourth char!
+        GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
+        GeoPoint poelchaustr = GeoHashUtils.decode("u33du5");
+        GeoPoint dahlem = GeoHashUtils.decode("u336q"); // berlin dahlem, should be included with that precision
+        GeoPoint middleOfNoWhere = GeoHashUtils.decode("u334"); // location for west from berlin, should not be included in any suggestions
+
+        index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").field("weight", 3).startObject("context").startObject("location").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject().endObject().endObject());
+        index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Poelchaustr.").field("weight", 2).startObject("context").startObject("location").field("lat", poelchaustr.lat()).field("lon", poelchaustr.lon()).endObject().endObject().endObject().endObject());
+        index(INDEX, "item", "3", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Far Away").field("weight", 1).startObject("context").startObject("location").field("lat", middleOfNoWhere.lat()).field("lon", middleOfNoWhere.lon()).endObject().endObject().endObject().endObject());
+        index(INDEX, "item", "4", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Dahlem").field("weight", 1).startObject("context").startObject("location").field("lat", dahlem.lat()).field("lon", dahlem.lon()).endObject().endObject().endObject().endObject());
+        refresh();
+
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz", "Berlin Poelchaustr.", "Berlin Dahlem");
+    }
+
+    @Test
+    public void testThatNeighborsCanBeExcluded() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("item").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                .field("type", "geo")
+                .field("precision", 6)
+                .field("neighbors", false)
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        ensureYellow();
+
+        GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
+        // does not look like it, but is a direct neighbor
+        // this test would fail, if the precision was set 4, as then both cells would be the same, u33d
+        GeoPoint cellNeighbourOfAlexanderplatz = GeoHashUtils.decode("u33dbc");
+
+        index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").field("weight", 3).startObject("context").startObject("location").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject().endObject().endObject());
+        index(INDEX, "item", "2", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Hackescher Markt").field("weight", 2).startObject("context").startObject("location").field("lat", cellNeighbourOfAlexanderplatz.lat()).field("lon", cellNeighbourOfAlexanderplatz.lon()).endObject().endObject().endObject().endObject());
+        refresh();
+
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
+    }
+
+    @Test
+    public void testThatGeoPathCanBeSelected() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("item").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                .field("type", "geo")
+                .field("path", "loc")
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+        ensureYellow();
+
+        GeoPoint alexanderplatz = GeoHashUtils.decode("u33dc1");
+        index(INDEX, "item", "1", jsonBuilder().startObject().startObject("suggest").field("input", "Berlin Alexanderplatz").endObject().startObject("loc").field("lat", alexanderplatz.lat()).field("lon", alexanderplatz.lon()).endObject().endObject());
+        refresh();
+
+        CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
+    }
+
+    public void assertGeoSuggestionsInRange(String location, String suggest, double precision) throws IOException {
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
                 .addGeoLocation("st", location);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -491,7 +712,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     public void assertPrefixSuggestions(long prefix, String suggest, String... hits) throws IOException {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest)
                 .size(hits.length + 1).addCategory("st", Long.toString(prefix));
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -516,7 +737,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     public void assertContextWithFuzzySuggestions(String[] prefix1, String[] prefix2, String suggest, String... hits) throws IOException {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionFuzzyBuilder context = new CompletionSuggestionFuzzyBuilder(suggestionName).field(FIELD).text(suggest)
                 .size(hits.length + 10).addContextField("st", prefix1).addContextField("nd", prefix2).setFuzziness(Fuzziness.TWO);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -544,7 +765,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     public void assertFieldSuggestions(String value, String suggest, String... hits) throws IOException {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", value);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -569,7 +790,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     public void assertDoubleFieldSuggestions(String field1, String field2, String suggest, String... hits) throws IOException {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", field1).addContextField("nd", field2);
         SuggestRequestBuilder suggestionRequest = client().prepareSuggest(INDEX).addSuggestion(context);
@@ -593,7 +814,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     public void assertMultiContextSuggestions(String value1, String value2, String suggest, String... hits) throws IOException {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = randomAsciiOfLength(10);
         CompletionSuggestionBuilder context = new CompletionSuggestionBuilder(suggestionName).field(FIELD).text(suggest).size(10)
                 .addContextField("st", value1).addContextField("nd", value2);
 

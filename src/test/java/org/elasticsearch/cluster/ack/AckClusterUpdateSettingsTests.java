@@ -58,7 +58,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     @Override
     protected int minimumNumberOfShards() {
-        return cluster().size();
+        return immutableCluster().size();
     }
 
     @Override

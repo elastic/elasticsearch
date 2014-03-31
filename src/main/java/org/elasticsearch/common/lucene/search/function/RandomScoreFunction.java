@@ -22,12 +22,11 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Explanation;
 
 /**
- *
+ * Pseudo randomly generate a score for each {@link #score}.
  */
 public class RandomScoreFunction extends ScoreFunction {
 
     private final PRNG prng;
-    private int docBase;
 
     public RandomScoreFunction(long seed) {
         super(CombineFunction.MULT);
@@ -36,12 +35,12 @@ public class RandomScoreFunction extends ScoreFunction {
 
     @Override
     public void setNextReader(AtomicReaderContext context) {
-        this.docBase = context.docBase;
+        // intentionally does nothing
     }
 
     @Override
     public double score(int docId, float subQueryScore) {
-        return prng.random(docBase + docId);
+        return prng.nextFloat();
     }
 
     @Override
@@ -70,22 +69,10 @@ public class RandomScoreFunction extends ScoreFunction {
             this.seed = (seed ^ multiplier) & mask;
         }
 
-        public float random(int doc) {
-            if (doc == 0) {
-                doc = 0xCAFEBAB;
-            }
-
-            long rand = doc;
-            rand |= rand << 32;
-            rand ^= rand;
-            return nextFloat(rand);
-        }
-
-        public float nextFloat(long rand) {
+        public float nextFloat() {
             seed = (seed * multiplier + addend) & mask;
-            rand ^= seed;
-            double result = rand / (double)(1L << 54);
-            return (float) result;
+
+            return seed / (float)(1 << 24);
         }
 
     }

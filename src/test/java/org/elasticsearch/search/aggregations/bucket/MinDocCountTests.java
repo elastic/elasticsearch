@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -183,19 +184,19 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
     }
 
     public void testStringCountAscWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(true), ".*a.*");
+        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(true), ".*a.*", true);
     }
 
     public void testStringScriptCountAscWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(true), ".*a.*");
+        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(true), ".*a.*", true);
     }
 
     public void testStringCountDescWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(false), ".*a.*");
+        testMinDocCountOnTerms("s", Script.NO, Terms.Order.count(false), ".*a.*", true);
     }
 
     public void testStringScriptCountDescWithInclude() throws Exception {
-        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(false), ".*a.*");
+        testMinDocCountOnTerms("s", Script.YES, Terms.Order.count(false), ".*a.*", true);
     }
 
     public void testLongTermAsc() throws Exception {
@@ -263,10 +264,10 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
     }
 
     private void testMinDocCountOnTerms(String field, Script script, Terms.Order order) throws Exception {
-        testMinDocCountOnTerms(field, script, order, null);
+        testMinDocCountOnTerms(field, script, order, null, true);
     }
 
-    private void testMinDocCountOnTerms(String field, Script script, Terms.Order order, String include) throws Exception {
+    private void testMinDocCountOnTerms(String field, Script script, Terms.Order order, String include, boolean retryOnFailure) throws Exception {
         // all terms
         final SearchResponse allTermsResponse = client().prepareSearch("idx").setTypes("type")
                 .setSearchType(SearchType.COUNT)
@@ -284,7 +285,7 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
 
         for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
             final int size = randomIntBetween(1, cardinality + 2);
-            final SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            final SearchRequest request = client().prepareSearch("idx").setTypes("type")
                     .setSearchType(SearchType.COUNT)
                     .setQuery(QUERY)
                     .addAggregation(script.apply(terms("terms"), field)
@@ -293,10 +294,26 @@ public class MinDocCountTests extends ElasticsearchIntegrationTest {
                             .size(size)
                             .include(include)
                             .shardSize(cardinality + randomInt(10))
-                            .minDocCount(minDocCount))
-                    .execute().actionGet();
-            assertAllSuccessful(response);
-            assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
+                            .minDocCount(minDocCount)).request();
+            final SearchResponse response = client().search(request).get();
+            try {
+                assertAllSuccessful(response);
+                assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
+            } catch (AssertionError ae) {
+                if (!retryOnFailure) {
+                    throw ae;
+                }
+                logger.info("test failed. trying to see if it recovers after 1m.", ae);
+                try {
+                    Thread.sleep(60000);
+                    logger.debug("1m passed. retrying.");
+                    testMinDocCountOnTerms(field, script, order, include, false);
+                } catch (Throwable secondFailure) {
+                    logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
+                } finally {
+                    throw ae;
+                }
+            }
         }
 
     }

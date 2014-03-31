@@ -277,6 +277,8 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                         } else {
                             logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "]", t);
                         }
+                    } else if (logger.isTraceEnabled()) {
+                        logger.trace("{}: Failed to execute [{}]", t, shard, request);
                     }
                 }
                 if (successulOps.get() == 0) {
@@ -296,7 +298,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 final ShardRouting nextShard = shardIt.nextOrNull();
                 final boolean lastShard = nextShard == null;
                 // trace log this exception
-                if (logger.isTraceEnabled() && t != null) {
+                if (logger.isTraceEnabled()) {
                     logger.trace(executionFailureMsg(shard, shardIt, request, lastShard), t);
                 }
                 if (!lastShard) {
@@ -409,6 +411,10 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
         protected final void processFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result) {
             firstResults.set(shardIndex, result);
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("got first-phase result from {}", result != null ? result.shardTarget() : null);
+            }
 
             // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
             // so its ok concurrency wise to miss potentially the shard failures being created because of another failure

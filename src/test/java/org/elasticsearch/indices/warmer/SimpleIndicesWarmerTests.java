@@ -164,9 +164,8 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
     @Test
     public void deleteNonExistentIndexWarmerTest() {
         createIndex("test");
-
         try {
-            client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("foo").execute().actionGet(1000);
+            client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("foo").execute().actionGet();
             fail("warmer foo should not exist");
         } catch (IndexWarmerMissingException ex) {
             assertThat(ex.names()[0], equalTo("foo"));

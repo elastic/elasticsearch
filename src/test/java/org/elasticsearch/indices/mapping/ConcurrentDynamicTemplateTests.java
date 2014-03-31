@@ -52,7 +52,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
 
         int iters = scaledRandomIntBetween(5, 15);
         for (int i = 0; i < iters; i++) {
-            cluster().wipeIndices("test");
+            immutableCluster().wipeIndices("test");
             assertAcked(prepareCreate("test")
                     .addMapping(mappingType, mapping));
             ensureYellow();

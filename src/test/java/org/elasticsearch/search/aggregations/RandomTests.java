@@ -146,7 +146,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final int maxNumTerms = randomIntBetween(10, 100000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
-        cluster().wipeIndices("idx");
+        immutableCluster().wipeIndices("idx");
         prepareCreate("idx").addMapping("type", jsonBuilder().startObject()
               .startObject("type")
                 .startObject("properties")

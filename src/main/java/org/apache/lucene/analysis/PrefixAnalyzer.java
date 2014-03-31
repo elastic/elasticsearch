@@ -21,6 +21,7 @@ package org.apache.lucene.analysis;
 
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -96,7 +97,9 @@ public class PrefixAnalyzer extends Analyzer {
             this.prefixes = prefixes;
             this.currentPrefix = null;
             this.separator = separator;
-            assert (prefixes != null && prefixes.iterator().hasNext()) : "one or more prefix needed";
+            if (prefixes == null || !prefixes.iterator().hasNext()) {
+                throw new ElasticsearchIllegalArgumentException("one or more prefixes needed");
+            }
         }
 
         @Override

@@ -29,7 +29,7 @@ public class Booleans {
             return defaultValue;
         }
         if (length == 1) {
-            return text[offset] != '0';
+            return text[offset] != '0' && text[offset] != 'F';
         }
         if (length == 2) {
             return !(text[offset] == 'n' && text[offset + 1] == 'o');
@@ -55,7 +55,7 @@ public class Booleans {
             return false;
         }
         if (length == 1) {
-            return text[offset] == '0' || text[offset] == '1';
+            return text[offset] == '0' || text[offset] == '1' || text[offset] == 'F' || text[offset] == 'T';
         }
         if (length == 2) {
             return (text[offset] == 'n' && text[offset + 1] == 'o') || (text[offset] == 'o' && text[offset + 1] == 'n');
@@ -78,22 +78,22 @@ public class Booleans {
         if (value == null) {
             return defaultValue;
         }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no") || value.equals("F") || value.equals(""));
     }
 
     public static Boolean parseBoolean(String value, Boolean defaultValue) {
         if (value == null) {
             return defaultValue;
         }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no") || value.equals("F") || value.equals(""));
     }
 
     public static boolean isExplicitFalse(String value) {
-        return (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        return (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no") || value.equals("F"));
     }
 
     public static boolean isExplicitTrue(String value) {
-        return (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes"));
+        return (value.equals("true") || value.equals("1") || value.equals("on") || value.equals("yes") || value.equals("T"));
     }
 
 }

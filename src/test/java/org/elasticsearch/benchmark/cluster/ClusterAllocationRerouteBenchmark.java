@@ -19,6 +19,7 @@
 package org.elasticsearch.benchmark.cluster;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -65,7 +66,7 @@ public class ClusterAllocationRerouteBenchmark {
         for (int i = 1; i <= numberOfNodes; i++) {
             nb.put(ElasticsearchAllocationTestCase.newNode("node" + i, numberOfTags == 0 ? ImmutableMap.<String, String>of() : ImmutableMap.of("tag", "tag_" + (i % numberOfTags))));
         }
-        ClusterState initialClusterState = ClusterState.builder().metaData(metaData).routingTable(routingTable).nodes(nb).build();
+        ClusterState initialClusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).nodes(nb).build();
 
         long start = System.currentTimeMillis();
         for (int i = 0; i < numberOfRuns; i++) {

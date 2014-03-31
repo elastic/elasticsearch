@@ -20,10 +20,7 @@
 package org.elasticsearch.gateway.none;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -49,16 +46,18 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
     private final ClusterService clusterService;
     private final NodeEnvironment nodeEnv;
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
+    private final ClusterName clusterName;
 
     @Nullable
     private volatile MetaData currentMetaData;
 
     @Inject
-    public NoneGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, NodeIndexDeletedAction nodeIndexDeletedAction) {
+    public NoneGateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, NodeIndexDeletedAction nodeIndexDeletedAction, ClusterName clusterName) {
         super(settings);
         this.clusterService = clusterService;
         this.nodeEnv = nodeEnv;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
+        this.clusterName = clusterName;
 
         clusterService.addLast(this);
     }
@@ -88,7 +87,7 @@ public class NoneGateway extends AbstractLifecycleComponent<Gateway> implements 
     @Override
     public void performStateRecovery(GatewayStateRecoveredListener listener) throws GatewayException {
         logger.debug("performing state recovery");
-        listener.onSuccess(ClusterState.builder().build());
+        listener.onSuccess(ClusterState.builder(clusterName).build());
     }
 
     @Override

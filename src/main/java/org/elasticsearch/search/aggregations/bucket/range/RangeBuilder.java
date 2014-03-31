@@ -18,15 +18,20 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+
 /**
  *
  */
 public class RangeBuilder extends AbstractRangeBuilder<RangeBuilder> {
 
+    private String format;
+
     public RangeBuilder(String name) {
         super(name, InternalRange.TYPE.name());
     }
-
 
     public RangeBuilder addRange(String key, double from, double to) {
         ranges.add(new Range(key, from, to));
@@ -53,6 +58,21 @@ public class RangeBuilder extends AbstractRangeBuilder<RangeBuilder> {
 
     public RangeBuilder addUnboundedFrom(double from) {
         return addUnboundedFrom(null, from);
+    }
+
+    public RangeBuilder format(String format) {
+        this.format = format;
+        return this;
+    }
+
+
+    @Override
+    protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
+        super.doInternalXContent(builder, params);
+        if (format != null) {
+            builder.field("format", format);
+        }
+        return builder;
     }
 
 }

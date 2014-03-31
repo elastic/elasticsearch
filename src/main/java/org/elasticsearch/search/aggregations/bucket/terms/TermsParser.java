@@ -30,13 +30,11 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -207,51 +205,68 @@ public class TermsParser implements Aggregator.Parser {
             Class<? extends ValuesSource> valueSourceType = script == null ?
                     ValuesSource.class : // unknown, will inherit whatever is in the context
                     valueType != null ? valueType.scriptValueType.getValuesSourceType() : // the user explicitly defined a value type
-                    BytesValuesSource.class; // defaulting to bytes
+                    ValuesSource.Bytes.class; // defaulting to bytes
 
             ValuesSourceConfig<?> config = new ValuesSourceConfig(valueSourceType);
+            ValueFormatter valueFormatter = null;
+            ValueParser valueParser = null;
             if (valueType != null) {
                 config.scriptValueType(valueType.scriptValueType);
+                if (valueType != Terms.ValueType.STRING && format != null) {
+                    valueFormatter = new ValueFormatter.Number.Pattern(format);
+                    valueParser = new ValueParser.Number.Pattern(format);
+                }
             }
             config.script(searchScript);
             if (!assumeUnique) {
                 config.ensureUnique(true);
             }
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+            return new TermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
-            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(BytesValuesSource.class);
+            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
+            ValueFormatter valueFormatter = null;
+            ValueParser valueParser = null;
             config.unmapped(true);
-            return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+            if (valueType != null) {
+                config.scriptValueType(valueType.scriptValueType);
+                if (valueType != Terms.ValueType.STRING && format != null) {
+                    valueFormatter = new ValueFormatter.Number.Pattern(format);
+                    valueParser = new ValueParser.Number.Pattern(format);
+                }
+            }
+            return new TermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
         ValuesSourceConfig<?> config;
+        ValueFormatter valueFormatter = null;
+        ValueParser valueParser = null;
 
         if (mapper instanceof DateFieldMapper) {
             DateFieldMapper dateMapper = (DateFieldMapper) mapper;
-            ValueFormatter formatter = format == null ?
+            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
+            valueFormatter = format == null ?
                     new ValueFormatter.DateTime(dateMapper.dateTimeFormatter()) :
                     new ValueFormatter.DateTime(format);
-            config = new ValuesSourceConfig<>(NumericValuesSource.class)
-                    .formatter(formatter)
-                    .parser(new ValueParser.DateMath(dateMapper.dateMathParser()));
+            valueParser = new ValueParser.DateMath(dateMapper.dateMathParser());
 
         } else if (mapper instanceof IpFieldMapper) {
-            config = new ValuesSourceConfig<>(NumericValuesSource.class)
-                    .formatter(ValueFormatter.IPv4)
-                    .parser(ValueParser.IPv4);
+            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
+            valueFormatter = ValueFormatter.IPv4;
+            valueParser = ValueParser.IPv4;
 
         } else if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(NumericValuesSource.class);
+            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
             if (format != null) {
-                config.formatter(new ValueFormatter.Number.Pattern(format));
+                valueFormatter = new ValueFormatter.Number.Pattern(format);
+                valueParser = new ValueParser.Number.Pattern(format);
             }
 
         } else {
-            config = new ValuesSourceConfig<>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
             // TODO: it will make sense to set false instead here if the aggregator factory uses
             // ordinals instead of hash tables
             config.needsHashes(true);
@@ -266,7 +281,7 @@ public class TermsParser implements Aggregator.Parser {
             config.ensureUnique(true);
         }
 
-        return new TermsAggregatorFactory(aggregationName, config, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+        return new TermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

@@ -24,9 +24,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ public abstract class ValuesSourceMetricsAggregatorParser<S extends MetricsAggre
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
+        ValuesSourceConfig<ValuesSource.Numeric> config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
 
         String field = null;
         String script = null;
@@ -107,5 +107,5 @@ public abstract class ValuesSourceMetricsAggregatorParser<S extends MetricsAggre
         return createFactory(aggregationName, config);
     }
 
-    protected abstract AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<NumericValuesSource> config);
+    protected abstract AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config);
 }

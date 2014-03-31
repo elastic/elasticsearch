@@ -159,6 +159,48 @@ public class RangeTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void singleValueField_WithFormat() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(range("range")
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .addUnboundedTo(3)
+                        .addRange(3, 6)
+                        .addUnboundedFrom(6)
+                        .format("#")
+                )
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        Range range = response.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        assertThat(range.getBuckets().size(), equalTo(3));
+
+        Range.Bucket bucket = range.getBucketByKey("*-3");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("*-3"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getTo().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+
+        bucket = range.getBucketByKey("3-6");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("3-6"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(3.0));
+        assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getDocCount(), equalTo(3l));
+
+        bucket = range.getBucketByKey("6-*");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("6-*"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
+    }
+
+    @Test
     public void singleValueField_WithCustomKey() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")

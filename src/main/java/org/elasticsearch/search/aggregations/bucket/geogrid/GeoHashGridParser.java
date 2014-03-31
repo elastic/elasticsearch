@@ -30,8 +30,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.support.*;
-import org.elasticsearch.search.aggregations.support.geopoints.GeoPointValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -99,7 +97,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
-        ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<>(GeoPointValuesSource.class);
+        ValuesSourceConfig<ValuesSource.GeoPoint> config = new ValuesSourceConfig<>(ValuesSource.GeoPoint.class);
         if (field == null) {
             return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
         }
@@ -116,13 +114,13 @@ public class GeoHashGridParser implements Aggregator.Parser {
     }
 
 
-    private static class GeoGridFactory extends ValueSourceAggregatorFactory<GeoPointValuesSource> {
+    private static class GeoGridFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
         private int precision;
         private int requiredSize;
         private int shardSize;
 
-        public GeoGridFactory(String name, ValuesSourceConfig<GeoPointValuesSource> valueSourceConfig,
+        public GeoGridFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> valueSourceConfig,
                               int precision, int requiredSize, int shardSize) {
             super(name, InternalGeoHashGrid.TYPE.name(), valueSourceConfig);
             this.precision = precision;
@@ -141,26 +139,24 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator create(final GeoPointValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final CellValues cellIdValues = new CellValues(valuesSource, precision);
-            FieldDataSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
+            ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
             if (cellIdSource.metaData().multiValued()) {
                 // we need to wrap to ensure uniqueness
-                cellIdSource = new FieldDataSource.Numeric.SortedAndUnique(cellIdSource);
+                cellIdSource = new ValuesSource.Numeric.SortedAndUnique(cellIdSource);
             }
-            final NumericValuesSource geohashIdSource = new NumericValuesSource(cellIdSource, null, null);
-            return new GeoHashGridAggregator(name, factories, geohashIdSource, requiredSize,
-                    shardSize, aggregationContext, parent);
+            return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent);
 
         }
 
         private static class CellValues extends LongValues {
 
-            private GeoPointValuesSource geoPointValues;
+            private ValuesSource.GeoPoint geoPointValues;
             private GeoPointValues geoValues;
             private int precision;
 
-            protected CellValues(GeoPointValuesSource geoPointValues, int precision) {
+            protected CellValues(ValuesSource.GeoPoint geoPointValues, int precision) {
                 super(true);
                 this.geoPointValues = geoPointValues;
                 this.precision = precision;
@@ -168,7 +164,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
             @Override
             public int setDocument(int docId) {
-                geoValues = geoPointValues.values();
+                geoValues = geoPointValues.geoPointValues();
                 return geoValues.setDocument(docId);
             }
 
@@ -180,7 +176,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         }
 
-        private static class CellIdSource extends FieldDataSource.Numeric {
+        private static class CellIdSource extends ValuesSource.Numeric {
             private final LongValues values;
             private MetaData metaData;
 

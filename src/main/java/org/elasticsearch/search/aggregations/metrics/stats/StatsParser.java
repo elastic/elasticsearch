@@ -20,8 +20,8 @@ package org.elasticsearch.search.aggregations.metrics.stats;
 
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregatorParser;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 
 /**
  *
@@ -34,7 +34,7 @@ public class StatsParser extends ValuesSourceMetricsAggregatorParser<InternalSta
     }
 
     @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<NumericValuesSource> config) {
+    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config) {
         return new StatsAggegator.Factory(aggregationName, config);
     }
 }

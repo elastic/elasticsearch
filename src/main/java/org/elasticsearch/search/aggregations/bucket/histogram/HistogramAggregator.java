@@ -30,10 +30,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,7 +43,9 @@ import java.util.List;
 
 public class HistogramAggregator extends BucketsAggregator {
 
-    private final NumericValuesSource valuesSource;
+    private final ValuesSource.Numeric valuesSource;
+    private final ValueFormatter formatter;
+    private final ValueParser parser;
     private final Rounding rounding;
     private final InternalOrder order;
     private final boolean keyed;
@@ -55,7 +58,8 @@ public class HistogramAggregator extends BucketsAggregator {
 
     public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order,
                                boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
-                               @Nullable NumericValuesSource valuesSource, long initialCapacity, InternalHistogram.Factory<?> histogramFactory,
+                               @Nullable ValuesSource.Numeric valuesSource, ValueFormatter formatter, ValueParser parser,
+                               long initialCapacity, InternalHistogram.Factory<?> histogramFactory,
                                AggregationContext aggregationContext, Aggregator parent) {
 
         super(name, BucketAggregationMode.PER_BUCKET, factories, initialCapacity, aggregationContext, parent);
@@ -65,6 +69,8 @@ public class HistogramAggregator extends BucketsAggregator {
         this.minDocCount = minDocCount;
         this.extendedBounds = extendedBounds;
         this.valuesSource = valuesSource;
+        this.formatter = formatter;
+        this.parser = parser;
         this.histogramFactory = histogramFactory;
 
         bucketOrds = new LongHash(initialCapacity, aggregationContext.bigArrays());
@@ -111,20 +117,18 @@ public class HistogramAggregator extends BucketsAggregator {
             if (ord < 0) {
                 continue; // slot is not allocated
             }
-            buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.key(i)), bucketDocCount(ord), bucketAggregations(ord), valuesSource.formatter()));
+            buckets.add(histogramFactory.createBucket(rounding.valueForKey(bucketOrds.key(i)), bucketDocCount(ord), bucketAggregations(ord), formatter));
         }
 
         CollectionUtil.introSort(buckets, order.comparator());
 
         // value source will be null for unmapped fields
-        ValueFormatter formatter = valuesSource != null ? valuesSource.formatter() : null;
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
         return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        ValueFormatter formatter = valuesSource != null ? valuesSource.formatter() : null;
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
         return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed);
     }
@@ -134,7 +138,7 @@ public class HistogramAggregator extends BucketsAggregator {
         Releasables.release(bucketOrds);
     }
 
-    public static class Factory extends ValueSourceAggregatorFactory<NumericValuesSource> {
+    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.Numeric> {
 
         private final Rounding rounding;
         private final InternalOrder order;
@@ -143,11 +147,11 @@ public class HistogramAggregator extends BucketsAggregator {
         private final ExtendedBounds extendedBounds;
         private final InternalHistogram.Factory<?> histogramFactory;
 
-        public Factory(String name, ValuesSourceConfig<NumericValuesSource> valueSourceConfig,
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> config, ValueFormatter formatter, ValueParser parser,
                        Rounding rounding, InternalOrder order, boolean keyed, long minDocCount,
                        ExtendedBounds extendedBounds, InternalHistogram.Factory<?> histogramFactory) {
 
-            super(name, histogramFactory.type(), valueSourceConfig);
+            super(name, histogramFactory.type(), config, formatter, parser);
             this.rounding = rounding;
             this.order = order;
             this.keyed = keyed;
@@ -158,11 +162,11 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, 0, histogramFactory, aggregationContext, parent);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, null, null, 0, histogramFactory, aggregationContext, parent);
         }
 
         @Override
-        protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             // todo if we'll keep track of min/max values in IndexFieldData, we could use the max here to come up with a better estimation for the buckets count
 
             // we need to round the bounds given by the user and we have to do it for every aggregator we crate
@@ -171,10 +175,10 @@ public class HistogramAggregator extends BucketsAggregator {
             ExtendedBounds roundedBounds = null;
             if (extendedBounds != null) {
                 // we need to process & validate here using the parser
-                extendedBounds.processAndValidate(name, aggregationContext.searchContext(), valuesSource != null ? valuesSource.parser() : null);
+                extendedBounds.processAndValidate(name, aggregationContext.searchContext(), parser);
                 roundedBounds = extendedBounds.round(rounding);
             }
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, 50, histogramFactory, aggregationContext, parent);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, formatter, parser, 50, histogramFactory, aggregationContext, parent);
         }
 
     }

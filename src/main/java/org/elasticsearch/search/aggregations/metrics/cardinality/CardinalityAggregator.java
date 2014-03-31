@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 
 import java.io.IOException;
 
@@ -80,12 +79,12 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
         // requested not to hash the values (perhaps they already hashed the values themselves before indexing the doc)
         // so we can just work with the original value source as is
         if (!rehash) {
-            LongValues hashValues = ((NumericValuesSource) valuesSource).longValues();
+            LongValues hashValues = ((ValuesSource.Numeric) valuesSource).longValues();
             return new DirectCollector(counts, hashValues);
         }
 
-        if (valuesSource instanceof NumericValuesSource) {
-            NumericValuesSource source = (NumericValuesSource) valuesSource;
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
             LongValues hashValues = source.isFloatingPoint() ? MurmurHash3Values.wrap(source.doubleValues()) : MurmurHash3Values.wrap(source.longValues());
             return new DirectCollector(counts, hashValues);
         }

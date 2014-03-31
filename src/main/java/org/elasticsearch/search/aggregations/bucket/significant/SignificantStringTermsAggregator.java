@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -128,12 +127,12 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
      */
     public static class WithOrdinals extends SignificantStringTermsAggregator {
 
-        private final BytesValuesSource.WithOrdinals valuesSource;
+        private final ValuesSource.Bytes.WithOrdinals valuesSource;
         private BytesValues.WithOrdinals bytesValues;
         private Ordinals.Docs ordinals;
         private LongArray ordinalToBucket;
 
-        public WithOrdinals(String name, AggregatorFactories factories, BytesValuesSource.WithOrdinals valuesSource,
+        public WithOrdinals(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
                 long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
                 Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
             super(name, factories, valuesSource, esitmatedBucketCount, requiredSize, shardSize, minDocCount, null, aggregationContext, parent, termsAggFactory);

@@ -177,17 +177,6 @@ public class RestClient implements Closeable {
 
         HttpRequestBuilder httpRequestBuilder = httpRequestBuilder();
 
-        if (Strings.hasLength(body)) {
-            if (!restApi.isBodySupported()) {
-                throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
-            }
-            httpRequestBuilder.body(body);
-        } else {
-            if (restApi.isBodyRequired()) {
-                throw new IllegalArgumentException("body is required by [" + restApi.getName() + "] api");
-            }
-        }
-
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = Maps.newHashMap();
         if (params != null) {
@@ -207,9 +196,27 @@ public class RestClient implements Closeable {
             httpRequestBuilder.addParam("op_type", "create");
         }
 
+        List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());
+        if (Strings.hasLength(body)) {
+            if (!restApi.isBodySupported()) {
+                throw new IllegalArgumentException("body is not supported by [" + restApi.getName() + "] api");
+            }
+            //test the GET with source param instead of GET/POST with body
+            if (supportedMethods.contains("GET") && RandomizedTest.rarely()) {
+                logger.debug("sending the request body as source param with GET method");
+                httpRequestBuilder.addParam("source", body).method("GET");
+            } else {
+                httpRequestBuilder.body(body).method(RandomizedTest.randomFrom(supportedMethods));
+            }
+        } else {
+            if (restApi.isBodyRequired()) {
+                throw new IllegalArgumentException("body is required by [" + restApi.getName() + "] api");
+            }
+            httpRequestBuilder.method(RandomizedTest.randomFrom(supportedMethods));
+        }
+
         //the http method is randomized (out of the available ones with the chosen api)
-        return httpRequestBuilder.method(RandomizedTest.randomFrom(restApi.getSupportedMethods(pathParts.keySet())))
-                .path(RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts)));
+        return httpRequestBuilder.path(RandomizedTest.randomFrom(restApi.getFinalPaths(pathParts)));
     }
 
     private RestApi restApi(String apiName) {

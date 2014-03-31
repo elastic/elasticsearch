@@ -137,7 +137,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         this.repositoryName = repositoryName;
         this.indexShardRepository = (BlobStoreIndexShardRepository) indexShardRepository;
         Map<String, String> globalOnlyParams = Maps.newHashMap();
-        globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
+        globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
+        globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
         globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
         snapshotRateLimiter = getRateLimiter(repositorySettings, "max_snapshot_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(repositorySettings, "max_restore_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));

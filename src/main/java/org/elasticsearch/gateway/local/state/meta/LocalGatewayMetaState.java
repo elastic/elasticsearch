@@ -132,12 +132,14 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
             formatParams = new ToXContent.MapParams(params);
             Map<String, String> globalOnlyParams = Maps.newHashMap();
             globalOnlyParams.put("binary", "true");
-            globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
+            globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
+            globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
             globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
         } else {
             formatParams = ToXContent.EMPTY_PARAMS;
             Map<String, String> globalOnlyParams = Maps.newHashMap();
-            globalOnlyParams.put(MetaData.GLOBAL_PERSISTENT_ONLY_PARAM, "true");
+            globalOnlyParams.put(MetaData.PERSISTENT_ONLY_PARAM, "true");
+            globalOnlyParams.put(MetaData.GLOBAL_ONLY_PARAM, "true");
             globalOnlyFormatParams = new ToXContent.MapParams(globalOnlyParams);
         }
 

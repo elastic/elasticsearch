@@ -87,7 +87,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                     builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                     response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -99,7 +99,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                     logger.debug("failed to handle cluster state", e);
                 }
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

@@ -29,10 +29,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.joda.time.format.DateTimeFormat;
@@ -87,7 +87,7 @@ public class RestCountAction extends AbstractCatAction {
             @Override
             public void onFailure(Throwable t) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, t));
+                    channel.sendResponse(new BytesRestResponse(request, t));
                 } catch (IOException e) {
                     logger.error("Failed to send failure response", e);
                 }

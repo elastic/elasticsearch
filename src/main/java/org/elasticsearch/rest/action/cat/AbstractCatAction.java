@@ -36,7 +36,9 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     }
 
     abstract void doRequest(final RestRequest request, final RestChannel channel);
+
     abstract void documentation(StringBuilder sb);
+
     abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
@@ -55,7 +57,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                 pad(new Table.Cell(cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available"), width[2], request, out);
                 out.append("\n");
             }
-            channel.sendResponse(new StringRestResponse(RestStatus.OK, out.toString()));
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, out.toString()));
         } else {
             doRequest(request, channel);
         }

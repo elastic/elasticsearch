@@ -65,7 +65,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

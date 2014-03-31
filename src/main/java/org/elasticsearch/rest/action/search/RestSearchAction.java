@@ -89,7 +89,7 @@ public class RestSearchAction extends BaseRestHandler {
             }
             try {
                 XContentBuilder builder = restContentBuilder(request);
-                channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
             } catch (IOException e1) {
                 logger.error("Failed to send failure response", e1);
             }
@@ -103,7 +103,7 @@ public class RestSearchAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, response.status(), builder));
+                    channel.sendResponse(new BytesRestResponse(response.status(), builder));
                 } catch (Exception e) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("failed to execute search (building response)", e);
@@ -115,7 +115,7 @@ public class RestSearchAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

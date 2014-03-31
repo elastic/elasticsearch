@@ -72,7 +72,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
                 }
             } catch (Exception e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
+                    channel.sendResponse(new BytesRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                 }

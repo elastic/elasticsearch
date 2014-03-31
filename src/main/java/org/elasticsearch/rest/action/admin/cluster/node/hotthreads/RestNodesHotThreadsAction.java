@@ -69,7 +69,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                         Strings.spaceify(3, node.getHotThreads(), sb);
                         sb.append('\n');
                     }
-                    channel.sendResponse(new StringRestResponse(RestStatus.OK, sb.toString()));
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, sb.toString()));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -78,7 +78,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

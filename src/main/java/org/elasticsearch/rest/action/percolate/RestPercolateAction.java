@@ -118,7 +118,7 @@ public class RestPercolateAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(restRequest);
                     response.toXContent(builder, restRequest);
-                    restChannel.sendResponse(new XContentRestResponse(restRequest, OK, builder));
+                    restChannel.sendResponse(new BytesRestResponse(OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -127,7 +127,7 @@ public class RestPercolateAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    restChannel.sendResponse(new XContentThrowableRestResponse(restRequest, e));
+                    restChannel.sendResponse(new BytesRestResponse(restRequest, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

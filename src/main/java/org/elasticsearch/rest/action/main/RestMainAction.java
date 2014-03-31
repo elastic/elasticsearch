@@ -67,7 +67,7 @@ public class RestMainAction extends BaseRestHandler {
                     status = RestStatus.SERVICE_UNAVAILABLE;
                 }
                 if (request.method() == RestRequest.Method.HEAD) {
-                    channel.sendResponse(new StringRestResponse(status));
+                    channel.sendResponse(new BytesRestResponse(status));
                     return;
                 }
 
@@ -97,7 +97,7 @@ public class RestMainAction extends BaseRestHandler {
                             .endObject();
                     builder.field("tagline", "You Know, for Search");
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, status, builder));
+                    channel.sendResponse(new BytesRestResponse(status, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -107,9 +107,9 @@ public class RestMainAction extends BaseRestHandler {
             public void onFailure(Throwable e) {
                 try {
                     if (request.method() == HEAD) {
-                        channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
+                        channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
                     } else {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                        channel.sendResponse(new BytesRestResponse(request, e));
                     }
                 } catch (Exception e1) {
                     logger.warn("Failed to send response", e);

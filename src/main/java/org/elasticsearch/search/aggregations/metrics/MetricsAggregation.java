@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 /**
  *

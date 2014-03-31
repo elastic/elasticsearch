@@ -26,9 +26,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 
 import java.io.IOException;
 
@@ -37,12 +37,12 @@ import java.io.IOException;
  */
 public class SumAggregator extends MetricsAggregator.SingleValue {
 
-    private final NumericValuesSource valuesSource;
+    private final ValuesSource.Numeric valuesSource;
     private DoubleValues values;
 
     private DoubleArray sums;
 
-    public SumAggregator(String name, long estimatedBucketsCount, NumericValuesSource valuesSource, AggregationContext context, Aggregator parent) {
+    public SumAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
         super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -91,9 +91,9 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
         return new InternalSum(name, 0.0);
     }
 
-    public static class Factory extends ValueSourceAggregatorFactory.LeafOnly<NumericValuesSource> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        public Factory(String name, ValuesSourceConfig<NumericValuesSource> valuesSourceConfig) {
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalSum.TYPE.name(), valuesSourceConfig);
         }
 
@@ -103,7 +103,7 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new SumAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
     }

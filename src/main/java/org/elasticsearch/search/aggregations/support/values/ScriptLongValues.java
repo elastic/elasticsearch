@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.support.numeric;
+package org.elasticsearch.search.aggregations.support.values;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.LongValues;

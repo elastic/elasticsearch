@@ -25,8 +25,10 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -47,7 +49,7 @@ public class RangeParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
+        ValuesSourceConfig<ValuesSource.Numeric> config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
 
         String field = null;
         List<RangeAggregator.Range> ranges = null;
@@ -56,6 +58,7 @@ public class RangeParser implements Aggregator.Parser {
         Map<String, Object> scriptParams = null;
         boolean keyed = false;
         boolean assumeSorted = false;
+        String format = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -69,6 +72,8 @@ public class RangeParser implements Aggregator.Parser {
                     script = parser.text();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
+                } else if ("format".equals(currentFieldName)) {
+                    format = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -139,18 +144,20 @@ public class RangeParser implements Aggregator.Parser {
         }
 
         if (field == null) {
-            return new RangeAggregator.Factory(aggregationName, config, InternalRange.FACTORY, ranges, keyed);
+            return new RangeAggregator.Factory(aggregationName, config, null, null, InternalRange.FACTORY, ranges, keyed);
         }
 
+        ValueFormatter valueFormatter = format == null ? ValueFormatter.RAW : new ValueFormatter.Number.Pattern(format);
+        ValueParser valueParser = format == null ? ValueParser.RAW : new ValueParser.Number.Pattern(format);
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new RangeAggregator.Factory(aggregationName, config, InternalRange.FACTORY, ranges, keyed);
+            return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalRange.FACTORY, ranges, keyed);
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
-        return new RangeAggregator.Factory(aggregationName, config, InternalRange.FACTORY, ranges, keyed);
+        return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalRange.FACTORY, ranges, keyed);
     }
 }

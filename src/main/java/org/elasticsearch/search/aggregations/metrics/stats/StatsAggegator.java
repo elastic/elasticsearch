@@ -29,9 +29,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 
 import java.io.IOException;
 
@@ -40,7 +40,7 @@ import java.io.IOException;
  */
 public class StatsAggegator extends MetricsAggregator.MultiValue {
 
-    private final NumericValuesSource valuesSource;
+    private final ValuesSource.Numeric valuesSource;
     private DoubleValues values;
 
     private LongArray counts;
@@ -48,7 +48,7 @@ public class StatsAggegator extends MetricsAggregator.MultiValue {
     private DoubleArray mins;
     private DoubleArray maxes;
 
-    public StatsAggegator(String name, long estimatedBucketsCount, NumericValuesSource valuesSource, AggregationContext context, Aggregator parent) {
+    public StatsAggegator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context, Aggregator parent) {
         super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -138,9 +138,9 @@ public class StatsAggegator extends MetricsAggregator.MultiValue {
         return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
     }
 
-    public static class Factory extends ValueSourceAggregatorFactory.LeafOnly<NumericValuesSource> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        public Factory(String name, ValuesSourceConfig<NumericValuesSource> valuesSourceConfig) {
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig) {
             super(name, InternalStats.TYPE.name(), valuesSourceConfig);
         }
 
@@ -150,7 +150,7 @@ public class StatsAggegator extends MetricsAggregator.MultiValue {
         }
 
         @Override
-        protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new StatsAggegator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
     }

@@ -33,11 +33,11 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -82,7 +82,7 @@ public class DateHistogramParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
+        ValuesSourceConfig<ValuesSource.Numeric> config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
 
         String field = null;
         String script = null;
@@ -230,30 +230,25 @@ public class DateHistogramParser implements Aggregator.Parser {
                 .preOffset(preOffset).postOffset(postOffset)
                 .build();
 
-        if (format != null) {
-            config.formatter(new ValueFormatter.DateTime(format));
-        }
+        ValueFormatter valueFormatter = format != null ? new ValueFormatter.DateTime(format) : null;
 
         if (field == null) {
 
             if (searchScript != null) {
                 ValueParser valueParser = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
-                config.parser(valueParser);
-                return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
+                return new HistogramAggregator.Factory(aggregationName, config, valueFormatter, valueParser, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
             }
 
             // falling back on the get field data context
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, valueFormatter, null, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            if (format == null) {
-                config.formatter(new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER));
-            }
-            config.parser(new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT)));
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
+            valueFormatter = format == null ? new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER) : null;
+            ValueParser valueParser = new ValueParser.DateMath(new DateMathParser(DateFieldMapper.Defaults.DATE_TIME_FORMATTER, DateFieldMapper.Defaults.TIME_UNIT));
+            return new HistogramAggregator.Factory(aggregationName, config, valueFormatter, valueParser, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
         }
 
         if (!(mapper instanceof DateFieldMapper)) {
@@ -263,10 +258,10 @@ public class DateHistogramParser implements Aggregator.Parser {
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
         if (format == null) {
-            config.formatter(new ValueFormatter.DateTime(((DateFieldMapper) mapper).dateTimeFormatter()));
+            valueFormatter = new ValueFormatter.DateTime(((DateFieldMapper) mapper).dateTimeFormatter());
         }
-        config.parser(new ValueParser.DateMath(new DateMathParser(((DateFieldMapper) mapper).dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT)));
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
+        ValueParser valueParser = new ValueParser.DateMath(new DateMathParser(((DateFieldMapper) mapper).dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT));
+        return new HistogramAggregator.Factory(aggregationName, config, valueFormatter, valueParser, rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
     }
 
     private static InternalOrder resolveOrder(String key, boolean asc) {

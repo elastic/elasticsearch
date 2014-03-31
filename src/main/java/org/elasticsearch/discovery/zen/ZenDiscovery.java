@@ -544,6 +544,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final BlockingQueue<ProcessClusterState> processNewClusterStates = ConcurrentCollections.newBlockingQueue();
 
     void handleNewClusterStateFromMaster(ClusterState newClusterState, final PublishClusterStateAction.NewClusterStateListener.NewStateProcessed newStateProcessed) {
+        final ClusterName incomingClusterName = newClusterState.getClusterName();
+        /* The cluster name can still be null if the state comes from a node that is prev 1.1.1*/
+        if (incomingClusterName != null && !incomingClusterName.equals(this.clusterName)) {
+            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", newClusterState.nodes().masterNode(), incomingClusterName);
+            newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
+            return;
+        }
+        logger.debug("received cluster state from [{}] which is also master but with cluster name [{}]",  newClusterState.nodes().masterNode(), incomingClusterName);
         if (master) {
             final ClusterState newState = newClusterState;
             clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {

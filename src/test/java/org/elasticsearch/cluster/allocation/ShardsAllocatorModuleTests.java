@@ -58,7 +58,7 @@ public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) {
-        while (cluster().size() != 0) {
+        while (immutableCluster().size() != 0) {
             cluster().stopRandomNode();     
         }
         cluster().startNode(settings);

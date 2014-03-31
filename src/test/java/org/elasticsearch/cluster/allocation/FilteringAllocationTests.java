@@ -45,7 +45,7 @@ public class FilteringAllocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> starting 2 nodes");
         final String node_0 = cluster().startNode();
         final String node_1 = cluster().startNode();
-        assertThat(cluster().size(), equalTo(2));
+        assertThat(immutableCluster().size(), equalTo(2));
         
         logger.info("--> creating an index with no replicas");
         client().admin().indices().prepareCreate("test")
@@ -84,7 +84,7 @@ public class FilteringAllocationTests extends ElasticsearchIntegrationTest {
         logger.info("--> starting 2 nodes");
         final String node_0 = cluster().startNode();
         final String node_1 = cluster().startNode();
-        assertThat(cluster().size(), equalTo(2));
+        assertThat(immutableCluster().size(), equalTo(2));
 
         logger.info("--> creating an index with no replicas");
         client().admin().indices().prepareCreate("test")

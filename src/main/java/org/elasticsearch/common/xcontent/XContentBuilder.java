@@ -39,7 +39,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
+import java.math.BigInteger;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
@@ -476,38 +476,26 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder field(String name, BigDecimal value) throws IOException {
-        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
-    }
-
-    public XContentBuilder field(XContentBuilderString name, BigDecimal value) throws IOException {
-        return field(name, value, value.scale(), RoundingMode.HALF_UP, true);
-    }
-
-    public XContentBuilder field(String name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
         field(name);
-        if (toDouble) {
-            try {
-                generator.writeNumber(value.setScale(scale, rounding).doubleValue());
-            } catch (ArithmeticException e) {
-                generator.writeString(value.toEngineeringString());
-            }
-        } else {
-            generator.writeString(value.toEngineeringString());
-        }
+        generator.writeNumber(value);
         return this;
     }
 
-    public XContentBuilder field(XContentBuilderString name, BigDecimal value, int scale, RoundingMode rounding, boolean toDouble) throws IOException {
+    public XContentBuilder field(XContentBuilderString name, BigDecimal value) throws IOException {
         field(name);
-        if (toDouble) {
-            try {
-                generator.writeNumber(value.setScale(scale, rounding).doubleValue());
-            } catch (ArithmeticException e) {
-                generator.writeString(value.toEngineeringString());
-            }
-        } else {
-            generator.writeString(value.toEngineeringString());
-        }
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder field(String name, BigInteger value) throws IOException {
+        field(name);
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder field(XContentBuilderString name, BigInteger value) throws IOException {
+        field(name);
+        generator.writeNumber(value);
         return this;
     }
 
@@ -960,6 +948,22 @@ public final class XContentBuilder implements BytesStream {
     }
 
     public XContentBuilder value(double value) throws IOException {
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder value(BigDecimal value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
+        generator.writeNumber(value);
+        return this;
+    }
+
+    public XContentBuilder value(BigInteger value) throws IOException {
+        if (value == null) {
+            return nullValue();
+        }
         generator.writeNumber(value);
         return this;
     }

@@ -31,6 +31,9 @@ import java.util.*;
  */
 public abstract class AbstractXContentParser implements XContentParser {
 
+    // for parsing BigInteger/BigDecimal
+    protected boolean losslessDecimals;
+
     //Currently this is not a setting that can be changed and is a policy 
     // that relates to how parsing of things like "boost" are done across
     // the whole of Elasticsearch (eg if String "1.0" is a valid float).
@@ -187,6 +190,17 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract double doDoubleValue() throws IOException;
 
     @Override
+    public XContentParser losslessDecimals(boolean losslessDecimals) {
+        this.losslessDecimals = losslessDecimals;
+        return this;
+    }
+
+    @Override
+    public boolean isLosslessDecimals() {
+        return losslessDecimals;
+    }
+
+    @Override
     public String textOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
@@ -286,29 +300,33 @@ public abstract class AbstractXContentParser implements XContentParser {
         return list;
     }
 
-    private static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
-        if (t == XContentParser.Token.VALUE_NULL) {
+    private static Object readValue(XContentParser parser, MapFactory mapFactory, Token t) throws IOException {
+        if (t == Token.VALUE_NULL) {
             return null;
-        } else if (t == XContentParser.Token.VALUE_STRING) {
+        } else if (t == Token.VALUE_STRING) {
             return parser.text();
-        } else if (t == XContentParser.Token.VALUE_NUMBER) {
-            XContentParser.NumberType numberType = parser.numberType();
-            if (numberType == XContentParser.NumberType.INT) {
-                return parser.intValue();
-            } else if (numberType == XContentParser.NumberType.LONG) {
-                return parser.longValue();
-            } else if (numberType == XContentParser.NumberType.FLOAT) {
-                return parser.floatValue();
-            } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                return parser.doubleValue();
+        } else if (t == Token.VALUE_NUMBER) {
+            NumberType numberType = parser.numberType();
+            if (numberType == NumberType.INT) {
+                return parser.isLosslessDecimals() ? parser.bigIntegerValue() : parser.intValue();
+            } else if (numberType == NumberType.LONG) {
+                return  parser.isLosslessDecimals() ? parser.bigIntegerValue() : parser.longValue();
+            } else if (numberType == NumberType.FLOAT) {
+                return parser.isLosslessDecimals() ? parser.bigDecimalValue() : parser.floatValue();
+            } else if (numberType == NumberType.DOUBLE) {
+                return parser.isLosslessDecimals() ? parser.bigDecimalValue() : parser.doubleValue();
+            } else if (numberType == NumberType.BIG_INTEGER) {
+                return parser.bigIntegerValue();
+            } else if (numberType == NumberType.BIG_DECIMAL) {
+                return parser.bigDecimalValue();
             }
-        } else if (t == XContentParser.Token.VALUE_BOOLEAN) {
+        } else if (t == Token.VALUE_BOOLEAN) {
             return parser.booleanValue();
-        } else if (t == XContentParser.Token.START_OBJECT) {
+        } else if (t == Token.START_OBJECT) {
             return readMap(parser, mapFactory);
-        } else if (t == XContentParser.Token.START_ARRAY) {
+        } else if (t == Token.START_ARRAY) {
             return readList(parser, mapFactory, t);
-        } else if (t == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+        } else if (t == Token.VALUE_EMBEDDED_OBJECT) {
             return parser.binaryValue();
         }
         return null;

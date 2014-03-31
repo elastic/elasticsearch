@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 
 /**
  *
@@ -140,6 +142,16 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeNumber(BigInteger bi) throws IOException {
+        generator.writeNumber(bi);
+    }
+
+    @Override
+    public void writeNumber(BigDecimal bd) throws IOException {
+        generator.writeNumber(bd);
+    }
+
+    @Override
     public void writeBoolean(boolean state) throws IOException {
         generator.writeBoolean(state);
     }
@@ -222,6 +234,29 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public void writeNumberField(XContentString fieldName, float value) throws IOException {
+        generator.writeFieldName(fieldName);
+        generator.writeNumber(value);
+    }
+
+    @Override
+    public void writeNumberField(String fieldName, BigInteger value) throws IOException {
+        generator.writeFieldName(fieldName);
+        generator.writeNumber(value);
+    }
+
+    @Override
+    public void writeNumberField(XContentString fieldName, BigInteger value) throws IOException {
+        generator.writeFieldName(fieldName);
+        generator.writeNumber(value);
+    }
+
+    @Override
+    public void writeNumberField(String fieldName, BigDecimal value) throws IOException {
+        generator.writeNumberField(fieldName, value);
+    }
+
+    @Override
+    public void writeNumberField(XContentString fieldName, BigDecimal value) throws IOException {
         generator.writeFieldName(fieldName);
         generator.writeNumber(value);
     }

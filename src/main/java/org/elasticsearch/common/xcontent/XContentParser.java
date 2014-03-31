@@ -23,6 +23,8 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Map;
 
 /**
@@ -106,7 +108,7 @@ public interface XContentParser extends Closeable {
     }
 
     enum NumberType {
-        INT, LONG, FLOAT, DOUBLE
+        INT, LONG, FLOAT, DOUBLE, BIG_INTEGER, BIG_DECIMAL
     }
 
     XContentType contentType();
@@ -176,6 +178,22 @@ public interface XContentParser extends Closeable {
     float floatValue() throws IOException;
 
     double doubleValue() throws IOException;
+
+    /**
+     * Lossless decimals means prefering BigInteger instead of int/long
+     * and BigDecimal instead of float/double.
+     * By default, lossless decimal mode is disabled, so BigInteger and
+     * BigDecimal are used only when necessary.
+     *
+     * @param b true if lossless decimal mode should be enabled
+     */
+    XContentParser losslessDecimals(boolean b);
+
+    boolean isLosslessDecimals();
+
+    BigInteger bigIntegerValue() throws IOException;
+
+    BigDecimal bigDecimalValue() throws IOException;
 
     /**
      * returns true if the current value is boolean in nature.

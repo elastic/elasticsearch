@@ -24,6 +24,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 
 /**
  *
@@ -66,6 +68,10 @@ public interface XContentGenerator {
 
     void writeNumber(float f) throws IOException;
 
+    void writeNumber(BigDecimal bd) throws IOException;
+
+    void writeNumber(BigInteger bi) throws IOException;
+
     void writeBoolean(boolean state) throws IOException;
 
     void writeNull() throws IOException;
@@ -98,6 +104,14 @@ public interface XContentGenerator {
     void writeNumberField(String fieldName, float value) throws IOException;
 
     void writeNumberField(XContentString fieldName, float value) throws IOException;
+
+    void writeNumberField(String fieldName, BigInteger value) throws IOException;
+
+    void writeNumberField(XContentString fieldName, BigInteger value) throws IOException;
+
+    void writeNumberField(String fieldName, BigDecimal value) throws IOException;
+
+    void writeNumberField(XContentString fieldName, BigDecimal value) throws IOException;
 
     void writeBinaryField(String fieldName, byte[] data) throws IOException;
 

@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 
 /**
  *
@@ -154,6 +156,16 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
+    public BigInteger bigIntegerValue() throws IOException {
+        return parser.getBigIntegerValue();
+    }
+
+    @Override
+    public BigDecimal bigDecimalValue() throws IOException {
+        return parser.getDecimalValue();
+    }
+
+    @Override
     public short doShortValue() throws IOException {
         return parser.getShortValue();
     }
@@ -202,6 +214,10 @@ public class JsonXContentParser extends AbstractXContentParser {
                 return NumberType.FLOAT;
             case DOUBLE:
                 return NumberType.DOUBLE;
+            case BIG_INTEGER:
+                return NumberType.BIG_INTEGER;
+            case BIG_DECIMAL:
+                return NumberType.BIG_DECIMAL;
         }
         throw new ElasticsearchIllegalStateException("No matching token for number_type [" + numberType + "]");
     }

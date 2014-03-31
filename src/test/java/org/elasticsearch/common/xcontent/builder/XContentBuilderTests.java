@@ -31,6 +31,8 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
@@ -200,5 +202,90 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         map.put("calendar", calendar);
         builder.map(map);
         assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
+    }
+
+    @Test
+    public void testBigDecimal() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("value", new BigDecimal("57683974591503.00")).endObject();
+        assertThat(builder.string(), equalTo("{\"value\":57683974591503.00}"));
+
+        XContentType contentType = XContentFactory.xContentType(builder.string());
+        Map<String,Object> map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(true)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=57683974591503.00}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigDecimal"));
+
+        map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(false)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=5.7683974591503E13}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.lang.Double"));
+    }
+
+    @Test
+    public void testBigInteger() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("value", new BigInteger("1234567891234567890123456789")).endObject();
+        assertThat(builder.string(), equalTo("{\"value\":1234567891234567890123456789}"));
+
+        XContentType contentType = XContentFactory.xContentType(builder.string());
+        Map<String,Object> map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(true)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=1234567891234567890123456789}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigInteger"));
+
+        map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(false)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=1234567891234567890123456789}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigInteger"));
+    }
+
+    @Test
+    public void testLosslessDecimal() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("value", new BigInteger("1234")).endObject();
+        assertThat(builder.string(), equalTo("{\"value\":1234}"));
+
+        XContentType contentType = XContentFactory.xContentType(builder.string());
+        Map<String,Object> map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(true)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=1234}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigInteger"));
+
+        map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(false)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=1234}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.lang.Integer"));
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("value", new BigDecimal("12.34")).endObject();
+        assertThat(builder.string(), equalTo("{\"value\":12.34}"));
+
+        contentType = XContentFactory.xContentType(builder.string());
+        map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(true)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=12.34}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigDecimal"));
+
+        map = XContentFactory.xContent(contentType)
+                .createParser(builder.string())
+                .losslessDecimals(false)
+                .mapAndClose();
+        assertThat(map.toString(), equalTo("{value=12.34}"));
+        assertThat(map.get("value").getClass().toString(), equalTo("class java.lang.Double"));
     }
 }

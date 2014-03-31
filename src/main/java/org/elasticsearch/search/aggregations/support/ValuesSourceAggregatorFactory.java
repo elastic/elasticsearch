@@ -19,16 +19,22 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 /**
  *
  */
-public abstract class ValueSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory implements ValuesSourceBased {
+public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> extends AggregatorFactory {
 
-    public static abstract class LeafOnly<VS extends ValuesSource> extends ValueSourceAggregatorFactory<VS> {
+    public static abstract class LeafOnly<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
 
         protected LeafOnly(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig) {
             super(name, type, valuesSourceConfig);
+        }
+
+        protected LeafOnly(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig, ValueFormatter formatter, ValueParser parser) {
+            super(name, type, valuesSourceConfig, formatter, parser);
         }
 
         @Override
@@ -37,31 +43,34 @@ public abstract class ValueSourceAggregatorFactory<VS extends ValuesSource> exte
         }
     }
 
-    protected ValuesSourceConfig<VS> valuesSourceConfig;
+    protected ValuesSourceConfig<VS> config;
+    protected ValueFormatter formatter;
+    protected ValueParser parser;
 
-    protected ValueSourceAggregatorFactory(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig) {
-        super(name, type);
-        this.valuesSourceConfig = valuesSourceConfig;
+    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceConfig<VS> config) {
+        this(name, type, config, null, null);
     }
 
-    @Override
-    public ValuesSourceConfig valuesSourceConfig() {
-        return valuesSourceConfig;
+    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceConfig<VS> config, ValueFormatter formatter, ValueParser parser) {
+        super(name, type);
+        this.config = config;
+        this.formatter = formatter;
+        this.parser = parser;
     }
 
     @Override
     public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
-        if (valuesSourceConfig.unmapped()) {
+        if (config.unmapped()) {
             return createUnmapped(context, parent);
         }
-        VS vs = context.valuesSource(valuesSourceConfig, parent == null ? 0 : 1 + parent.depth());
+        VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
         return create(vs, expectedBucketsCount, context, parent);
     }
 
     @Override
     public void doValidate() {
-        if (valuesSourceConfig == null || !valuesSourceConfig.valid()) {
-            valuesSourceConfig = resolveValuesSourceConfigFromAncestors(name, parent, valuesSourceConfig.valueSourceType());
+        if (config == null || !config.valid()) {
+            resolveValuesSourceConfigFromAncestors(name, parent, config.valueSourceType());
         }
     }
 
@@ -69,14 +78,17 @@ public abstract class ValueSourceAggregatorFactory<VS extends ValuesSource> exte
 
     protected abstract Aggregator create(VS valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent);
 
-    private static <VS extends ValuesSource> ValuesSourceConfig<VS> resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
+    private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
         ValuesSourceConfig config;
         while (parent != null) {
-            if (parent instanceof ValuesSourceBased) {
-                config = ((ValuesSourceBased) parent).valuesSourceConfig();
+            if (parent instanceof ValuesSourceAggregatorFactory) {
+                config = ((ValuesSourceAggregatorFactory) parent).config;
                 if (config != null && config.valid()) {
-                    if (requiredValuesSourceType == null || requiredValuesSourceType.isAssignableFrom(config.valueSourceType())) {
-                        return (ValuesSourceConfig<VS>) config;
+                    if (requiredValuesSourceType == null || requiredValuesSourceType.isAssignableFrom(config.valueSourceType)) {
+                        this.config = config;
+                        this.formatter = ((ValuesSourceAggregatorFactory) parent).formatter;
+                        this.parser = ((ValuesSourceAggregatorFactory) parent).parser;
+                        return;
                     }
                 }
             }

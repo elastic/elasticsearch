@@ -26,9 +26,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
 
 import java.io.IOException;
 
@@ -40,13 +40,13 @@ import java.io.IOException;
  */
 public class ValueCountAggregator extends MetricsAggregator.SingleValue {
 
-    private final BytesValuesSource valuesSource;
+    private final ValuesSource.Bytes valuesSource;
     private BytesValues values;
 
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, long expectedBucketsCount, BytesValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent) {
+    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource.Bytes valuesSource, AggregationContext aggregationContext, Aggregator parent) {
         super(name, 0, aggregationContext, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -96,9 +96,9 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
         Releasables.release(counts);
     }
 
-    public static class Factory extends ValueSourceAggregatorFactory.LeafOnly<BytesValuesSource> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Bytes> {
 
-        public Factory(String name, ValuesSourceConfig<BytesValuesSource> valuesSourceBuilder) {
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Bytes> valuesSourceBuilder) {
             super(name, InternalValueCount.TYPE.name(), valuesSourceBuilder);
         }
 
@@ -108,7 +108,7 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(BytesValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource.Bytes valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
 

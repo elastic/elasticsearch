@@ -20,14 +20,15 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,14 +43,16 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     private final int requiredSize;
     private final int shardSize;
     private final long minDocCount;
-    private final NumericValuesSource valuesSource;
+    private final ValuesSource.Numeric valuesSource;
+    private final ValueFormatter formatter;
     private final LongHash bucketOrds;
     private DoubleValues values;
 
-    public DoubleTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource, long estimatedBucketCount,
+    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormatter formatter, long estimatedBucketCount,
                                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
+        this.formatter = formatter;
         this.order = InternalOrder.validate(order, this);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -127,12 +130,12 @@ public class DoubleTermsAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new DoubleTerms(name, order, valuesSource.formatter(), requiredSize, minDocCount, Arrays.asList(list));
+        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Arrays.asList(list));
     }
 
     @Override
     public DoubleTerms buildEmptyAggregation() {
-        return new DoubleTerms(name, order, valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
+        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override

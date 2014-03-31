@@ -28,10 +28,9 @@ import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -97,7 +96,7 @@ public class CardinalityParser implements Aggregator.Parser {
         ValuesSourceConfig<?> config = null;
 
         if (script != null) {
-            config = new ValuesSourceConfig<>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
             config.script(context.scriptService().search(context.lookup(), scriptLang, script, scriptParams));
         }
 
@@ -105,9 +104,9 @@ public class CardinalityParser implements Aggregator.Parser {
             FieldMapper<?> mapper = context.smartNameFieldMapper(field);
             if (config == null) {
                 if (mapper instanceof NumberFieldMapper) {
-                    config = new ValuesSourceConfig<>(NumericValuesSource.class);
+                    config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
                 } else {
-                    config = new ValuesSourceConfig<>(BytesValuesSource.class);
+                    config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
                     if (mapper == null) {
                         config.unmapped(true);
                     }
@@ -121,7 +120,7 @@ public class CardinalityParser implements Aggregator.Parser {
                 config.fieldContext(new FieldContext(field, indexFieldData));
             }
         } else if (config == null) {
-            config = new ValuesSourceConfig<>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
         }
 
         if (rehash == null) {

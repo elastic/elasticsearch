@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.support.bytes;
+package org.elasticsearch.search.aggregations.support.values;
 
 import com.google.common.collect.Iterators;
 import org.apache.lucene.util.BytesRef;

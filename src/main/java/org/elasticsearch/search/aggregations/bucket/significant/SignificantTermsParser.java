@@ -30,12 +30,11 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -167,36 +166,36 @@ public class SignificantTermsParser implements Aggregator.Parser {
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
-            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(BytesValuesSource.class);
+            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
             config.unmapped(true);
-            return new SignificantTermsAggregatorFactory(aggregationName, config, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+            return new SignificantTermsAggregatorFactory(aggregationName, config, null, null, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
         }
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
 
         ValuesSourceConfig<?> config;
-
+        ValueFormatter valueFormatter = null;
+        ValueParser valueParser = null;
         if (mapper instanceof DateFieldMapper) {
             DateFieldMapper dateMapper = (DateFieldMapper) mapper;
-            ValueFormatter formatter = format == null ?
+            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
+            valueFormatter = format == null ?
                     new ValueFormatter.DateTime(dateMapper.dateTimeFormatter()) :
                     new ValueFormatter.DateTime(format);
-            config = new ValuesSourceConfig<>(NumericValuesSource.class)
-                    .formatter(formatter)
-                    .parser(new ValueParser.DateMath(dateMapper.dateMathParser()));
+            valueParser = new ValueParser.DateMath(dateMapper.dateMathParser());
 
         } else if (mapper instanceof IpFieldMapper) {
-            config = new ValuesSourceConfig<>(NumericValuesSource.class)
-                    .formatter(ValueFormatter.IPv4)
-                    .parser(ValueParser.IPv4);
+            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
+            valueFormatter = ValueFormatter.IPv4;
+            valueParser = ValueParser.IPv4;
 
         } else if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(NumericValuesSource.class);
+            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
             if (format != null) {
-                config.formatter(new ValueFormatter.Number.Pattern(format));
+                valueFormatter = new ValueFormatter.Number.Pattern(format);
             }
 
         } else {
-            config = new ValuesSourceConfig<>(BytesValuesSource.class);
+            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
             // TODO: it will make sense to set false instead here if the aggregator factory uses
             // ordinals instead of hash tables
             config.needsHashes(true);
@@ -206,7 +205,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         // We need values to be unique to be able to run terms aggs efficiently
         config.ensureUnique(true);
 
-        return new SignificantTermsAggregatorFactory(aggregationName, config, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+        return new SignificantTermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
     }
 
 }

@@ -26,10 +26,11 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -50,7 +51,7 @@ public class HistogramParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
+        ValuesSourceConfig<ValuesSource.Numeric> config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
 
         String field = null;
         String script = null;
@@ -76,8 +77,6 @@ public class HistogramParser implements Aggregator.Parser {
                     script = parser.text();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
-                } else if ("format".equals(currentFieldName)) {
-                    format = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -157,23 +156,22 @@ public class HistogramParser implements Aggregator.Parser {
         }
 
         if (field == null) {
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, null, null, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
+            return new HistogramAggregator.Factory(aggregationName, config, null, null, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
         }
 
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
 
-        if (format != null) {
-            config.formatter(new ValueFormatter.Number.Pattern(format));
-        }
+        ValueFormatter valueFormatter = format == null ? ValueFormatter.RAW : new ValueFormatter.Number.Pattern(format);
+        ValueParser valueParser = format == null ? ValueParser.RAW : new ValueParser.Number.Pattern(format);
 
-        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
+        return new HistogramAggregator.Factory(aggregationName, config, valueFormatter, valueParser, rounding, order, keyed, minDocCount, extendedBounds, InternalHistogram.FACTORY);
 
     }
 

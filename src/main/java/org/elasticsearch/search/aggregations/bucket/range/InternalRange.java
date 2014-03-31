@@ -29,8 +29,8 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatterStreams;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.*;
@@ -64,16 +64,9 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         private long docCount;
         InternalAggregations aggregations;
         private String key;
-        private boolean explicitKey;
 
         public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-            if (key != null) {
-                this.key = key;
-                explicitKey = true;
-            } else {
-                this.key = key(from, to, formatter);
-                explicitKey = false;
-            }
+            this.key = key != null ? key : key(from, to, formatter);
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -135,9 +128,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
                 builder.startObject(key);
             } else {
                 builder.startObject();
-                if (explicitKey) {
-                    builder.field(CommonFields.KEY, key);
-                }
+                builder.field(CommonFields.KEY, key);
             }
             if (!Double.isInfinite(from)) {
                 builder.field(CommonFields.FROM, from);

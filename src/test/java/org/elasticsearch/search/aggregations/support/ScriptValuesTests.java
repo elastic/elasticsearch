@@ -24,9 +24,9 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.bytes.ScriptBytesValues;
-import org.elasticsearch.search.aggregations.support.numeric.ScriptDoubleValues;
-import org.elasticsearch.search.aggregations.support.numeric.ScriptLongValues;
+import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
+import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
+import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

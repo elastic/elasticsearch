@@ -31,8 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.*;
-import org.elasticsearch.search.aggregations.support.geopoints.GeoPointValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -178,7 +177,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
             throw new SearchParseException(context, "Missing [origin] in geo_distance aggregator [" + aggregationName + "]");
         }
 
-        ValuesSourceConfig<GeoPointValuesSource> config = new ValuesSourceConfig<>(GeoPointValuesSource.class);
+        ValuesSourceConfig<ValuesSource.GeoPoint> config = new ValuesSourceConfig<>(ValuesSource.GeoPoint.class);
 
         if (field == null) {
             return new GeoDistanceFactory(aggregationName, config, InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
@@ -195,7 +194,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         return new GeoDistanceFactory(aggregationName, config, InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
     }
 
-    private static class GeoDistanceFactory extends ValueSourceAggregatorFactory<GeoPointValuesSource> {
+    private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
         private final GeoPoint origin;
         private final DistanceUnit unit;
@@ -204,7 +203,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         private final List<RangeAggregator.Range> ranges;
         private final boolean keyed;
 
-        public GeoDistanceFactory(String name, ValuesSourceConfig<GeoPointValuesSource> valueSourceConfig,
+        public GeoDistanceFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> valueSourceConfig,
                                   InternalRange.Factory rangeFactory, GeoPoint origin, DistanceUnit unit, GeoDistance distanceType,
                                   List<RangeAggregator.Range> ranges, boolean keyed) {
             super(name, rangeFactory.type(), valueSourceConfig);
@@ -218,30 +217,29 @@ public class GeoDistanceParser implements Aggregator.Parser {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new Unmapped(name, ranges, keyed, valuesSourceConfig.formatter(), valuesSourceConfig.parser(), aggregationContext, parent, rangeFactory);
+            return new Unmapped(name, ranges, keyed, null, null, aggregationContext, parent, rangeFactory);
         }
 
         @Override
-        protected Aggregator create(final GeoPointValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final DistanceValues distanceValues = new DistanceValues(valuesSource, distanceType, origin, unit);
-            FieldDataSource.Numeric distanceSource = new DistanceSource(distanceValues, valuesSource.metaData());
+            ValuesSource.Numeric distanceSource = new DistanceSource(distanceValues, valuesSource.metaData());
             if (distanceSource.metaData().multiValued()) {
                 // we need to ensure uniqueness
-                distanceSource = new FieldDataSource.Numeric.SortedAndUnique(distanceSource);
+                distanceSource = new ValuesSource.Numeric.SortedAndUnique(distanceSource);
             }
-            final NumericValuesSource numericSource = new NumericValuesSource(distanceSource, null, null);
-            return new RangeAggregator(name, factories, numericSource, rangeFactory, ranges, keyed, aggregationContext, parent);
+            return new RangeAggregator(name, factories, distanceSource, null, null, rangeFactory, ranges, keyed, aggregationContext, parent);
         }
 
         private static class DistanceValues extends DoubleValues {
 
-            private final GeoPointValuesSource geoPointValues;
+            private final ValuesSource.GeoPoint geoPointValues;
             private GeoPointValues geoValues;
             private final GeoDistance distanceType;
             private final GeoPoint origin;
             private final DistanceUnit unit;
 
-            protected DistanceValues(GeoPointValuesSource geoPointValues, GeoDistance distanceType, GeoPoint origin, DistanceUnit unit) {
+            protected DistanceValues(ValuesSource.GeoPoint geoPointValues, GeoDistance distanceType, GeoPoint origin, DistanceUnit unit) {
                 super(true);
                 this.geoPointValues = geoPointValues;
                 this.distanceType = distanceType;
@@ -251,7 +249,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
 
             @Override
             public int setDocument(int docId) {
-                geoValues = geoPointValues.values();
+                geoValues = geoPointValues.geoPointValues();
                 return geoValues.setDocument(docId);
             }
 
@@ -263,7 +261,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
 
         }
 
-        private static class DistanceSource extends FieldDataSource.Numeric {
+        private static class DistanceSource extends ValuesSource.Numeric {
 
             private final DoubleValues values;
             private final MetaData metaData;

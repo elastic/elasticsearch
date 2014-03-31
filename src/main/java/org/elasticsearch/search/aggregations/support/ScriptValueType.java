@@ -19,17 +19,14 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-
 /**
  *
  */
 public enum ScriptValueType {
 
-    STRING(BytesValuesSource.class),
-    LONG(NumericValuesSource.class),
-    DOUBLE(NumericValuesSource.class);
+    STRING(ValuesSource.Bytes.class),
+    LONG(ValuesSource.Numeric.class),
+    DOUBLE(ValuesSource.Numeric.class);
 
     final Class<? extends ValuesSource> valuesSourceType;
 

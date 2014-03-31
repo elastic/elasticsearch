@@ -19,8 +19,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
 
 /**
  *
@@ -30,8 +28,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     final Class<VS> valueSourceType;
     FieldContext fieldContext;
     SearchScript script;
-    ValueFormatter formatter;
-    ValueParser parser;
     ScriptValueType scriptValueType;
     boolean unmapped = false;
     boolean needsHashes = false;
@@ -66,24 +62,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     public ValuesSourceConfig<VS> script(SearchScript script) {
         this.script = script;
         return this;
-    }
-
-    public ValuesSourceConfig<VS> formatter(ValueFormatter formatter) {
-        this.formatter = formatter;
-        return this;
-    }
-
-    public ValueFormatter formatter() {
-        return formatter;
-    }
-
-    public ValuesSourceConfig<VS> parser(ValueParser parser) {
-        this.parser = parser;
-        return this;
-    }
-
-    public ValueParser parser() {
-        return parser;
     }
 
     public ValuesSourceConfig<VS> scriptValueType(ScriptValueType scriptValueType) {

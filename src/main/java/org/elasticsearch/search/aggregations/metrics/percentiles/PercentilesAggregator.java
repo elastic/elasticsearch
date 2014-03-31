@@ -24,9 +24,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
 
 import java.io.IOException;
 
@@ -35,14 +35,14 @@ import java.io.IOException;
  */
 public class PercentilesAggregator extends MetricsAggregator.MultiValue {
 
-    private final NumericValuesSource valuesSource;
+    private final ValuesSource.Numeric valuesSource;
     private DoubleValues values;
 
     private final PercentilesEstimator estimator;
     private final boolean keyed;
 
 
-    public PercentilesAggregator(String name, long estimatedBucketsCount, NumericValuesSource valuesSource, AggregationContext context,
+    public PercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
                                  Aggregator parent, PercentilesEstimator estimator, boolean keyed) {
         super(name, estimatedBucketsCount, context, parent);
         this.valuesSource = valuesSource;
@@ -96,13 +96,13 @@ public class PercentilesAggregator extends MetricsAggregator.MultiValue {
         estimator.release();
     }
 
-    public static class Factory extends ValueSourceAggregatorFactory.LeafOnly<NumericValuesSource> {
+    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         private final PercentilesEstimator.Factory estimatorFactory;
         private final double[] percents;
         private final boolean keyed;
 
-        public Factory(String name, ValuesSourceConfig<NumericValuesSource> valuesSourceConfig,
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
                        double[] percents, PercentilesEstimator.Factory estimatorFactory, boolean keyed) {
             super(name, InternalPercentiles.TYPE.name(), valuesSourceConfig);
             this.estimatorFactory = estimatorFactory;
@@ -116,7 +116,7 @@ public class PercentilesAggregator extends MetricsAggregator.MultiValue {
         }
 
         @Override
-        protected Aggregator create(NumericValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             PercentilesEstimator estimator = estimatorFactory.create(percents, expectedBucketsCount, aggregationContext);
             return new PercentilesAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, estimator, keyed);
         }

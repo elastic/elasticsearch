@@ -25,8 +25,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -69,7 +69,7 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations());
     }
 
-    public static class Factory extends ValueSourceAggregatorFactory {
+    public static class Factory extends ValuesSourceAggregatorFactory {
 
         public Factory(String name, ValuesSourceConfig valueSourceConfig) {
             super(name, InternalMissing.TYPE.name(), valueSourceConfig);

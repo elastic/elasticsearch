@@ -24,7 +24,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -36,11 +37,11 @@ import java.util.Collections;
  */
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
-    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
+    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
               long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+        super(name, factories, valuesSource, formatter, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -96,7 +97,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new SignificantLongTerms(subsetSize, supersetSize, name, valuesSource.formatter(), requiredSize, minDocCount,
+        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, requiredSize, minDocCount,
                 Arrays.asList(list));
     }
 
@@ -106,7 +107,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantLongTerms(0, supersetSize, name, valuesSource.formatter(), requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantLongTerms(0, supersetSize, name, formatter, requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override

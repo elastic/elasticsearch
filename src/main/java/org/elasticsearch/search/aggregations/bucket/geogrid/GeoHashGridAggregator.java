@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,11 +44,11 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
     private final int requiredSize;
     private final int shardSize;
-    private final NumericValuesSource valuesSource;
+    private final ValuesSource.Numeric valuesSource;
     private final LongHash bucketOrds;
     private LongValues values;
 
-    public GeoHashGridAggregator(String name, AggregatorFactories factories, NumericValuesSource valuesSource,
+    public GeoHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
                               int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, INITIAL_CAPACITY, aggregationContext, parent);
         this.valuesSource = valuesSource;

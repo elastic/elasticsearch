@@ -155,7 +155,7 @@ public class NettyHttpChannel implements HttpChannel {
         }
 
         ChannelFuture future = channel.write(resp);
-        if (content instanceof Releasable) {
+        if (response.contentThreadSafe() && content instanceof Releasable) {
             future.addListener(new ReleaseChannelFutureListener((Releasable) content));
         }
         if (close) {

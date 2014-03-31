@@ -941,7 +941,6 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
                 .put(SETTING_NUMBER_OF_SHARDS, 1) // A single shard will help to keep the tests repeatable.
-                .put(SETTING_NUMBER_OF_REPLICAS, between(0, cluster().size() - 1))
                 .put("index.analysis.analyzer.text.tokenizer", "standard")
                 .putArray("index.analysis.analyzer.text.filter", "lowercase", "my_shingle")
                 .put("index.analysis.filter.my_shingle.type", "shingle")

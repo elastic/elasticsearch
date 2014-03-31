@@ -72,7 +72,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     // empty body, if indices were specified but no aliases were
                     if (indices.length > 0 && response.getAliases().isEmpty()) {
-                        channel.sendResponse(new XContentRestResponse(request, OK, RestXContentBuilder.emptyBuilder(request)));
+                        channel.sendResponse(new BytesRestResponse(OK, RestXContentBuilder.emptyBuilder(request)));
                         return;
                     } else if (response.getAliases().isEmpty()) {
                         String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
@@ -80,7 +80,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                                 .field("error", message)
                                 .field("status", RestStatus.NOT_FOUND.getStatus())
                                 .endObject();
-                        channel.sendResponse(new XContentRestResponse(request, RestStatus.NOT_FOUND, builder));
+                        channel.sendResponse(new BytesRestResponse(RestStatus.NOT_FOUND, builder));
                         return;
                     }
 
@@ -95,7 +95,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                         builder.endObject();
                     }
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new BytesRestResponse(OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -104,7 +104,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

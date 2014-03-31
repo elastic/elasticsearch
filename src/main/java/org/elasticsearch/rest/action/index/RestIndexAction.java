@@ -88,7 +88,7 @@ public class RestIndexAction extends BaseRestHandler {
             } else {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    channel.sendResponse(new XContentRestResponse(request, BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
+                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
@@ -119,7 +119,7 @@ public class RestIndexAction extends BaseRestHandler {
                     if (response.isCreated()) {
                         status = CREATED;
                     }
-                    channel.sendResponse(new XContentRestResponse(request, status, builder));
+                    channel.sendResponse(new BytesRestResponse(status, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -128,7 +128,7 @@ public class RestIndexAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

@@ -55,7 +55,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -67,7 +67,7 @@ public class RestPendingClusterTasksAction extends BaseRestHandler {
                     logger.debug("failed to get pending cluster tasks", e);
                 }
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

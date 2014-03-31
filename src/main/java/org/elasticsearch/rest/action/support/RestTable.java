@@ -58,7 +58,7 @@ public class RestTable {
 
         }
         builder.endArray();
-        return new XContentRestResponse(request, RestStatus.OK, builder);
+        return new BytesRestResponse(RestStatus.OK, builder);
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestRequest request, RestChannel channel) {
@@ -86,7 +86,7 @@ public class RestTable {
             out.append("\n");
         }
 
-        return new StringRestResponse(RestStatus.OK, out.toString());
+        return new BytesRestResponse(RestStatus.OK, out.toString());
     }
 
     private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {

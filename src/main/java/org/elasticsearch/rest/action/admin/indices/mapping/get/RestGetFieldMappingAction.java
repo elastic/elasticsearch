@@ -76,7 +76,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
                     boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
                     if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                        channel.sendResponse(new XContentRestResponse(request, OK, emptyBuilder(request)));
+                        channel.sendResponse(new BytesRestResponse(OK, emptyBuilder(request)));
                         return;
                     }
 
@@ -89,7 +89,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, status, builder));
+                    channel.sendResponse(new BytesRestResponse(status, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -98,7 +98,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

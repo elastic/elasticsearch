@@ -132,17 +132,16 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     void handlePluginSite(HttpRequest request, HttpChannel channel) {
         if (disableSites) {
-            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
         }
         if (request.method() == RestRequest.Method.OPTIONS) {
             // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-            StringRestResponse response = new StringRestResponse(OK);
-            channel.sendResponse(response);
+            channel.sendResponse(new BytesRestResponse(OK));
             return;
         }
         if (request.method() != RestRequest.Method.GET) {
-            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
         }
         // TODO for a "/_plugin" endpoint, we should have a page that lists all the plugins?
@@ -155,7 +154,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             pluginName = path;
             sitePath = null;
             // If a trailing / is missing, we redirect to the right page #2654
-            channel.sendResponse(new HttpRedirectRestResponse(request.rawPath() + "/"));
+            channel.sendResponse(new BytesRestResponse(RestStatus.MOVED_PERMANENTLY, "text/html", "<head><meta http-equiv=\"refresh\" content=\"0; URL=" + request.rawPath() + "/\"></head>"));
             return;
         } else {
             pluginName = path.substring(0, i1);
@@ -173,31 +172,31 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         File siteFile = new File(new File(environment.pluginsFile(), pluginName), "_site");
         File file = new File(siteFile, sitePath);
         if (!file.exists() || file.isHidden()) {
-            channel.sendResponse(new StringRestResponse(NOT_FOUND));
+            channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
         if (!file.isFile()) {
             // If it's not a dir, we send a 403
             if (!file.isDirectory()) {
-                channel.sendResponse(new StringRestResponse(FORBIDDEN));
+                channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }
             // We don't serve dir but if index.html exists in dir we should serve it
             file = new File(file, "index.html");
             if (!file.exists() || file.isHidden() || !file.isFile()) {
-                channel.sendResponse(new StringRestResponse(FORBIDDEN));
+                channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }
         }
         if (!file.getAbsolutePath().startsWith(siteFile.getAbsolutePath())) {
-            channel.sendResponse(new StringRestResponse(FORBIDDEN));
+            channel.sendResponse(new BytesRestResponse(FORBIDDEN));
             return;
         }
         try {
             byte[] data = Streams.copyToByteArray(file);
-            channel.sendResponse(new BytesRestResponse(data, guessMimeType(sitePath)));
+            channel.sendResponse(new BytesRestResponse(OK, guessMimeType(sitePath), data));
         } catch (IOException e) {
-            channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
+            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR));
         }
     }
 

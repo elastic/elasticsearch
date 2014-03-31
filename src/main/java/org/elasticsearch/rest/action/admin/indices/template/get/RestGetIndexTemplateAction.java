@@ -80,7 +80,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
                     RestStatus restStatus = (templateExists || implicitAll) ? OK : NOT_FOUND;
 
-                    channel.sendResponse(new XContentRestResponse(request, restStatus, builder));
+                    channel.sendResponse(new BytesRestResponse(restStatus, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -89,7 +89,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

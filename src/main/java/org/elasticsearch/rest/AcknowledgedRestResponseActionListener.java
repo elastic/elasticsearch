@@ -44,7 +44,7 @@ public class AcknowledgedRestResponseActionListener<T extends AcknowledgedRespon
                     .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
             addCustomFields(builder, response);
             builder.endObject();
-            channel.sendResponse(new XContentRestResponse(request, OK, builder));
+            channel.sendResponse(new BytesRestResponse(OK, builder));
         } catch (IOException e) {
             onFailure(e);
         }

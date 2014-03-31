@@ -62,6 +62,10 @@ public class NettyHttpRequest extends HttpRequest {
         }
     }
 
+    public org.jboss.netty.handler.codec.http.HttpRequest request() {
+        return this.request;
+    }
+
     @Override
     public Method method() {
         HttpMethod httpMethod = request.getMethod();

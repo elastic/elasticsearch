@@ -115,7 +115,9 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
-    public static final String GLOBAL_PERSISTENT_ONLY_PARAM = "global_persistent_only";
+    public static final String GLOBAL_ONLY_PARAM = "global_only";
+
+    public static final String PERSISTENT_ONLY_PARAM = "persistent_only";
 
     private final String uuid;
     private final long version;
@@ -1231,7 +1233,8 @@ public class MetaData implements Iterable<IndexMetaData> {
         }
 
         public static void toXContent(MetaData metaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            boolean globalPersistentOnly = params.paramAsBoolean(GLOBAL_PERSISTENT_ONLY_PARAM, false);
+            boolean globalOnly = params.paramAsBoolean(GLOBAL_ONLY_PARAM, false);
+            boolean persistentOnly = params.paramAsBoolean(PERSISTENT_ONLY_PARAM, false);
             builder.startObject("meta-data");
 
             builder.field("version", metaData.version());
@@ -1245,7 +1248,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 builder.endObject();
             }
 
-            if (!globalPersistentOnly && !metaData.transientSettings().getAsMap().isEmpty()) {
+            if (!persistentOnly && !metaData.transientSettings().getAsMap().isEmpty()) {
                 builder.startObject("transient_settings");
                 for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
@@ -1259,7 +1262,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             builder.endObject();
 
-            if (!globalPersistentOnly && !metaData.indices().isEmpty()) {
+            if (!globalOnly && !metaData.indices().isEmpty()) {
                 builder.startObject("indices");
                 for (IndexMetaData indexMetaData : metaData) {
                     IndexMetaData.Builder.toXContent(indexMetaData, builder, params);
@@ -1269,7 +1272,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             for (ObjectObjectCursor<String, Custom> cursor : metaData.customs()) {
                 Custom.Factory factory = lookupFactorySafe(cursor.key);
-                if (!globalPersistentOnly || factory.isPersistent()) {
+                if (!persistentOnly || factory.isPersistent()) {
                     builder.startObject(cursor.key);
                     factory.toXContent(cursor.value, builder, params);
                     builder.endObject();

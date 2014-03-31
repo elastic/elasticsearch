@@ -33,7 +33,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 /**
  * Defines how to perform suggesting. This builders allows a number of global options to be specified and
- * an arbitrary number of {@link org.elasticsearch.search.suggest.SuggestBuilder.TermSuggestionBuilder} instances.
+ * an arbitrary number of {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instances.
  * <p/>
  * Suggesting works by suggesting terms that appear in the suggest text that are similar compared to the terms in
  * provided text. These spelling suggestions are based on several options described in this class.
@@ -66,7 +66,7 @@ public class SuggestBuilder implements ToXContent {
     }
 
     /**
-     * Adds an {@link org.elasticsearch.search.suggest.SuggestBuilder.TermSuggestionBuilder} instance under a user defined name.
+     * Adds an {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder} instance under a user defined name.
      * The order in which the <code>Suggestions</code> are added, is the same as in the response.
      */
     public SuggestBuilder addSuggestion(SuggestionBuilder<?> suggestion) {
@@ -141,17 +141,28 @@ public class SuggestBuilder implements ToXContent {
         }
 
         /**
-         * Setup a Geolocation for suggestions. See {@link GeoContextMapping}.
+         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
          * @param lat Latitude of the location
          * @param lon Longitude of the Location
          * @return this
          */
-        public T addGeoLocation(String name, double lat, double lon) {
-            return addContextQuery(GeolocationContextMapping.query(name, lat, lon));
+        public T addGeoLocation(String name, double lat, double lon, int ... precisions) {
+            return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
         }
 
         /**
-         * Setup a Geolocation for suggestions. See {@link GeoContextMapping}.
+         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
+         * @param lat Latitude of the location
+         * @param lon Longitude of the Location
+         * @param precisions precisions as string var-args
+         * @return this
+         */
+        public T addGeoLocationWithPrecision(String name, double lat, double lon, String ... precisions) {
+            return addContextQuery(GeolocationContextMapping.query(name, lat, lon, precisions));
+        }
+
+        /**
+         * Setup a Geolocation for suggestions. See {@link GeolocationContextMapping}.
          * @param geohash Geohash of the location
          * @return this
          */
@@ -160,8 +171,8 @@ public class SuggestBuilder implements ToXContent {
         }
         
         /**
-         * Setup a Category for suggestions. See {@link CategoryMapping}.
-         * @param category name of the category
+         * Setup a Category for suggestions. See {@link CategoryContextMapping}.
+         * @param categories name of the category
          * @return this
          */
         public T addCategory(String name, CharSequence...categories) {
@@ -169,8 +180,8 @@ public class SuggestBuilder implements ToXContent {
         }
         
         /**
-         * Setup a Category for suggestions. See {@link CategoryMapping}.
-         * @param category name of the category
+         * Setup a Category for suggestions. See {@link CategoryContextMapping}.
+         * @param categories name of the category
          * @return this
          */
         public T addCategory(String name, Iterable<? extends CharSequence> categories) {
@@ -179,7 +190,7 @@ public class SuggestBuilder implements ToXContent {
         
         /**
          * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
-         * @param category name of the category
+         * @param fieldvalues name of the category
          * @return this
          */
         public T addContextField(String name, CharSequence...fieldvalues) {
@@ -188,7 +199,7 @@ public class SuggestBuilder implements ToXContent {
         
         /**
          * Setup a Context Field for suggestions. See {@link CategoryContextMapping}.
-         * @param category name of the category
+         * @param fieldvalues name of the category
          * @return this
          */
         public T addContextField(String name, Iterable<? extends CharSequence> fieldvalues) {
@@ -242,7 +253,7 @@ public class SuggestBuilder implements ToXContent {
         /**
          * Sets from what field to fetch the candidate suggestions from. This is an
          * required option and needs to be set via this setter or
-         * {@link org.elasticsearch.search.suggest.SuggestBuilder.TermSuggestionBuilder#setField(String)}
+         * {@link org.elasticsearch.search.suggest.term.TermSuggestionBuilder#field(String)}
          * method
          */
         @SuppressWarnings("unchecked")

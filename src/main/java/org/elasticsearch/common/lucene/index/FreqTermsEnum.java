@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene.index;
 
+import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
@@ -43,11 +44,15 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
     private IntArray termDocFreqs;
     private LongArray termsTotalFreqs;
     private BytesRefHash cachedTermOrds;
+    private final boolean needDocFreqs;
+    private final boolean needTotalTermFreqs;
 
 
     public FreqTermsEnum(IndexReader reader, String field, boolean needDocFreq, boolean needTotalTermFreq, @Nullable Filter filter, BigArrays bigArrays) throws IOException {
-        super(reader, field, needDocFreq, needTotalTermFreq, filter);
+        super(reader, field, needTotalTermFreq ? DocsEnum.FLAG_FREQS : DocsEnum.FLAG_NONE, filter);
         this.bigArrays = bigArrays;
+        this.needDocFreqs = needDocFreq;
+        this.needTotalTermFreqs = needTotalTermFreq;
         if (needDocFreq) {
             termDocFreqs = bigArrays.newIntArray(INITIAL_NUM_TERM_FREQS_CACHED, false);
         } else {

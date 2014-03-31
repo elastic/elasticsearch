@@ -40,9 +40,6 @@ import java.util.List;
  * A frequency TermsEnum that returns frequencies derived from a collection of cached leaf termEnums. 
  * It also allows to provide a filter to explicitly compute frequencies only for docs that match the filter (heavier!).
  */
-/**
- *
- */
 public class FilterableTermsEnum extends TermsEnum  {
 
     static class Holder {
@@ -62,16 +59,14 @@ public class FilterableTermsEnum extends TermsEnum  {
     protected int currentDocFreq = 0;
     protected long currentTotalTermFreq = 0;
     protected BytesRef current;
-    protected boolean needDocFreqs;
-    protected boolean needTotalTermFreqs;
+    protected final int docsEnumFlag;
     protected int numDocs;
 
-    public FilterableTermsEnum(IndexReader reader, String field, boolean needDocFreq, boolean needTotalTermFreq, @Nullable Filter filter) throws IOException {
-        if (!needDocFreq && !needTotalTermFreq) {
-            throw new ElasticsearchIllegalArgumentException("either needDocFreq or needTotalTermFreq must be true");
-        }        
-        this.needDocFreqs = needDocFreq;
-        this.needTotalTermFreqs = needTotalTermFreq;
+    public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable Filter filter) throws IOException {
+        if ((docsEnumFlag != DocsEnum.FLAG_FREQS) && (docsEnumFlag != DocsEnum.FLAG_NONE)) {
+            throw new ElasticsearchIllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
+        }
+        this.docsEnumFlag = docsEnumFlag;
         if (filter == null) {
             numDocs = reader.numDocs();
         }
@@ -129,30 +124,35 @@ public class FilterableTermsEnum extends TermsEnum  {
         boolean found = false;
         int docFreq = 0;
         long totalTermFreq = 0;
-        boolean hasMissingTotalTermFreq = false;
         for (Holder anEnum : enums) {
             if (!anEnum.termsEnum.seekExact(text)) {
                 continue;
             }
             found = true;
             if (anEnum.bits == null) {
-                if (needDocFreqs) {
-                    docFreq += anEnum.termsEnum.docFreq();
-                }
-                if (needTotalTermFreqs) {
+                docFreq += anEnum.termsEnum.docFreq();
+                if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
                     long leafTotalTermFreq = anEnum.termsEnum.totalTermFreq();
-                    if (leafTotalTermFreq < 0) {
-                        hasMissingTotalTermFreq = true;
-                    } else {
-                        totalTermFreq += leafTotalTermFreq;
-                    }
+                    if (totalTermFreq == -1 || leafTotalTermFreq == -1) {
+                        totalTermFreq = -1;
+                        continue;
+                    }                    
+                    totalTermFreq += leafTotalTermFreq;
                 }
             } else {
-                DocsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.docs(anEnum.bits, anEnum.docsEnum, needTotalTermFreqs ? DocsEnum.FLAG_FREQS : DocsEnum.FLAG_NONE);
-                for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                    docFreq++;
-                    if (needTotalTermFreqs) {
+                DocsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.docs(anEnum.bits, anEnum.docsEnum, docsEnumFlag);
+                // 2 choices for performing same heavy loop - one attempts to calculate totalTermFreq and other does not
+                if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
+                    for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                        docFreq++;
+                        // docsEnum.freq() returns 1 if doc indexed with IndexOptions.DOCS_ONLY so no way of knowing if value
+                        // is really 1 or unrecorded when filtering like this
                         totalTermFreq += docsEnum.freq();
+                    }
+                } else {
+                    for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                        //docsEnum.freq() behaviour is undefined if docsEnumFlag==DocsEnum.FLAG_NONE so don't bother with call 
+                        docFreq++;
                     }
                 }
             }
@@ -161,13 +161,7 @@ public class FilterableTermsEnum extends TermsEnum  {
         current = found ? text : null;
         if(found){
             currentDocFreq = docFreq;
-            if (hasMissingTotalTermFreq) {
-                // at least one of the segments has no freqs info so declare result as
-                // missing rather than using partial info
-                currentTotalTermFreq = -1;
-            }else{
-                currentTotalTermFreq = totalTermFreq;
-            }
+            currentTotalTermFreq = totalTermFreq;
         }else{
             currentDocFreq = NOT_FOUND;
             currentTotalTermFreq = NOT_FOUND;

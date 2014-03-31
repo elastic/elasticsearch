@@ -32,6 +32,7 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
@@ -104,7 +105,7 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
         for (int i = 0; i < docs.length; i++) {
             Document doc = docs[i];
             iw.addDocument(doc);
-            if (randomInt(10) == 5) {
+            if (rarely()) {
                 iw.commit();
             }
         }
@@ -157,11 +158,7 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
     @After
     @Override
     public void tearDown() throws Exception {
-        if (reader != null) {
-            reader.close();
-        }
-        iw.rollback();
-        iw.getDirectory().close();
+        IOUtils.close(reader, iw, iw.getDirectory());
         super.tearDown();
     }
 

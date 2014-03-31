@@ -107,7 +107,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", between(cluster().dataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put("number_of_shards", between(immutableCluster().dataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 

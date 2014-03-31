@@ -119,6 +119,11 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     public abstract int size();
 
     /**
+     * Returns the number of data nodes in the cluster.
+     */
+    public abstract int dataNodes();
+
+    /**
      * Closes the current cluster
      */
     public abstract void close();

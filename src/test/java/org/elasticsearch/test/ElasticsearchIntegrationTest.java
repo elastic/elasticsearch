@@ -324,7 +324,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected int maximumNumberOfReplicas() {
-        return cluster().dataNodes() - 1;
+        return immutableCluster().dataNodes() - 1;
     }
 
     protected int numberOfReplicas() {

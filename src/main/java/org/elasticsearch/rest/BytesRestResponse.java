@@ -115,7 +115,12 @@ public class BytesRestResponse extends RestResponse {
         if (t != null && request.paramAsBoolean("error_trace", false)) {
             builder.startObject("error_trace");
             boolean first = true;
+            int counter = 0;
             while (t != null) {
+                // bail if there are more than 10 levels, becomes useless really...
+                if (counter++ > 10) {
+                    break;
+                }
                 if (!first) {
                     builder.startObject("cause");
                 }

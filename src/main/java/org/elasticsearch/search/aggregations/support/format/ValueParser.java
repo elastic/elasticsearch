@@ -16,15 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.support.numeric;
+package org.elasticsearch.search.aggregations.support.format;
 
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -32,7 +38,8 @@ import java.util.concurrent.TimeUnit;
  */
 public interface ValueParser {
 
-    static final ValueParser IPv4 = new ValueParser.IPv4();
+    static final ValueParser IPv4 = new IPv4();
+    static final ValueParser RAW = new Raw();
 
     long parseLong(String value, SearchContext searchContext);
 
@@ -109,6 +116,58 @@ public interface ValueParser {
         @Override
         public double parseDouble(String value, SearchContext searchContext) {
             return parseLong(value, searchContext);
+        }
+    }
+
+    static class Raw implements ValueParser {
+
+        private Raw() {
+        }
+
+        @Override
+        public long parseLong(String value, SearchContext searchContext) {
+            return Long.parseLong(value);
+        }
+
+        @Override
+        public double parseDouble(String value, SearchContext searchContext) {
+            return Double.parseDouble(value);
+        }
+    }
+
+    public static abstract class Number implements ValueParser {
+
+        NumberFormat format;
+
+        Number(NumberFormat format) {
+           this.format = format;
+        }
+
+        public static class Pattern extends Number {
+
+            private static final DecimalFormatSymbols SYMBOLS = new DecimalFormatSymbols(Locale.ROOT);
+
+            public Pattern(String pattern) {
+                super(new DecimalFormat(pattern, SYMBOLS));
+            }
+
+            @Override
+            public long parseLong(String value, SearchContext searchContext) {
+                try {
+                    return format.parse(value).longValue();
+                } catch (ParseException nfe) {
+                    throw new AggregationExecutionException("Invalid number format [" + ((DecimalFormat) format).toPattern() + "]");
+                }
+            }
+
+            @Override
+            public double parseDouble(String value, SearchContext searchContext) {
+                try {
+                    return format.parse(value).doubleValue();
+                } catch (ParseException nfe) {
+                    throw new AggregationExecutionException("Invalid number format [" + ((DecimalFormat) format).toPattern() + "]");
+                }
+            }
         }
     }
 }

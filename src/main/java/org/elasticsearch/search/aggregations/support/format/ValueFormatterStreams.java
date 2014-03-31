@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.support.numeric;
+package org.elasticsearch.search.aggregations.support.format;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +37,7 @@ public class ValueFormatterStreams {
             case ValueFormatter.IPv4Formatter.ID: return ValueFormatter.IPv4;
             case ValueFormatter.DateTime.ID: formatter = new ValueFormatter.DateTime(); break;
             case ValueFormatter.Number.Pattern.ID: formatter = new ValueFormatter.Number.Pattern(); break;
+            case ValueFormatter.GeoHash.ID: formatter = ValueFormatter.GEOHASH; break;
             default: throw new ElasticsearchIllegalArgumentException("Unknown value formatter with id [" + id + "]");
         }
         formatter.readFrom(in);

@@ -35,11 +35,11 @@ import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -48,7 +48,7 @@ import java.io.IOException;
 /**
  *
  */
-public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFactory implements Releasable {
+public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory implements Releasable {
 
     public static final String EXECUTION_HINT_VALUE_MAP = "map";
     public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
@@ -67,17 +67,17 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
     private TermsEnum termsEnum;
     private int numberOfAggregatorsCreated = 0;
 
-    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, int requiredSize,
-            int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
+    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, ValueFormatter formatter, ValueParser parser,
+            int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
 
-        super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
+        super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig, formatter, parser);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.minDocCount = minDocCount;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         if (!valueSourceConfig.unmapped()) {
-            this.indexedFieldName = valuesSourceConfig.fieldContext().field();
+            this.indexedFieldName = config.fieldContext().field();
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
         bigArrays = SearchContext.current().bigArrays();
@@ -144,18 +144,18 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
         // And that all values are not necessarily visited by the matches.
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
 
-        if (valuesSource instanceof BytesValuesSource) {
+        if (valuesSource instanceof ValuesSource.Bytes) {
             if (executionHint != null && !executionHint.equals(EXECUTION_HINT_VALUE_MAP) && !executionHint.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 throw new ElasticsearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
             }
             String execution = executionHint;
-            if (!(valuesSource instanceof BytesValuesSource.WithOrdinals)) {
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = EXECUTION_HINT_VALUE_MAP;
             } else if (includeExclude != null) {
                 execution = EXECUTION_HINT_VALUE_MAP;
             }
             if (execution == null) {
-                if ((valuesSource instanceof BytesValuesSource.WithOrdinals)
+                if ((valuesSource instanceof ValuesSource.Bytes.WithOrdinals)
                         && !hasParentBucketAggregator(parent)) {
                     execution = EXECUTION_HINT_VALUE_ORDINALS;
                 } else {
@@ -166,7 +166,7 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
 
             if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
                 assert includeExclude == null;
-                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
+                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
             }
             return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
         }
@@ -176,15 +176,15 @@ public class SignificantTermsAggregatorFactory extends ValueSourceAggregatorFact
                     "settings as it can only be applied to string values");
         }
 
-        if (valuesSource instanceof NumericValuesSource) {
+        if (valuesSource instanceof ValuesSource.Numeric) {
 
-            if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
+            if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
                 throw new UnsupportedOperationException("No support for examining floating point numerics");
             }
-            return new SignificantLongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
+            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, formatter, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
         }
 
-        throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +
+        throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +
                 "]. It can only be applied to numeric or string fields.");
     }
 

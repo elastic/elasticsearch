@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -62,7 +62,7 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
 
         @Override
         public String getKey() {
-            return formatter != null ? formatter.format(key) : DateFieldMapper.Defaults.DATE_TIME_FORMATTER.printer().print(key);
+            return formatter != null ? formatter.format(key) : ValueFormatter.DateTime.DEFAULT.format(key);
         }
 
         @Override

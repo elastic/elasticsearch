@@ -27,11 +27,11 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.numeric.ValueParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class DateRangeParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<NumericValuesSource> config = new ValuesSourceConfig<>(NumericValuesSource.class);
+        ValuesSourceConfig<ValuesSource.Numeric> config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
 
         String field = null;
         List<RangeAggregator.Range> ranges = null;
@@ -148,22 +148,17 @@ public class DateRangeParser implements Aggregator.Parser {
             config.ensureSorted(true);
         }
 
-        if (format != null) {
-            config.formatter(new ValueFormatter.DateTime(format));
-        } else {
-            config.formatter(ValueFormatter.DateTime.DEFAULT);
-        }
-
-        config.parser(ValueParser.DateMath.DEFAULT);
+        ValueFormatter valueFormatter = format != null ? new ValueFormatter.DateTime(format) : ValueFormatter.DateTime.DEFAULT;
+        ValueParser valueParser = ValueParser.DateMath.DEFAULT;
 
         if (field == null) {
-            return new RangeAggregator.Factory(aggregationName, config, InternalDateRange.FACTORY, ranges, keyed);
+            return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalDateRange.FACTORY, ranges, keyed);
         }
 
         FieldMapper<?> mapper = context.smartNameFieldMapper(field);
         if (mapper == null) {
             config.unmapped(true);
-            return new RangeAggregator.Factory(aggregationName, config, InternalDateRange.FACTORY, ranges, keyed);
+            return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalDateRange.FACTORY, ranges, keyed);
         }
 
         if (!(mapper instanceof DateFieldMapper)) {
@@ -173,9 +168,9 @@ public class DateRangeParser implements Aggregator.Parser {
         IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
         config.fieldContext(new FieldContext(field, indexFieldData));
         if (format == null) {
-            config.formatter(new ValueFormatter.DateTime(((DateFieldMapper) mapper).dateTimeFormatter()));
+            valueFormatter = new ValueFormatter.DateTime(((DateFieldMapper) mapper).dateTimeFormatter());
         }
-        config.parser(new ValueParser.DateMath(((DateFieldMapper) mapper).dateMathParser()));
-        return new RangeAggregator.Factory(aggregationName, config, InternalDateRange.FACTORY, ranges, keyed);
+        valueParser = new ValueParser.DateMath(((DateFieldMapper) mapper).dateMathParser());
+        return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalDateRange.FACTORY, ranges, keyed);
     }
 }

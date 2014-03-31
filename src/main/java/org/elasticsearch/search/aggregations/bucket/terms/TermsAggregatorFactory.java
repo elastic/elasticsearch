@@ -26,16 +26,16 @@ import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValueSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.bytes.BytesValuesSource;
-import org.elasticsearch.search.aggregations.support.numeric.NumericValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 /**
  *
  */
-public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
+public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public enum ExecutionMode {
         MAP(new ParseField("map")) {
@@ -57,7 +57,7 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
                 if (includeExclude != null) {
                     throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
                 }
-                return new StringTermsAggregator.WithOrdinals(name, factories, (BytesValuesSource.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
 
         };
@@ -94,8 +94,10 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
     private final IncludeExclude includeExclude;
     private final String executionHint;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
-        super(name, StringTerms.TYPE.name(), valueSourceConfig);
+    public TermsAggregatorFactory(String name, ValuesSourceConfig config, ValueFormatter formatter, ValueParser parser,
+            InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
+
+        super(name, StringTerms.TYPE.name(), config, formatter, parser);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -166,14 +168,14 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
         // And that all values are not necessarily visited by the matches.
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
 
-        if (valuesSource instanceof BytesValuesSource) {
+        if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
                 execution = ExecutionMode.fromString(executionHint);
             }
 
             // In some cases, using ordinals is just not supported: override it
-            if (!(valuesSource instanceof BytesValuesSource.WithOrdinals)) {
+            if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
                 execution = ExecutionMode.MAP;
             } else if (includeExclude != null) {
                 execution = ExecutionMode.MAP;
@@ -181,7 +183,7 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
 
             if (execution == null) {
                 // Let's try to use a good default
-                if ((valuesSource instanceof BytesValuesSource.WithOrdinals)
+                if ((valuesSource instanceof ValuesSource.Bytes.WithOrdinals)
                         && shouldUseOrdinals(parent, valuesSource, aggregationContext)) {
                     execution = ExecutionMode.ORDINALS;
                 } else {
@@ -198,14 +200,14 @@ public class TermsAggregatorFactory extends ValueSourceAggregatorFactory {
                     "settings as it can only be applied to string values");
         }
 
-        if (valuesSource instanceof NumericValuesSource) {
-            if (((NumericValuesSource) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+        if (valuesSource instanceof ValuesSource.Numeric) {
+            if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
+                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, formatter, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
-            return new LongTermsAggregator(name, factories, (NumericValuesSource) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, formatter, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         }
 
-        throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + valuesSourceConfig.fieldContext().field() +
+        throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field() +
                 "]. It can only be applied to numeric or string fields.");
     }
 

@@ -116,7 +116,7 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
     @Test
     public void bytesValuesWithScript() {
         final BytesValues values = randomBytesValues();
-        FieldDataSource source = new FieldDataSource.Bytes() {
+        ValuesSource source = new ValuesSource.Bytes() {
 
             @Override
             public BytesValues bytesValues() {
@@ -130,12 +130,12 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
 
         };
         SearchScript script = randomScript();
-        assertConsistent(new FieldDataSource.WithScript.BytesValues(source, script));
+        assertConsistent(new ValuesSource.WithScript.BytesValues(source, script));
     }
 
     @Test
     public void sortedUniqueBytesValues() {
-        assertConsistent(new FieldDataSource.Bytes.SortedAndUnique.SortedUniqueBytesValues(randomBytesValues()));
+        assertConsistent(new ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues(randomBytesValues()));
     }
 
 }

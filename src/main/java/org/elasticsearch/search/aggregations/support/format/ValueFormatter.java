@@ -16,8 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.support.numeric;
+package org.elasticsearch.search.aggregations.support.format;
 
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -39,6 +42,7 @@ public interface ValueFormatter extends Streamable {
 
     public final static ValueFormatter RAW = new Raw();
     public final static ValueFormatter IPv4 = new IPv4Formatter();
+    public final static ValueFormatter GEOHASH = new GeoHash();
 
     /**
      * Uniquely identifies this formatter (used for efficient serialization)
@@ -218,7 +222,34 @@ public interface ValueFormatter extends Streamable {
         }
     }
 
+    static class GeoHash implements ValueFormatter {
 
-    
+        static final byte ID = 8;
+
+        @Override
+        public byte id() {
+            return ID;
+        }
+
+        @Override
+        public String format(long value) {
+            return GeoHashUtils.toString(value);
+        }
+
+        @Override
+        public String format(double value) {
+            return format((long) value);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+
+        }
+    }
     
 }

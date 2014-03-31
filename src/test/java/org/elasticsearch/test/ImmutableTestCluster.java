@@ -114,7 +114,7 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     public abstract Client client();
 
     /**
-     * Returns the size of the cluster
+     * Returns the number of nodes in the cluster.
      */
     public abstract int size();
 

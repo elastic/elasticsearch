@@ -788,9 +788,6 @@ public final class TestCluster extends ImmutableTestCluster {
         return node.injector().getInstance(clazz);
     }
 
-    /**
-     * Returns the number of nodes in the cluster.
-     */
     @Override
     public synchronized int size() {
         return this.nodes.size();

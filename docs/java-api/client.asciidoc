@@ -17,7 +17,7 @@ get a client is by:
 within a cluster
 2.  requesting a `Client` from your embedded `Node`.
 
-Another manner is by creating a link:#transportclient[`TransportClient`]
+Another manner is by creating a link:#transport-client[`TransportClient`]
 that connects to a cluster.
 
 *Important:*

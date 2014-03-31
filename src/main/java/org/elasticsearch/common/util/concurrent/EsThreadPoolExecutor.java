@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.logging.Loggers;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -73,6 +74,14 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     public static interface ShutdownListener {
         public void onTerminated();
+    }
+
+    @Override
+    protected final void afterExecute(Runnable r, Throwable t) {
+        super.afterExecute(r, t);
+        if (t != null) {
+            Loggers.getLogger(getClass()).error("An exception has been thrown by {} but has not been caught", t, r);
+        }
     }
 
 }

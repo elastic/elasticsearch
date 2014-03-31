@@ -17,19 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.common.netty;
+
+import org.elasticsearch.common.lease.Releasable;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelFutureListener;
 
 /**
- * Redirect to another web page
+ * A channel listener that releases a {@link org.elasticsearch.common.lease.Releasable} when
+ * the operation is complete.
  */
-public class HttpRedirectRestResponse extends StringRestResponse {
+public class ReleaseChannelFutureListener implements ChannelFutureListener {
 
-    public HttpRedirectRestResponse(String url) {
-        super(RestStatus.MOVED_PERMANENTLY, "<head><meta http-equiv=\"refresh\" content=\"0; URL="+url+"\"></head>");
+    private final Releasable releasable;
+
+    public ReleaseChannelFutureListener(Releasable releasable) {
+        this.releasable = releasable;
     }
 
     @Override
-    public String contentType() {
-        return "text/html";
+    public void operationComplete(ChannelFuture future) throws Exception {
+        releasable.release();
     }
 }

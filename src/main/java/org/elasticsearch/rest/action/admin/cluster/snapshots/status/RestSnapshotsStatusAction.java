@@ -67,7 +67,7 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new BytesRestResponse(OK, builder));
                 } catch (IOException e) {
                     onFailure(e);
                 }

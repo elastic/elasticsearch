@@ -62,9 +62,9 @@ public class RestIndicesExistsAction extends BaseRestHandler {
             public void onResponse(IndicesExistsResponse response) {
                 try {
                     if (response.isExists()) {
-                        channel.sendResponse(new StringRestResponse(OK));
+                        channel.sendResponse(new BytesRestResponse(OK));
                     } else {
-                        channel.sendResponse(new StringRestResponse(NOT_FOUND));
+                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
                     }
                 } catch (Throwable e) {
                     onFailure(e);
@@ -74,7 +74,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
+                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

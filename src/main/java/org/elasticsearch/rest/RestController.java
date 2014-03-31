@@ -142,7 +142,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 executeHandler(request, channel);
             } catch (Exception e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                 }
@@ -160,10 +160,9 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {
                 // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                StringRestResponse response = new StringRestResponse(OK);
-                channel.sendResponse(response);
+                channel.sendResponse(new BytesRestResponse(OK));
             } else {
-                channel.sendResponse(new StringRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
             }
         }
     }
@@ -220,7 +219,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 }
             } catch (Exception e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                 }

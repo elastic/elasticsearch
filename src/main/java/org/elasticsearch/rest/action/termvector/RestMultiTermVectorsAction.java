@@ -64,7 +64,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             multiTermVectorsRequest.add(template, RestActions.getRestContent(request));
         } catch (Throwable t) {
             try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, t));
+                channel.sendResponse(new BytesRestResponse(request, t));
             } catch (Throwable tIO) {
                 logger.error("Failed to send failure response", tIO);
             }
@@ -77,7 +77,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     response.toXContent(builder, request);
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new BytesRestResponse(OK, builder));
                 } catch (Throwable t) {
                     onFailure(t);
                 }
@@ -86,7 +86,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (Throwable t) {
                     logger.error("Failed to send failure response", t);
                 }

@@ -57,7 +57,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         }
         if (text == null) {
             try {
-                channel.sendResponse(new XContentThrowableRestResponse(request, new ElasticsearchIllegalArgumentException("text is missing")));
+                channel.sendResponse(new BytesRestResponse(request, new ElasticsearchIllegalArgumentException("text is missing")));
             } catch (IOException e1) {
                 logger.warn("Failed to send response", e1);
             }
@@ -80,7 +80,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new BytesRestResponse(OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -89,7 +89,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

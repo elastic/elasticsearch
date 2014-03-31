@@ -64,9 +64,9 @@ public class RestHeadAction extends BaseRestHandler {
             public void onResponse(GetResponse response) {
                 try {
                     if (!response.isExists()) {
-                        channel.sendResponse(new StringRestResponse(NOT_FOUND));
+                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
                     } else {
-                        channel.sendResponse(new StringRestResponse(OK));
+                        channel.sendResponse(new BytesRestResponse(OK));
                     }
                 } catch (Throwable e) {
                     onFailure(e);
@@ -76,7 +76,7 @@ public class RestHeadAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new StringRestResponse(ExceptionsHelper.status(e)));
+                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
                 } catch (Exception e1) {
                     logger.error("Failed to send failure response", e1);
                 }

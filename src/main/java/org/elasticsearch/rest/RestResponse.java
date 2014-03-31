@@ -19,53 +19,63 @@
 
 package org.elasticsearch.rest;
 
-import java.io.IOException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
+
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  *
  */
-public interface RestResponse {
+public abstract class RestResponse {
+
+    protected Map<String, List<String>> customHeaders;
+
+
+    /**
+     * The response content type.
+     */
+    public abstract String contentType();
 
     /**
      * Can the content byte[] be used only with this thread (<tt>false</tt>), or by any thread (<tt>true</tt>).
      */
-    boolean contentThreadSafe();
-
-    String contentType();
+    public abstract boolean contentThreadSafe();
 
     /**
-     * Returns the actual content. Note, use {@link #contentLength()} in order to know the
-     * content length of the byte array.
+     * The response content. Note, if the content is {@link org.elasticsearch.common.lease.Releasable} it
+     * should automatically be released when done by the channel sending it.
      */
-    byte[] content() throws IOException;
+    public abstract BytesReference content();
 
     /**
-     * The content length.
+     * The rest status code.
      */
-    int contentLength() throws IOException;
-
-    int contentOffset() throws IOException;
-
-    byte[] prefixContent();
-
-    int prefixContentLength();
-
-    int prefixContentOffset();
-
-    byte[] suffixContent();
-
-    int suffixContentLength();
-
-    int suffixContentOffset();
-
-    RestStatus status();
-
-    void addHeader(String name, String value);
+    public abstract RestStatus status();
 
     /**
-     * @return The custom headers or null if none have been set
+     * Add a custom header.
      */
-    Map<String, List<String>> getHeaders();
+    public void addHeader(String name, String value) {
+        if (customHeaders == null) {
+            customHeaders = new HashMap<>(2);
+        }
+        List<String> header = customHeaders.get(name);
+        if (header == null) {
+            header = new ArrayList<>();
+            customHeaders.put(name, header);
+        }
+        header.add(value);
+    }
+
+    /**
+     * Returns custom headers that have been added, or null if none have been set.
+     */
+    @Nullable
+    public Map<String, List<String>> getHeaders() {
+        return customHeaders;
+    }
 }

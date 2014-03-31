@@ -127,7 +127,7 @@ public class RestExplainAction extends BaseRestHandler {
                         builder.endObject();
                     }
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, response.isExists() ? OK : NOT_FOUND, builder));
+                    channel.sendResponse(new BytesRestResponse(response.isExists() ? OK : NOT_FOUND, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -151,7 +151,7 @@ public class RestExplainAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

@@ -111,7 +111,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
+                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -120,7 +120,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

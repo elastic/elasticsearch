@@ -78,14 +78,14 @@ public class RestGetMappingAction extends BaseRestHandler {
                     ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                     if (mappingsByIndex.isEmpty()) {
                         if (indices.length != 0 && types.length != 0) {
-                            channel.sendResponse(new XContentRestResponse(request, OK, RestXContentBuilder.emptyBuilder(request)));
+                            channel.sendResponse(new BytesRestResponse(OK, RestXContentBuilder.emptyBuilder(request)));
                         } else if (indices.length != 0) {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                            channel.sendResponse(new BytesRestResponse(request, new IndexMissingException(new Index(indices[0]))));
                         } else if (types.length != 0) {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index("_all"), types[0])));
+                            channel.sendResponse(new BytesRestResponse(request, new TypeMissingException(new Index("_all"), types[0])));
                         } else {
                             builder.endObject();
-                            channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                            channel.sendResponse(new BytesRestResponse(OK, builder));
                         }
                         return;
                     }
@@ -105,7 +105,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     }
 
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new BytesRestResponse(OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }
@@ -114,7 +114,7 @@ public class RestGetMappingAction extends BaseRestHandler {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

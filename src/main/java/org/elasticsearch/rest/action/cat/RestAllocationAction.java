@@ -34,10 +34,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -87,7 +87,7 @@ public class RestAllocationAction extends AbstractCatAction {
                     @Override
                     public void onFailure(Throwable e) {
                         try {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                            channel.sendResponse(new BytesRestResponse(request, e));
                         } catch (IOException e1) {
                             logger.error("Failed to send failure response", e1);
                         }
@@ -98,7 +98,7 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void onFailure(Throwable e) {
                 try {
-                    channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(request, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response", e1);
                 }

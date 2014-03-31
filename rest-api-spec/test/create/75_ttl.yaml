@@ -1,6 +1,9 @@
 ---
 "TTL":
 
+ - skip:
+      features: gtelte
+
  - do:
       indices.create:
           index:    test_1
@@ -30,7 +33,7 @@
           id:      1
           fields:  _ttl
 
- - lt:    { fields._ttl: 10000}
+ - lte:   { fields._ttl: 10000}
  - gt:    { fields._ttl: 0}
 
 # milliseconds
@@ -54,7 +57,7 @@
           id:      1
           fields:  _ttl
 
- - lt:    { fields._ttl: 100000}
+ - lte:   { fields._ttl: 100000}
  - gt:    { fields._ttl: 10000}
 
 # duration
@@ -79,7 +82,7 @@
           id:      1
           fields:  _ttl
 
- - lt:    { fields._ttl: 20000}
+ - lte:   { fields._ttl: 20000}
  - gt:    { fields._ttl: 10000}
 
 # with timestamp

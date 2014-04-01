@@ -94,7 +94,7 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return ScriptDocValues.EMPTY;
+            return ScriptDocValues.EMPTY_DOUBLES;
         }
     }
 

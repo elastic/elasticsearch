@@ -76,7 +76,7 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return ScriptDocValues.EMPTY;
+            return ScriptDocValues.EMPTY_GEOPOINTS;
         }
 
         @Override

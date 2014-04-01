@@ -22,7 +22,6 @@ package org.elasticsearch.tribe;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
@@ -307,12 +306,15 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         if (table == null) {
                             continue;
                         }
-                        if (!currentState.metaData().hasIndex(tribeIndex.index()) && !droppedIndices.contains(tribeIndex.index())) {
-                            // a new index, add it, and add the tribe name as a setting
-                            logger.info("[{}] adding index [{}]", tribeName, tribeIndex.index());
-                            addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
+                        final IndexMetaData indexMetaData = currentState.metaData().index(tribeIndex.index());
+                        if (indexMetaData == null) {
+                            if (!droppedIndices.contains(tribeIndex.index())) {
+                                // a new index, add it, and add the tribe name as a setting
+                                logger.info("[{}] adding index [{}]", tribeName, tribeIndex.index());
+                                addNewIndex(tribeState, blocks, metaData, routingTable, tribeIndex);
+                            }
                         } else {
-                            String existingFromTribe = currentState.metaData().index(tribeIndex.index()).getSettings().get(TRIBE_NAME);
+                            String existingFromTribe = indexMetaData.getSettings().get(TRIBE_NAME);
                             if (!tribeName.equals(existingFromTribe)) {
                                 // we have a potential conflict on index names, decide what to do...
                                 if (ON_CONFLICT_ANY.equals(onConflict)) {

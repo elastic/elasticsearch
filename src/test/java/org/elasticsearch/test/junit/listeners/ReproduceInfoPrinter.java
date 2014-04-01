@@ -32,6 +32,7 @@ import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -114,7 +115,7 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TestCluster.TESTS_ENABLE_MOCK_MODULES,
+            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TESTS_CLUSTER, TestCluster.TESTS_ENABLE_MOCK_MODULES,
                     "tests.assertion.disabled", "tests.security.manager", "tests.nighly", "tests.jvms", "tests.client.ratio", "tests.heap.size");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");

@@ -24,6 +24,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -37,6 +39,8 @@ import java.util.Iterator;
  * and supports by nature all the needed test operations like wipeIndices etc.
  */
 public final class ExternalTestCluster extends ImmutableTestCluster {
+
+    private final ESLogger logger = Loggers.getLogger(getClass());
 
     private final Client client;
 
@@ -59,6 +63,7 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
             }
         }
         this.dataNodes = dataNodes;
+        logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
 
     @Override

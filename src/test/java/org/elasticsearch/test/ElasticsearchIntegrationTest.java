@@ -149,6 +149,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static final String TESTS_CLIENT_RATIO = "tests.client.ratio";
 
     /**
+     * Key used to eventually switch to using an external cluster and provide its transport addresses
+     */
+    public static final String TESTS_CLUSTER = "tests.cluster";
+
+    /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
     private static final int FREQUENT_BULK_THRESHOLD = 300;
@@ -190,7 +195,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         // Initialize lazily. No need for volatiles/ CASs since each JVM runs at most one test
         // suite at any given moment.
         if (GLOBAL_CLUSTER == null) {
-            String cluster = System.getProperty("tests.cluster");
+            String cluster = System.getProperty(TESTS_CLUSTER);
             if (Strings.hasLength(cluster)) {
                 String[] stringAddresses = cluster.split(",");
                 TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];

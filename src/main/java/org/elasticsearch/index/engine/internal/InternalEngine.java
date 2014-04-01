@@ -662,9 +662,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             IndexSearcher searcher = manager.acquire();
             return newSearcher(source, searcher, manager);
         } catch (Throwable ex) {
-            logger.error("failed to acquire searcher, source {}", ex, source);
             ensureOpen(); // throw EngineCloseException here if we are already closed
-            throw new EngineException(shardId, ex.getMessage());
+            logger.error("failed to acquire searcher, source {}", ex, source);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         }
     }
 

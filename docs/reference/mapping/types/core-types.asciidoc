@@ -386,7 +386,7 @@ and `false` respectively.
 --------------------------------------------------
 
 The boolean type also supports passing the value as a number or a string
-(in this case `0`, an empty string, `F`, `false`, `off` and `no` are
+(in this case `0`, an empty string, `false`, `off` and `no` are
 `false`, all other values are `true`).
 
 The following table lists all the attributes that can be used with the

@@ -40,12 +40,16 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
  */
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, AtomicFieldData> {
+
+    private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
     Cache<Key, AtomicFieldData> cache;
 
@@ -55,8 +59,9 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
 
     @Inject
-    public IndicesFieldDataCache(Settings settings) {
+    public IndicesFieldDataCache(Settings settings, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
         super(settings);
+        this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         this.size = componentSettings.get("size", "-1");
         this.sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
         this.expire = componentSettings.getAsTime("expire", null);
@@ -89,16 +94,17 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     @Override
     public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
         Key key = notification.getKey();
-        if (key == null || key.listener == null) {
-            return; // nothing to do here really...
-        }
+        assert key != null && key.listeners != null;
+
         IndexFieldCache indexCache = key.indexCache;
         long sizeInBytes = key.sizeInBytes;
         AtomicFieldData value = notification.getValue();
         if (sizeInBytes == -1 && value != null) {
             sizeInBytes = value.getMemorySizeInBytes();
         }
-        key.listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes, value);
+        for (IndexFieldDataCache.Listener listener : key.listeners) {
+            listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes, value);
+        }
     }
 
     public static class FieldDataWeigher implements Weigher<Key, AtomicFieldData> {
@@ -137,21 +143,20 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 public AtomicFieldData call() throws Exception {
                     SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                    key.listeners.add(indicesFieldDataCacheListener);
 
                     if (indexService != null) {
                         ShardId shardId = ShardUtils.extractShardId(context.reader());
                         if (shardId != null) {
                             IndexShard shard = indexService.shard(shardId.id());
                             if (shard != null) {
-                                key.listener = shard.fieldData();
+                                key.listeners.add(shard.fieldData());
                             }
                         }
                     }
-
-                    if (key.listener != null) {
-                        key.listener.onLoad(fieldNames, fieldDataType, fieldData);
+                    for (Listener listener : key.listeners) {
+                        listener.onLoad(fieldNames, fieldDataType, fieldData);
                     }
-
                     return fieldData;
                 }
             });
@@ -192,8 +197,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         public final IndexFieldCache indexCache;
         public final Object readerKey;
 
-        @Nullable
-        public IndexFieldDataCache.Listener listener; // optional stats listener
+        public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>(); // optional stats listener
         long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
 

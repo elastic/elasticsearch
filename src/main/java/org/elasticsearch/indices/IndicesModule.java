@@ -31,6 +31,7 @@ import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.breaker.InternalCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
@@ -81,5 +82,6 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(UpdateHelper.class).asEagerSingleton();
 
         bind(CircuitBreakerService.class).to(InternalCircuitBreakerService.class).asEagerSingleton();
+        bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
     }
 }

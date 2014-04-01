@@ -79,7 +79,6 @@ import static org.junit.Assert.assertThat;
  * - tests.iters: runs multiple iterations
  * - tests.seed: seed to base the random behaviours on
  * - tests.appendseed[true|false]: enables adding the seed to each test section's description (default false)
- * - tests.cluster_seed: seed used to create the test cluster (if enabled)
  *
  */
 public class RestTestSuiteRunner extends ParentRunner<RestTestCandidate> {

@@ -36,6 +36,7 @@
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
+        <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
@@ -432,7 +433,8 @@
                                 <exclude>**/*StressTest.class</exclude>
                             </excludes>
                             <jvmArgs>
-                                <param>-Xmx512m</param>
+                                <param>-Xmx${tests.heap.size}</param>
+                                <param>-Xms${tests.heap.size}</param>
                                 <param>-Xss256k</param>
                                 <param>-XX:MaxPermSize=128m</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
@@ -470,6 +472,7 @@
                                 <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                                 <tests.network>${tests.network}</tests.network>
                                 <tests.cluster>${tests.cluster}</tests.cluster>
+                                <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>

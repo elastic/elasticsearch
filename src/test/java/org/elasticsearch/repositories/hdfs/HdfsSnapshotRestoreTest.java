@@ -72,7 +72,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void tstSimpleWorkflow() {
+    public void testSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);
 

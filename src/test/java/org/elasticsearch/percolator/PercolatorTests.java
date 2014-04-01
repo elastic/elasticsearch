@@ -217,7 +217,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test1", PercolatorService.TYPE_NAME)
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("query",
-                                constantScoreQuery(FilterBuilders.rangeFilter("field2").from("value").includeLower(true))
+                                constantScoreQuery(FilterBuilders.rangeFilter("field2").from(1).to(5).includeLower(true).setExecution("fielddata"))
                         ).endObject()
                 )
                 .execute().actionGet();
@@ -228,6 +228,28 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertMatchCount(response, 1l);
         assertThat(response.getMatches(), arrayWithSize(1));
         assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("test1"));
+    }
+
+    @Test
+    public void testRangeFilterThatUsesFD() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field1", "type=long")
+                .get();
+
+
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(
+                        XContentFactory.jsonBuilder().startObject().field("query",
+                                constantScoreQuery(FilterBuilders.rangeFilter("field1").from(1).to(5).setExecution("fielddata"))
+                        ).endObject()
+                ).get();
+
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setPercolateDoc(PercolateSourceBuilder.docBuilder().setDoc("field1", 3)).get();
+        assertMatchCount(response, 1l);
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContaining("1"));
     }
 
     @Test

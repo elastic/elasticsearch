@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -45,12 +44,9 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
 
     final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
 
-    private final CircuitBreakerService breakerService;
-
     @Inject
-    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings, CircuitBreakerService breakerService) {
+    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings) {
         super(shardId, indexSettings);
-        this.breakerService = breakerService;
     }
 
     public FieldDataStats stats(String... fields) {
@@ -101,10 +97,6 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
             evictionsMetric.inc();
         }
         if (sizeInBytes != -1) {
-            // Since field data is being unloaded (due to expiration or manual
-            // clearing), we also need to decrement the used bytes in the breaker
-            breakerService.getBreaker().addWithoutBreaking(-sizeInBytes);
-
             totalMetric.dec(sizeInBytes);
 
             String keyFieldName = fieldNames.indexName();

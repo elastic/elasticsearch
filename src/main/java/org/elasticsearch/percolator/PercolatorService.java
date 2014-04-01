@@ -70,10 +70,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.Count;
-import org.elasticsearch.percolator.QueryCollector.Match;
-import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
-import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
+import org.elasticsearch.percolator.QueryCollector.*;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -441,8 +438,9 @@ public class PercolatorService extends AbstractComponent {
                 collector.reset();
                 try {
                     context.docSearcher().search(entry.getValue(), collector);
-                } catch (IOException e) {
-                    logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                } catch (Throwable e) {
+                    logger.debug("[" + entry.getKey() + "] failed to execute query", e);
+                    throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
                 }
 
                 if (collector.exists()) {
@@ -539,7 +537,8 @@ public class PercolatorService extends AbstractComponent {
                 try {
                     context.docSearcher().search(entry.getValue(), collector);
                 } catch (Throwable e) {
-                    logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                    logger.debug("[" + entry.getKey() + "] failed to execute query", e);
+                    throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
                 }
 
                 if (collector.exists()) {

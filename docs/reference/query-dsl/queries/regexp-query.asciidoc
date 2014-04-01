@@ -39,8 +39,10 @@ You can also use special flags
 --------------------------------------------------
 {
     "regexp":{
-        "name.first": "s.*y",
-        "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+        "name.first": {
+            "value": "s.*y",
+            "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+        }
     }
 }
 --------------------------------------------------

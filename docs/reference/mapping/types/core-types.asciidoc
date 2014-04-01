@@ -707,7 +707,7 @@ it gets processed as a not analyzed string and is accessible under the name `nam
 
 The `include_in_all` setting is ignored on any field that is defined in
 the `fields` options. Setting the `include_in_all` only makes sense on
-the main field, since the raw field value to copied to the `_all` field,
+the main field, since the raw field value is copied to the `_all` field,
 the tokens aren't copied.
 
 [float]

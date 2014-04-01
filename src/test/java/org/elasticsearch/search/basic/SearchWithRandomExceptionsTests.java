@@ -151,7 +151,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         }
         NumShards test = getNumShards("test");
         logger.info("Start Refresh");
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
+        final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
         logger.info("Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ", refreshFailed, refreshResponse.getFailedShards(), refreshResponse.getShardFailures().length, refreshResponse.getSuccessfulShards(), refreshResponse.getTotalShards());
         final int numSearches = scaledRandomIntBetween(10, 20);
@@ -165,10 +165,10 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                 // check match all
                 searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).get();
             } catch (SearchPhaseExecutionException ex) {
-                if (!expectAllShardsFailed) {
-                    throw ex;
-                } else {
+                if (expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0) {
                     logger.info("expected SearchPhaseException: [{}]", ex.getMessage());
+                } else {
+                    throw ex;
                 }
             }
         }

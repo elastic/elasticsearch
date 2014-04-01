@@ -219,7 +219,7 @@ If the histogram aggregation has a direct metrics sub-aggregation, the latter ca
 }
 --------------------------------------------------
 
-<1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their their `price_stats` sub-aggregation.
+<1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their `price_stats` sub-aggregation.
 
 <2> There is no need to configure the `price` field for the `price_stats` aggregation as it will inherit it by default from its parent histogram aggregation.
 

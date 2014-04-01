@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
@@ -613,13 +614,13 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         int bulkEntryCount = randomIntBetween(10, 50);
         BulkRequestBuilder builder = client().prepareBulk();
         boolean[] expectedFailures = new boolean[bulkEntryCount];
+        boolean expectFailure = false;
         for (int i = 0; i < bulkEntryCount; i++) {
-            expectedFailures[i] = randomBoolean();
+            expectFailure |= expectedFailures[i] = randomBoolean();
             builder.add(client().prepareIndex().setIndex(expectedFailures[i] ? "INVALID.NAME" : "test").setType("type1").setId("1").setSource("field", 1));
         }
         BulkResponse bulkResponse = builder.get();
-
-        assertThat(bulkResponse.hasFailures(), is(true));
+        assertThat(bulkResponse.hasFailures(), is(expectFailure));
         assertThat(bulkResponse.getItems().length, is(bulkEntryCount));
         for (int i = 0; i < bulkEntryCount; i++) {
             assertThat(bulkResponse.getItems()[i].isFailed(), is(expectedFailures[i]));

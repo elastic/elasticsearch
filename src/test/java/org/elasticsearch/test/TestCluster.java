@@ -124,7 +124,7 @@ public final class TestCluster extends ImmutableTestCluster {
     static final int DEFAULT_MAX_NUM_NODES = 6;
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
-    private final NavigableMap<String, NodeAndClient> nodes = new ConcurrentSkipListMap<>();
+    private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
     private final Set<File> dataDirToClean = new HashSet<>();
 
@@ -385,6 +385,7 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     private NodeAndClient buildNode(int nodeId, long seed, Settings settings, Version version) {
+        assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
         String name = buildNodeName(nodeId);
@@ -1027,35 +1028,35 @@ public final class TestCluster extends ImmutableTestCluster {
     /**
      * Starts a node with default settings and returns it's name.
      */
-    public String startNode() {
+    public synchronized String startNode() {
         return startNode(ImmutableSettings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts a node with default settings ad the specified version and returns it's name.
      */
-    public String startNode(Version version) {
+    public synchronized String startNode(Version version) {
         return startNode(ImmutableSettings.EMPTY, version);
     }
 
     /**
      * Starts a node with the given settings builder and returns it's name.
      */
-    public String startNode(Settings.Builder settings) {
+    public synchronized String startNode(Settings.Builder settings) {
         return startNode(settings.build(), Version.CURRENT);
     }
 
     /**
      * Starts a node with the given settings and returns it's name.
      */
-    public String startNode(Settings settings) {
+    public synchronized String startNode(Settings settings) {
         return startNode(settings, Version.CURRENT);
     }
 
     /**
      * Starts a node with the given settings and version and returns it's name.
      */
-    public String startNode(Settings settings, Version version) {
+    public synchronized String startNode(Settings settings, Version version) {
         NodeAndClient buildNode = buildNode(settings, version);
         buildNode.node().start();
         publishNode(buildNode);
@@ -1065,29 +1066,33 @@ public final class TestCluster extends ImmutableTestCluster {
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
-    public ListenableFuture<String> startNodeAsync() {
+    public synchronized ListenableFuture<String> startNodeAsync() {
         return startNodeAsync(ImmutableSettings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
-    public ListenableFuture<String> startNodeAsync(final Settings settings) {
+    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings) {
         return startNodeAsync(settings, Version.CURRENT);
     }
 
     /**
      * Starts a node in an async manner with the given settings and version and returns future with its name.
      */
-    public ListenableFuture<String> startNodeAsync(final Settings settings, final Version version) {
+    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings, final Version version) {
         final SettableFuture<String> future = SettableFuture.create();
+        final NodeAndClient buildNode = buildNode(settings, version);
         Runnable startNode = new Runnable() {
             @Override
             public void run() {
-                NodeAndClient buildNode = buildNode(settings, version);
-                buildNode.node().start();
-                publishNode(buildNode);
-                future.set(buildNode.name);
+                try {
+                    buildNode.node().start();
+                    publishNode(buildNode);
+                    future.set(buildNode.name);
+                } catch (Throwable t) {
+                    future.setException(t);
+                }
             }
         };
         executor.execute(startNode);
@@ -1097,14 +1102,14 @@ public final class TestCluster extends ImmutableTestCluster {
     /**
      * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
      */
-    public ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
         return startNodesAsync(numNodes, settings, Version.CURRENT);
     }
 
     /**
      * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
      */
-    public ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
         List<ListenableFuture<String>> futures = Lists.newArrayList();
         for (int i = 0; i < numNodes; i++) {
             futures.add(startNodeAsync(settings, version));
@@ -1112,7 +1117,7 @@ public final class TestCluster extends ImmutableTestCluster {
         return Futures.allAsList(futures);
     }
 
-    private void publishNode(NodeAndClient nodeAndClient) {
+    private synchronized void publishNode(NodeAndClient nodeAndClient) {
         assert !nodeAndClient.node().isClosed();
         NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, nodeAndClient.node);
         if (nodeEnv.hasNodeFile()) {

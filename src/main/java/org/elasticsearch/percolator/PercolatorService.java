@@ -441,8 +441,9 @@ public class PercolatorService extends AbstractComponent {
                 collector.reset();
                 try {
                     context.docSearcher().search(entry.getValue(), collector);
-                } catch (IOException e) {
-                    logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                } catch (Throwable e) {
+                    logger.debug("[" + entry.getKey() + "] failed to execute query", e);
+                    throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
                 }
 
                 if (collector.exists()) {
@@ -539,7 +540,8 @@ public class PercolatorService extends AbstractComponent {
                 try {
                     context.docSearcher().search(entry.getValue(), collector);
                 } catch (Throwable e) {
-                    logger.warn("[" + entry.getKey() + "] failed to execute query", e);
+                    logger.debug("[" + entry.getKey() + "] failed to execute query", e);
+                    throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
                 }
 
                 if (collector.exists()) {

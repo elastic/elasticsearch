@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.SlicedObjectList;
 import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -38,7 +37,9 @@ import java.util.List;
  */
 public abstract class ScriptDocValues {
 
-    public static final ScriptDocValues EMPTY = new Empty();
+    public static final Longs EMPTY_LONGS = new Longs(LongValues.EMPTY);
+    public static final Doubles EMPTY_DOUBLES = new Doubles(DoubleValues.EMPTY);
+    public static final GeoPoints EMPTY_GEOPOINTS = new GeoPoints(GeoPointValues.EMPTY);
     public static final Strings EMPTY_STRINGS = new Strings(BytesValues.EMPTY);
     protected int docId;
     protected boolean listLoaded = false;
@@ -51,23 +52,6 @@ public abstract class ScriptDocValues {
     public abstract boolean isEmpty();
 
     public abstract List<?> getValues();
-
-    public static class Empty extends ScriptDocValues {
-        @Override
-        public void setNextDocId(int docId) {
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return true;
-        }
-
-        @Override
-        public List<?> getValues() {
-            return Collections.emptyList();
-        }
-
-    }
 
     public final static class Strings extends ScriptDocValues {
 

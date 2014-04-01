@@ -93,7 +93,7 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return ScriptDocValues.EMPTY;
+            return ScriptDocValues.EMPTY_DOUBLES;
         }
     }
 

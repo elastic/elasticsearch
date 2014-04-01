@@ -39,9 +39,12 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class MockTransportService extends TransportService {
 
+    private final Transport original;
+
     @Inject
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings, new LookupTestTransport(transport), threadPool);
+        this.original = transport;
     }
 
     /**
@@ -63,7 +66,7 @@ public class MockTransportService extends TransportService {
      * is added to fail as well.
      */
     public void addFailToSendNoConnectRule(DiscoveryNode node) {
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(transport) {
+        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
@@ -87,7 +90,7 @@ public class MockTransportService extends TransportService {
      */
     public void addUnresponsiveRule(DiscoveryNode node) {
         // TODO add a parameter to delay the connect timeout?
-        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(transport) {
+        ((LookupTestTransport) transport).transports.put(node, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");

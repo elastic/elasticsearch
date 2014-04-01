@@ -56,10 +56,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testChangeInitialShardsRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
-        final String[] nodes = new String[3];
-        nodes[0] = cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-        nodes[1] = cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-        nodes[2] = cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        final String[] nodes = cluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get().toArray(new String[0]);
 
         createIndex("test");
         ensureGreen();
@@ -125,9 +122,7 @@ public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
     public void testQuorumRecovery() throws Exception {
 
         logger.info("--> starting 3 nodes");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        cluster().startNodesAsync(3, settingsBuilder().put("gateway.type", "local").build()).get();
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
         setMinimumMasterNodes(2);
 

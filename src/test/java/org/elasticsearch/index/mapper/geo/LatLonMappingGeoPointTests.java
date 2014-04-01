@@ -20,7 +20,11 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestUtils;
@@ -28,7 +32,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -393,5 +397,15 @@ public class LatLonMappingGeoPointTests extends ElasticsearchTestCase {
         assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
         assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
         assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
+    }
+
+    @Test
+    public void testTryParsingLatLonFromString() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject().field("lat", "52").field("lon", "4").endObject();
+        XContentParser parser = XContentHelper.createParser(builder.bytes());
+        parser.nextToken();
+        GeoPoint geoPoint = GeoPoint.parse(parser);
+        assertThat(geoPoint.lat(), is(52.0));
+        assertThat(geoPoint.lon(), is(4.0));
     }
 }

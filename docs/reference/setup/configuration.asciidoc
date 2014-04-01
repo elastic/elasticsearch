@@ -52,7 +52,20 @@ curl localhost:9200/_nodes/process?pretty
 [[setup-configuration-memory]]
 ==== Memory Settings
 
-There is an option to use
+The Linux kernel tries to use as much memory as possible for file system
+caches, and eagerly swaps out unused application memory. This is harmful
+especially for the JVM; fortunately there are steps that can be taken to
+avoid performance degradation by swapping.
+
+The first (and generally recommended) option is to ensure that the `sysctl`
+value `vm.swappiness` is set to `0`. This reduces the kernel's tendency to
+swap and should not lead to swapping under normal circumstances, while still
+allowing the whole system to swap in emergency conditions.
+However, while this works correctly with recent Linux kernels, older
+distributions may not behave correctly even with `vm.swappiness=0` and
+still swap, especially when doing lots of file I/O.
+
+For these cases there is an option to use
 http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] to
 try to lock the process address space so it won't be swapped. For this
 to work, the `bootstrap.mlockall` should be set to `true` and it is
@@ -64,6 +77,12 @@ In order to see if this works or not, set the `common.jna` logging to
 DEBUG level. A solution to "Unknown mlockall error 0" can be to set
 `ulimit -l unlimited`.
 
+Another possible reason why `mlockall` can fail is when when the directory
+pointed to by the `java.io.tmpdir` JVM system property - typically `/tmp` -
+is mounted with the `noexec` option for security reasons. In this case you
+can specify an additional directory `jna.tmpdir` to use for loading the
+native library.
+ 
 Note, `mlockall` might cause the JVM or shell
 session to exit if it fails to allocate the memory (because not enough
 memory is available on the machine).

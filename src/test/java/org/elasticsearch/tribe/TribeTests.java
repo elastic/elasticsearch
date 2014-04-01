@@ -39,6 +39,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -171,10 +172,10 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     @Test
     public void testOnConflictDrop() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
-        cluster().client().admin().indices().prepareCreate("conflict").get();
-        cluster2.client().admin().indices().prepareCreate("conflict").get();
-        cluster().client().admin().indices().prepareCreate("test1").get();
-        cluster2.client().admin().indices().prepareCreate("test2").get();
+        assertAcked(cluster().client().admin().indices().prepareCreate("conflict"));
+        assertAcked(cluster2.client().admin().indices().prepareCreate("conflict"));
+        assertAcked(cluster().client().admin().indices().prepareCreate("test1"));
+        assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
 
         setupTribeNode(ImmutableSettings.builder()
                 .put("tribe.on_conflict", "drop")

@@ -343,16 +343,24 @@ public class GeoUtils {
                 if(parser.currentToken() == Token.FIELD_NAME) {
                     String field = parser.text();
                     if(LATITUDE.equals(field)) {
-                        if(parser.nextToken() == Token.VALUE_NUMBER) {
-                            lat = parser.doubleValue();
-                        } else {
-                            throw new ElasticsearchParseException("latitude must be a number");
+                        parser.nextToken();
+                        switch (parser.currentToken()) {
+                            case VALUE_NUMBER:
+                            case VALUE_STRING:
+                                lat = parser.doubleValue(true);
+                                break;
+                            default:
+                                throw new ElasticsearchParseException("latitude must be a number");
                         }
                     } else if (LONGITUDE.equals(field)) {
-                        if(parser.nextToken() == Token.VALUE_NUMBER) {
-                            lon = parser.doubleValue();
-                        } else {
-                            throw new ElasticsearchParseException("latitude must be a number");
+                        parser.nextToken();
+                        switch (parser.currentToken()) {
+                            case VALUE_NUMBER:
+                            case VALUE_STRING:
+                                lon = parser.doubleValue(true);
+                                break;
+                            default:
+                                throw new ElasticsearchParseException("longitude must be a number");
                         }
                     } else if (GEOHASH.equals(field)) {
                         if(parser.nextToken() == Token.VALUE_STRING) {

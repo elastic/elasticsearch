@@ -325,20 +325,28 @@ public class GeolocationContextMapping extends ContextMapping {
                 final String fieldName = parser.text();
                 if("lat".equals(fieldName)) {
                     if(point == null) {
-                        if (parser.nextToken() == Token.VALUE_NUMBER) {
-                            lat = parser.doubleValue();
-                        } else {
-                            throw new ElasticsearchParseException("latitude must be a number");
+                        parser.nextToken();
+                        switch (parser.currentToken()) {
+                            case VALUE_NUMBER:
+                            case VALUE_STRING:
+                                lat = parser.doubleValue(true);
+                                break;
+                            default:
+                                throw new ElasticsearchParseException("latitude must be a number");
                         }
                     } else {
                         throw new ElasticsearchParseException("only lat/lon or [" + FIELD_VALUE + "] is allowed");
                     }
                 } else if ("lon".equals(fieldName)) {
                     if(point == null) {
-                        if(parser.nextToken() == Token.VALUE_NUMBER) {
-                            lon = parser.doubleValue();
-                        } else {
-                            throw new ElasticsearchParseException("longitude must be a number");
+                        parser.nextToken();
+                        switch (parser.currentToken()) {
+                            case VALUE_NUMBER:
+                            case VALUE_STRING:
+                                lon = parser.doubleValue(true);
+                                break;
+                            default:
+                                throw new ElasticsearchParseException("longitude must be a number");
                         }
                     } else {
                         throw new ElasticsearchParseException("only lat/lon or [" + FIELD_VALUE + "] is allowed");

@@ -446,6 +446,7 @@ Defaults to the property/field name.
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
 and it can be retrieved from it).
+|`doc_values` |Set to `true` to store field values in a column-stride fashion.
 |=======================================================================
 
 [float]

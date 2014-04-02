@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.io.IOException;
@@ -36,6 +37,8 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int requiredSize = SignificantTermsParser.DEFAULT_REQUIRED_SIZE;
     private int shardSize = SignificantTermsParser.DEFAULT_SHARD_SIZE;
     private int minDocCount = SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
+    private FilterBuilder filterBuilder;
+
 
     public SignificantTermsBuilder(String name) {
         super(name, SignificantStringTerms.TYPE.name());
@@ -60,6 +63,12 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.minDocCount = minDocCount;
         return this;
     }
+    
+    public SignificantTermsBuilder backgroundFilter(FilterBuilder filter) {
+        this.filterBuilder = filter;
+        return this;
+    }
+    
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -75,6 +84,10 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         if (shardSize != SignificantTermsParser.DEFAULT_SHARD_SIZE) {
             builder.field("shard_size", shardSize);
+        }
+        if (filterBuilder != null) {
+            builder.field("background_filter");
+            filterBuilder.toXContent(builder, params); 
         }
 
         return builder.endObject();

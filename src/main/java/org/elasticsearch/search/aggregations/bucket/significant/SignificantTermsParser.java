@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -40,6 +41,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
 
     //Typically need more than one occurrence of something for it to be statistically significant
     public static final int DEFAULT_MIN_DOC_COUNT = 3;
+    
+    private static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
 
     @Override
     public String type() {
@@ -90,18 +93,9 @@ public class SignificantTermsParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                // TODO not sure if code below is the best means to declare a filter for 
-                // defining an alternative background stats context.
-                // In trial runs it becomes obvious that the choice of background does have to  
-                // be a strict superset of the foreground subset otherwise the significant terms algo
-                // immediately singles out the odd terms that are in the foreground but not represented
-                // in the background. So a better approach may be to use a designated parent agg as the  
-                // background because parent aggs are always guaranteed to be a superset whereas arbitrary
-                // filters defined by end users and parsed below are not.
-//                if ("background_context".equals(currentFieldName)) {
-//                    filter = context.queryParserService().parseInnerFilter(parser).filter();
-//                }
-
+                if (BACKGROUND_FILTER.match(currentFieldName)) {
+                    filter = context.queryParserService().parseInnerFilter(parser).filter();
+                }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }

@@ -99,7 +99,7 @@ settings API.
 [[disk]]
 === Disk-based Shard Allocation
 
-Elasticsearch con be configured to prevent shard
+Elasticsearch can be configured to prevent shard
 allocation on nodes depending on disk usage for the node. This
 functionality is disabled by default, and can be changed either in the
 configuration file, or dynamically using:

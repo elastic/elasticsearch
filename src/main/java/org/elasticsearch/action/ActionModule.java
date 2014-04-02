@@ -150,6 +150,8 @@ import org.elasticsearch.action.indexedscripts.put.TransportPutIndexedScriptActi
 import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.TransportMoreLikeThisAction;
 import org.elasticsearch.action.percolate.*;
+import org.elasticsearch.action.quality.PrecisionAtAction;
+import org.elasticsearch.action.quality.TransportPrecisionAtAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.suggest.SuggestAction;
@@ -319,6 +321,7 @@ public class ActionModule extends AbstractModule {
         registerAction(PutIndexedScriptAction.INSTANCE, TransportPutIndexedScriptAction.class);
         registerAction(GetIndexedScriptAction.INSTANCE, TransportGetIndexedScriptAction.class);
         registerAction(DeleteIndexedScriptAction.INSTANCE, TransportDeleteIndexedScriptAction.class);
+        registerAction(PrecisionAtAction.INSTANCE, TransportPrecisionAtAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.quality;
 
+import com.google.common.base.Objects;
+import com.google.common.base.Objects.ToStringHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,5 +66,12 @@ public class PrecisionAtRequest extends ActionRequest<PrecisionAtRequest> {
         super.writeTo(out);
         out.writeBytesReference(query);
         out.writeGenericValue(relevantDocs);
+    }
+    
+    @Override
+    public String toString() {
+        ToStringHelper help = Objects.toStringHelper(this).add("Relevant docs", relevantDocs.toString());
+        help.add("Query", query);
+        return help.toString();
     }
 }

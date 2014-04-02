@@ -197,7 +197,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         public final IndexFieldCache indexCache;
         public final Object readerKey;
 
-        public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>(); // optional stats listener
+        public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>();
         long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
 

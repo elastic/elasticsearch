@@ -174,13 +174,12 @@ geohash of a certain precision, which provides the context.
 
 [float]
 ==== Geo location Mapping
-The mapping for a geo context accepts four settings:
+The mapping for a geo context accepts four settings, only of which `precision` is required:
 
 [horizontal]
 `precision`::  This defines the precision of the geohash and can be specified as `5m`, `10km`,
                or as a raw geohash precision: `1`..`12`. It's also possible to setup multiple
                precisions by defining a list of precisions: `["5m", "10km"]`
-               (default is a geohash level of 12)
 `neighbors`::  Geohashes are rectangles, so a geolocation, which in reality is only 1 metre
                away from the specified point, may fall into the neighbouring rectangle. Set
                `neighbours` to `true` to include the neighbouring geohashes in the context.

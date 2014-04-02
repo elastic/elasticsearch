@@ -27,7 +27,9 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -479,6 +481,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("type", "completion")
                 .startObject("context").startObject("location")
                     .field("type", "geo")
+                    .field("precision", "500m")
                     .startObject("default").field("lat", berlinAlexanderplatz.lat()).field("lon", berlinAlexanderplatz.lon()).endObject()
                 .endObject().endObject()
                 .endObject().endObject().endObject()
@@ -529,6 +532,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("type", "completion")
                 .startObject("context").startObject("location")
                     .field("type", "geo")
+                    .field("precision", "1m")
                 .endObject().endObject()
             .endObject().endObject().endObject()
             .endObject();
@@ -670,6 +674,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("type", "completion")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
+                .field("precision", "5m")
                 .field("path", "loc")
                 .endObject().endObject()
                 .endObject().endObject().endObject()
@@ -685,6 +690,57 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         CompletionSuggestionBuilder suggestionBuilder = new CompletionSuggestionBuilder("suggestion").field("suggest").text("b").size(10).addGeoLocation("location", alexanderplatz.lat(), alexanderplatz.lon());
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(suggestionBuilder).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Berlin Alexanderplatz");
+    }
+
+    @Test(expected = MapperParsingException.class)
+    public void testThatPrecisionIsRequired() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("item").startObject("properties").startObject("suggest")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                .field("type", "geo")
+                .field("path", "loc")
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject();
+
+        assertAcked(prepareCreate(INDEX).addMapping("item", xContentBuilder));
+    }
+
+    @Test
+    public void testThatLatLonParsingFromSourceWorks() throws Exception {
+        XContentBuilder xContentBuilder = jsonBuilder().startObject()
+                .startObject("mappings").startObject("test").startObject("properties").startObject("suggest_geo")
+                .field("type", "completion")
+                .startObject("context").startObject("location")
+                .field("type", "geo")
+                .field("precision", "1km")
+                .endObject().endObject()
+                .endObject().endObject().endObject()
+                .endObject().endObject();
+
+        assertAcked(prepareCreate("test").setSource(xContentBuilder.bytes()));
+
+        double latitude = 52.22;
+        double longitude = 4.53;
+        String geohash = GeoHashUtils.encode(latitude, longitude);
+
+        XContentBuilder doc1 = jsonBuilder().startObject().startObject("suggest_geo").field("input", "Hotel Marriot in Amsterdam").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject();
+        index("test", "test", "1", doc1);
+        XContentBuilder doc2 = jsonBuilder().startObject().startObject("suggest_geo").field("input", "Hotel Marriot in Berlin").startObject("context").startObject("location").field("lat", 53.31).field("lon", 13.24).endObject().endObject().endObject().endObject();
+        index("test", "test", "2", doc2);
+        refresh();
+
+        XContentBuilder source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").field("location", geohash).endObject().endObject().endObject().endObject();
+        SuggestRequest suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
+        SuggestResponse suggestResponse = client().suggest(suggestRequest).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
+
+        // this is exact the same request, but using lat/lon instead of geohash
+        source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject().endObject();
+        suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
+        suggestResponse = client().suggest(suggestRequest).get();
+        assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
     }
 
     public void assertGeoSuggestionsInRange(String location, String suggest, double precision) throws IOException {

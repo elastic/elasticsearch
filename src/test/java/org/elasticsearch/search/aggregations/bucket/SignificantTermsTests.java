@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
@@ -183,8 +184,59 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);
-    }    
+    }   
     
+    @Test
+    public void badFilteredAnalysis() throws Exception {
+        // Deliberately using a bad choice of filter here for the background context in order
+        // to test robustness. 
+        // We search for the name of a snowboarder but use music-related content (fact_category:1)
+        // as the background source of term statistics.
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)                
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(2).backgroundFilter(FilterBuilders.termFilter("fact_category", 1)))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        // We expect at least one of the significant terms to have been selected on the basis
+        // that it is present in the foreground selection but entirely missing from the filtered
+        // background used as context.
+        boolean hasMissingBackgroundTerms = false;
+        for (Bucket topTerm : topTerms) {
+            if (topTerm.getSupersetDf() == 0) {
+                hasMissingBackgroundTerms = true;
+                break;
+            }
+        }
+        assertTrue(hasMissingBackgroundTerms);
+    }       
+    
+    @Test
+    public void filteredAnalysis() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setFrom(0).setSize(60).setExplain(true)                
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(1).backgroundFilter(FilterBuilders.termsFilter("description",  "paul")))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        HashSet<String> topWords = new HashSet<String>();
+        for (Bucket topTerm : topTerms) {
+            topWords.add(topTerm.getKey());
+        }
+        //The word "paul" should be a constant of all docs in the background set and therefore not seen as significant 
+        assertFalse(topWords.contains("paul"));
+        //"Weller" is the only Paul who was in The Jam and therefore this should be identified as a differentiator from the background of all other Pauls. 
+        assertTrue(topWords.contains("jam"));
+    }       
+
     @Test
     public void nestedAggs() throws Exception {
         String[][] expectedKeywordsByCategory={

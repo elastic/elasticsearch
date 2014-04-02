@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.io.IOException;
@@ -42,6 +43,8 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int includeFlags;
     private String excludePattern;
     private int excludeFlags;
+    private FilterBuilder filterBuilder;
+
 
     public SignificantTermsBuilder(String name) {
         super(name, SignificantStringTerms.TYPE.name());
@@ -66,6 +69,12 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.minDocCount = minDocCount;
         return this;
     }
+    
+    public SignificantTermsBuilder backgroundFilter(FilterBuilder filter) {
+        this.filterBuilder = filter;
+        return this;
+    }
+    
 
     public SignificantTermsBuilder shardMinDocCount(int shardMinDocCount) {
         this.shardMinDocCount = shardMinDocCount;
@@ -161,6 +170,11 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
                         .field("flags", excludeFlags)
                         .endObject();
             }
+        }
+        
+        if (filterBuilder != null) {
+            builder.field(SignificantTermsParser.BACKGROUND_FILTER.getPreferredName());
+            filterBuilder.toXContent(builder, params); 
         }
 
         return builder.endObject();

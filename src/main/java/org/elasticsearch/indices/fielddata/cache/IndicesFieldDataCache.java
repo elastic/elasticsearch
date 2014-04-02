@@ -22,7 +22,6 @@ package org.elasticsearch.indices.fielddata.cache;
 import com.google.common.cache.*;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.SegmentReader;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
@@ -50,25 +49,15 @@ import java.util.concurrent.TimeUnit;
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, AtomicFieldData> {
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
-
-    Cache<Key, AtomicFieldData> cache;
-
-    private volatile String size;
-    private volatile long sizeInBytes;
-    private volatile TimeValue expire;
-
+    private final Cache<Key, AtomicFieldData> cache;
 
     @Inject
     public IndicesFieldDataCache(Settings settings, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
         super(settings);
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
-        this.size = componentSettings.get("size", "-1");
-        this.sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
-        this.expire = componentSettings.getAsTime("expire", null);
-        buildCache();
-    }
-
-    private void buildCache() {
+        final String size = componentSettings.get("size", "-1");
+        final long sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
+        final TimeValue expire = componentSettings.getAsTime("expire", null);
         CacheBuilder<Key, AtomicFieldData> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
@@ -87,18 +76,18 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         cache.invalidateAll();
     }
 
-    public IndexFieldDataCache buildIndexFieldDataCache(@Nullable IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
-        return new IndexFieldCache(indexService, index, fieldNames, fieldDataType);
+    public IndexFieldDataCache buildIndexFieldDataCache(IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+        return new IndexFieldCache(cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
     }
 
     @Override
     public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
-        Key key = notification.getKey();
+        final Key key = notification.getKey();
         assert key != null && key.listeners != null;
-
         IndexFieldCache indexCache = key.indexCache;
         long sizeInBytes = key.sizeInBytes;
-        AtomicFieldData value = notification.getValue();
+        final AtomicFieldData value = notification.getValue();
+        assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
         if (sizeInBytes == -1 && value != null) {
             sizeInBytes = value.getMemorySizeInBytes();
         }
@@ -119,19 +108,23 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     /**
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
      */
-    class IndexFieldCache implements IndexFieldDataCache, SegmentReader.CoreClosedListener {
+    static class IndexFieldCache implements IndexFieldDataCache, SegmentReader.CoreClosedListener {
 
-        @Nullable
         private final IndexService indexService;
         final Index index;
         final FieldMapper.Names fieldNames;
         final FieldDataType fieldDataType;
+        private final Cache<Key, AtomicFieldData> cache;
+        private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        IndexFieldCache(@Nullable IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+        IndexFieldCache(final Cache<Key, AtomicFieldData> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
             this.indexService = indexService;
             this.index = index;
             this.fieldNames = fieldNames;
             this.fieldDataType = fieldDataType;
+            this.cache = cache;
+            this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
+            assert indexService != null;
         }
 
         @Override
@@ -143,15 +136,13 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 public AtomicFieldData call() throws Exception {
                     SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                    key.sizeInBytes = fieldData.getMemorySizeInBytes();
                     key.listeners.add(indicesFieldDataCacheListener);
-
-                    if (indexService != null) {
-                        ShardId shardId = ShardUtils.extractShardId(context.reader());
-                        if (shardId != null) {
-                            IndexShard shard = indexService.shard(shardId.id());
-                            if (shard != null) {
-                                key.listeners.add(shard.fieldData());
-                            }
+                    final ShardId shardId = ShardUtils.extractShardId(context.reader());
+                    if (shardId != null) {
+                        final IndexShard shard = indexService.shard(shardId.id());
+                        if (shard != null) {
+                            key.listeners.add(shard.fieldData());
                         }
                     }
                     for (Listener listener : key.listeners) {

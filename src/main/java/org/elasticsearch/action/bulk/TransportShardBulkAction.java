@@ -144,7 +144,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         final BulkShardRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         Engine.IndexingOperation[] ops = null;
-        Set<Tuple<String, String>> mappingsToUpdate = null;
+        final Set<Tuple<String, String>> mappingsToUpdate = Sets.newHashSet();
 
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         long[] preVersions = new long[request.items().length];
@@ -156,43 +156,36 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 preVersions[requestIndex] = indexRequest.version();
                 preVersionTypes[requestIndex] = indexRequest.versionType();
                 try {
-                    WriteResult result = shardIndexOperation(request, indexRequest, clusterState, indexShard, true);
-                    // add the response
-                    IndexResponse indexResponse = result.response();
-                    responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse);
-                    if (result.mappingToUpdate != null) {
-                        if (mappingsToUpdate == null) {
-                            mappingsToUpdate = Sets.newHashSet();
+                    try {
+                        WriteResult result = shardIndexOperation(request, indexRequest, clusterState, indexShard, true);
+                        // add the response
+                        IndexResponse indexResponse = result.response();
+                        responses[requestIndex] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse);
+                        if (result.mappingToUpdate != null) {
+                            mappingsToUpdate.add(result.mappingToUpdate);
                         }
-                        mappingsToUpdate.add(result.mappingToUpdate);
-                    }
-                    if (result.op != null) {
-                        if (ops == null) {
-                            ops = new Engine.IndexingOperation[request.items().length];
-                        }
-                        ops[requestIndex] = result.op;
-                    }
-                } catch (Throwable e) {
-                    if (e instanceof WriteFailure) {
-                        Tuple<String, String> mappingsToUpdateOnFailure = ((WriteFailure) e).mappingsToUpdate;
-                        if (mappingsToUpdateOnFailure != null) {
-                            if (mappingsToUpdate == null) {
-                                mappingsToUpdate = Sets.newHashSet();
+                        if (result.op != null) {
+                            if (ops == null) {
+                                ops = new Engine.IndexingOperation[request.items().length];
                             }
+                            ops[requestIndex] = result.op;
+                        }
+                    } catch (WriteFailure e){
+                        Tuple<String, String> mappingsToUpdateOnFailure = e.mappingsToUpdate;
+                        if (mappingsToUpdateOnFailure != null) {
                             mappingsToUpdate.add(mappingsToUpdateOnFailure);
                         }
-                        e = e.getCause(); // get the original cause
+                        throw e.getCause();
                     }
+                } catch (Throwable e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
                         for (int j = 0; j < requestIndex; j++) {
                             applyVersion(request.items()[j], preVersions[j], preVersionTypes[j]);
                         }
-                        if (mappingsToUpdate != null) {
-                            for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-                                updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
-                            }
+                        for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
+                            updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
                         }
                         throw (ElasticsearchException) e;
                     }
@@ -263,9 +256,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 }
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update", updateResponse);
                                 if (result.mappingToUpdate != null) {
-                                    if (mappingsToUpdate == null) {
-                                        mappingsToUpdate = Sets.newHashSet();
-                                    }
                                     mappingsToUpdate.add(result.mappingToUpdate);
                                 }
                                 if (result.op != null) {
@@ -301,8 +291,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 // we can't try any more
                                 responses[requestIndex] = new BulkItemResponse(item.id(), "update",
                                         new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), t));
-                                ;
-
                                 request.items()[requestIndex] = null; // do not send to replicas
                             }
                         } else {
@@ -356,10 +344,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
         }
 
-        if (mappingsToUpdate != null) {
-            for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-                updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
-            }
+        for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
+            updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
         }
 
         if (request.refresh()) {
@@ -398,6 +384,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
         WriteFailure(Throwable cause, Tuple<String, String> mappingsToUpdate) {
             super(null, cause);
+            assert cause != null;
             this.mappingsToUpdate = mappingsToUpdate;
         }
     }

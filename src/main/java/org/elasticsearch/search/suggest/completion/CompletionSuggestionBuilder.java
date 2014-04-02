@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 

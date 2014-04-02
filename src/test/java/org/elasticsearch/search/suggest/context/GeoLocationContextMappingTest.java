@@ -18,12 +18,13 @@
  */
 package org.elasticsearch.search.suggest.context;
 
-import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -38,7 +39,9 @@ public class GeoLocationContextMappingTest extends ElasticsearchTestCase {
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken();
 
-        GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", Maps.newHashMap());
+        HashMap<String, Object> config = new HashMap<>();
+        config.put("precision", 12);
+        GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
     }
 

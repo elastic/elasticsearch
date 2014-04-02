@@ -54,7 +54,7 @@ public class DiscoveryNode implements Streamable, Serializable {
             } else if ("network".equals(nodeMode)) {
                 return false;
             } else {
-                throw new ElasticsearchIllegalArgumentException("unsupported node.mode [" + nodeMode + "]");
+                throw new ElasticsearchIllegalArgumentException("unsupported node.mode [" + nodeMode + "]. Should be one of [local, network].");
             }
         }
         return false;

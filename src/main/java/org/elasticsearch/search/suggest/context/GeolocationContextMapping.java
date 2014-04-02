@@ -114,6 +114,10 @@ public class GeolocationContextMapping extends ContextMapping {
      *         <code>config</code>
      */
     protected static GeolocationContextMapping load(String name, Map<String, Object> config) {
+        if (!config.containsKey(FIELD_PRECISION)) {
+            throw new ElasticsearchParseException("field [precision] is missing");
+        }
+
         final GeolocationContextMapping.Builder builder = new GeolocationContextMapping.Builder(name);
 
         if (config != null) {
@@ -379,6 +383,10 @@ public class GeolocationContextMapping extends ContextMapping {
                 } else {
                     point = new GeoPoint(lat, lon);
                 }
+            }
+
+            if (precision == null || precision.length == 0) {
+                precision = this.precision;
             }
 
             return new GeoQuery(name, point.geohash(), precision);

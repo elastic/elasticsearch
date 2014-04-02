@@ -33,6 +33,7 @@ setup:
                      "context":
                         "location":
                             "type" : "geo"
+                            "precision" : "5km"
 
 ---
 "Simple context suggestion should work":
@@ -202,7 +203,11 @@ setup:
       indices.refresh: {}
 
   - do:
+      indices.get_mapping: {}
+
+  - do:
       suggest:
+        index: test
         body:
           result:
             text: "hote"

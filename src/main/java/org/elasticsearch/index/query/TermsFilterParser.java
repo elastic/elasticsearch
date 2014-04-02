@@ -90,7 +90,7 @@ public class TermsFilterParser implements FilterParser {
         Double lookupBloomFpp = null;
         Integer lookupBloomExpectedInsertions = null;
         Integer lookupBloomHashFunctions = null;
-        Integer lookupMaxTermsPerShard = null;
+        Long lookupMaxTermsPerShard = null;
         boolean lookupCache = true;
 
         CacheKeyFilter.Key cacheKey = null;
@@ -179,7 +179,7 @@ public class TermsFilterParser implements FilterParser {
                         } else if ("path".equals(currentFieldName)) {
                             lookupPath = parser.text();
                         } else if ("max_terms_per_shard".equals(currentFieldName) || "maxTermsPerShard".equals(currentFieldName)) {
-                            lookupMaxTermsPerShard = parser.intValue();
+                            lookupMaxTermsPerShard = parser.longValue();
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
                         } else if ("cache".equals(currentFieldName)) {

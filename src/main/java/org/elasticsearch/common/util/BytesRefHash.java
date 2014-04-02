@@ -71,9 +71,9 @@ public final class BytesRefHash extends AbstractHash {
     }
 
     /**
-     * Get the id associated with <code>key</code>
+     * Get the id associated with <code>key</code> using the provided spare BytesRef
      */
-    public long find(BytesRef key, int code) {
+    public long find(BytesRef key, int code, BytesRef spare) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot; ; index = nextSlot(index, mask)) {
             final long id = id(index);
@@ -81,6 +81,13 @@ public final class BytesRefHash extends AbstractHash {
                 return id;
             }
         }
+    }
+
+    /**
+     * Get the id associated with <code>key</code>
+     */
+    public long find(BytesRef key, int code) {
+        return find(key, code, spare);
     }
 
     /** Sugar for {@link #find(BytesRef, int) find(key, key.hashCode()} */
@@ -149,6 +156,13 @@ public final class BytesRefHash extends AbstractHash {
     /** Sugar to {@link #add(BytesRef, int) add(key, key.hashCode()}. */
     public long add(BytesRef key) {
         return add(key, key.hashCode());
+    }
+
+
+    /** Get the cached hashcode **/
+    public int code(long id) {
+        assert id >= 0;
+        return hashes.get(id);
     }
 
     @Override

@@ -98,7 +98,7 @@ public class QueryTermsLookupBenchmark {
         bench.benchHasParentSingleTerm(false);
         bench.benchHasParentMatchAll(false);
         bench.benchHasChildMatchAll(false);
-        bench.benchHasChildMatchAllWithMaxTerms(false);
+        bench.benchHasParentMatchAllWithMaxTerms(false);
         bench.benchHasParentRandomTerms(false);
 
         System.gc();
@@ -129,12 +129,13 @@ public class QueryTermsLookupBenchmark {
     }
 
     public XContentBuilder parentSource(int id, String nameValue) throws IOException {
-        return jsonBuilder().startObject().field("id", Integer.toString(id)).field("num", id).field("name", nameValue).endObject();
+        return jsonBuilder().startObject().field("id", Integer.toString(id)).field("num", id).field("name", nameValue)
+                .field("dnum", Double.valueOf(id)).endObject();
     }
 
     public XContentBuilder childSource(String id, int parent, String tag) throws IOException {
-        return jsonBuilder().startObject().field("id", id).field("pid", Integer.toString(parent)).field("num", parent).field("tag", tag)
-                .endObject();
+        return jsonBuilder().startObject().field("id", id).field("pid", Integer.toString(parent)).field("num", parent)
+                .field("tag", tag).field("dnum", Double.valueOf(parent)).endObject();
     }
 
     public void setupIndex() {
@@ -236,9 +237,11 @@ public class QueryTermsLookupBenchmark {
      * Expect all parents returned since one child from each parent will match the lookup.
      * <p/>
      * Parent string field = "id"
-     * Parent numeric field = "num"
+     * Parent long field = "num"
+     * Parent double field = "dnum"
      * Child string field = "pid"
-     * Child numeric field = "num"
+     * Child long field = "num"
+     * Child double field = "dnum"
      */
     public void benchHasChildSingleTerm(boolean cacheLookup) {
         FilterBuilder lookupFilter;
@@ -257,35 +260,46 @@ public class QueryTermsLookupBenchmark {
                 .bloomExpectedInsertions(NUM_PARENTS)
                 .lookupCache(cacheLookup);
 
-        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
+        TermsLookupFilterBuilder longFilter = termsLookupFilter("dnum")
                 .index(CHILD_INDEX)
                 .type(CHILD_TYPE)
-                .path("num")
+                .path("dnum")
+                .lookupCache(cacheLookup);
+
+        TermsLookupFilterBuilder doubleFilter = termsLookupFilter("dnum")
+                .index(CHILD_INDEX)
+                .type(CHILD_TYPE)
+                .path("dnum")
                 .lookupCache(cacheLookup);
 
         long tookString = 0;
-        long tookNumeric = 0;
+        long tookLong = 0;
+        long tookDouble = 0;
         long tookBloom = 0;
         long expected = NUM_PARENTS;
         warmFieldData("id", "pid");     // for string fields
-        warmFieldData("num", "num");    // for numeric fields
+        warmFieldData("num", "num");    // for long fields
+        warmFieldData("dnum", "dnum");    // for double fields
 
         log("==== HAS CHILD SINGLE TERM (cache: " + cacheLookup + ") ====");
         for (int i = 0; i < NUM_QUERIES; i++) {
             lookupFilter = termFilter("tag", "tag" + random.nextInt(NUM_CHILDREN_PER_PARENT));
 
             stringFilter.lookupFilter(lookupFilter);
-            numericFilter.lookupFilter(lookupFilter);
+            longFilter.lookupFilter(lookupFilter);
+            doubleFilter.lookupFilter(lookupFilter);
             bloomFilter.lookupFilter(lookupFilter);
 
             tookString += runQuery("string", i, PARENT_INDEX, expected, filteredQuery(mainQuery, stringFilter));
-            tookNumeric += runQuery("numeric", i, PARENT_INDEX, expected, filteredQuery(mainQuery, numericFilter));
+            tookLong += runQuery("long", i, PARENT_INDEX, expected, filteredQuery(mainQuery, longFilter));
+            tookDouble += runQuery("double", i, PARENT_INDEX, expected, filteredQuery(mainQuery, doubleFilter));
             tookBloom += runQuery("bloom", i, PARENT_INDEX, expected, filteredQuery(mainQuery, bloomFilter));
         }
 
         log("string: " + (tookString / NUM_QUERIES) + "ms avg");
-        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
-        log("bloom: " + (tookBloom / NUM_QUERIES) + "ms avg");
+        log("long  : " + (tookLong / NUM_QUERIES) + "ms avg");
+        log("double: " + (tookDouble / NUM_QUERIES) + "ms avg");
+        log("bloom : " + (tookBloom / NUM_QUERIES) + "ms avg");
         log("");
     }
 
@@ -294,9 +308,11 @@ public class QueryTermsLookupBenchmark {
      * Expect all parent documents returned.
      * <p/>
      * Parent string field = "id"
-     * Parent numeric field = "num"
+     * Parent long field = "num"
+     * Parent double field = "dnum"
      * Child string field = "pid"
-     * Child numeric field = "num"
+     * Child long field = "num"
+     * Child double field = "dnum"
      */
     public void benchHasChildMatchAll(boolean cacheLookup) {
         FilterBuilder lookupFilter = matchAllFilter();
@@ -317,84 +333,41 @@ public class QueryTermsLookupBenchmark {
                 .lookupCache(cacheLookup)
                 .lookupFilter(lookupFilter);
 
-        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
+        TermsLookupFilterBuilder longFilter = termsLookupFilter("num")
                 .index(CHILD_INDEX)
                 .type(CHILD_TYPE)
                 .path("num")
                 .lookupCache(cacheLookup)
                 .lookupFilter(lookupFilter);
 
+        TermsLookupFilterBuilder doubleFilter = termsLookupFilter("dnum")
+                .index(CHILD_INDEX)
+                .type(CHILD_TYPE)
+                .path("dnum")
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
         long tookString = 0;
-        long tookNumeric = 0;
+        long tookLong = 0;
+        long tookDouble = 0;
         long tookBloom = 0;
         long expected = NUM_PARENTS;
         warmFieldData("id", "pid");     // for string fields
-        warmFieldData("num", "num");    // for numeric fields
+        warmFieldData("num", "num");    // for long fields
+        warmFieldData("dnum", "dnum");  // for double fields
 
         log("==== HAS CHILD MATCH-ALL (cache: " + cacheLookup + ") ====");
         for (int i = 0; i < NUM_QUERIES; i++) {
             tookString += runQuery("string", i, PARENT_INDEX, expected, filteredQuery(mainQuery, stringFilter));
-            tookNumeric += runQuery("numeric", i, PARENT_INDEX, expected, filteredQuery(mainQuery, numericFilter));
+            tookLong += runQuery("long", i, PARENT_INDEX, expected, filteredQuery(mainQuery, longFilter));
+            tookDouble += runQuery("double", i, PARENT_INDEX, expected, filteredQuery(mainQuery, doubleFilter));
             tookBloom += runQuery("bloom", i, PARENT_INDEX, expected, filteredQuery(mainQuery, bloomFilter));
         }
 
         log("string: " + (tookString / NUM_QUERIES) + "ms avg");
-        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
-        log("bloom: " + (tookBloom / NUM_QUERIES) + "ms avg");
-        log("");
-    }
-
-    /**
-     * Search for parent documents but limit each shard to 10k terms
-     * Expect 10k * num_shards parents returned.
-     * <p/>
-     * No bloom test since we can't know exactly how many docs will
-     * be returned considering a duplicate term may exist across
-     * shards thus counting toward maxTermsPerShard but not yielding
-     * any unique hits in the actual query.
-     * <p/>
-     * <p/>
-     * Parent string field = "id"
-     * Parent numeric field = "num"
-     * Child string field = "pid"
-     * Child numeric field = "num"
-     */
-    public void benchHasChildMatchAllWithMaxTerms(boolean cacheLookup) {
-        FilterBuilder lookupFilter = matchAllFilter();
-        QueryBuilder mainQuery = matchAllQuery();
-        int maxTermsPerShard = 10000;
-
-        TermsLookupFilterBuilder stringFilter = termsLookupFilter("id")
-                .index(CHILD_INDEX)
-                .type(CHILD_TYPE)
-                .path("pid")
-                .maxTermsPerShard(maxTermsPerShard)
-                .lookupCache(cacheLookup)
-                .lookupFilter(lookupFilter);
-
-        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
-                .index(CHILD_INDEX)
-                .type(CHILD_TYPE)
-                .path("num")
-                .maxTermsPerShard(maxTermsPerShard)
-                .lookupCache(cacheLookup)
-                .lookupFilter(lookupFilter);
-
-        long tookString = 0;
-        long tookNumeric = 0;
-        long tookBloom = 0;
-        long expected = maxTermsPerShard * NUM_SHARDS;
-        warmFieldData("id", "pid");     // for string fields
-        warmFieldData("num", "num");    // for numeric fields
-
-        log("==== HAS CHILD MATCH-ALL (max_terms: " + maxTermsPerShard + " cache: " + cacheLookup + ") ====");
-        for (int i = 0; i < NUM_QUERIES; i++) {
-            tookString += runQuery("string", i, PARENT_INDEX, expected, filteredQuery(mainQuery, stringFilter));
-            tookNumeric += runQuery("numeric", i, PARENT_INDEX, expected, filteredQuery(mainQuery, numericFilter));
-        }
-
-        log("string: " + (tookString / NUM_QUERIES) + "ms avg");
-        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
+        log("long  : " + (tookLong / NUM_QUERIES) + "ms avg");
+        log("double: " + (tookDouble / NUM_QUERIES) + "ms avg");
+        log("bloom : " + (tookBloom / NUM_QUERIES) + "ms avg");
         log("");
     }
 
@@ -424,34 +397,45 @@ public class QueryTermsLookupBenchmark {
                 .bloomExpectedInsertions(NUM_PARENTS)
                 .lookupCache(cacheLookup);
 
-        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
+        TermsLookupFilterBuilder longFilter = termsLookupFilter("num")
                 .index(PARENT_INDEX)
                 .type(PARENT_TYPE)
                 .path("num")
                 .lookupCache(cacheLookup);
 
+        TermsLookupFilterBuilder doubleFilter = termsLookupFilter("dnum")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("dnum")
+                .lookupCache(cacheLookup);
+
         long tookString = 0;
-        long tookNumeric = 0;
+        long tookLong = 0;
+        long tookDouble = 0;
         long tookBloom = 0;
         long expected = NUM_CHILDREN_PER_PARENT;
         warmFieldData("id", "pid");     // for string fields
-        warmFieldData("num", "num");    // for numeric fields
+        warmFieldData("num", "num");    // for long fields
+        warmFieldData("dnum", "dnum");  // for double fields
 
         log("==== HAS PARENT SINGLE TERM (cache: " + cacheLookup + ") ====");
         for (int i = 0; i < NUM_QUERIES; i++) {
             lookupFilter = termFilter("name", "test" + (random.nextInt(NUM_PARENTS) + 1));
 
             stringFilter.lookupFilter(lookupFilter);
-            numericFilter.lookupFilter(lookupFilter);
+            longFilter.lookupFilter(lookupFilter);
+            doubleFilter.lookupFilter(lookupFilter);
             bloomFilter.lookupFilter(lookupFilter);
 
             tookString += runQuery("string", i, CHILD_INDEX, expected, filteredQuery(mainQuery, stringFilter));
-            tookNumeric += runQuery("numeric", i, CHILD_INDEX, expected, filteredQuery(mainQuery, numericFilter));
+            tookLong += runQuery("long", i, CHILD_INDEX, expected, filteredQuery(mainQuery, longFilter));
+            tookDouble += runQuery("double", i, CHILD_INDEX, expected, filteredQuery(mainQuery, doubleFilter));
             tookBloom += runQuery("bloom", i, CHILD_INDEX, expected, filteredQuery(mainQuery, bloomFilter));
         }
 
         log("string: " + (tookString / NUM_QUERIES) + "ms avg");
-        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
+        log("long: " + (tookLong / NUM_QUERIES) + "ms avg");
+        log("double: " + (tookDouble / NUM_QUERIES) + "ms avg");
         log("bloom: " + (tookBloom / NUM_QUERIES) + "ms avg");
         log("");
     }
@@ -461,9 +445,11 @@ public class QueryTermsLookupBenchmark {
      * Expect all children to be returned.
      * <p/>
      * Parent string field = "id"
-     * Parent numeric field = "num"
+     * Parent long field = "num"
+     * Parent double field = "dnum"
      * Child string field = "pid"
-     * Child numeric field = "num"
+     * Child long field = "num"
+     * Child double field = "dnum"
      */
     public void benchHasParentMatchAll(boolean cacheLookup) {
         FilterBuilder lookupFilter = matchAllFilter();
@@ -484,42 +470,127 @@ public class QueryTermsLookupBenchmark {
                 .lookupCache(cacheLookup)
                 .lookupFilter(lookupFilter);
 
-        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
+        TermsLookupFilterBuilder longFilter = termsLookupFilter("num")
                 .index(PARENT_INDEX)
                 .type(PARENT_TYPE)
                 .path("num")
                 .lookupCache(cacheLookup)
                 .lookupFilter(lookupFilter);
 
+        TermsLookupFilterBuilder doubleFilter = termsLookupFilter("dnum")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("dnum")
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
         long tookString = 0;
-        long tookNumeric = 0;
+        long tookLong = 0;
+        long tookDouble = 0;
         long tookBloom = 0;
         long expected = NUM_CHILDREN_PER_PARENT * NUM_PARENTS;
         warmFieldData("id", "pid");     // for string fields
         warmFieldData("num", "num");    // for numeric fields
+        warmFieldData("dnum", "dnum");  // for double fields
 
         log("==== HAS PARENT MATCH-ALL (cache: " + cacheLookup + ") ====");
         for (int i = 0; i < NUM_QUERIES; i++) {
             tookString += runQuery("string", i, CHILD_INDEX, expected, filteredQuery(mainQuery, stringFilter));
-            tookNumeric += runQuery("numeric", i, CHILD_INDEX, expected, filteredQuery(mainQuery, numericFilter));
+            tookLong += runQuery("long", i, CHILD_INDEX, expected, filteredQuery(mainQuery, longFilter));
+            tookDouble += runQuery("double", i, CHILD_INDEX, expected, filteredQuery(mainQuery, doubleFilter));
             tookBloom += runQuery("bloom", i, CHILD_INDEX, expected, filteredQuery(mainQuery, bloomFilter));
         }
 
         log("string: " + (tookString / NUM_QUERIES) + "ms avg");
-        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
-        log("bloom: " + (tookBloom / NUM_QUERIES) + "ms avg");
+        log("long  : " + (tookLong / NUM_QUERIES) + "ms avg");
+        log("double: " + (tookDouble / NUM_QUERIES) + "ms avg");
+        log("bloom : " + (tookBloom / NUM_QUERIES) + "ms avg");
         log("");
     }
 
+    /**
+     * Search for children that have a parent but limit each shard to 10k terms.
+     * Expect maxTermsPerShard * NUM_SHARDS * NUM_CHILDREN_PER_PARENT children returned.
+     *
+     * Parent string field = "id"
+     * Parent long field = "num"
+     * Parent double field = "dnum"
+     * Child string field = "pid"
+     * Child long field = "num"
+     * Child double field = "dnum"
+     */
+    public void benchHasParentMatchAllWithMaxTerms(boolean cacheLookup) {
+        FilterBuilder lookupFilter = matchAllFilter();
+        QueryBuilder mainQuery = matchAllQuery();
+        long maxTermsPerShard = 30000;
+
+        TermsLookupFilterBuilder stringFilter = termsLookupFilter("pid")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("id")
+                .maxTermsPerShard(maxTermsPerShard)
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
+        TermsLookupFilterBuilder bloomFilter = termsLookupFilter("pid")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("id")
+                .maxTermsPerShard(maxTermsPerShard)
+                .bloomExpectedInsertions(NUM_PARENTS * NUM_CHILDREN_PER_PARENT)
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
+        TermsLookupFilterBuilder longFilter = termsLookupFilter("num")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("num")
+                .maxTermsPerShard(maxTermsPerShard)
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
+        TermsLookupFilterBuilder doubleFilter = termsLookupFilter("dnum")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("dnum")
+                .maxTermsPerShard(maxTermsPerShard)
+                .lookupCache(cacheLookup)
+                .lookupFilter(lookupFilter);
+
+        long tookString = 0;
+        long tookLong = 0;
+        long tookDouble = 0;
+        long tookBloom = 0;
+        long expected = NUM_CHILDREN_PER_PARENT * maxTermsPerShard * NUM_SHARDS;
+        warmFieldData("id", "pid");     // for string fields
+        warmFieldData("num", "num");    // for long fields
+        warmFieldData("dnum", "dnum");  // for double fields
+
+        log("==== HAS PARENT MATCH-ALL (shard max terms: " + maxTermsPerShard + " cache: " + cacheLookup + ") ====");
+        for (int i = 0; i < NUM_QUERIES; i++) {
+            tookString += runQuery("string", i, CHILD_INDEX, expected, filteredQuery(mainQuery, stringFilter));
+            tookLong += runQuery("long", i, CHILD_INDEX, expected, filteredQuery(mainQuery, longFilter));
+            tookDouble += runQuery("double", i, CHILD_INDEX, expected, filteredQuery(mainQuery, doubleFilter));
+            tookBloom += runQuery("bloom", i, CHILD_INDEX, expected, filteredQuery(mainQuery, bloomFilter));
+        }
+
+        log("string: " + (tookString / NUM_QUERIES) + "ms avg");
+        log("long  : " + (tookLong / NUM_QUERIES) + "ms avg");
+        log("double: " + (tookDouble / NUM_QUERIES) + "ms avg");
+        log("bloom : " + (tookBloom / NUM_QUERIES) + "ms avg");
+        log("");
+    }
 
     /**
      * Search for children that have a parent with any of the specified names.
      * Expect NUM_CHILDREN_PER_PARENT * # of names.
      * <p/>
      * Parent string field = "id"
-     * Parent numeric field = "num"
+     * Parent long field = "num"
+     * Parent double field = "dnum"
      * Child string field = "pid"
-     * Child numeric field = "num"
+     * Child long field = "num"
+     * Child double field = "dnum"
      */
     public void benchHasParentRandomTerms(boolean cacheLookup) {
         FilterBuilder lookupFilter;
@@ -544,18 +615,26 @@ public class QueryTermsLookupBenchmark {
                 .bloomFpp(0.01)
                 .lookupCache(cacheLookup);
 
-        TermsLookupFilterBuilder numericFilter = termsLookupFilter("num")
+        TermsLookupFilterBuilder longFilter = termsLookupFilter("num")
                 .index(PARENT_INDEX)
                 .type(PARENT_TYPE)
                 .path("num")
                 .lookupCache(cacheLookup);
 
+        TermsLookupFilterBuilder doubleFilter = termsLookupFilter("dnum")
+                .index(PARENT_INDEX)
+                .type(PARENT_TYPE)
+                .path("dnum")
+                .lookupCache(cacheLookup);
+
         long tookString = 0;
-        long tookNumeric = 0;
+        long tookLong = 0;
+        long tookDouble = 0;
         long tookBloom = 0;
         int expected = 0;
         warmFieldData("id", "pid");     // for string fields
-        warmFieldData("num", "num");    // for numeric fields
+        warmFieldData("num", "num");    // for long fields
+        warmFieldData("dnum", "dnum");  // for double fields
         warmFieldData("name", null);    // for field data terms filter
 
         log("==== HAS PARENT RANDOM TERMS (cache: " + cacheLookup + ") ====");
@@ -570,17 +649,20 @@ public class QueryTermsLookupBenchmark {
             lookupFilter = termsFilter("name", names).execution("fielddata");
             expected = NUM_CHILDREN_PER_PARENT * names.size();
             stringFilter.lookupFilter(lookupFilter);
-            numericFilter.lookupFilter(lookupFilter);
+            longFilter.lookupFilter(lookupFilter);
+            doubleFilter.lookupFilter(lookupFilter);
             bloomFilter.lookupFilter(lookupFilter).bloomExpectedInsertions(expected); // part of bloom filter tuning
 
             tookString += runQuery("string", i, CHILD_INDEX, expected, filteredQuery(mainQuery, stringFilter));
-            tookNumeric += runQuery("numeric", i, CHILD_INDEX, expected, filteredQuery(mainQuery, numericFilter));
+            tookLong += runQuery("long", i, CHILD_INDEX, expected, filteredQuery(mainQuery, longFilter));
+            tookDouble += runQuery("double", i, CHILD_INDEX, expected, filteredQuery(mainQuery, doubleFilter));
             tookBloom += runQuery("bloom", i, CHILD_INDEX, expected, filteredQuery(mainQuery, bloomFilter));
         }
 
         log("string: " + (tookString / NUM_QUERIES) + "ms avg");
-        log("numeric: " + (tookNumeric / NUM_QUERIES) + "ms avg");
-        log("bloom: " + (tookBloom / NUM_QUERIES) + "ms avg");
+        log("long  : " + (tookLong / NUM_QUERIES) + "ms avg");
+        log("double: " + (tookDouble / NUM_QUERIES) + "ms avg");
+        log("bloom : " + (tookBloom / NUM_QUERIES) + "ms avg");
         log("");
     }
 }

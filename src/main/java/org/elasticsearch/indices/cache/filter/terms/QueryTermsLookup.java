@@ -19,24 +19,19 @@
 
 package org.elasticsearch.indices.cache.filter.terms;
 
-import com.carrotsearch.hppc.DoubleOpenHashSet;
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Joiner;
-import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.terms.ResponseTerms;
 import org.elasticsearch.action.terms.TermsByQueryAction;
 import org.elasticsearch.action.terms.TermsByQueryRequest;
 import org.elasticsearch.action.terms.TermsByQueryResponse;
 import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.search.BloomFieldDataTermsFilter;
 import org.elasticsearch.index.search.FieldDataTermsFilter;
-
-import java.util.List;
 
 /**
  * A {@link TermsLookup} implementation that gathers the filter terms from the specified field of documents matching
@@ -75,13 +70,13 @@ public class QueryTermsLookup extends TermsLookup {
                 filter = new BloomFieldDataTermsFilter(fieldData, (BloomFilter) terms.getTerms());
                 break;
             case LONGS:
-                filter = FieldDataTermsFilter.newLongs((IndexNumericFieldData) fieldData, (LongOpenHashSet) terms.getTerms());
+                filter = FieldDataTermsFilter.newLongs((IndexNumericFieldData) fieldData, (LongHash) terms.getTerms());
                 break;
             case DOUBLES:
-                filter = FieldDataTermsFilter.newDoubles((IndexNumericFieldData) fieldData, (DoubleOpenHashSet) terms.getTerms());
+                filter = FieldDataTermsFilter.newDoubles((IndexNumericFieldData) fieldData, (LongHash) terms.getTerms());
                 break;
             default:
-                filter = FieldDataTermsFilter.newBytes(fieldData, (ObjectOpenHashSet<BytesRef>) terms.getTerms());
+                filter = FieldDataTermsFilter.newBytes(fieldData, (BytesRefHash) terms.getTerms());
         }
 
 

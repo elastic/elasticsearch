@@ -42,7 +42,7 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     private Double bloomFpp;
     private Integer bloomExpectedInsertions;
     private Integer bloomHashFunctions;
-    private Integer maxTermsPerShard;
+    private Long maxTermsPerShard;
 
     public TermsLookupFilterBuilder(String name) {
         this.name = name;
@@ -147,7 +147,7 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     /**
      * Sets the max number of terms to collect per shard.
      */
-    public TermsLookupFilterBuilder maxTermsPerShard(int maxTermsPerShard) {
+    public TermsLookupFilterBuilder maxTermsPerShard(long maxTermsPerShard) {
         this.maxTermsPerShard = maxTermsPerShard;
         return this;
     }

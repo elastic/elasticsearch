@@ -32,13 +32,13 @@ abstract class AbstractPagedHashMap implements Releasable {
     // collisions may result into worse lookup performance.
     static final float DEFAULT_MAX_LOAD_FACTOR = 0.6f;
 
-    static long hash(long value) {
+    public static long hash(long value) {
         // Don't use the value directly. Under some cases eg dates, it could be that the low bits don't carry much value and we would like
         // all bits of the hash to carry as much value
         return MurmurHash3.hash(value);
     }
 
-    static long hash(double value) {
+    public static long hash(double value) {
         return hash(Double.doubleToLongBits(value));
     }
 

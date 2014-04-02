@@ -21,7 +21,6 @@ package org.elasticsearch.action.terms;
 
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.ObjectOpenHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +29,10 @@ import org.elasticsearch.action.terms.TransportTermsByQueryAction.HitSetCollecto
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BloomFilter;
+import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.*;
 
 import java.io.IOException;
@@ -179,7 +181,7 @@ public abstract class ResponseTerms implements Streamable {
      *
      * @return The number of terms
      */
-    public abstract int size();
+    public abstract long size();
 
     /**
      * The size of the {@link ResponseTerms} in bytes.
@@ -267,8 +269,8 @@ public abstract class ResponseTerms implements Streamable {
         private transient final IndexFieldData indexFieldData;
         private transient BytesValues values;
         private BloomFilter bloomFilter;
-        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
-        private int size = 0;
+        private long maxTerms = Long.MAX_VALUE;  // max number of terms to gather per shard
+        private long size = 0;
 
         /**
          * Default constructor
@@ -287,7 +289,7 @@ public abstract class ResponseTerms implements Streamable {
          * @param numHashFunctions   the number of hash functions to use
          */
         BloomResponseTerms(HitSetCollector collector, IndexFieldData indexFieldData,
-                           Double fpp, Integer expectedInsertions, Integer numHashFunctions, Integer maxTerms) {
+                           Double fpp, Integer expectedInsertions, Integer numHashFunctions, Long maxTerms) {
             super(collector);
             this.indexFieldData = indexFieldData;
 
@@ -370,7 +372,7 @@ public abstract class ResponseTerms implements Streamable {
          * @return the number of terms.
          */
         @Override
-        public int size() {
+        public long size() {
             return size;
         }
 
@@ -412,12 +414,12 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            maxTerms = in.readVInt();
+            maxTerms = in.readVLong();
             if (in.readBoolean()) {
                 bloomFilter = BloomFilter.readFrom(in);
             }
 
-            size = in.readVInt();
+            size = in.readVLong();
         }
 
         /**
@@ -428,7 +430,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(maxTerms);
+            out.writeVLong(maxTerms);
             if (bloomFilter != null) {
                 out.writeBoolean(true);
                 BloomFilter.writeTo(bloomFilter, out);
@@ -436,7 +438,7 @@ public abstract class ResponseTerms implements Streamable {
                 out.writeBoolean(false);
             }
 
-            out.writeVInt(size);
+            out.writeVLong(size);
         }
     }
 
@@ -448,11 +450,10 @@ public abstract class ResponseTerms implements Streamable {
     public static class BytesResponseTerms extends ResponseTerms {
 
         private transient final IndexFieldData indexFieldData;
-        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
+        private long maxTerms = Long.MAX_VALUE;  // max number of terms to gather per shard
         private long sizeInBytes;
         private transient BytesValues values;
-        private ObjectOpenHashSet<BytesRef> terms;
-
+        private BytesRefHash termsHash;
 
         /**
          * Default constructor
@@ -467,9 +468,8 @@ public abstract class ResponseTerms implements Streamable {
          *
          * @param size the number of terms that will be in the resulting set
          */
-        BytesResponseTerms(int size) {
-            // create terms set, size is known so adjust for load factor so no rehashing is needed
-            this.terms = new ObjectOpenHashSet<BytesRef>(optimalSetSize(size));
+        BytesResponseTerms(long size) {
+            this.termsHash = new BytesRefHash(size, BigArrays.NON_RECYCLING_INSTANCE);
             this.indexFieldData = null;
         }
 
@@ -479,25 +479,17 @@ public abstract class ResponseTerms implements Streamable {
          * @param collector      the collector used during the lookup query execution
          * @param indexFieldData the fielddata for the lookup field.
          */
-        BytesResponseTerms(HitSetCollector collector, IndexFieldData indexFieldData, Integer maxTerms) {
+        BytesResponseTerms(HitSetCollector collector, IndexFieldData indexFieldData, Long maxTerms) {
             super(collector);
             if (maxTerms != null) {
                 this.maxTerms = maxTerms;
             }
 
-            int collectorHits = collector.getHits();
+            long collectorHits = collector.getHits();
             this.indexFieldData = indexFieldData;
-            this.terms = new ObjectOpenHashSet<BytesRef>(optimalSetSize(this.maxTerms < collectorHits ? this.maxTerms : collectorHits));
-        }
-
-        /**
-         * Calculates the optimal set size to avoid rehashing
-         *
-         * @param size the number of items being inserted
-         * @return the optimal size
-         */
-        protected int optimalSetSize(int size) {
-            return (int) (size / ObjectOpenHashSet.DEFAULT_LOAD_FACTOR) + 1;
+            // TODO: use collectorHits to init?
+            this.termsHash = new BytesRefHash(this.maxTerms < collectorHits ? this.maxTerms : collectorHits,
+                    BigArrays.NON_RECYCLING_INSTANCE);
         }
 
         /**
@@ -507,7 +499,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         protected void load(AtomicReaderContext context) {
-            values = indexFieldData.load(context).getBytesValues(false); // load field data cache
+            values = indexFieldData.load(context).getBytesValues(true); // load field data cache + hashes
         }
 
         /**
@@ -520,7 +512,7 @@ public abstract class ResponseTerms implements Streamable {
             final int numVals = values.setDocument(docId);
             for (int i = 0; i < numVals && !isFull(); i++) {
                 final BytesRef term = values.nextValue();
-                terms.add(values.copyShared());  // so it is safe to be placed in set
+                termsHash.add(term, values.currentValueHash());
                 // offset int + length int + object pointer + object header + array pointer + array header = 64
                 sizeInBytes += term.length + 64;
             }
@@ -535,14 +527,18 @@ public abstract class ResponseTerms implements Streamable {
         public void merge(ResponseTerms other) {
             assert other.getType() == Type.BYTES;
             BytesResponseTerms ot = (BytesResponseTerms) other;
-            sizeInBytes += ot.sizeInBytes;  // update size and hashcode
-            if (terms == null) {
+            sizeInBytes += ot.sizeInBytes;  // update size
+            if (termsHash == null) {
                 // probably never hit this since we init terms to known size before merge
-                terms = new ObjectOpenHashSet<BytesRef>(ot.terms);
-            } else {
-                // TODO: maybe make it an option not to merge and just store all the sets (to avoid internal hashing)
-                // this would use more memory due to duplicate terms but might be faster?
-                terms.addAll(ot.terms);
+                termsHash = new BytesRefHash(ot.size(), BigArrays.NON_RECYCLING_INSTANCE);
+            }
+
+            // TODO: maybe make it an option not to merge?
+            BytesRef spare = new BytesRef();
+            for (long i = 0; i < ot.termsHash.size(); i++) {
+                ot.termsHash.get(i, spare);
+                // TODO: avoid rehash of hashCode by pulling out of ot.termsHash somehow?
+                termsHash.add(spare, spare.hashCode());
             }
         }
 
@@ -564,7 +560,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public boolean isFull() {
-            return terms.size() == maxTerms;
+            return termsHash.size() == maxTerms;
         }
 
         /**
@@ -575,14 +571,13 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            int size = in.readVInt();
-            maxTerms = in.readVInt();
+            long size = in.readVLong();
+            maxTerms = in.readVLong();
             sizeInBytes = in.readVLong();
-            // init set to account large enough to avoid rehashing during insert
-            terms = new ObjectOpenHashSet<BytesRef>(optimalSetSize(size));
-            for (int i = 0; i < size; i++) {
+            termsHash = new BytesRefHash(size, BigArrays.NON_RECYCLING_INSTANCE);
+            for (long i = 0; i < size; i++) {
                 BytesRef term = in.readBytesRef();
-                terms.add(term);
+                termsHash.add(term, term.hashCode());
             }
         }
 
@@ -594,16 +589,13 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(terms.size());
-            out.writeVInt(maxTerms);
+            out.writeVLong(termsHash.size());
+            out.writeVLong(maxTerms);
             out.writeVLong(sizeInBytes);
-
-            final boolean[] allocated = terms.allocated;
-            final Object[] keys = terms.keys;
-            for (int i = 0; i < allocated.length; i++) {
-                if (allocated[i]) {
-                    out.writeBytesRef((BytesRef) keys[i]);
-                }
+            BytesRef spare = new BytesRef();
+            for (long i = 0; i < termsHash.size(); i++) {
+                termsHash.get(i, spare);
+                out.writeBytesRef(spare);
             }
         }
 
@@ -613,8 +605,8 @@ public abstract class ResponseTerms implements Streamable {
          * @return the number of terms.
          */
         @Override
-        public int size() {
-            return terms.size();
+        public long size() {
+            return termsHash.size();
         }
 
         /**
@@ -630,11 +622,11 @@ public abstract class ResponseTerms implements Streamable {
         /**
          * Returns the terms.
          *
-         * @return {@link ObjectOpenHashSet} of {@link BytesRef}
+         * @return {@link org.elasticsearch.common.util.BytesRefHash}
          */
         @Override
         public Object getTerms() {
-            return terms;
+            return termsHash;
         }
     }
 
@@ -646,8 +638,8 @@ public abstract class ResponseTerms implements Streamable {
 
         private transient final IndexNumericFieldData indexFieldData;
         private transient LongValues values;
-        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
-        private LongOpenHashSet terms;
+        private long maxTerms = Long.MAX_VALUE;  // max number of terms to gather per shard
+        private LongHash termsHash;
 
         /**
          * Default constructor
@@ -662,9 +654,9 @@ public abstract class ResponseTerms implements Streamable {
          *
          * @param size the number of terms that will be in the resulting set
          */
-        LongsResponseTerms(int size) {
+        LongsResponseTerms(long size) {
             // create terms set, size is known so adjust for load factor so no rehashing is needed
-            this.terms = new LongOpenHashSet(optimalSetSize(size));
+            this.termsHash = new LongHash(size, BigArrays.NON_RECYCLING_INSTANCE);
             this.indexFieldData = null;
         }
 
@@ -674,25 +666,16 @@ public abstract class ResponseTerms implements Streamable {
          * @param collector      the collector used during the lookup query execution
          * @param indexFieldData the fielddata for the lookup field.
          */
-        LongsResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData, Integer maxTerms) {
+        LongsResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData, Long maxTerms) {
             super(collector);
             if (maxTerms != null) {
                 this.maxTerms = maxTerms;
             }
 
-            int collectorHits = collector.getHits();
+            long collectorHits = collector.getHits();
             this.indexFieldData = indexFieldData;
-            this.terms = new LongOpenHashSet(optimalSetSize(this.maxTerms < collectorHits ? this.maxTerms : collectorHits));
-        }
-
-        /**
-         * Calculates the optimal set size to avoid rehashing
-         *
-         * @param size the number of items being inserted
-         * @return the optimal size
-         */
-        protected int optimalSetSize(int size) {
-            return (int) (size / LongOpenHashSet.DEFAULT_LOAD_FACTOR) + 1;
+            this.termsHash = new LongHash(this.maxTerms < collectorHits ? this.maxTerms : collectorHits,
+                    BigArrays.NON_RECYCLING_INSTANCE);
         }
 
         /**
@@ -715,7 +698,7 @@ public abstract class ResponseTerms implements Streamable {
             final int numVals = values.setDocument(docId);
             for (int i = 0; i < numVals && !isFull(); i++) {
                 final long term = values.nextValue();
-                terms.add(term);
+                termsHash.add(term);
             }
         }
 
@@ -728,10 +711,15 @@ public abstract class ResponseTerms implements Streamable {
         public void merge(ResponseTerms other) {
             assert other.getType() == Type.LONGS;
             LongsResponseTerms ot = (LongsResponseTerms) other;
-            if (terms == null) {
-                terms = new LongOpenHashSet(ot.terms);
-            } else {
-                terms.addAll(ot.terms);
+
+            if (termsHash == null) {
+                // probably never hit this since we init terms to known size before merge
+                termsHash = new LongHash(ot.size(), BigArrays.NON_RECYCLING_INSTANCE);
+            }
+
+            // TODO: maybe make it an option not to merge?
+            for (long i = 0; i < ot.termsHash.size(); i++) {
+                termsHash.add(ot.termsHash.get(i));
             }
         }
 
@@ -752,7 +740,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public boolean isFull() {
-            return terms.size() == maxTerms;
+            return termsHash.size() == maxTerms;
         }
 
         /**
@@ -763,11 +751,11 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            maxTerms = in.readVInt();
-            int size = in.readVInt();
-            terms = new LongOpenHashSet(optimalSetSize(size));
-            for (int i = 0; i < size; i++) {
-                terms.add(in.readVLong());
+            maxTerms = in.readVLong();
+            long size = in.readVLong();
+            termsHash = new LongHash(size, BigArrays.NON_RECYCLING_INSTANCE);
+            for (long i = 0; i < size; i++) {
+                termsHash.add(in.readLong());
             }
         }
 
@@ -779,15 +767,10 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(maxTerms);
-            out.writeVInt(terms.size());
-
-            final boolean[] allocated = terms.allocated;
-            final long[] keys = terms.keys;
-            for (int i = 0; i < allocated.length; i++) {
-                if (allocated[i]) {
-                    out.writeVLong(keys[i]);
-                }
+            out.writeVLong(maxTerms);
+            out.writeVLong(termsHash.size());
+            for (long i = 0; i < termsHash.size(); i++) {
+                out.writeLong(termsHash.get(i));
             }
         }
 
@@ -797,8 +780,8 @@ public abstract class ResponseTerms implements Streamable {
          * @return the number of terms collected.
          */
         @Override
-        public int size() {
-            return terms.size();
+        public long size() {
+            return termsHash.size();
         }
 
         /**
@@ -808,7 +791,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public long getSizeInBytes() {
-            return terms.size() * 8;
+            return termsHash.size() * 8;
         }
 
         /**
@@ -818,7 +801,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public Object getTerms() {
-            return terms;
+            return termsHash;
         }
     }
 
@@ -830,8 +813,8 @@ public abstract class ResponseTerms implements Streamable {
 
         private transient final IndexNumericFieldData indexFieldData;
         private transient DoubleValues values;
-        private int maxTerms = Integer.MAX_VALUE;  // max number of terms to gather per shard
-        private DoubleOpenHashSet terms;
+        private long maxTerms = Long.MAX_VALUE;  // max number of terms to gather per shard
+        private LongHash termsHash;
 
         /**
          * Default constructor
@@ -846,9 +829,8 @@ public abstract class ResponseTerms implements Streamable {
          *
          * @param size the number of terms that will be in the resulting set
          */
-        DoublesResponseTerms(int size) {
-            // create terms set, size is known so adjust for load factor so no rehashing is needed
-            this.terms = new DoubleOpenHashSet(optimalSetSize(size));
+        DoublesResponseTerms(long size) {
+            this.termsHash = new LongHash(size, BigArrays.NON_RECYCLING_INSTANCE);
             this.indexFieldData = null;
         }
 
@@ -858,25 +840,16 @@ public abstract class ResponseTerms implements Streamable {
          * @param collector      the collector used during the lookup query execution
          * @param indexFieldData the fielddata for the lookup field.
          */
-        DoublesResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData, Integer maxTerms) {
+        DoublesResponseTerms(HitSetCollector collector, IndexNumericFieldData indexFieldData, Long maxTerms) {
             super(collector);
             if (maxTerms != null) {
                 this.maxTerms = maxTerms;
             }
 
-            int collectorHits = collector.getHits();
+            long collectorHits = collector.getHits();
             this.indexFieldData = indexFieldData;
-            this.terms = new DoubleOpenHashSet(optimalSetSize(this.maxTerms < collectorHits ? this.maxTerms : collectorHits));
-        }
-
-        /**
-         * Calculates the optimal set size to avoid rehashing
-         *
-         * @param size the number of items being inserted
-         * @return the optimal size
-         */
-        protected int optimalSetSize(int size) {
-            return (int) (size / DoubleOpenHashSet.DEFAULT_LOAD_FACTOR) + 1;
+            this.termsHash = new LongHash(this.maxTerms < collectorHits ? this.maxTerms : collectorHits,
+                    BigArrays.NON_RECYCLING_INSTANCE);
         }
 
         /**
@@ -900,7 +873,7 @@ public abstract class ResponseTerms implements Streamable {
             for (int i = 0; i < numVals && !isFull(); i++) {
                 final double term = values.nextValue();
                 final long longTerm = Double.doubleToLongBits(term);
-                terms.add(term);
+                termsHash.add(longTerm);
             }
         }
 
@@ -913,10 +886,15 @@ public abstract class ResponseTerms implements Streamable {
         public void merge(ResponseTerms other) {
             assert other.getType() == Type.DOUBLES;
             DoublesResponseTerms ot = (DoublesResponseTerms) other;
-            if (terms == null) {
-                terms = new DoubleOpenHashSet(ot.terms);
-            } else {
-                terms.addAll(ot.terms);
+
+            if (termsHash == null) {
+                // probably never hit this since we init terms to known size before merge
+                termsHash = new LongHash(ot.size(), BigArrays.NON_RECYCLING_INSTANCE);
+            }
+
+            // TODO: maybe make it an option not to merge?
+            for (long i = 0; i < ot.termsHash.size(); i++) {
+                termsHash.add(ot.termsHash.get(i));
             }
         }
 
@@ -932,7 +910,7 @@ public abstract class ResponseTerms implements Streamable {
 
         @Override
         public boolean isFull() {
-            return terms.size() == maxTerms;
+            return termsHash.size() == maxTerms;
         }
 
         /**
@@ -943,11 +921,11 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            maxTerms = in.readVInt();
-            int size = in.readVInt();
-            terms = new DoubleOpenHashSet(optimalSetSize(size));
-            for (int i = 0; i < size; i++) {
-                terms.add(in.readDouble());
+            maxTerms = in.readVLong();
+            long size = in.readVLong();
+            termsHash = new LongHash(size, BigArrays.NON_RECYCLING_INSTANCE);
+            for (long i = 0; i < size; i++) {
+                termsHash.add(in.readLong());
             }
         }
 
@@ -959,14 +937,10 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(maxTerms);
-            out.writeVInt(terms.size());
-            final boolean[] allocated = terms.allocated;
-            final double[] keys = terms.keys;
-            for (int i = 0; i < allocated.length; i++) {
-                if (allocated[i]) {
-                    out.writeDouble(keys[i]);
-                }
+            out.writeVLong(maxTerms);
+            out.writeVLong(termsHash.size());
+            for (long i = 0; i < termsHash.capacity(); i++) {
+                out.writeLong(termsHash.get(i));
             }
         }
 
@@ -976,8 +950,8 @@ public abstract class ResponseTerms implements Streamable {
          * @return the number of terms.
          */
         @Override
-        public int size() {
-            return terms.size();
+        public long size() {
+            return termsHash.size();
         }
 
         /**
@@ -987,7 +961,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public long getSizeInBytes() {
-            return terms.size() * 8;
+            return termsHash.size() * 8;
         }
 
         /**
@@ -997,7 +971,7 @@ public abstract class ResponseTerms implements Streamable {
          */
         @Override
         public Object getTerms() {
-            return terms;
+            return termsHash;
         }
     }
 }

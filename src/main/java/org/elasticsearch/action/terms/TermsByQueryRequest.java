@@ -59,7 +59,7 @@ public class TermsByQueryRequest extends BroadcastOperationRequest<TermsByQueryR
     private Double bloomFpp;         // false positive probability
     private Integer bloomExpectedInsertions;
     private Integer bloomHashFunctions;
-    private Integer maxTermsPerShard;
+    private Long maxTermsPerShard;
 
     TermsByQueryRequest() {
     }
@@ -314,7 +314,7 @@ public class TermsByQueryRequest extends BroadcastOperationRequest<TermsByQueryR
     /**
      * The max number of terms to gather per shard
      */
-    public TermsByQueryRequest maxTermsPerShard(int maxTermsPerShard) {
+    public TermsByQueryRequest maxTermsPerShard(long maxTermsPerShard) {
         this.maxTermsPerShard = maxTermsPerShard;
         return this;
     }
@@ -322,7 +322,7 @@ public class TermsByQueryRequest extends BroadcastOperationRequest<TermsByQueryR
     /**
      * The max number of terms to gather per shard
      */
-    public Integer maxTermsPerShard() {
+    public Long maxTermsPerShard() {
         return maxTermsPerShard;
     }
 
@@ -371,7 +371,7 @@ public class TermsByQueryRequest extends BroadcastOperationRequest<TermsByQueryR
         }
 
         if (in.readBoolean()) {
-            maxTermsPerShard = in.readVInt();
+            maxTermsPerShard = in.readVLong();
         }
     }
 
@@ -438,7 +438,7 @@ public class TermsByQueryRequest extends BroadcastOperationRequest<TermsByQueryR
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(maxTermsPerShard);
+            out.writeVLong(maxTermsPerShard);
         }
     }
 

@@ -97,7 +97,6 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
             spare.supersetSize = supersetSize;
-            assert spare.subsetDf <= spare.supersetDf;
             // During shard-local down-selection we use subset/superset stats
             // that are for this shard only
             // Back at the central reducer these properties will be updated with

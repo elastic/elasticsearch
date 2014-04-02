@@ -54,7 +54,6 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
             super(subsetDf, subsetSize, supersetDf, supersetSize);
             this.aggregations = aggregations;
-            assert subsetDf <= supersetDf;
             updateScore();
         }
 
@@ -96,7 +95,12 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
                 // avoid any divide by zero issues
                 return 0;
             }
-
+            if (supersetFreq == 0) {
+                // If we are using a background context that is not a strict superset, a foreground 
+                // term may be missing from the background, so for the purposes of this calculation
+                // we assume a value of 1 for our calculations which avoids returning an "infinity" result
+                supersetFreq = 1;
+            }
             double subsetProbability = (double) subsetFreq / (double) subsetSize;
             double supersetProbability = (double) supersetFreq / (double) supersetSize;
 
@@ -154,7 +158,6 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
                 }
                 aggregationsList.add(bucket.aggregations);
             }
-            assert reduced.subsetDf <= reduced.supersetDf;
             reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
             return reduced;
         }

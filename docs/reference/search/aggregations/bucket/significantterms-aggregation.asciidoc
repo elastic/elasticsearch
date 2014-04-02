@@ -233,13 +233,19 @@ free-text field and use them in a `terms` query on the same field with a `highli
 are presented unstemmed, highlighted, with the right case, in the right order and with some context, their significance/meaning is more readily apparent.
 ============
 
-==== Limitations
+==== Custom background sets
+added[1.2.0]
 
-===== Single _background_ comparison base
-The above examples show how to select the _foreground_ set for analysis using a query or parent aggregation to filter but currently there is no means of specifying
-a _background_ set other than the index from which all results are ultimately drawn. Sometimes it may prove useful to use a different
-background set as the basis for comparisons e.g. to first select the tweets for the TV show "XFactor" and then look
-for significant terms in a subset of that content which is from this week.
+
+Ordinarily, the foreground set of documents is "diffed" against a background set of all the documents in your index.
+However, sometimes it may prove useful to use a narrower background set as the basis for comparisons. 
+For example, a query on documents relating to "Madrid" in an index with content from all over the world might reveal that "Spanish" 
+was a significant term. This may be true but if you want some more focused terms you could use a `background_filter` 
+on the term 'spain' to establish a narrower set of documents as context. With this as a background "Spanish" would now 
+be seen as commonplace and therefore not as significant as words like "capital" that relate more strongly with Madrid.  
+Note that using a background filter will slow things down - each term's background frequency must now be derived on-the-fly from filtering posting lists rather than reading the index's pre-computed count for a term.  
+
+==== Limitations
 
 ===== Significant terms must be indexed values
 Unlike the terms aggregation it is currently not possible to use script-generated terms for counting purposes.
@@ -336,6 +342,37 @@ WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to 
          Setting `shard_min_doc_count` too high will cause significant candidate terms to be filtered out on a shard level. This value should be set much lower than `min_doc_count/#shards`.
 
 
+
+===== Custom background context
+
+The default source of statistical information for background term frequencies is the entire index and this
+scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
+context: 
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match" : "madrid"
+    },
+    "aggs" : {
+        "tags" : {
+            "significant_terms" : { 
+                "field" : "tag",
+                "background_filter": {
+                	"term" : { "text" : "spain"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing 
+terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the 
+word "Spain".   
+
+WARNING: Use of background filters will slow the query as each term's postings must be filtered to determine a frequency
 
 
 ===== Filtering Values

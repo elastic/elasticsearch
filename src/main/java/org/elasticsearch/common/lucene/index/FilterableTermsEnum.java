@@ -37,10 +37,11 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * A frequency TermsEnum that returns frequencies derived from a collection of cached leaf termEnums. 
- * It also allows to provide a filter to explicitly compute frequencies only for docs that match the filter (heavier!).
+ * A frequency TermsEnum that returns frequencies derived from a collection of
+ * cached leaf termEnums. It also allows to provide a filter to explicitly
+ * compute frequencies only for docs that match the filter (heavier!).
  */
-public class FilterableTermsEnum extends TermsEnum  {
+public class FilterableTermsEnum extends TermsEnum {
 
     static class Holder {
         final TermsEnum termsEnum;
@@ -54,7 +55,9 @@ public class FilterableTermsEnum extends TermsEnum  {
             this.bits = bits;
         }
     }
-    protected final static int NOT_FOUND = -2;
+
+    static final String UNSUPPORTED_MESSAGE = "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
+    protected final static int NOT_FOUND = -1;
     private final Holder[] enums;
     protected int currentDocFreq = 0;
     protected long currentTotalTermFreq = 0;
@@ -70,7 +73,7 @@ public class FilterableTermsEnum extends TermsEnum  {
         if (filter == null) {
             numDocs = reader.numDocs();
         }
-        
+
         List<AtomicReaderContext> leaves = reader.leaves();
         List<Holder> enums = Lists.newArrayListWithExpectedSize(leaves.size());
         for (AtomicReaderContext context : leaves) {
@@ -95,7 +98,7 @@ public class FilterableTermsEnum extends TermsEnum  {
                         continue;
                     }
                     bits = DocIdSets.toSafeBits(context.reader(), docIdSet);
-                    // Count how many docs are in our filtered set 
+                    // Count how many docs are in our filtered set
                     // TODO make this lazy-loaded only for those that need it?
                     DocIdSetIterator iterator = docIdSet.iterator();
                     if (iterator != null) {
@@ -109,7 +112,7 @@ public class FilterableTermsEnum extends TermsEnum  {
         }
         this.enums = enums.toArray(new Holder[enums.size()]);
     }
-    
+
     public int getNumDocs() {
         return numDocs;
     }
@@ -122,6 +125,8 @@ public class FilterableTermsEnum extends TermsEnum  {
     @Override
     public boolean seekExact(BytesRef text) throws IOException {
         boolean found = false;
+        currentDocFreq = NOT_FOUND;
+        currentTotalTermFreq = NOT_FOUND;
         int docFreq = 0;
         long totalTermFreq = 0;
         for (Holder anEnum : enums) {
@@ -136,7 +141,7 @@ public class FilterableTermsEnum extends TermsEnum  {
                     if (totalTermFreq == -1 || leafTotalTermFreq == -1) {
                         totalTermFreq = -1;
                         continue;
-                    }                    
+                    }
                     totalTermFreq += leafTotalTermFreq;
                 }
             } else {
@@ -151,22 +156,15 @@ public class FilterableTermsEnum extends TermsEnum  {
                     }
                 } else {
                     for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                        //docsEnum.freq() behaviour is undefined if docsEnumFlag==DocsEnum.FLAG_NONE so don't bother with call 
+                        // docsEnum.freq() behaviour is undefined if docsEnumFlag==DocsEnum.FLAG_NONE so don't bother with call
                         docFreq++;
                     }
                 }
             }
-        }
-
-        current = found ? text : null;
-        if(found){
             currentDocFreq = docFreq;
             currentTotalTermFreq = totalTermFreq;
-        }else{
-            currentDocFreq = NOT_FOUND;
-            currentTotalTermFreq = NOT_FOUND;
-        } 
-
+            current = text;
+        }
         return found;
     }
 
@@ -182,36 +180,36 @@ public class FilterableTermsEnum extends TermsEnum  {
 
     @Override
     public void seekExact(long ord) throws IOException {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
     public SeekStatus seekCeil(BytesRef text) throws IOException {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
     public long ord() throws IOException {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
     public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
     public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
     public BytesRef next() throws IOException {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 
     @Override
     public Comparator<BytesRef> getComparator() {
-        throw new UnsupportedOperationException("freq terms enum");
+        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 }

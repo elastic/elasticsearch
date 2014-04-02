@@ -50,7 +50,7 @@ public class BackgroundIndexer implements AutoCloseable {
     final CountDownLatch startLatch = new CountDownLatch(1);
 
     public BackgroundIndexer(String index, String type, Client client) {
-        this(index, type, client, RandomizedTest.scaledRandomIntBetween(3, 10));
+        this(index, type, client, RandomizedTest.scaledRandomIntBetween(2, 5));
     }
 
     public BackgroundIndexer(String index, String type, Client client, int writerCount) {

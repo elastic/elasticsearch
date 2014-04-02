@@ -151,7 +151,7 @@ public interface IndexFieldDataCache {
 
         static class Key {
             final Object readerKey;
-            final List<Listener> listeners = new ArrayList<>(); // optional stats listener
+            final List<Listener> listeners = new ArrayList<>();
             long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
             Key(Object readerKey) {

@@ -68,14 +68,14 @@ public interface IndexFieldDataCache {
      * The resident field data cache is a *per field* cache that keeps all the values in memory.
      */
     static abstract class FieldBased implements IndexFieldDataCache, SegmentReader.CoreClosedListener, RemovalListener<FieldBased.Key, AtomicFieldData> {
-        @Nullable
         private final IndexService indexService;
         private final FieldMapper.Names fieldNames;
         private final FieldDataType fieldDataType;
         private final Cache<Key, AtomicFieldData> cache;
         private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        protected FieldBased(@Nullable IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, CacheBuilder cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+        protected FieldBased(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, CacheBuilder cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+            assert indexService != null;
             this.indexService = indexService;
             this.fieldNames = fieldNames;
             this.fieldDataType = fieldDataType;
@@ -87,11 +87,12 @@ public interface IndexFieldDataCache {
 
         @Override
         public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
-            Key key = notification.getKey();
+            final Key key = notification.getKey();
             assert key != null && key.listeners != null;
 
-            AtomicFieldData value = notification.getValue();
+            final AtomicFieldData value = notification.getValue();
             long sizeInBytes = key.sizeInBytes;
+            assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
             if (sizeInBytes == -1 && value != null) {
                 sizeInBytes = value.getMemorySizeInBytes();
             }
@@ -111,14 +112,11 @@ public interface IndexFieldDataCache {
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                     key.sizeInBytes = fieldData.getMemorySizeInBytes();
                     key.listeners.add(indicesFieldDataCacheListener);
-
-                    if (indexService != null) {
-                        ShardId shardId = ShardUtils.extractShardId(context.reader());
-                        if (shardId != null) {
-                            IndexShard shard = indexService.shard(shardId.id());
-                            if (shard != null) {
-                                key.listeners.add(shard.fieldData());
-                            }
+                    final ShardId shardId = ShardUtils.extractShardId(context.reader());
+                    if (shardId != null) {
+                        final IndexShard shard = indexService.shard(shardId.id());
+                        if (shard != null) {
+                            key.listeners.add(shard.fieldData());
                         }
                     }
                     for (Listener listener : key.listeners) {
@@ -175,14 +173,14 @@ public interface IndexFieldDataCache {
 
     static class Resident extends FieldBased {
 
-        public Resident(@Nullable IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+        public Resident(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
             super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder(), indicesFieldDataCacheListener);
         }
     }
 
     static class Soft extends FieldBased {
 
-        public Soft(@Nullable IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+        public Soft(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
             super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder().softValues(), indicesFieldDataCacheListener);
         }
     }

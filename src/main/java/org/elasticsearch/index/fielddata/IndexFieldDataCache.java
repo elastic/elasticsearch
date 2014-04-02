@@ -23,6 +23,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -151,7 +151,7 @@ public interface IndexFieldDataCache {
 
         static class Key {
             final Object readerKey;
-            final List<Listener> listeners = new ArrayList<>(); // optional stats listener
+            final List<Listener> listeners = Lists.newArrayList();
             long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
             Key(Object readerKey) {

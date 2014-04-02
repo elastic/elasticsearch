@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.fielddata.cache;
 
 import com.google.common.cache.*;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.Nullable;
@@ -40,7 +41,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -197,7 +197,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         public final IndexFieldCache indexCache;
         public final Object readerKey;
 
-        public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>(); // optional stats listener
+        public final List<IndexFieldDataCache.Listener> listeners = Lists.newArrayList();
         long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
 

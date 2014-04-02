@@ -2,7 +2,7 @@
 = Testing
 
 [partintro]
---
+
 Elasticsearch uses jUnit for testing, it also uses randomness in the
 tests, that can be set using a seed, the following is a cheatsheet of
 options for running the tests for ES.
@@ -18,16 +18,21 @@ mvn clean package -DskipTests
 
 == Other test options
 
-To disable and enable network transport, set the `ES_TEST_LOCAL`
-environment variable.
+To disable and enable network transport, set the `Des.node.mode`.
 
 Use network transport (default):
 
 ------------------------------------
-export ES_TEST_LOCAL=false && mvn test
+-Des.node.mode=network
 ------------------------------------
 
 Use local transport:
+
+-------------------------------------
+-Des.node.mode=local
+-------------------------------------
+
+Alternatively, you can set the `ES_TEST_LOCAL` environment variable:
 
 -------------------------------------
 export ES_TEST_LOCAL=true && mvn test

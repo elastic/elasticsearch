@@ -749,10 +749,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * layout.
      */
     public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
-        if (builders.size() == 0) {
-            return;
-        }
-
         Random random = getRandom();
         Set<String> indicesSet = new HashSet<>();
         for (IndexRequestBuilder builder : builders) {

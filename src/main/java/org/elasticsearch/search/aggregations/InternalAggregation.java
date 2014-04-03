@@ -74,6 +74,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         public BytesReference stream() {
             return stream;
         }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 
     protected static class ReduceContext {

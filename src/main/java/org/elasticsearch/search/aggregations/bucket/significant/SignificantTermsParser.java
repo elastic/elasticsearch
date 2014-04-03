@@ -19,27 +19,16 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.regex.Pattern;
 
 /**
  *
@@ -60,33 +49,32 @@ public class SignificantTermsParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        String field = null;
+        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
+                .scriptable(false)
+                .formattable(true)
+                .requiresSortedValues(true)
+                .requiresUniqueValues(true)
+                .build();
+
+        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, SignificantStringTerms.TYPE, context);
+
         Filter filter = null;
         int requiredSize = DEFAULT_REQUIRED_SIZE;
         int shardSize = DEFAULT_SHARD_SIZE;
-        String format = null;
-        String include = null;
-        int includeFlags = 0; // 0 means no flags
-        String exclude = null;
-        int excludeFlags = 0; // 0 means no flags
-        String executionHint = null;
         long minDocCount = DEFAULT_MIN_DOC_COUNT;
+        String executionHint = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
+            } else if (incExcParser.token(currentFieldName, token, parser)) {
+                continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else if ("format".equals(currentFieldName)) {
-                    format = parser.text();
-                } else if ("include".equals(currentFieldName)) {
-                    include = parser.text();
-                } else if ("exclude".equals(currentFieldName)) {
-                    exclude = parser.text();
-                } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
+                if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -112,43 +100,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
                 // filters defined by end users and parsed below are not.
 //                if ("background_context".equals(currentFieldName)) {
 //                    filter = context.queryParserService().parseInnerFilter(parser).filter();
-//                } else
+//                }
 
-                if ("include".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("pattern".equals(currentFieldName)) {
-                                include = parser.text();
-                            } else if ("flags".equals(currentFieldName)) {
-                                includeFlags = Regex.flagsFromString(parser.text());
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("flags".equals(currentFieldName)) {
-                                includeFlags = parser.intValue();
-                            }
-                        }
-                    }
-                } else if ("exclude".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("pattern".equals(currentFieldName)) {
-                                exclude = parser.text();
-                            } else if ("flags".equals(currentFieldName)) {
-                                excludeFlags = Regex.flagsFromString(parser.text());
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("flags".equals(currentFieldName)) {
-                                excludeFlags = parser.intValue();
-                            }
-                        }
-                    }
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
@@ -171,55 +124,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
-        IncludeExclude includeExclude = null;
-        if (include != null || exclude != null) {
-            Pattern includePattern = include != null ? Pattern.compile(include, includeFlags) : null;
-            Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
-            includeExclude = new IncludeExclude(includePattern, excludePattern);
-        }
-
-        FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-        if (mapper == null) {
-            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-            config.unmapped(true);
-            return new SignificantTermsAggregatorFactory(aggregationName, config, null, null, requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
-        }
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
-
-        ValuesSourceConfig<?> config;
-        ValueFormatter valueFormatter = null;
-        ValueParser valueParser = null;
-        if (mapper instanceof DateFieldMapper) {
-            DateFieldMapper dateMapper = (DateFieldMapper) mapper;
-            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            valueFormatter = format == null ?
-                    new ValueFormatter.DateTime(dateMapper.dateTimeFormatter()) :
-                    new ValueFormatter.DateTime(format);
-            valueParser = new ValueParser.DateMath(dateMapper.dateMathParser());
-
-        } else if (mapper instanceof IpFieldMapper) {
-            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            valueFormatter = ValueFormatter.IPv4;
-            valueParser = ValueParser.IPv4;
-
-        } else if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            if (format != null) {
-                valueFormatter = new ValueFormatter.Number.Pattern(format);
-            }
-
-        } else {
-            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-            // TODO: it will make sense to set false instead here if the aggregator factory uses
-            // ordinals instead of hash tables
-            config.needsHashes(true);
-        }
-
-        config.fieldContext(new FieldContext(field, indexFieldData));
-        // We need values to be unique to be able to run terms aggs efficiently
-        config.ensureUnique(true);
-
-        return new SignificantTermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
+        IncludeExclude includeExclude = incExcParser.includeExclude();
+        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
     }
 
 }

@@ -19,6 +19,9 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 /**
  *
@@ -28,11 +31,13 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     final Class<VS> valueSourceType;
     FieldContext fieldContext;
     SearchScript script;
-    ScriptValueType scriptValueType;
+    ValueType scriptValueType;
     boolean unmapped = false;
     boolean needsHashes = false;
     boolean ensureUnique = false;
     boolean ensureSorted = false;
+    String formatPattern;
+    ValueFormat format;
 
     public ValuesSourceConfig(Class<VS> valueSourceType) {
         this.valueSourceType = valueSourceType;
@@ -44,6 +49,10 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
     public FieldContext fieldContext() {
         return fieldContext;
+    }
+
+    public SearchScript script() {
+        return script;
     }
 
     public boolean unmapped() {
@@ -64,15 +73,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValuesSourceConfig<VS> scriptValueType(ScriptValueType scriptValueType) {
-        this.scriptValueType = scriptValueType;
-        return this;
-    }
-
-    public ScriptValueType scriptValueType() {
-        return scriptValueType;
-    }
-
     public ValuesSourceConfig<VS> unmapped(boolean unmapped) {
         this.unmapped = unmapped;
         return this;
@@ -83,13 +83,15 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValuesSourceConfig<VS> ensureUnique(boolean unique) {
-        this.ensureUnique = unique;
-        return this;
+    public ValueFormat format() {
+        return format;
     }
 
-    public ValuesSourceConfig<VS> ensureSorted(boolean sorted) {
-        this.ensureSorted = sorted;
-        return this;
+    public ValueFormatter formatter() {
+        return format != null ? format.formatter() : null;
+    }
+
+    public ValueParser parser() {
+        return format != null ? format.parser() : null;
     }
 }

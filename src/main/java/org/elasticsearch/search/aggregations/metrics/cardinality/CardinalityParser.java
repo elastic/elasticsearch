@@ -21,20 +21,15 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.Murmur3FieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
 
 
 public class CardinalityParser implements Aggregator.Parser {
@@ -48,34 +43,19 @@ public class CardinalityParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
+
+        ValuesSourceParser vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).build();
+
         long precisionThreshold = -1;
         Boolean rehash = null;
-        String field = null;
-        String script = null;
-        String scriptLang = null;
-        Map<String, Object> scriptParams = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(currentFieldName)) {
-                    scriptParams = parser.map();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName + "].");
-                }
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("rehash".equals(currentFieldName)) {
                     rehash = parser.booleanValue();
@@ -93,41 +73,16 @@ public class CardinalityParser implements Aggregator.Parser {
             }
         }
 
-        ValuesSourceConfig<?> config = null;
+        ValuesSourceConfig<?> config = vsParser.config();
 
-        if (script != null) {
-            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-            config.script(context.scriptService().search(context.lookup(), scriptLang, script, scriptParams));
-        }
-
-        if (field != null) {
-            FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-            if (config == null) {
-                if (mapper instanceof NumberFieldMapper) {
-                    config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-                } else {
-                    config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-                    if (mapper == null) {
-                        config.unmapped(true);
-                    }
-                }
-                if (rehash == null && mapper instanceof Murmur3FieldMapper) {
-                    rehash = false;
-                }
-            }
-            if (mapper != null) {
-                IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
-                config.fieldContext(new FieldContext(field, indexFieldData));
-            }
-        } else if (config == null) {
-            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-        }
-
-        if (rehash == null) {
+        if (rehash == null && config.fieldContext() != null && config.fieldContext().mapper() instanceof Murmur3FieldMapper) {
+            rehash = false;
+        } else if (rehash == null) {
             rehash = true;
         }
 
         return new CardinalityAggregatorFactory(name, config, precisionThreshold, rehash);
+
     }
 
 }

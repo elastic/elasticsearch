@@ -40,13 +40,13 @@ import java.io.IOException;
  */
 public class ValueCountAggregator extends MetricsAggregator.SingleValue {
 
-    private final ValuesSource.Bytes valuesSource;
+    private final ValuesSource valuesSource;
     private BytesValues values;
 
     // a count per bucket
     LongArray counts;
 
-    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource.Bytes valuesSource, AggregationContext aggregationContext, Aggregator parent) {
+    public ValueCountAggregator(String name, long expectedBucketsCount, ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent) {
         super(name, 0, aggregationContext, parent);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
@@ -96,10 +96,10 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
         Releasables.release(counts);
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Bytes> {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Bytes> valuesSourceBuilder) {
-            super(name, InternalValueCount.TYPE.name(), valuesSourceBuilder);
+        public Factory(String name, ValuesSourceConfig<VS> config) {
+            super(name, InternalValueCount.TYPE.name(), config);
         }
 
         @Override
@@ -108,7 +108,7 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
         }
 
         @Override
-        protected Aggregator create(ValuesSource.Bytes valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             return new ValueCountAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent);
         }
 

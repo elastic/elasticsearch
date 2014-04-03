@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
@@ -84,15 +85,15 @@ public class SignificantLongTerms extends InternalSignificantTerms {
 
     }
 
-    private ValueFormatter valueFormatter;
+    private ValueFormatter formatter;
 
     SignificantLongTerms() {} // for serialization
 
-    public SignificantLongTerms(long subsetSize, long supersetSize, String name, ValueFormatter valueFormatter,
-            int requiredSize, long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets) {
+    public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter,
+                                int requiredSize, long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets) {
 
         super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets);
-        this.valueFormatter = valueFormatter;
+        this.formatter = formatter;
     }
 
     @Override
@@ -103,7 +104,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.valueFormatter = ValueFormatterStreams.readOptional(in);
+        this.formatter = ValueFormatterStreams.readOptional(in);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         this.subsetSize = in.readVLong();
@@ -124,7 +125,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        ValueFormatterStreams.writeOptional(formatter, out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVLong(subsetSize);
@@ -146,8 +147,8 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         for (InternalSignificantTerms.Bucket bucket : buckets) {
             builder.startObject();
             builder.field(CommonFields.KEY, ((Bucket) bucket).term);
-            if (valueFormatter != null) {
-                builder.field(CommonFields.KEY_AS_STRING, valueFormatter.format(((Bucket) bucket).term));
+            if (formatter != null) {
+                builder.field(CommonFields.KEY_AS_STRING, formatter.format(((Bucket) bucket).term));
             }
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
             builder.field("score", bucket.score);

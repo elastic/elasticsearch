@@ -1166,7 +1166,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                             .field("date")
                             .interval(DateHistogram.Interval.days(interval))
                             .minDocCount(0)
-                            .extendedBounds(boundsMin, boundsMax)
+                            // when explicitly specifying a format, the extended bounds should be defined by the same format
+                            .extendedBounds(format(boundsMin, pattern), format(boundsMax, pattern))
                             .format(pattern))
                     .execute().actionGet();
 

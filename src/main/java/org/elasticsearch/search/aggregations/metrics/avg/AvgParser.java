@@ -19,18 +19,17 @@
 package org.elasticsearch.search.aggregations.metrics.avg;
 
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregatorParser;
+import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 /**
  *
  */
-public class AvgParser extends ValuesSourceMetricsAggregatorParser<InternalAvg> {
+public class AvgParser extends NumericValuesSourceMetricsAggregatorParser<InternalAvg> {
 
-    @Override
-    public String type() {
-        return InternalAvg.TYPE.name();
+    public AvgParser() {
+        super(InternalAvg.TYPE);
     }
 
     @Override

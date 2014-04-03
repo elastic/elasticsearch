@@ -18,28 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  *
@@ -54,53 +41,34 @@ public class TermsParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        String field = null;
-        String script = null;
-        String scriptLang = null;
-        Map<String, Object> scriptParams = null;
-        Terms.ValueType valueType = null;
         int requiredSize = 10;
         int shardSize = -1;
         String orderKey = "_count";
         boolean orderAsc = false;
-        String format = null;
-        boolean assumeUnique = false;
-        String include = null;
-        int includeFlags = 0; // 0 means no flags
-        String exclude = null;
-        int excludeFlags = 0; // 0 means no flags
+
         String executionHint = null;
         long minDocCount = 1;
 
+        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context)
+                .requiresSortedValues(true)
+                .requiresUniqueValues(true)
+                .formattable(true)
+                .build();
+
+        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
+            } else if (incExcParser.token(currentFieldName, token, parser)) {
+                continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
-                } else if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
-                    valueType = Terms.ValueType.resolveType(parser.text());
-                } else if ("format".equals(currentFieldName)) {
-                    format = parser.text();
-                } else if ("include".equals(currentFieldName)) {
-                    include = parser.text();
-                } else if ("exclude".equals(currentFieldName)) {
-                    exclude = parser.text();
-                } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
+                if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if ("script_values_unique".equals(currentFieldName) || "scriptValuesUnique".equals(currentFieldName)) {
-                    assumeUnique = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -115,9 +83,7 @@ public class TermsParser implements Aggregator.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(currentFieldName)) {
-                    scriptParams = parser.map();
-                } else if ("order".equals(currentFieldName)) {
+                if ("order".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             orderKey = parser.currentName();
@@ -132,38 +98,6 @@ public class TermsParser implements Aggregator.Parser {
                             }
                         } else {
                             throw new SearchParseException(context, "Unexpected token " + token + " for [order] in [" + aggregationName + "].");
-                        }
-                    }
-                } else if ("include".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("pattern".equals(currentFieldName)) {
-                                include = parser.text();
-                            } else if ("flags".equals(currentFieldName)) {
-                                includeFlags = Regex.flagsFromString(parser.text());
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("flags".equals(currentFieldName)) {
-                                includeFlags = parser.intValue();
-                            }
-                        }
-                    }
-                } else if ("exclude".equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if ("pattern".equals(currentFieldName)) {
-                                exclude = parser.text();
-                            } else if ("flags".equals(currentFieldName)) {
-                                excludeFlags = Regex.flagsFromString(parser.text());
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("flags".equals(currentFieldName)) {
-                                excludeFlags = parser.intValue();
-                            }
                         }
                     }
                 } else {
@@ -187,101 +121,9 @@ public class TermsParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
-        IncludeExclude includeExclude = null;
-        if (include != null || exclude != null) {
-            Pattern includePattern =  include != null ? Pattern.compile(include, includeFlags) : null;
-            Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
-            includeExclude = new IncludeExclude(includePattern, excludePattern);
-        }
-
+        IncludeExclude includeExclude = incExcParser.includeExclude();
         InternalOrder order = resolveOrder(orderKey, orderAsc);
-        SearchScript searchScript = null;
-        if (script != null) {
-            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptParams);
-        }
-
-        if (field == null) {
-
-            Class<? extends ValuesSource> valueSourceType = script == null ?
-                    ValuesSource.class : // unknown, will inherit whatever is in the context
-                    valueType != null ? valueType.scriptValueType.getValuesSourceType() : // the user explicitly defined a value type
-                    ValuesSource.Bytes.class; // defaulting to bytes
-
-            ValuesSourceConfig<?> config = new ValuesSourceConfig(valueSourceType);
-            ValueFormatter valueFormatter = null;
-            ValueParser valueParser = null;
-            if (valueType != null) {
-                config.scriptValueType(valueType.scriptValueType);
-                if (valueType != Terms.ValueType.STRING && format != null) {
-                    valueFormatter = new ValueFormatter.Number.Pattern(format);
-                    valueParser = new ValueParser.Number.Pattern(format);
-                }
-            }
-            config.script(searchScript);
-            if (!assumeUnique) {
-                config.ensureUnique(true);
-            }
-            return new TermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
-        }
-
-        FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-        if (mapper == null) {
-            ValuesSourceConfig<?> config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-            ValueFormatter valueFormatter = null;
-            ValueParser valueParser = null;
-            config.unmapped(true);
-            if (valueType != null) {
-                config.scriptValueType(valueType.scriptValueType);
-                if (valueType != Terms.ValueType.STRING && format != null) {
-                    valueFormatter = new ValueFormatter.Number.Pattern(format);
-                    valueParser = new ValueParser.Number.Pattern(format);
-                }
-            }
-            return new TermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
-        }
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
-
-        ValuesSourceConfig<?> config;
-        ValueFormatter valueFormatter = null;
-        ValueParser valueParser = null;
-
-        if (mapper instanceof DateFieldMapper) {
-            DateFieldMapper dateMapper = (DateFieldMapper) mapper;
-            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            valueFormatter = format == null ?
-                    new ValueFormatter.DateTime(dateMapper.dateTimeFormatter()) :
-                    new ValueFormatter.DateTime(format);
-            valueParser = new ValueParser.DateMath(dateMapper.dateMathParser());
-
-        } else if (mapper instanceof IpFieldMapper) {
-            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            valueFormatter = ValueFormatter.IPv4;
-            valueParser = ValueParser.IPv4;
-
-        } else if (indexFieldData instanceof IndexNumericFieldData) {
-            config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-            if (format != null) {
-                valueFormatter = new ValueFormatter.Number.Pattern(format);
-                valueParser = new ValueParser.Number.Pattern(format);
-            }
-
-        } else {
-            config = new ValuesSourceConfig<>(ValuesSource.Bytes.class);
-            // TODO: it will make sense to set false instead here if the aggregator factory uses
-            // ordinals instead of hash tables
-            config.needsHashes(true);
-        }
-
-        config.script(searchScript);
-
-        config.fieldContext(new FieldContext(field, indexFieldData));
-
-        // We need values to be unique to be able to run terms aggs efficiently
-        if (!assumeUnique) {
-            config.ensureUnique(true);
-        }
-
-        return new TermsAggregatorFactory(aggregationName, config, valueFormatter, valueParser, order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
+        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, requiredSize, shardSize, minDocCount, includeExclude, executionHint);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

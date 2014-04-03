@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -31,7 +34,6 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.*;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -42,6 +44,8 @@ import java.util.List;
  *
  */
 public class GeoDistanceParser implements Aggregator.Parser {
+
+    private static final ParseField ORIGIN_FIELD = new ParseField("origin", "center", "point", "por");
 
     @Override
     public String type() {
@@ -62,9 +66,13 @@ public class GeoDistanceParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        String field = null;
+        ValuesSourceParser<ValuesSource.GeoPoint> vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoDistance.TYPE, context)
+                .requiresSortedValues(true)
+                .build();
+
+        GeoPointParser geoPointParser = new GeoPointParser(aggregationName, InternalGeoDistance.TYPE, context, ORIGIN_FIELD);
+
         List<RangeAggregator.Range> ranges = null;
-        GeoPoint origin = null;
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance distanceType = GeoDistance.DEFAULT;
         boolean keyed = false;
@@ -74,16 +82,15 @@ public class GeoDistanceParser implements Aggregator.Parser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
+            } else if (geoPointParser.token(currentFieldName, token, parser)) {
+                continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else if ("unit".equals(currentFieldName)) {
+                if ("unit".equals(currentFieldName)) {
                     unit = DistanceUnit.fromString(parser.text());
                 } else if ("distance_type".equals(currentFieldName) || "distanceType".equals(currentFieldName)) {
                     distanceType = GeoDistance.fromString(parser.text());
-                } else if ("point".equals(currentFieldName) || "origin".equals(currentFieldName) || "center".equals(currentFieldName)) {
-                    origin = new GeoPoint();
-                    origin.resetFromString(parser.text());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -124,44 +131,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
                         }
                         ranges.add(new RangeAggregator.Range(key(key, from, to), from, fromAsStr, to, toAsStr));
                     }
-                } else if ("point".equals(currentFieldName) || "origin".equals(currentFieldName) || "center".equals(currentFieldName)) {
-                    double lat = Double.NaN;
-                    double lon = Double.NaN;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (Double.isNaN(lon)) {
-                            lon = parser.doubleValue();
-                        } else if (Double.isNaN(lat)) {
-                            lat = parser.doubleValue();
-                        } else {
-                            throw new SearchParseException(context, "malformed [origin] geo point array in geo_distance aggregator [" + aggregationName + "]. " +
-                                    "a geo point array must be of the form [lon, lat]");
-                        }
-                    }
-                    origin = new GeoPoint(lat, lon);
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("point".equals(currentFieldName) || "origin".equals(currentFieldName) || "center".equals(currentFieldName)) {
-                    double lat = Double.NaN;
-                    double lon = Double.NaN;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("lat".equals(currentFieldName)) {
-                                lat = parser.doubleValue();
-                            } else if ("lon".equals(currentFieldName)) {
-                                lon = parser.doubleValue();
-                            }
-                        }
-                    }
-                    if (Double.isNaN(lat) || Double.isNaN(lon)) {
-                        throw new SearchParseException(context, "malformed [origin] geo point object. either [lat] or [lon] (or both) are " +
-                                "missing in geo_distance aggregator [" + aggregationName + "]");
-                    }
-                    origin = new GeoPoint(lat, lon);
-                } else {
+                } else  {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
@@ -173,25 +143,12 @@ public class GeoDistanceParser implements Aggregator.Parser {
             throw new SearchParseException(context, "Missing [ranges] in geo_distance aggregator [" + aggregationName + "]");
         }
 
+        GeoPoint origin = geoPointParser.geoPoint();
         if (origin == null) {
             throw new SearchParseException(context, "Missing [origin] in geo_distance aggregator [" + aggregationName + "]");
         }
 
-        ValuesSourceConfig<ValuesSource.GeoPoint> config = new ValuesSourceConfig<>(ValuesSource.GeoPoint.class);
-
-        if (field == null) {
-            return new GeoDistanceFactory(aggregationName, config, InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
-        }
-
-        FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-        if (mapper == null) {
-            config.unmapped(true);
-            return new GeoDistanceFactory(aggregationName, config, InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
-        }
-
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
-        config.fieldContext(new FieldContext(field, indexFieldData));
-        return new GeoDistanceFactory(aggregationName, config, InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
+        return new GeoDistanceFactory(aggregationName, vsParser.config(), InternalGeoDistance.FACTORY, origin, unit, distanceType, ranges, keyed);
     }
 
     private static class GeoDistanceFactory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
@@ -217,7 +174,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new Unmapped(name, ranges, keyed, null, null, aggregationContext, parent, rangeFactory);
+            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory);
         }
 
         @Override
@@ -228,7 +185,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
                 // we need to ensure uniqueness
                 distanceSource = new ValuesSource.Numeric.SortedAndUnique(distanceSource);
             }
-            return new RangeAggregator(name, factories, distanceSource, null, null, rangeFactory, ranges, keyed, aggregationContext, parent);
+            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent);
         }
 
         private static class DistanceValues extends DoubleValues {

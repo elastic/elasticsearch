@@ -28,15 +28,16 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -60,9 +61,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private int numberOfAggregatorsCreated = 0;
     private Filter filter;
 
-    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, ValueFormatter formatter, ValueParser parser,
-            int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint, Filter filter) {
-        super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig, formatter, parser);
+    public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, int requiredSize,
+                                             int shardSize, long minDocCount, IncludeExclude includeExclude,
+                                             String executionHint, Filter filter) {
+
+        super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.minDocCount = minDocCount;
@@ -150,7 +153,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
                 throw new UnsupportedOperationException("No support for examining floating point numerics");
             }
-            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, formatter, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
+            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
         }
 
         throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +

@@ -177,7 +177,7 @@ return score;
 === Term vectors:
 
 The `_index` variable can only be used to gather statistics for single terms. If you want to use information on all terms in a field, you must store the term vectors (set `term_vector` in the mapping as described in the <<mapping-core-types,mapping documentation>>). To access them, call
-`_index.getTermVectors()` to get a
+`_index.termVectors()` to get a
 https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[Fields]
 instance. This object can then be used as described in https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[lucene doc] to iterate over fields and then for each field iterate over each term in the field.
 The method will return null if the term vectors were not stored.

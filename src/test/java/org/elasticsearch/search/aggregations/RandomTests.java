@@ -56,7 +56,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
     public void testRandomRanges() throws Exception {
-        final int numDocs = scaledRandomIntBetween(1000, 10000);
+        final int numDocs = scaledRandomIntBetween(500, 5000);
         final double[][] docs = new double[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
             final int numValues = randomInt(5);
@@ -146,8 +146,8 @@ public class RandomTests extends ElasticsearchIntegrationTest {
 
     // test long/double/string terms aggs with high number of buckets that require array growth
     public void testDuelTerms() throws Exception {
-        final int numDocs = scaledRandomIntBetween(10000, 20000);
-        final int maxNumTerms = randomIntBetween(10, 50000);
+        final int numDocs = scaledRandomIntBetween(1000, 2000);
+        final int maxNumTerms = randomIntBetween(10, 5000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
         immutableCluster().wipeIndices("idx");
@@ -191,10 +191,6 @@ public class RandomTests extends ElasticsearchIntegrationTest {
             }
             source = source.endArray().endObject();
             indexingRequests.add(client().prepareIndex("idx", "type").setSource(source));
-            if (indexingRequests.size() == 5000) {
-                indexRandom(false, indexingRequests);
-                indexingRequests.clear();
-            }
         }
         indexRandom(true, indexingRequests);
 
@@ -234,7 +230,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
     public void testDuelTermsHistogram() throws Exception {
         createIndex("idx");
 
-        final int numDocs = scaledRandomIntBetween(1000, 5000);
+        final int numDocs = scaledRandomIntBetween(500, 5000);
         final int maxNumTerms = randomIntBetween(10, 2000);
         final int interval = randomIntBetween(1, 100);
 
@@ -280,15 +276,11 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         // test high numbers of percentile buckets to make sure paging and release work correctly
         createIndex("idx");
 
-        final int numDocs = scaledRandomIntBetween(25000, 50000);
+        final int numDocs = scaledRandomIntBetween(2500, 5000);
         logger.info("Indexing [" + numDocs +"] docs");
         List<IndexRequestBuilder> indexingRequests = Lists.newArrayList();
         for (int i = 0; i < numDocs; ++i) {
             indexingRequests.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource("double_value", randomDouble()));
-            if (indexingRequests.size() == 5000) {
-                indexRandom(false, indexingRequests);
-                indexingRequests.clear();
-            }
         }
         indexRandom(true, indexingRequests);
 

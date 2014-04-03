@@ -156,16 +156,6 @@ public class JsonXContentParser extends AbstractXContentParser {
     }
 
     @Override
-    public BigInteger bigIntegerValue() throws IOException {
-        return parser.getBigIntegerValue();
-    }
-
-    @Override
-    public BigDecimal bigDecimalValue() throws IOException {
-        return parser.getDecimalValue();
-    }
-
-    @Override
     public short doShortValue() throws IOException {
         return parser.getShortValue();
     }
@@ -188,6 +178,16 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public double doDoubleValue() throws IOException {
         return parser.getDoubleValue();
+    }
+
+    @Override
+    public BigInteger doBigIntegerValue() throws IOException {
+        return parser.getBigIntegerValue();
+    }
+
+    @Override
+    public BigDecimal doBigDecimalValue() throws IOException {
+        return parser.getDecimalValue();
     }
 
     @Override

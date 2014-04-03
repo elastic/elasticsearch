@@ -40,6 +40,8 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -676,7 +678,33 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                             }
                         }
                     }
-                    if (!resolved && context.root().numericDetection()) {
+                    if (!resolved && context.root().losslessnumericDetection()) {
+                        String text = context.parser().text();
+                        try {
+                            new BigInteger(text);
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "biginteger");
+                            if (builder == null) {
+                                builder = bigintegerField(currentFieldName);
+                            }
+                            mapper = builder.build(builderContext);
+                            resolved = true;
+                        } catch (Exception e) {
+                            // not a biginteger
+                        }
+                        if (!resolved) {
+                            try {
+                                new BigDecimal(text);
+                                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "bigdecimal");
+                                if (builder == null) {
+                                    builder = bigdecimalField(currentFieldName);
+                                }
+                                mapper = builder.build(builderContext);
+                                resolved = true;
+                            } catch (Exception e) {
+                                // not a bigdecimal
+                            }
+                        }
+                    } else if (!resolved && context.root().numericDetection()) {
                         String text = context.parser().text();
                         try {
                             Long.parseLong(text);
@@ -727,7 +755,25 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     XContentParser.NumberType numberType = context.parser().numberType();
-                    if (numberType == XContentParser.NumberType.INT) {
+                    if (context.root().losslessnumericDetection()) {
+                        if (numberType == XContentParser.NumberType.INT ||
+                                numberType == XContentParser.NumberType.LONG ||
+                                numberType == XContentParser.NumberType.BIG_INTEGER) {
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "biginteger");
+                            if (builder == null) {
+                                builder = bigintegerField(currentFieldName);
+                            }
+                            mapper = builder.build(builderContext);
+                        } else if (numberType == XContentParser.NumberType.FLOAT ||
+                                numberType == XContentParser.NumberType.DOUBLE ||
+                                numberType == XContentParser.NumberType.BIG_DECIMAL) {
+                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "bigdecimal");
+                            if (builder == null) {
+                                builder = bigdecimalField(currentFieldName);
+                            }
+                            mapper = builder.build(builderContext);
+                        }
+                    } else if (numberType == XContentParser.NumberType.INT) {
                         if (context.parser().estimatedNumberType()) {
                             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "long");
                             if (builder == null) {
@@ -765,6 +811,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "double");
                         if (builder == null) {
                             builder = doubleField(currentFieldName);
+                        }
+                        mapper = builder.build(builderContext);
+                    } else if (numberType == XContentParser.NumberType.BIG_INTEGER) {
+                        Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "biginteger");
+                        if (builder == null) {
+                            builder = bigintegerField(currentFieldName);
+                        }
+                        mapper = builder.build(builderContext);
+                    } else if (numberType == XContentParser.NumberType.BIG_DECIMAL) {
+                        Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "bigdecimal");
+                        if (builder == null) {
+                            builder = bigdecimalField(currentFieldName);
                         }
                         mapper = builder.build(builderContext);
                     }

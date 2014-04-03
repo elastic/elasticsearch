@@ -168,6 +168,10 @@ public interface XContentParser extends Closeable {
     float floatValue(boolean coerce) throws IOException;
 
     double doubleValue(boolean coerce) throws IOException;
+
+    BigInteger bigIntegerValue(boolean coerce) throws IOException;
+
+    BigDecimal bigDecimalValue(boolean coerce) throws IOException;
     
     short shortValue() throws IOException;
 

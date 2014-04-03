@@ -24,6 +24,8 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 
 /**
@@ -188,6 +190,40 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     protected abstract double doDoubleValue() throws IOException;
+
+    @Override
+    public BigInteger bigIntegerValue() throws IOException {
+        return bigIntegerValue(DEFAULT_NUMBER_COEERCE_POLICY);
+    }
+
+    @Override
+    public BigInteger bigIntegerValue(boolean coerce) throws IOException {
+        Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            checkCoerceString(coerce, BigInteger.class);
+            return new BigInteger(text());
+        }
+        return doBigIntegerValue();
+    }
+
+    protected abstract BigInteger doBigIntegerValue() throws IOException;
+
+    @Override
+    public BigDecimal bigDecimalValue() throws IOException {
+        return bigDecimalValue(DEFAULT_NUMBER_COEERCE_POLICY);
+    }
+
+    @Override
+    public BigDecimal bigDecimalValue(boolean coerce) throws IOException {
+        Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            checkCoerceString(coerce, BigDecimal.class);
+            return new BigDecimal(text());
+        }
+        return doBigDecimalValue();
+    }
+
+    protected abstract BigDecimal doBigDecimalValue() throws IOException;
 
     @Override
     public XContentParser losslessDecimals(boolean losslessDecimals) {

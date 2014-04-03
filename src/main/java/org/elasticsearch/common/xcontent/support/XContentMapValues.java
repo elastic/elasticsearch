@@ -26,6 +26,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -386,5 +388,27 @@ public class XContentMapValues {
         } else {
             throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
         }
+    }
+
+    public static BigInteger nodeBigIntegerValue(Object node, BigInteger defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeBigIntegerValue(node);
+    }
+
+    public static BigInteger nodeBigIntegerValue(Object node) {
+        return new BigInteger(node.toString());
+    }
+
+    public static BigDecimal nodeBigDecimalValue(Object node, BigDecimal defaultValue) {
+        if (node == null) {
+            return defaultValue;
+        }
+        return nodeBigDecimalValue(node);
+    }
+
+    public static BigDecimal nodeBigDecimalValue(Object node) {
+        return new BigDecimal(node.toString());
     }
 }

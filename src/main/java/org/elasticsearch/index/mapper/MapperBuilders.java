@@ -162,6 +162,14 @@ public final class MapperBuilders {
         return new DoubleFieldMapper.Builder(name);
     }
 
+    public static BigDecimalFieldMapper.Builder bigdecimalField(String name) {
+        return new BigDecimalFieldMapper.Builder(name);
+    }
+
+    public static BigIntegerFieldMapper.Builder bigintegerField(String name) {
+        return new BigIntegerFieldMapper.Builder(name);
+    }
+
     public static GeoPointFieldMapper.Builder geoPointField(String name) {
         return new GeoPointFieldMapper.Builder(name);
     }

@@ -51,6 +51,7 @@ public class RootObjectMapper extends ObjectMapper {
                 };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;
+        public static final boolean LOSSLESS_NUMERIC_DETECTION = false;
     }
 
     public static class Builder extends ObjectMapper.Builder<Builder, RootObjectMapper> {
@@ -63,6 +64,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         protected boolean dateDetection = Defaults.DATE_DETECTION;
         protected boolean numericDetection = Defaults.NUMERIC_DETECTION;
+        protected boolean losslessNumericDetection = Defaults.LOSSLESS_NUMERIC_DETECTION;
 
         public Builder(String name) {
             super(name);
@@ -112,7 +114,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(name, enabled, dynamic, pathType, mappers,
                     dates,
                     dynamicTemplates.toArray(new DynamicTemplate[dynamicTemplates.size()]),
-                    dateDetection, numericDetection);
+                    dateDetection, numericDetection, losslessNumericDetection);
         }
     }
 
@@ -164,6 +166,8 @@ public class RootObjectMapper extends ObjectMapper {
                 ((Builder) builder).dateDetection = nodeBooleanValue(fieldNode);
             } else if (fieldName.equals("numeric_detection")) {
                 ((Builder) builder).numericDetection = nodeBooleanValue(fieldNode);
+            } else if (fieldName.equals("lossless_numeric_detection")) {
+                ((Builder) builder).losslessNumericDetection = nodeBooleanValue(fieldNode);
             }
         }
     }
@@ -172,16 +176,18 @@ public class RootObjectMapper extends ObjectMapper {
 
     private final boolean dateDetection;
     private final boolean numericDetection;
+    private final boolean losslessNumericDetection;
 
     private volatile DynamicTemplate dynamicTemplates[];
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers,
-                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection) {
+                     FormatDateTimeFormatter[] dynamicDateTimeFormatters, DynamicTemplate dynamicTemplates[], boolean dateDetection, boolean numericDetection, boolean losslessNumericDetection) {
         super(name, name, enabled, Nested.NO, dynamic, pathType, mappers);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+        this.losslessNumericDetection = losslessNumericDetection;
     }
 
     public boolean dateDetection() {
@@ -190,6 +196,10 @@ public class RootObjectMapper extends ObjectMapper {
 
     public boolean numericDetection() {
         return this.numericDetection;
+    }
+
+    public boolean losslessnumericDetection() {
+        return this.losslessNumericDetection;
     }
 
     public FormatDateTimeFormatter[] dynamicDateTimeFormatters() {
@@ -278,6 +288,9 @@ public class RootObjectMapper extends ObjectMapper {
         }
         if (numericDetection != Defaults.NUMERIC_DETECTION) {
             builder.field("numeric_detection", numericDetection);
+        }
+        if (losslessNumericDetection != Defaults.LOSSLESS_NUMERIC_DETECTION) {
+            builder.field("lossless_numeric_detection", losslessNumericDetection);
         }
     }
 }

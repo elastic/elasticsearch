@@ -48,7 +48,7 @@ public class IndicesFieldDataCacheListener implements IndexFieldDataCache.Listen
 
     @Override
     public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes, @Nullable AtomicFieldData fieldData) {
-        assert sizeInBytes > 0 : "When reducing circuit breaker, it should be adjusted with a positive number and not [" + sizeInBytes + "]";
+        assert sizeInBytes >= 0 : "When reducing circuit breaker, it should be adjusted with a number higher or equal to 0 and not [" + sizeInBytes + "]";
         circuitBreakerService.getBreaker().addWithoutBreaking(-sizeInBytes);
     }
 

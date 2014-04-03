@@ -545,13 +545,13 @@ public abstract class ValuesSource {
         }
 
         public static class Script extends Numeric {
-            private final ScriptValueType scriptValueType;
+            private final ValueType scriptValueType;
 
             private final ScriptDoubleValues doubleValues;
             private final ScriptLongValues longValues;
             private final ScriptBytesValues bytesValues;
 
-            public Script(SearchScript script, ScriptValueType scriptValueType) {
+            public Script(SearchScript script, ValueType scriptValueType) {
                 this.scriptValueType = scriptValueType;
                 longValues = new ScriptLongValues(script);
                 doubleValues = new ScriptDoubleValues(script);

@@ -39,7 +39,7 @@ public class AggregatorFactories {
 
     public static final AggregatorFactories EMPTY = new Empty();
 
-    private final AggregatorFactory[] factories;
+    private AggregatorFactory[] factories;
 
     public static Builder builder() {
         return new Builder();

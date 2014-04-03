@@ -51,6 +51,8 @@ public interface ValueParser {
      */
     static class DateTime implements ValueParser {
 
+        public static final DateTime DEFAULT = new DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER);
+
         private FormatDateTimeFormatter formatter;
 
         public DateTime(String format) {
@@ -97,6 +99,10 @@ public interface ValueParser {
         @Override
         public double parseDouble(String value, SearchContext searchContext) {
             return parseLong(value, searchContext);
+        }
+
+        public static DateMath mapper(DateFieldMapper mapper) {
+            return new DateMath(new DateMathParser(mapper.dateTimeFormatter(), DateFieldMapper.Defaults.TIME_UNIT));
         }
     }
 
@@ -170,4 +176,5 @@ public interface ValueParser {
             }
         }
     }
+
 }

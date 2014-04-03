@@ -27,8 +27,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 /**
  *
@@ -140,10 +138,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final IncludeExclude includeExclude;
     private final String executionHint;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig config, ValueFormatter formatter, ValueParser parser,
-            InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
+    public TermsAggregatorFactory(String name, ValuesSourceConfig config, InternalOrder order, int requiredSize,
+                                  int shardSize, long minDocCount, IncludeExclude includeExclude, String executionHint) {
 
-        super(name, StringTerms.TYPE.name(), config, formatter, parser);
+        super(name, StringTerms.TYPE.name(), config);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -225,9 +223,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, formatter, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
-            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, formatter, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field() +

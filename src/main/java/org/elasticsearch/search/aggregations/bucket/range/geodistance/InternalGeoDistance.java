@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -70,19 +71,19 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
             return new InternalGeoDistance(name, ranges, formatter, keyed, unmapped);
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
+        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
             return new Bucket(key, from, to, docCount, aggregations, formatter);
         }
     }
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
         super(name, ranges, formatter, keyed, unmapped);
     }
 

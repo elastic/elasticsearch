@@ -22,6 +22,7 @@ import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
@@ -68,17 +69,19 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         long key;
         long docCount;
+        protected transient final @Nullable ValueFormatter formatter;
         InternalAggregations aggregations;
 
-        public Bucket(long key, long docCount, InternalAggregations aggregations) {
+        public Bucket(long key, long docCount, @Nullable ValueFormatter formatter, InternalAggregations aggregations) {
             this.key = key;
             this.docCount = docCount;
+            this.formatter = formatter;
             this.aggregations = aggregations;
         }
 
         @Override
         public String getKey() {
-            return String.valueOf(key);
+            return formatter != null ? formatter.format(key) : ValueFormatter.RAW.format(key);
         }
 
         @Override
@@ -120,6 +123,28 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             }
             reduced.aggregations = InternalAggregations.reduce(aggregations, bigArrays);
             return (B) reduced;
+        }
+
+        void toXContent(XContentBuilder builder, Params params, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
+            if (formatter != null) {
+                Text keyTxt = new StringText(formatter.format(key));
+                if (keyed) {
+                    builder.startObject(keyTxt.string());
+                } else {
+                    builder.startObject();
+                }
+                builder.field(CommonFields.KEY_AS_STRING, keyTxt);
+            } else {
+                if (keyed) {
+                    builder.startObject(String.valueOf(getKeyAsNumber()));
+                } else {
+                    builder.startObject();
+                }
+            }
+            builder.field(CommonFields.KEY, key);
+            builder.field(CommonFields.DOC_COUNT, docCount);
+            aggregations.toXContentInternal(builder, params);
+            builder.endObject();
         }
     }
 
@@ -173,12 +198,12 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                                           EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
         }
 
-        public B createBucket(long key, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-            return (B) new Bucket(key, docCount, aggregations);
+        public B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
+            return (B) new Bucket(key, docCount, formatter, aggregations);
         }
 
     }
@@ -186,14 +211,15 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     protected List<B> buckets;
     private LongObjectOpenHashMap<B> bucketsMap;
     private InternalOrder order;
-    private ValueFormatter formatter;
+    private @Nullable ValueFormatter formatter;
     private boolean keyed;
     private long minDocCount;
     private EmptyBucketInfo emptyBucketInfo;
 
     InternalHistogram() {} // for serialization
 
-    InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo, ValueFormatter formatter, boolean keyed) {
+    InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
+                      EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
         super(name);
         this.buckets = buckets;
         this.order = order;
@@ -416,8 +442,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return reduced;
     }
 
-    protected B createBucket(long key, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return (B) new InternalHistogram.Bucket(key, docCount, aggregations);
+    protected B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
+        return (B) new InternalHistogram.Bucket(key, docCount, formatter, aggregations);
     }
 
     @Override
@@ -465,29 +491,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         } else {
             builder.startArray(CommonFields.BUCKETS);
         }
-
         for (B bucket : buckets) {
-            if (formatter != null) {
-                Text keyTxt = new StringText(formatter.format(bucket.key));
-                if (keyed) {
-                    builder.startObject(keyTxt.string());
-                } else {
-                    builder.startObject();
-                }
-                builder.field(CommonFields.KEY_AS_STRING, keyTxt);
-            } else {
-                if (keyed) {
-                    builder.startObject(String.valueOf(bucket.getKeyAsNumber()));
-                } else {
-                    builder.startObject();
-                }
-            }
-            builder.field(CommonFields.KEY, bucket.key);
-            builder.field(CommonFields.DOC_COUNT, bucket.docCount);
-            bucket.aggregations.toXContentInternal(builder, params);
-            builder.endObject();
+            bucket.toXContent(builder, params, keyed, formatter);
         }
-
         if (keyed) {
             builder.endObject();
         } else {

@@ -44,11 +44,11 @@ import java.util.List;
 public class HistogramAggregator extends BucketsAggregator {
 
     private final ValuesSource.Numeric valuesSource;
-    private final ValueFormatter formatter;
-    private final ValueParser parser;
+    private final @Nullable ValueFormatter formatter;
     private final Rounding rounding;
     private final InternalOrder order;
     private final boolean keyed;
+
     private final long minDocCount;
     private final ExtendedBounds extendedBounds;
     private final InternalHistogram.Factory histogramFactory;
@@ -58,7 +58,7 @@ public class HistogramAggregator extends BucketsAggregator {
 
     public HistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order,
                                boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
-                               @Nullable ValuesSource.Numeric valuesSource, ValueFormatter formatter, ValueParser parser,
+                               @Nullable ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
                                long initialCapacity, InternalHistogram.Factory<?> histogramFactory,
                                AggregationContext aggregationContext, Aggregator parent) {
 
@@ -70,7 +70,6 @@ public class HistogramAggregator extends BucketsAggregator {
         this.extendedBounds = extendedBounds;
         this.valuesSource = valuesSource;
         this.formatter = formatter;
-        this.parser = parser;
         this.histogramFactory = histogramFactory;
 
         bucketOrds = new LongHash(initialCapacity, aggregationContext.bigArrays());
@@ -147,11 +146,11 @@ public class HistogramAggregator extends BucketsAggregator {
         private final ExtendedBounds extendedBounds;
         private final InternalHistogram.Factory<?> histogramFactory;
 
-        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> config, ValueFormatter formatter, ValueParser parser,
+        public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> config,
                        Rounding rounding, InternalOrder order, boolean keyed, long minDocCount,
                        ExtendedBounds extendedBounds, InternalHistogram.Factory<?> histogramFactory) {
 
-            super(name, histogramFactory.type(), config, formatter, parser);
+            super(name, histogramFactory.type(), config);
             this.rounding = rounding;
             this.order = order;
             this.keyed = keyed;
@@ -162,7 +161,7 @@ public class HistogramAggregator extends BucketsAggregator {
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, null, null, 0, histogramFactory, aggregationContext, parent);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, config.formatter(), 0, histogramFactory, aggregationContext, parent);
         }
 
         @Override
@@ -175,10 +174,10 @@ public class HistogramAggregator extends BucketsAggregator {
             ExtendedBounds roundedBounds = null;
             if (extendedBounds != null) {
                 // we need to process & validate here using the parser
-                extendedBounds.processAndValidate(name, aggregationContext.searchContext(), parser);
+                extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
                 roundedBounds = extendedBounds.round(rounding);
             }
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, formatter, parser, 50, histogramFactory, aggregationContext, parent);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, config.formatter(), 50, histogramFactory, aggregationContext, parent);
         }
 
     }

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
@@ -65,8 +66,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
         InternalAggregations aggregations;
         private String key;
 
-        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-            this.key = key != null ? key : key(from, to, formatter);
+        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
+            this.key = key != null ? key : generateKey(from, to, formatter);
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -123,7 +124,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return reduced;
         }
 
-        void toXContent(XContentBuilder builder, Params params, ValueFormatter formatter, boolean keyed) throws IOException {
+        void toXContent(XContentBuilder builder, Params params, @Nullable ValueFormatter formatter, boolean keyed) throws IOException {
             if (keyed) {
                 builder.startObject(key);
             } else {
@@ -147,11 +148,11 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             builder.endObject();
         }
 
-        private static String key(double from, double to, ValueFormatter formatter) {
+        protected String generateKey(double from, double to, @Nullable ValueFormatter formatter) {
             StringBuilder sb = new StringBuilder();
-            sb.append(Double.isInfinite(from) ? "*" : formatter != null ? formatter.format(from) : from);
+            sb.append(Double.isInfinite(from) ? "*" : formatter != null ? formatter.format(from) : ValueFormatter.RAW.format(from));
             sb.append("-");
-            sb.append(Double.isInfinite(to) ? "*" : formatter != null ? formatter.format(to) : to);
+            sb.append(Double.isInfinite(to) ? "*" : formatter != null ? formatter.format(to) : ValueFormatter.RAW.format(to));
             return sb.toString();
         }
 
@@ -163,26 +164,25 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return TYPE.name();
         }
 
-        public R create(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
             return (R) new InternalRange<>(name, ranges, formatter, keyed, unmapped);
         }
 
 
-        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
+        public B createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
             return (B) new Bucket(key, from, to, docCount, aggregations, formatter);
         }
     }
 
     private List<B> ranges;
     private Map<String, B> rangeMap;
-    private ValueFormatter formatter;
+    private @Nullable ValueFormatter formatter;
     private boolean keyed;
-
     private boolean unmapped;
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
         super(name);
         this.ranges = ranges;
         this.formatter = formatter;

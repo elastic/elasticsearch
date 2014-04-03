@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -38,7 +37,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope=Scope.SUITE, numNodes=1)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1)
 public class CacheTests extends ElasticsearchIntegrationTest {
 
     @Override

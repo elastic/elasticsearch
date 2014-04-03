@@ -662,8 +662,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             IndexSearcher searcher = manager.acquire();
             return newSearcher(source, searcher, manager);
         } catch (Throwable ex) {
+            ensureOpen(); // throw EngineCloseException here if we are already closed
             logger.error("failed to acquire searcher, source {}", ex, source);
-            throw new EngineException(shardId, ex.getMessage());
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         }
     }
 
@@ -706,9 +707,12 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // but, we want to make sure not to loose ant refresh calls, if one is taking time
                 synchronized (refreshMutex) {
                     if (dirty || refresh.force()) {
+                        // we set dirty to false, even though the refresh hasn't happened yet
+                        // as the refresh only holds for data indexed before it. Any data indexed during
+                        // the refresh will not be part of it and will set the dirty flag back to true
+                        dirty = false;
                         boolean refreshed = searcherManager.maybeRefresh();
                         assert refreshed : "failed to refresh even though refreshMutex was acquired";
-                        dirty = false;
                     }
                 }
             } catch (AlreadyClosedException e) {
@@ -727,6 +731,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 } else if (currentWriter != indexWriter) {
                     // an index writer got replaced on us, ignore
                 } else {
+                    failEngine(e);
                     throw new RefreshFailedEngineException(shardId, e);
                 }
             }

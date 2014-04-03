@@ -26,7 +26,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -36,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 /**
  *
  */
-@ClusterScope(scope = Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {

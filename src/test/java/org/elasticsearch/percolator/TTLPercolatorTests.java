@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -42,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope = Scope.TEST)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
 public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
     private static final long PURGE_INTERVAL = 200;

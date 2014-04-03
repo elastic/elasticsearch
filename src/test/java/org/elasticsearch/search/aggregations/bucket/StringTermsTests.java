@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -54,6 +53,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
@@ -63,30 +63,36 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         return randomBoolean() ? null : randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
-    @Before
-    public void init() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
-        IndexRequestBuilder[] lowCardBuilders = new IndexRequestBuilder[5]; // TODO randomize the size?
-        for (int i = 0; i < lowCardBuilders.length; i++) {
-            lowCardBuilders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            builders.add(client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, "val" + i)
                     .field("i", i)
-                    .field("tag", i < lowCardBuilders.length/2 + 1 ? "more" : "less")
+                    .field("tag", i < 5/2 + 1 ? "more" : "less")
                     .startArray(MULTI_VALUED_FIELD_NAME).value("val" + i).value("val" + (i + 1)).endArray()
-                    .endObject());
+                    .endObject()));
         }
-        indexRandom(true, lowCardBuilders);
-        IndexRequestBuilder[] highCardBuilders = new IndexRequestBuilder[100]; // TODO randomize the size?
 
-        for (int i = 0; i < highCardBuilders.length; i++) {
-            highCardBuilders[i] = client().prepareIndex("idx", "high_card_type").setSource(jsonBuilder()
+        for (int i = 0; i < 100; i++) {
+            builders.add(client().prepareIndex("idx", "high_card_type").setSource(jsonBuilder()
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, "val" + Strings.padStart(i+"", 3, '0'))
                     .startArray(MULTI_VALUED_FIELD_NAME).value("val" + Strings.padStart(i+"", 3, '0')).value("val" + Strings.padStart((i+1)+"", 3, '0')).endArray()
-                    .endObject());
+                    .endObject()));
         }
-        indexRandom(true, highCardBuilders);
+        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
+
+        for (int i = 0; i < 2; i++) {
+            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field(SINGLE_VALUED_FIELD_NAME, i*2)
+                    .endObject()));
+        }
+        indexRandom(true, builders);
         createIndex("idx_unmapped");
         ensureSearchable();
     }
@@ -765,16 +771,6 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field(SINGLE_VALUED_FIELD_NAME, i*2)
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)

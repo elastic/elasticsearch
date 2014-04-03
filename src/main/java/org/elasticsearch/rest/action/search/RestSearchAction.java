@@ -146,11 +146,7 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        // add extra source based on the request parameters
-        if (!isTemplateRequest) {
-            searchRequest.extraSource(parseSearchSource(request));
-        }
-
+        searchRequest.extraSource(parseSearchSource(request));
         searchRequest.searchType(request.param("search_type"));
 
         String scroll = request.param("scroll");

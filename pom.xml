@@ -17,6 +17,7 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
+
     <scm>
         <connection>scm:git:git@github.com:elasticsearch/elasticsearch.git</connection>
         <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch.git</developerConnection>
@@ -30,12 +31,13 @@
     </parent>
 
     <properties>
-        <lucene.version>4.7.0</lucene.version>
-        <tests.jvms>1</tests.jvms>
+        <lucene.version>4.7.1</lucene.version>
+        <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
         <es.logger.level>INFO</es.logger.level>
+        <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
@@ -432,7 +434,8 @@
                                 <exclude>**/*StressTest.class</exclude>
                             </excludes>
                             <jvmArgs>
-                                <param>-Xmx512m</param>
+                                <param>-Xmx${tests.heap.size}</param>
+                                <param>-Xms${tests.heap.size}</param>
                                 <param>-Xss256k</param>
                                 <param>-XX:MaxPermSize=128m</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
@@ -461,7 +464,6 @@
                                 <tests.timeoutSuite>${tests.timeoutSuite}</tests.timeoutSuite>
                                 <tests.showSuccess>${tests.showSuccess}</tests.showSuccess>
                                 <tests.integration>${tests.integration}</tests.integration>
-                                <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
                                 <tests.enable_mock_modules>${tests.enable_mock_modules}</tests.enable_mock_modules>
                                 <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
@@ -469,6 +471,8 @@
                                 <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
                                 <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                                 <tests.network>${tests.network}</tests.network>
+                                <tests.cluster>${tests.cluster}</tests.cluster>
+                                <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
@@ -1050,7 +1054,6 @@
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
-                                <exclude>org/apache/lucene/queries/XTermsFilter.class</exclude>
                                 <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
 				<exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->

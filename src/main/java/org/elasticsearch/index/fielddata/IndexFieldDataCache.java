@@ -32,7 +32,10 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
@@ -65,16 +68,18 @@ public interface IndexFieldDataCache {
      * The resident field data cache is a *per field* cache that keeps all the values in memory.
      */
     static abstract class FieldBased implements IndexFieldDataCache, SegmentReader.CoreClosedListener, RemovalListener<FieldBased.Key, AtomicFieldData> {
-        @Nullable
         private final IndexService indexService;
         private final FieldMapper.Names fieldNames;
         private final FieldDataType fieldDataType;
         private final Cache<Key, AtomicFieldData> cache;
+        private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        protected FieldBased(@Nullable IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, CacheBuilder cache) {
+        protected FieldBased(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, CacheBuilder cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+            assert indexService != null;
             this.indexService = indexService;
             this.fieldNames = fieldNames;
             this.fieldDataType = fieldDataType;
+            this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
             cache.removalListener(this);
             //noinspection unchecked
             this.cache = cache.build();
@@ -82,16 +87,18 @@ public interface IndexFieldDataCache {
 
         @Override
         public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
-            Key key = notification.getKey();
-            if (key == null || key.listener == null) {
-                return; // we can't do anything here...
-            }
-            AtomicFieldData value = notification.getValue();
+            final Key key = notification.getKey();
+            assert key != null && key.listeners != null;
+
+            final AtomicFieldData value = notification.getValue();
             long sizeInBytes = key.sizeInBytes;
+            assert sizeInBytes >= 0 || value != null : "Expected size [" + sizeInBytes + "] to be positive or value [" + value + "] to be non-null";
             if (sizeInBytes == -1 && value != null) {
                 sizeInBytes = value.getMemorySizeInBytes();
             }
-            key.listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, value);
+            for (Listener listener : key.listeners) {
+                listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, value);
+            }
         }
 
         @Override
@@ -104,21 +111,17 @@ public interface IndexFieldDataCache {
                     SegmentReaderUtils.registerCoreListener(context.reader(), FieldBased.this);
                     AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                     key.sizeInBytes = fieldData.getMemorySizeInBytes();
-
-                    if (indexService != null) {
-                        ShardId shardId = ShardUtils.extractShardId(context.reader());
-                        if (shardId != null) {
-                            IndexShard shard = indexService.shard(shardId.id());
-                            if (shard != null) {
-                                key.listener = shard.fieldData();
-                            }
+                    key.listeners.add(indicesFieldDataCacheListener);
+                    final ShardId shardId = ShardUtils.extractShardId(context.reader());
+                    if (shardId != null) {
+                        final IndexShard shard = indexService.shard(shardId.id());
+                        if (shard != null) {
+                            key.listeners.add(shard.fieldData());
                         }
                     }
-
-                    if (key.listener != null) {
-                        key.listener.onLoad(fieldNames, fieldDataType, fieldData);
+                    for (Listener listener : key.listeners) {
+                        listener.onLoad(fieldNames, fieldDataType, fieldData);
                     }
-
                     return fieldData;
                 }
             });
@@ -146,8 +149,7 @@ public interface IndexFieldDataCache {
 
         static class Key {
             final Object readerKey;
-            @Nullable
-            Listener listener; // optional stats listener
+            final List<Listener> listeners = new ArrayList<>();
             long sizeInBytes = -1; // optional size in bytes (we keep it here in case the values are soft references)
 
             Key(Object readerKey) {
@@ -171,15 +173,15 @@ public interface IndexFieldDataCache {
 
     static class Resident extends FieldBased {
 
-        public Resident(@Nullable IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
-            super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder());
+        public Resident(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+            super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder(), indicesFieldDataCacheListener);
         }
     }
 
     static class Soft extends FieldBased {
 
-        public Soft(@Nullable IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
-            super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder().softValues());
+        public Soft(IndexService indexService, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndicesFieldDataCacheListener indicesFieldDataCacheListener) {
+            super(indexService, fieldNames, fieldDataType, CacheBuilder.newBuilder().softValues(), indicesFieldDataCacheListener);
         }
     }
 }

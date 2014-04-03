@@ -23,6 +23,7 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;

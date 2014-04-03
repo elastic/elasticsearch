@@ -40,7 +40,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.File;
@@ -51,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope = Scope.TEST, numNodes = 0)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
 public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteTests.class);
@@ -157,7 +156,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> starting 2 nodes");
         String node_1 = cluster().startNode(commonSettings);
         cluster().startNode(commonSettings);
-        assertThat(cluster().size(), equalTo(2));
+        assertThat(immutableCluster().size(), equalTo(2));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
@@ -228,7 +227,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
         logger.info("--> starting a node");
         String node_1 = cluster().startNode(commonSettings);
 
-        assertThat(cluster().size(), equalTo(1));
+        assertThat(immutableCluster().size(), equalTo(1));
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
@@ -247,7 +246,7 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> starting a second node");
         String node_2 = cluster().startNode(commonSettings);
-        assertThat(cluster().size(), equalTo(2));
+        assertThat(immutableCluster().size(), equalTo(2));
         healthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 

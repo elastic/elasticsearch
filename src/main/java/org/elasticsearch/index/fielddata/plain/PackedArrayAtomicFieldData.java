@@ -95,7 +95,7 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return ScriptDocValues.EMPTY;
+            return ScriptDocValues.EMPTY_LONGS;
         }
     }
 

@@ -67,7 +67,8 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
         for (int j = 0; j < iters; j++) {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(firstNames.length + j), Field.Store.YES));
-            d.add(new TextField("firstname", rarely() ? "some_other_name" : "simon", Field.Store.NO));
+            d.add(new TextField("firstname", rarely() ? "some_other_name" :
+                    "simon the sorcerer", Field.Store.NO)); // make sure length-norm is the tie-breaker
             d.add(new TextField("surname", "bogus", Field.Store.NO));
             w.addDocument(d);
         }

@@ -38,7 +38,7 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException {
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", cluster().dataNodes()+2).put("index.number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", immutableCluster().dataNodes()+2).put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").execute().actionGet();

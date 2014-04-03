@@ -41,10 +41,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -586,9 +584,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
         };
 
-        BulkProcessor processor = null;
-        try {
-            processor = BulkProcessor.builder(client(), listener).setBulkActions(5).setConcurrentRequests(1).setName("foo").build();
+        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(5)
+                                        .setConcurrentRequests(1).setName("foo").build()) {
             Map<String, Object> data = Maps.newHashMap();
             data.put("foo", "bar");
 
@@ -601,10 +598,6 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             BulkResponse response = responseQueue.poll(5, TimeUnit.SECONDS);
             assertThat("Could not get a bulk response in 5 seconds", response, is(notNullValue()));
             assertThat(response.getItems().length, is(5));
-        } finally {
-            if (processor != null) {
-                processor.close();
-            }
         }
     }
 
@@ -613,16 +606,60 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         int bulkEntryCount = randomIntBetween(10, 50);
         BulkRequestBuilder builder = client().prepareBulk();
         boolean[] expectedFailures = new boolean[bulkEntryCount];
+        boolean expectFailure = false;
         for (int i = 0; i < bulkEntryCount; i++) {
-            expectedFailures[i] = randomBoolean();
+            expectFailure |= expectedFailures[i] = randomBoolean();
             builder.add(client().prepareIndex().setIndex(expectedFailures[i] ? "INVALID.NAME" : "test").setType("type1").setId("1").setSource("field", 1));
         }
         BulkResponse bulkResponse = builder.get();
-
-        assertThat(bulkResponse.hasFailures(), is(true));
+        assertThat(bulkResponse.hasFailures(), is(expectFailure));
         assertThat(bulkResponse.getItems().length, is(bulkEntryCount));
         for (int i = 0; i < bulkEntryCount; i++) {
             assertThat(bulkResponse.getItems()[i].isFailed(), is(expectedFailures[i]));
         }
     }
+
+    @Test
+    public void testBulkProcessorFlush() throws InterruptedException {
+        final AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<Throwable> failureRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                responseRef.set(response);
+                latch.countDown();
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                failureRef.set(failure);
+                latch.countDown();
+            }
+        };
+
+        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(6)
+                                        .setConcurrentRequests(1).setName("foo").build()) {
+            Map<String, Object> data = Maps.newHashMap();
+            data.put("foo", "bar");
+
+            processor.add(new IndexRequest("test", "test", "1").source(data));
+            processor.add(new IndexRequest("test", "test", "2").source(data));
+            processor.add(new IndexRequest("test", "test", "3").source(data));
+            processor.add(new IndexRequest("test", "test", "4").source(data));
+            processor.add(new IndexRequest("test", "test", "5").source(data));
+
+            processor.flush();
+            latch.await();
+            BulkResponse response = responseRef.get();
+            Throwable error = failureRef.get();
+            assertThat(error, nullValue());
+            assertThat("Could not get a bulk response even after an explicit flush.", response, notNullValue());
+            assertThat(response.getItems().length, is(5));
+        }
+    }
 }
+

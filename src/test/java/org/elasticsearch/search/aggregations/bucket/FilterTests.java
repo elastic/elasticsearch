@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -45,12 +44,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class FilterTests extends ElasticsearchIntegrationTest {
 
-    int numDocs, numTag1Docs;
+    static int numDocs, numTag1Docs;
 
-    @Before
-    public void init() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx2");
         numDocs = randomIntBetween(5, 20);
@@ -71,8 +71,14 @@ public class FilterTests extends ElasticsearchIntegrationTest {
                     .field("name", "name" + i)
                     .endObject()));
         }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-        ensureGreen();
+        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
+        for (int i = 0; i < 2; i++) {
+            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i*2)
+                    .endObject()));
+        }
+        indexRandom(true, builders);
         ensureSearchable();
     }
 
@@ -137,16 +143,6 @@ public class FilterTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)

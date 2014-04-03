@@ -24,8 +24,13 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -46,10 +51,13 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArraysModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
@@ -59,6 +67,7 @@ import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
 import org.elasticsearch.test.engine.MockEngineModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransportModule;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
@@ -67,7 +76,9 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.File;
+import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -112,8 +123,8 @@ public final class TestCluster extends ImmutableTestCluster {
     static final int DEFAULT_MIN_NUM_NODES = 2;
     static final int DEFAULT_MAX_NUM_NODES = 6;
 
-    /* sorted map to make traverse order reproducible */
-    private final TreeMap<String, NodeAndClient> nodes = newTreeMap();
+    /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
+    private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
     private final Set<File> dataDirToClean = new HashSet<>();
 
@@ -131,6 +142,8 @@ public final class TestCluster extends ImmutableTestCluster {
     private final long[] sharedNodesSeeds;
 
     private final NodeSettingsSource nodeSettingsSource;
+
+    private final ExecutorService executor;
 
     public TestCluster(long clusterSeed, String clusterName) {
         this(clusterSeed, DEFAULT_MIN_NUM_NODES, DEFAULT_MAX_NUM_NODES, clusterName, NodeSettingsSource.EMPTY);
@@ -187,7 +200,7 @@ public final class TestCluster extends ImmutableTestCluster {
             }
         }
         defaultSettings = builder.build();
-
+        executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
     }
 
     public String getClusterName() {
@@ -233,6 +246,7 @@ public final class TestCluster extends ImmutableTestCluster {
             builder.put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName());
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
+            builder.put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName());
         }
         if (isLocalTransportConfigured()) {
             builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransportModule.class.getName());
@@ -320,13 +334,19 @@ public final class TestCluster extends ImmutableTestCluster {
      * if more nodes than <code>n</code> are present this method will not
      * stop any of the running nodes.
      */
-    public synchronized void ensureAtLeastNumNodes(int n) {
-        int size = nodes.size();
-        for (int i = size; i < n; i++) {
-            logger.info("increasing cluster size from {} to {}", size, n);
-            NodeAndClient buildNode = buildNode();
-            buildNode.node().start();
-            publishNode(buildNode);
+    public void ensureAtLeastNumNodes(int n) {
+        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        synchronized (this) {
+            int size = nodes.size();
+            for (int i = size; i < n; i++) {
+                logger.info("increasing cluster size from {} to {}", size, n);
+                futures.add(startNodeAsync());
+            }
+        }
+        try {
+            Futures.allAsList(futures).get();
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to start nodes", e);
         }
     }
 
@@ -365,6 +385,7 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     private NodeAndClient buildNode(int nodeId, long seed, Settings settings, Version version) {
+        assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
         String name = buildNodeName(nodeId);
@@ -490,6 +511,7 @@ public final class TestCluster extends ImmutableTestCluster {
         if (this.open.compareAndSet(true, false)) {
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
+            executor.shutdownNow();
         }
     }
 
@@ -667,6 +689,13 @@ public final class TestCluster extends ImmutableTestCluster {
         if (wipeData) {
             wipeDataDirectories();
         }
+        // clear all rules for mock transport services
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
+            if (transportService instanceof MockTransportService) {
+                ((MockTransportService) transportService).clearAllRules();
+            }
+        }
         if (nextNodeId.get() == sharedNodesSeeds.length && nodes.size() == sharedNodesSeeds.length) {
             logger.debug("Cluster hasn't changed - moving out - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), sharedNodesSeeds.length);
             return;
@@ -791,6 +820,15 @@ public final class TestCluster extends ImmutableTestCluster {
     @Override
     public synchronized int size() {
         return this.nodes.size();
+    }
+
+    @Override
+    public InetSocketAddress[] httpAddresses() {
+        List<InetSocketAddress> addresses = Lists.newArrayList();
+        for (HttpServerTransport httpServerTransport : getInstances(HttpServerTransport.class)) {
+            addresses.add(((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address());
+        }
+        return addresses.toArray(new InetSocketAddress[addresses.size()]);
     }
 
     /**
@@ -990,39 +1028,96 @@ public final class TestCluster extends ImmutableTestCluster {
     /**
      * Starts a node with default settings and returns it's name.
      */
-    public String startNode() {
+    public synchronized String startNode() {
         return startNode(ImmutableSettings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts a node with default settings ad the specified version and returns it's name.
      */
-    public String startNode(Version version) {
+    public synchronized String startNode(Version version) {
         return startNode(ImmutableSettings.EMPTY, version);
     }
 
     /**
      * Starts a node with the given settings builder and returns it's name.
      */
-    public String startNode(Settings.Builder settings) {
+    public synchronized String startNode(Settings.Builder settings) {
         return startNode(settings.build(), Version.CURRENT);
     }
 
     /**
      * Starts a node with the given settings and returns it's name.
      */
-    public String startNode(Settings settings) {
+    public synchronized String startNode(Settings settings) {
         return startNode(settings, Version.CURRENT);
     }
 
-    public String startNode(Settings settings, Version version) {
+    /**
+     * Starts a node with the given settings and version and returns it's name.
+     */
+    public synchronized String startNode(Settings settings, Version version) {
         NodeAndClient buildNode = buildNode(settings, version);
         buildNode.node().start();
         publishNode(buildNode);
         return buildNode.name;
     }
 
-    private void publishNode(NodeAndClient nodeAndClient) {
+    /**
+     * Starts a node in an async manner with the given settings and returns future with its name.
+     */
+    public synchronized ListenableFuture<String> startNodeAsync() {
+        return startNodeAsync(ImmutableSettings.EMPTY, Version.CURRENT);
+    }
+
+    /**
+     * Starts a node in an async manner with the given settings and returns future with its name.
+     */
+    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings) {
+        return startNodeAsync(settings, Version.CURRENT);
+    }
+
+    /**
+     * Starts a node in an async manner with the given settings and version and returns future with its name.
+     */
+    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings, final Version version) {
+        final SettableFuture<String> future = SettableFuture.create();
+        final NodeAndClient buildNode = buildNode(settings, version);
+        Runnable startNode = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    buildNode.node().start();
+                    publishNode(buildNode);
+                    future.set(buildNode.name);
+                } catch (Throwable t) {
+                    future.setException(t);
+                }
+            }
+        };
+        executor.execute(startNode);
+        return future;
+    }
+
+    /**
+     * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
+     */
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
+        return startNodesAsync(numNodes, settings, Version.CURRENT);
+    }
+
+    /**
+     * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
+     */
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
+        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        for (int i = 0; i < numNodes; i++) {
+            futures.add(startNodeAsync(settings, version));
+        }
+        return Futures.allAsList(futures);
+    }
+
+    private synchronized void publishNode(NodeAndClient nodeAndClient) {
         assert !nodeAndClient.node().isClosed();
         NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, nodeAndClient.node);
         if (nodeEnv.hasNodeFile()) {
@@ -1035,6 +1130,7 @@ public final class TestCluster extends ImmutableTestCluster {
         reset(wipeData);
     }
 
+    @Override
     public int dataNodes() {
         return dataNodeAndClients().size();
     }

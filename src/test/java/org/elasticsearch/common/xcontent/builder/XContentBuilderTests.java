@@ -23,16 +23,11 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentGenerator;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
@@ -205,87 +200,57 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testBigDecimal() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("value", new BigDecimal("57683974591503.00")).endObject();
-        assertThat(builder.string(), equalTo("{\"value\":57683974591503.00}"));
+    public void testCopyCurrentStructure() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject()
+                .field("test", "test field")
+                .startObject("filter")
+                .startObject("terms");
 
-        XContentType contentType = XContentFactory.xContentType(builder.string());
-        Map<String,Object> map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(true)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=57683974591503.00}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigDecimal"));
+        // up to 20k random terms
+        int numTerms = randomInt(20000) + 1;
+        List<String> terms = new ArrayList<>(numTerms);
+        for (int i = 0; i < numTerms; i++) {
+            terms.add("test" + i);
+        }
 
-        map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(false)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=5.7683974591503E13}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.lang.Double"));
-    }
+        builder.field("fakefield", terms).endObject().endObject().endObject();
 
-    @Test
-    public void testBigInteger() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("value", new BigInteger("1234567891234567890123456789")).endObject();
-        assertThat(builder.string(), equalTo("{\"value\":1234567891234567890123456789}"));
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
 
-        XContentType contentType = XContentFactory.xContentType(builder.string());
-        Map<String,Object> map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(true)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=1234567891234567890123456789}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigInteger"));
+        XContentBuilder filterBuilder = null;
+        XContentParser.Token token;
+        String currentFieldName = null;
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("test".equals(currentFieldName)) {
+                    assertThat(parser.text(), equalTo("test field"));
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("filter".equals(currentFieldName)) {
+                    filterBuilder = XContentFactory.contentBuilder(parser.contentType());
+                    filterBuilder.copyCurrentStructure(parser);
+                }
+            }
+        }
 
-        map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(false)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=1234567891234567890123456789}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigInteger"));
-    }
+        assertNotNull(filterBuilder);
+        parser = XContentFactory.xContent(XContentType.JSON).createParser(filterBuilder.bytes());
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("terms"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("fakefield"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_ARRAY));
+        int i = 0;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            assertThat(parser.text(), equalTo(terms.get(i++)));
+        }
 
-    @Test
-    public void testLosslessDecimal() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("value", new BigInteger("1234")).endObject();
-        assertThat(builder.string(), equalTo("{\"value\":1234}"));
-
-        XContentType contentType = XContentFactory.xContentType(builder.string());
-        Map<String,Object> map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(true)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=1234}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigInteger"));
-
-        map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(false)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=1234}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.lang.Integer"));
-
-        builder = XContentFactory.jsonBuilder();
-        builder.startObject().field("value", new BigDecimal("12.34")).endObject();
-        assertThat(builder.string(), equalTo("{\"value\":12.34}"));
-
-        contentType = XContentFactory.xContentType(builder.string());
-        map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(true)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=12.34}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.math.BigDecimal"));
-
-        map = XContentFactory.xContent(contentType)
-                .createParser(builder.string())
-                .losslessDecimals(false)
-                .mapAndClose();
-        assertThat(map.toString(), equalTo("{value=12.34}"));
-        assertThat(map.get("value").getClass().toString(), equalTo("class java.lang.Double"));
+        assertThat(i, equalTo(terms.size()));
     }
 }

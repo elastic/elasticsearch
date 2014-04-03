@@ -25,7 +25,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -42,12 +41,13 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class GlobalTests extends ElasticsearchIntegrationTest {
 
-    int numDocs;
+    static int numDocs;
 
-    @Before
-    public void init() throws Exception {
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx2");
         List<IndexRequestBuilder> builders = new ArrayList<>();

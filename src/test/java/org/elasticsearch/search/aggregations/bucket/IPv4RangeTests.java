@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -36,6 +35,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -45,25 +45,39 @@ import static org.hamcrest.core.IsNull.nullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
-    @Before
-    public void init() throws Exception {
-        prepareCreate("idx")
-                .addMapping("type", "ip", "type=ip", "ips", "type=ip")
-                .execute().actionGet();
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[255]; // TODO randomize the size?
-        // TODO randomize the values in the docs?
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
-                    .startObject()
-                    .field("ip", "10.0.0." + (i))
-                    .startArray("ips").value("10.0.0." + i).value("10.0.0." + (i + 1)).endArray()
-                    .field("value", (i < 100 ? 1 : i < 200 ? 2 : 3))        // 100 1's, 100 2's, and 55 3's
-                    .endObject());
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
+        {
+            assertAcked(prepareCreate("idx")
+                    .addMapping("type", "ip", "type=ip", "ips", "type=ip"));
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[255]; // TODO randomize the size?
+            // TODO randomize the values in the docs?
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                        .startObject()
+                        .field("ip", "10.0.0." + (i))
+                        .startArray("ips").value("10.0.0." + i).value("10.0.0." + (i + 1)).endArray()
+                        .field("value", (i < 100 ? 1 : i < 200 ? 2 : 3))        // 100 1's, 100 2's, and 55 3's
+                        .endObject());
+            }
+            indexRandom(true, builders);
+            createIndex("idx_unmapped");
         }
-        indexRandom(true, builders);
-        createIndex("idx_unmapped");
+        {
+            assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "ip", "type=ip"));
+            List<IndexRequestBuilder> builders = new ArrayList<>();
+            for (int i = 0; i < 2; i++) {
+                builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
+                        .startObject()
+                        .field("value", i * 2)
+                        .field("ip", "10.0.0.5")
+                        .endObject()));
+            }
+            indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        }
         ensureSearchable();
     }
 
@@ -819,17 +833,6 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "ip", "type=ip").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i * 2)
-                    .field("ip", "10.0.0.5")
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)

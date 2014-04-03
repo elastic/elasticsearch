@@ -23,7 +23,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
-import org.apache.lucene.queries.XTermsFilter;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -33,6 +33,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -74,6 +75,10 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
 
     public static class Builder extends Mapper.Builder<Builder, ParentFieldMapper> {
 
+        private static final Settings FIELD_DATA_SETTINGS = ImmutableSettings.settingsBuilder()
+                .put(Loading.KEY, Loading.EAGER_VALUE)
+                .build();
+
         protected String indexName;
 
         private String type;
@@ -100,7 +105,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, null, context.indexSettings());
+            return new ParentFieldMapper(name, indexName, type, postingsFormat, FIELD_DATA_SETTINGS, context.indexSettings());
         }
     }
 
@@ -278,7 +283,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             for (String type : context.mapperService().types()) {
                 typesValues.add(Uid.createUidAsBytes(type, bValue));
             }
-            return new XTermsFilter(names.indexName(), typesValues);
+            return new TermsFilter(names.indexName(), typesValues);
         }
     }
 
@@ -311,7 +316,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 }
             }
         }
-        return new XTermsFilter(names.indexName(), bValues);
+        return new TermsFilter(names.indexName(), bValues);
     }
 
     /**

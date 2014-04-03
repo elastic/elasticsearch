@@ -386,7 +386,7 @@ and `false` respectively.
 --------------------------------------------------
 
 The boolean type also supports passing the value as a number or a string
-(in this case `0`, an empty string, `F`, `false`, `off` and `no` are
+(in this case `0`, an empty string, `false`, `off` and `no` are
 `false`, all other values are `true`).
 
 The following table lists all the attributes that can be used with the
@@ -707,7 +707,7 @@ it gets processed as a not analyzed string and is accessible under the name `nam
 
 The `include_in_all` setting is ignored on any field that is defined in
 the `fields` options. Setting the `include_in_all` only makes sense on
-the main field, since the raw field value to copied to the `_all` field,
+the main field, since the raw field value is copied to the `_all` field,
 the tokens aren't copied.
 
 [float]

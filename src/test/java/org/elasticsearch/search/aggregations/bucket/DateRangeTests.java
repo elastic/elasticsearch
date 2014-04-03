@@ -30,7 +30,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -40,6 +39,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -49,6 +49,7 @@ import static org.hamcrest.core.IsNull.nullValue;
 /**
  *
  */
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class DateRangeTests extends ElasticsearchIntegrationTest {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
@@ -64,10 +65,9 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         return new DateTime(2012, month, day, 0, 0, DateTimeZone.UTC);
     }
 
-    int numDocs;
-
-    @Before
-    public void init() throws Exception {
+    private static int numDocs;
+    @Override
+    public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx_unmapped");
 
@@ -86,7 +86,13 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         for (int i = docs.size(); i < numDocs; ++i) {
             docs.add(indexDoc(randomIntBetween(6, 10), randomIntBetween(1, 20), randomInt(100)));
         }
-
+        assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer"));
+        for (int i = 0; i < 2; i++) {
+            docs.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
+                    .startObject()
+                    .field("value", i*2)
+                    .endObject()));
+        }
         indexRandom(true, docs);
         ensureSearchable();
     }
@@ -1010,16 +1016,6 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void emptyAggregation() throws Exception {
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer").execute().actionGet();
-        List<IndexRequestBuilder> builders = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx", "type", ""+i).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
-        }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
-
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0).subAggregation(dateRange("date_range").addRange("0-1", 0, 1)))

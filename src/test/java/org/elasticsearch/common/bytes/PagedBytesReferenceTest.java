@@ -178,6 +178,34 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         assertArrayEquals(pbrBytesWithOffset, targetBytes);
     }
 
+    public void testRandomReads() throws IOException {
+        int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
+        BytesReference pbr = getRandomizedPagedBytesReference(length);
+        StreamInput streamInput = pbr.streamInput();
+        BytesRef target = new BytesRef();
+        while(target.length < pbr.length()) {
+            switch (randomIntBetween(0, 10)) {
+                case 6:
+                case 5:
+                    target.append(new BytesRef(new byte[] {streamInput.readByte()}));
+                    break;
+                case 4:
+                case 3:
+                    BytesRef bytesRef = streamInput.readBytesRef(scaledRandomIntBetween(1, pbr.length() - target.length));
+                    target.append(bytesRef);
+                    break;
+                default:
+                    byte[] buffer = new byte[scaledRandomIntBetween(1, pbr.length() - target.length)];
+                    int offset = scaledRandomIntBetween(0, buffer.length - 1);
+                    int read = streamInput.read(buffer, offset, buffer.length - offset);
+                    target.append(new BytesRef(buffer, offset, read));
+                    break;
+            }
+        }
+        assertEquals(pbr.length(), target.length);
+        assertArrayEquals(pbr.toBytes(), Arrays.copyOfRange(target.bytes, target.offset, target.length));
+    }
+
     public void testSliceStreamInput() throws IOException {
         int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
@@ -208,6 +236,13 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         byte[] sliceToBytes = slice.toBytes();
         assertEquals(sliceBytes.length, sliceToBytes.length);
         assertArrayEquals(sliceBytes, sliceToBytes);
+
+        sliceInput.reset();
+        byte[] buffer = new byte[sliceLength + scaledRandomIntBetween(1, 100)];
+        int offset  = scaledRandomIntBetween(0, Math.max(1, buffer.length - sliceLength - 1));
+        int read = sliceInput.read(buffer, offset, sliceLength / 2);
+        sliceInput.read(buffer, offset + read, sliceLength);
+        assertArrayEquals(sliceBytes, Arrays.copyOfRange(buffer, offset, offset + sliceLength));
     }
 
     public void testWriteTo() throws IOException {

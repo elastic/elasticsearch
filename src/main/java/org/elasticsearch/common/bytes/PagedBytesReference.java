@@ -431,27 +431,26 @@ public final class PagedBytesReference implements BytesReference {
                 return -1;
             }
 
-            // we need to stop at the end
-            int todo = Math.min(len, length);
+            final int numBytesToCopy = Math.min(len, length - pos); // copy the full lenth or the remaining part
 
             // current offset into the underlying ByteArray
-            long bytearrayOffset = offset + pos;
+            long byteArrayOffset = offset + pos;
 
             // bytes already copied
-            int written = 0;
+            int copiedBytes = 0;
 
-            while (written < todo) {
-                long pagefragment = PAGE_SIZE - (bytearrayOffset % PAGE_SIZE); // how much can we read until hitting N*PAGE_SIZE?
-                int bulksize = (int)Math.min(pagefragment, todo - written); // we cannot copy more than a page fragment
-                boolean copied = bytearray.get(bytearrayOffset, bulksize, ref); // get the fragment
+            while (copiedBytes < numBytesToCopy) {
+                long pageFragment = PAGE_SIZE - (byteArrayOffset % PAGE_SIZE); // how much can we read until hitting N*PAGE_SIZE?
+                int bulkSize = (int)Math.min(pageFragment, numBytesToCopy - copiedBytes); // we cannot copy more than a page fragment
+                boolean copied = bytearray.get(byteArrayOffset, bulkSize, ref); // get the fragment
                 assert (copied == false); // we should never ever get back a materialized byte[]
-                System.arraycopy(ref.bytes, ref.offset, b, bOffset + written, bulksize); // copy fragment contents
-                written += bulksize; // count how much we copied
-                bytearrayOffset += bulksize; // advance ByteArray index
+                System.arraycopy(ref.bytes, ref.offset, b, bOffset + copiedBytes, bulkSize); // copy fragment contents
+                copiedBytes += bulkSize; // count how much we copied
+                byteArrayOffset += bulkSize; // advance ByteArray index
             }
 
-            pos += written; // finally advance our stream position
-            return written;
+            pos += copiedBytes; // finally advance our stream position
+            return copiedBytes;
         }
 
         @Override

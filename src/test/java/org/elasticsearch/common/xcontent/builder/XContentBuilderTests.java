@@ -23,10 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FastCharArrayWriter;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentGenerator;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -200,5 +197,60 @@ public class XContentBuilderTests extends ElasticsearchTestCase {
         map.put("calendar", calendar);
         builder.map(map);
         assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
+    }
+
+    @Test
+    public void testCopyCurrentStructure() throws Exception {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject()
+                .field("test", "test field")
+                .startObject("filter")
+                .startObject("terms");
+
+        // up to 20k random terms
+        int numTerms = randomInt(20000) + 1;
+        List<String> terms = new ArrayList<>(numTerms);
+        for (int i = 0; i < numTerms; i++) {
+            terms.add("test" + i);
+        }
+
+        builder.field("fakefield", terms).endObject().endObject().endObject();
+
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+
+        XContentBuilder filterBuilder = null;
+        XContentParser.Token token;
+        String currentFieldName = null;
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if ("test".equals(currentFieldName)) {
+                    assertThat(parser.text(), equalTo("test field"));
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("filter".equals(currentFieldName)) {
+                    filterBuilder = XContentFactory.contentBuilder(parser.contentType());
+                    filterBuilder.copyCurrentStructure(parser);
+                }
+            }
+        }
+
+        assertNotNull(filterBuilder);
+        parser = XContentFactory.xContent(XContentType.JSON).createParser(filterBuilder.bytes());
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("terms"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("fakefield"));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_ARRAY));
+        int i = 0;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            assertThat(parser.text(), equalTo(terms.get(i++)));
+        }
+
+        assertThat(i, equalTo(terms.size()));
     }
 }

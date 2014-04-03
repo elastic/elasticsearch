@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>4.7.1</lucene.version>
-        <tests.jvms>1</tests.jvms>
+        <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>

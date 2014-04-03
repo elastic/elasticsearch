@@ -16,12 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.missing;
+package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -30,18 +33,28 @@ import java.io.IOException;
 /**
  *
  */
-public class MissingParser implements Aggregator.Parser {
+public abstract class NumericValuesSourceMetricsAggregatorParser<S extends MetricsAggregation> implements Aggregator.Parser {
+
+    protected final InternalAggregation.Type aggType;
+
+    protected NumericValuesSourceMetricsAggregatorParser(InternalAggregation.Type aggType) {
+        this.aggType = aggType;
+    }
 
     @Override
     public String type() {
-        return InternalMissing.TYPE.name();
+        return aggType.name();
+    }
+
+    protected boolean requiresSortedValues() {
+        return false;
     }
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, InternalMissing.TYPE, context)
-                .scriptable(false)
+        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, aggType, context)
+                .requiresSortedValues(requiresSortedValues())
                 .build();
 
         XContentParser.Token token;
@@ -49,13 +62,13 @@ public class MissingParser implements Aggregator.Parser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else {
+            } else if (!vsParser.token(currentFieldName, token, parser)) {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
-        return new MissingAggregator.Factory(aggregationName, vsParser.config());
+        return createFactory(aggregationName, vsParser.config());
     }
+
+    protected abstract AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config);
 }

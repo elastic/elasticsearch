@@ -19,22 +19,16 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -49,34 +43,21 @@ public class RangeParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<ValuesSource.Numeric> config = new ValuesSourceConfig<>(ValuesSource.Numeric.class);
-
-        String field = null;
         List<RangeAggregator.Range> ranges = null;
-        String script = null;
-        String scriptLang = null;
-        Map<String, Object> scriptParams = null;
         boolean keyed = false;
-        boolean assumeSorted = false;
-        String format = null;
+
+        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, InternalRange.TYPE, context)
+                .requiresSortedValues(true)
+                .formattable(true)
+                .build();
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
-                } else if ("format".equals(currentFieldName)) {
-                    format = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("ranges".equals(currentFieldName)) {
                     ranges = new ArrayList<>();
@@ -111,17 +92,9 @@ public class RangeParser implements Aggregator.Parser {
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("params".equals(currentFieldName)) {
-                    scriptParams = parser.map();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("script_values_sorted".equals(currentFieldName) || "scriptValuesSorted".equals(currentFieldName)) {
-                    assumeSorted = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -134,30 +107,6 @@ public class RangeParser implements Aggregator.Parser {
             throw new SearchParseException(context, "Missing [ranges] in ranges aggregator [" + aggregationName + "]");
         }
 
-        if (script != null) {
-            config.script(context.scriptService().search(context.lookup(), scriptLang, script, scriptParams));
-        }
-
-        if (!assumeSorted) {
-            // we need values to be sorted and unique for efficiency
-            config.ensureSorted(true);
-        }
-
-        if (field == null) {
-            return new RangeAggregator.Factory(aggregationName, config, null, null, InternalRange.FACTORY, ranges, keyed);
-        }
-
-        ValueFormatter valueFormatter = format == null ? ValueFormatter.RAW : new ValueFormatter.Number.Pattern(format);
-        ValueParser valueParser = format == null ? ValueParser.RAW : new ValueParser.Number.Pattern(format);
-
-        FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-        if (mapper == null) {
-            config.unmapped(true);
-            return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalRange.FACTORY, ranges, keyed);
-        }
-
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
-        config.fieldContext(new FieldContext(field, indexFieldData));
-        return new RangeAggregator.Factory(aggregationName, config, valueFormatter, valueParser, InternalRange.FACTORY, ranges, keyed);
+        return new RangeAggregator.Factory(aggregationName, vsParser.config(), InternalRange.FACTORY, ranges, keyed);
     }
 }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -93,7 +94,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
 
     InternalDateRange() {} // for serialization
 
-    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
+    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
         super(name, ranges, formatter, keyed, unmapped);
     }
 

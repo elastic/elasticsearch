@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
@@ -88,13 +89,13 @@ public class LongTerms extends InternalTerms {
         }
     }
 
-    private ValueFormatter valueFormatter;
+    private @Nullable ValueFormatter formatter;
 
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, InternalOrder order, ValueFormatter valueFormatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
+    public LongTerms(String name, InternalOrder order, @Nullable ValueFormatter formatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
         super(name, order, requiredSize, minDocCount, buckets);
-        this.valueFormatter = valueFormatter;
+        this.formatter = formatter;
     }
 
     @Override
@@ -162,7 +163,7 @@ public class LongTerms extends InternalTerms {
     public void readFrom(StreamInput in) throws IOException {
         this.name = in.readString();
         this.order = InternalOrder.Streams.readOrder(in);
-        this.valueFormatter = ValueFormatterStreams.readOptional(in);
+        this.formatter = ValueFormatterStreams.readOptional(in);
         this.requiredSize = readSize(in);
         this.minDocCount = in.readVLong();
         int size = in.readVInt();
@@ -178,7 +179,7 @@ public class LongTerms extends InternalTerms {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         InternalOrder.Streams.writeOrder(order, out);
-        ValueFormatterStreams.writeOptional(valueFormatter, out);
+        ValueFormatterStreams.writeOptional(formatter, out);
         writeSize(requiredSize, out);
         out.writeVLong(minDocCount);
         out.writeVInt(buckets.size());
@@ -196,8 +197,8 @@ public class LongTerms extends InternalTerms {
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
             builder.field(CommonFields.KEY, ((Bucket) bucket).term);
-            if (valueFormatter != null) {
-                builder.field(CommonFields.KEY_AS_STRING, valueFormatter.format(((Bucket) bucket).term));
+            if (formatter != null) {
+                builder.field(CommonFields.KEY_AS_STRING, formatter.format(((Bucket) bucket).term));
             }
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
             ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);

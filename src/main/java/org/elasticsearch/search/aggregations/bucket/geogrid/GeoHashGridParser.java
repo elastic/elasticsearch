@@ -21,8 +21,10 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -53,21 +55,19 @@ public class GeoHashGridParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        String field = null;
+        ValuesSourceParser vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoHashGrid.TYPE, context).build();
+
         int precision = DEFAULT_PRECISION;
         int requiredSize = DEFAULT_MAX_NUM_CELLS;
         int shardSize = -1;
-
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                }
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("precision".equals(currentFieldName)) {
                     precision = parser.intValue();
@@ -76,7 +76,6 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
                     shardSize = parser.intValue();
                 }
-
             }
         }
 
@@ -97,20 +96,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
-        ValuesSourceConfig<ValuesSource.GeoPoint> config = new ValuesSourceConfig<>(ValuesSource.GeoPoint.class);
-        if (field == null) {
-            return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
-        }
+        return new GeoGridFactory(aggregationName, vsParser.config(), precision, requiredSize, shardSize);
 
-        FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-        if (mapper == null) {
-            config.unmapped(true);
-            return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
-        }
-
-        IndexFieldData<?> indexFieldData = context.fieldData().getForField(mapper);
-        config.fieldContext(new FieldContext(field, indexFieldData));
-        return new GeoGridFactory(aggregationName, config, precision, requiredSize, shardSize);
     }
 
 
@@ -120,9 +107,8 @@ public class GeoHashGridParser implements Aggregator.Parser {
         private int requiredSize;
         private int shardSize;
 
-        public GeoGridFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> valueSourceConfig,
-                              int precision, int requiredSize, int shardSize) {
-            super(name, InternalGeoHashGrid.TYPE.name(), valueSourceConfig);
+        public GeoGridFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, int precision, int requiredSize, int shardSize) {
+            super(name, InternalGeoHashGrid.TYPE.name(), config);
             this.precision = precision;
             this.requiredSize = requiredSize;
             this.shardSize = shardSize;

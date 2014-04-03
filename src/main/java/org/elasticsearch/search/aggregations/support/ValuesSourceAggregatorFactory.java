@@ -19,8 +19,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.*;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
 /**
  *
@@ -33,10 +32,6 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
             super(name, type, valuesSourceConfig);
         }
 
-        protected LeafOnly(String name, String type, ValuesSourceConfig<VS> valuesSourceConfig, ValueFormatter formatter, ValueParser parser) {
-            super(name, type, valuesSourceConfig, formatter, parser);
-        }
-
         @Override
         public AggregatorFactory subFactories(AggregatorFactories subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
@@ -44,18 +39,10 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     protected ValuesSourceConfig<VS> config;
-    protected ValueFormatter formatter;
-    protected ValueParser parser;
 
     protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceConfig<VS> config) {
-        this(name, type, config, null, null);
-    }
-
-    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceConfig<VS> config, ValueFormatter formatter, ValueParser parser) {
         super(name, type);
         this.config = config;
-        this.formatter = formatter;
-        this.parser = parser;
     }
 
     @Override
@@ -85,9 +72,13 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
                 config = ((ValuesSourceAggregatorFactory) parent).config;
                 if (config != null && config.valid()) {
                     if (requiredValuesSourceType == null || requiredValuesSourceType.isAssignableFrom(config.valueSourceType)) {
+                        ValueFormat format = config.format;
                         this.config = config;
-                        this.formatter = ((ValuesSourceAggregatorFactory) parent).formatter;
-                        this.parser = ((ValuesSourceAggregatorFactory) parent).parser;
+                        // if the user explicitly defined a format pattern, we'll do our best to keep it even when we inherit the
+                        // value source form one of the ancestor aggregations
+                        if (this.config.formatPattern != null && format != null && format instanceof ValueFormat.Patternable) {
+                            this.config.format = ((ValueFormat.Patternable) format).create(this.config.formatPattern);
+                        }
                         return;
                     }
                 }

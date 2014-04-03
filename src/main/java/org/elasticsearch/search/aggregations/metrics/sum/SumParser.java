@@ -19,18 +19,17 @@
 package org.elasticsearch.search.aggregations.metrics.sum;
 
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.ValuesSourceMetricsAggregatorParser;
+import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 /**
  *
  */
-public class SumParser extends ValuesSourceMetricsAggregatorParser<InternalSum> {
+public class SumParser extends NumericValuesSourceMetricsAggregatorParser<InternalSum> {
 
-    @Override
-    public String type() {
-        return InternalSum.TYPE.name();
+    public SumParser() {
+        super(InternalSum.TYPE);
     }
 
     @Override

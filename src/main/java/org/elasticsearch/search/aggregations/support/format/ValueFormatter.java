@@ -102,6 +102,10 @@ public interface ValueFormatter extends Streamable {
 
         public static final ValueFormatter DEFAULT = new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER);
 
+        public static DateTime mapper(DateFieldMapper mapper) {
+            return new DateTime(mapper.dateTimeFormatter());
+        }
+
         static final byte ID = 2;
 
         FormatDateTimeFormatter formatter;

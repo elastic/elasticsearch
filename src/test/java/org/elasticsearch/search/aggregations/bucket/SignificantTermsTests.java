@@ -197,7 +197,5 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertEquals(3, kellyTerm.getSubsetDf());
         assertEquals(4, kellyTerm.getSupersetDf());
     }
-    
-    
 
 }

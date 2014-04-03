@@ -20,6 +20,7 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -28,6 +29,7 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -68,6 +70,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.NavigableSet;
+import java.util.Random;
 import java.util.TreeSet;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -140,8 +143,13 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
     @Test
     public void testRandom() throws Exception {
         Directory directory = newDirectory();
-        RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-        int numUniqueChildValues = 1 + random().nextInt(TEST_NIGHTLY ? 10000 : 1000);
+        final Random r = random();
+        final IndexWriterConfig iwc = LuceneTestCase.newIndexWriterConfig(r,
+                LuceneTestCase.TEST_VERSION_CURRENT, new MockAnalyzer(r))
+                .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
+                .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
+        RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
+        int numUniqueChildValues = scaledRandomIntBetween(1, 10000);
         String[] childValues = new String[numUniqueChildValues];
         for (int i = 0; i < numUniqueChildValues; i++) {
             childValues[i] = Integer.toString(i);
@@ -149,7 +157,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
         IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
         int childDocId = 0;
-        int numParentDocs = 1 + random().nextInt(TEST_NIGHTLY ? 20000 : 1000);
+        int numParentDocs = scaledRandomIntBetween(1, 2000);
         ObjectObjectOpenHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectOpenHashMap<>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();
@@ -168,12 +176,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             }
             indexWriter.addDocument(document);
 
-            int numChildDocs;
-            if (rarely()) {
-                numChildDocs = random().nextInt(TEST_NIGHTLY ? 100 : 25);
-            } else {
-                numChildDocs = random().nextInt(TEST_NIGHTLY ? 40 : 10);
-            }
+            final int numChildDocs = scaledRandomIntBetween(0, 100);
             for (int i = 0; i < numChildDocs; i++) {
                 boolean markChildAsDeleted = rarely();
                 String childValue = childValues[random().nextInt(childValues.length)];
@@ -238,7 +241,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
             // Simulate a parent update
             if (random().nextBoolean()) {
-                int numberOfUpdates = 1 + random().nextInt(TEST_NIGHTLY ? 25 : 5);
+                int numberOfUpdates = scaledRandomIntBetween(1, 25);
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int parentId;
                     do {

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.lease.Releasables;
@@ -27,10 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  *
@@ -47,6 +45,15 @@ public class AggregatorFactories {
 
     private AggregatorFactories(AggregatorFactory[] factories) {
         this.factories = factories;
+    }
+
+    public void add(AggregatorFactory... factories) {
+        AggregatorFactory[] newFatories = new AggregatorFactory[this.factories.length + factories.length];
+        System.arraycopy(this.factories, 0, newFatories, 0, this.factories.length);
+        for (int i = 0; i < factories.length; i++) {
+            newFatories[this.factories.length + i] = factories[i];
+        }
+        this.factories = newFatories;
     }
 
     private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, long estimatedBucketsCount) {
@@ -179,14 +186,19 @@ public class AggregatorFactories {
 
     void setParent(AggregatorFactory parent) {
         for (AggregatorFactory factory : factories) {
-            factory.parent = parent;
+            factory.parent(parent);
         }
     }
 
-    public void validate() {
-        for (AggregatorFactory factory : factories) {
-            factory.validate();
+    public void process() {
+        List<AggregatorFactory> factories = Lists.newArrayList(this.factories);
+        for (ListIterator<AggregatorFactory> iter = factories.listIterator(); iter.hasNext();) {
+            List<AggregatorFactory> siblings = iter.next().process();
+            for (AggregatorFactory sibling : siblings) {
+                iter.add(sibling);
+            }
         }
+        this.factories = factories.toArray(new AggregatorFactory[factories.size()]);
     }
 
     private final static class Empty extends AggregatorFactories {

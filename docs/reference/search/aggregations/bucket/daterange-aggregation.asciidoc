@@ -108,4 +108,11 @@ Zone:: 'Z' outputs offset without a colon, 'ZZ' outputs the offset with a colon,
 
 Zone names:: Time zone names ('z') cannot be parsed.
 
-Any characters in the pattern that are not in the ranges of ['a'..'z'] and ['A'..'Z'] will be treated as quoted text. For instance, characters like ':', '.', ' ', '#' and '?' will appear in the resulting time text even they are not embraced within single quotes.
+Any characters in the pattern that are not in the ranges of ['a'..'z'] and ['A'..'Z'] will be treated as quoted text.
+For instance, characters like ':', '.', ' ', '#' and '?' will appear in the resulting time text even they are not embraced within single quotes.
+
+==== Track Missing
+added[1.2.0]
+
+Like the normal <<search-aggregations-bucket-range-aggregation-track-missing,range>> aggregation, this aggregation also support `track_missing` setting as a syntactic sugar for
+a sibling `missing` aggregation on the same values source as this one.

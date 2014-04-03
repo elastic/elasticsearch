@@ -96,3 +96,10 @@ Response:
     }
 }
 --------------------------------------------------
+
+
+==== Track Missing
+added[1.2.0]
+
+Like the normal <<search-aggregations-bucket-range-aggregation-track-missing,range>> aggregation, this aggregation also support `track_missing` setting as a syntactic sugar for
+a sibling `missing` aggregation on the same values source as this one.

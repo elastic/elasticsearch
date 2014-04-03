@@ -191,3 +191,12 @@ A "node" uses roughly 48 bytes of memory, so under worst-case scenarios (large a
 of data which arrives sorted and in-order) the default settings will produce a
 TDigest roughly 480KB in size.  In practice data tends to be more random and
 the TDigest will use less memory.
+
+
+
+==== Track Missing
+added[1.2.0]
+
+Like other values source based aggregations, the `percentiles` aggregation also supports the `track_missing` setting,
+as a syntactic sugar for a sibling `missing` aggregation on the same values source as this one. You can read more
+about `track_missing` <<search-aggregations-metrics-avg-aggregation-track-missing,here>>.

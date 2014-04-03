@@ -49,8 +49,16 @@ public class AggregationBuilders {
     protected AggregationBuilders() {
     }
 
-    public static ValueCountBuilder count(String name) {
+    public static ValueCountBuilder valueCount(String name) {
         return new ValueCountBuilder(name);
+    }
+
+    /**
+     * @deprecated Use {@link #valueCount(String)} instead
+     */
+    @Deprecated
+    public static ValueCountBuilder count(String name) {
+        return valueCount(name);
     }
 
     public static AvgBuilder avg(String name) {
@@ -75,6 +83,14 @@ public class AggregationBuilders {
 
     public static ExtendedStatsBuilder extendedStats(String name) {
         return new ExtendedStatsBuilder(name);
+    }
+
+    public static PercentilesBuilder percentiles(String name) {
+        return new PercentilesBuilder(name);
+    }
+
+    public static CardinalityBuilder cardinality(String name) {
+        return new CardinalityBuilder(name);
     }
 
     public static FilterAggregationBuilder filter(String name) {
@@ -129,11 +145,4 @@ public class AggregationBuilders {
         return new TermsBuilder(name);
     }
 
-    public static PercentilesBuilder percentiles(String name) {
-        return new PercentilesBuilder(name);
-    }
-
-    public static CardinalityBuilder cardinality(String name) {
-        return new CardinalityBuilder(name);
-    }
 }

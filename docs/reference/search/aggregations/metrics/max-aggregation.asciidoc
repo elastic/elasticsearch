@@ -66,3 +66,10 @@ Let's say that the prices of the documents in our index are in USD, but we would
 }
 --------------------------------------------------
 
+
+==== Track Missing
+added[1.2.0]
+
+Like other values source based aggregations, the `max` aggregation also supports the `track_missing` setting,
+as a syntactic sugar for a sibling `missing` aggregation on the same values source as this one. You can read more
+about `track_missing` <<search-aggregations-metrics-avg-aggregation-track-missing,here>>.

@@ -26,6 +26,7 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -126,7 +127,10 @@ public class AggregatorParsers {
                 }
 
                 if (level == 0) {
-                    factory.validate();
+                    List<AggregatorFactory> additionaFactories = factory.process();
+                    for (AggregatorFactory additionalFactory : additionaFactories) {
+                        factories.add(additionalFactory);
+                    }
                 }
 
                 factories.add(factory);

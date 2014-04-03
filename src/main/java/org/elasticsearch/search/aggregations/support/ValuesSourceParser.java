@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -41,6 +42,11 @@ import java.util.Map;
  *
  */
 public class ValuesSourceParser<VS extends ValuesSource> {
+
+    private static final ParseField TRACK_MISSING_FIELD = new ParseField("track_missing");
+    private static final ParseField VALUE_TYPE_FIELD = new ParseField("value_type");
+    private static final ParseField SCRIPT_VALUES_UNIQUE_FIELD = new ParseField("script_values_unique");
+    private static final ParseField SCRIPT_VALUES_SORTED_FIELD = new ParseField("script_values_sorted");
 
     public static Builder any(String aggName, InternalAggregation.Type aggType, SearchContext context) {
         return new Builder<>(aggName, aggType, context, ValuesSource.class);
@@ -67,6 +73,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         boolean assumeUnique = false;
         boolean assumeSorted = false;
         String format = null;
+        String trackMissing = null;
     }
 
     private final String aggName;
@@ -95,12 +102,14 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                 input.field = parser.text();
             } else if (formattable && "format".equals(currentFieldName)) {
                 input.format = parser.text();
+            } else if (TRACK_MISSING_FIELD.match(currentFieldName)) {
+                input.trackMissing = parser.text();
             } else if (scriptable) {
                 if ("script".equals(currentFieldName)) {
                     input.script = parser.text();
                 } else if ("lang".equals(currentFieldName)) {
                     input.lang = parser.text();
-                } else if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
+                } else if (VALUE_TYPE_FIELD.match(currentFieldName)) {
                     input.valueType = ValueType.resolveForScript(parser.text());
                     if (targetValueType != null && input.valueType.isNotA(targetValueType)) {
                         throw new SearchParseException(context, aggType.name() + " aggregation [" + aggName +
@@ -117,10 +126,12 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return true;
         }
         if (scriptable && token == XContentParser.Token.VALUE_BOOLEAN) {
-            if ("script_values_unique".equals(currentFieldName) || "scriptValuesUnique".equals(currentFieldName)) {
+            if (SCRIPT_VALUES_UNIQUE_FIELD.match(currentFieldName)) {
                 input.assumeUnique = parser.booleanValue();
-            } else if ("script_values_sorted".equals(currentFieldName) || "scriptValuesSorted".equals(currentFieldName)) {
+            } else if (SCRIPT_VALUES_SORTED_FIELD.match(currentFieldName)) {
                 input.assumeSorted = parser.booleanValue();
+            } else if (TRACK_MISSING_FIELD.match(currentFieldName)) {
+                input.trackMissing = aggName + "_missing";
             } else {
                 return false;
             }
@@ -143,7 +154,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
 
         if (input.field == null) {
             if (input.script == null) {
-                return new ValuesSourceConfig(ValuesSource.class);
+                ValuesSourceConfig config = new ValuesSourceConfig(ValuesSource.class);
+                config.formatPattern = input.format;
+                config.trackMissing = input.trackMissing;
+                return config;
             }
             Class valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             if (valuesSourceType == null || valuesSourceType == ValuesSource.class) {
@@ -157,6 +171,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             config.scriptValueType = valueType;
             config.ensureUnique = requiresUniqueValues && !input.assumeUnique;
             config.ensureSorted = requiresSortedValues && !input.assumeSorted;
+            config.formatPattern = input.format;
+            config.trackMissing = input.trackMissing;
             return config;
         }
 
@@ -189,6 +205,8 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         }
 
         config.fieldContext = new FieldContext(input.field, indexFieldData, mapper);
+        config.formatPattern = input.format;
+        config.trackMissing = input.trackMissing;
         config.script = createScript();
         if (config.script != null) {
             config.ensureUnique = requiresUniqueValues && !input.assumeUnique;

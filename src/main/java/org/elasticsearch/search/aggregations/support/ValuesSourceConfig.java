@@ -38,6 +38,22 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     boolean ensureSorted = false;
     String formatPattern;
     ValueFormat format;
+    String trackMissing = null;
+
+    public ValuesSourceConfig<VS> safeCopy() {
+        ValuesSourceConfig<VS> copy = new ValuesSourceConfig<>(valueSourceType);
+        copy.fieldContext = fieldContext;
+        copy.script = script;
+        copy.scriptValueType = scriptValueType;
+        copy.unmapped = unmapped;
+        copy.needsHashes = needsHashes;
+        copy.ensureUnique = ensureUnique;
+        copy.ensureSorted = ensureSorted;
+        copy.formatPattern = formatPattern;
+        copy.format = format;
+        copy.trackMissing = trackMissing;
+        return copy;
+    }
 
     public ValuesSourceConfig(Class<VS> valueSourceType) {
         this.valueSourceType = valueSourceType;
@@ -94,4 +110,9 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     public ValueParser parser() {
         return format != null ? format.parser() : null;
     }
+
+    public String trackMissing() {
+        return trackMissing;
+    }
+
 }

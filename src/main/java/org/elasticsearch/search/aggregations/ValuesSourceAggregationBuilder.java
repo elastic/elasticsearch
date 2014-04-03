@@ -34,6 +34,8 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
     private String script;
     private String lang;
     private Map<String, Object> params;
+    private Object trackMissing;
+    private Object trackValueCount;
 
     /**
      * Constructs a new builder.
@@ -103,6 +105,58 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
     }
 
     /**
+     * Enables syntactic sugar for {@code missing} aggregation. This will cause a {@code missing} aggregation to be added as a sibling
+     * to this aggregation, and the {@code missing} aggregation will be applied on the same values source as this aggregation is
+     * configured to work with. The name of the {@code missing} aggregation will be {@code $name$_missing} where {@code $name$}
+     * is the name of this aggregation.
+     *
+     * @param trackMissing  Indicates whether to track the documents that have no values for this aggregation
+     * @return              This builder (fluent interface support)
+     */
+    public B trackMissing(boolean trackMissing) {
+        this.trackMissing = trackMissing;
+        return (B) this;
+    }
+
+    /**
+     * Same as {@link #trackMissing(boolean)} except this enables you to customize the name of the {@code missing} aggregation
+     * that will be added as a sibling to this one.
+     *
+     * @param trackMissing  The name of the {@code missing} aggregation
+     * @return              This builder (fluent interface support)
+     */
+    public B trackMissing(String trackMissing) {
+        this.trackMissing = trackMissing;
+        return (B) this;
+    }
+
+    /**
+     * Enables syntactic sugar for {@code value_count} aggregation. This will cause a {@code value_count} aggregation to be added as a sibling
+     * to this aggregation, and the {@code value_count} aggregation will be applied on the same values source as this aggregation is
+     * configured to work with. The name of the {@code value_count} aggregation will be {@code $name$_value_count} where {@code $name$}
+     * is the name of this aggregation.
+     *
+     * @param trackValueCount   Indicates whether to track the number of values extracted from the documents
+     * @return                  This builder (fluent interface support)
+     */
+    public B trackValueCount(boolean trackValueCount) {
+        this.trackValueCount = trackValueCount;
+        return (B) this;
+    }
+
+    /**
+     * Same as {@link #trackValueCount(boolean)} except this enables you to customize the name of the {@code value_count} aggregation
+     * that will be added as a sibling to this one.
+     *
+     * @param trackValueCount   The name of the {@code value_count} aggregation
+     * @return                  This builder (fluent interface support)
+     */
+    public B trackValueCount(String trackValueCount) {
+        this.trackValueCount = trackValueCount;
+        return (B) this;
+    }
+
+    /**
      * Sets the values of a parameters that are used in the script (if one is configured).
      *
      * @param params    The the parameters.
@@ -131,6 +185,12 @@ public abstract class ValuesSourceAggregationBuilder<B extends ValuesSourceAggre
         }
         if (this.params != null) {
             builder.field("params").map(this.params);
+        }
+        if (this.trackMissing != null) {
+            builder.field("track_missing", trackMissing);
+        }
+        if (this.trackValueCount != null) {
+            builder.field("track_value_count", trackValueCount);
         }
 
         doInternalXContent(builder, params);

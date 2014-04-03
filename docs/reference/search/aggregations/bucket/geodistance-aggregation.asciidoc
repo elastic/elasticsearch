@@ -103,3 +103,75 @@ There are two distance calculation modes: `sloppy_arc` (the default), `arc` (mos
     }
 }
 --------------------------------------------------
+
+
+==== Track Missing
+added[1.2.0]
+
+Like all other values source aggregations (those aggregations that are either based on document fields or on scripts) this
+aggregation supports the `track_missing` setting. This setting serves as a syntactic sugar for adding a `missing`
+aggregation as a sibling to this one. Behind the scenes, this flag will in fact create a normal `missing` aggregation, that
+will appear in the response like a normal `missing` aggregation response. when `track_missing` is set to `true`, the name
+of the created `missing` aggregation is derived from the name of this `geo_distance` aggregations (e.g. if this `geo_distance` aggregation
+is called `rings`, the name of the corresponding `missing` aggregation will be named `rings_missing`. It is
+also possible to just provide the name of the aggregation as the value of the `track_missing` field (that is, the `track_missing`
+settings can either accepts `true|false` values or a `string` indicating the name of the `missing` aggregation.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "rings" : {
+            "geo_distance" : {
+                "field" : "location",
+                "origin" : "52.3760, 4.894",
+                "distance_type" : "plane",
+                "track_missing" : true,
+                "ranges" : [
+                    { "to" : 100 },
+                    { "from" : 100, "to" : 300 },
+                    { "from" : 300 }
+                ]
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "rings_missing" : {
+            "value" : 4 <1>
+        },
+        "rings" : {
+            "buckets": [
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+<1> 4 documents are not associated with a `geo_point`
+
+If `term_missing` is set to a string value, say `"no_location"`, the response would then be:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "no_location" : {
+            "value" : 4
+        },
+        "rings" : {
+            "buckets": [
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------

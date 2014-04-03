@@ -337,3 +337,68 @@ perform better than the other one, you have the ability to "hint" it to Elastics
 <1> the possible values are `map`, `ordinals` and `global_ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.
+
+[[search-aggregations-bucket-terms-aggregation-track-missing]]
+===== Track Missing
+added[1.2.0]
+
+Like all other values source aggregations (those aggregations that are either based on document fields or on scripts) this
+aggregation supports the `track_missing` setting. This setting serves as a syntactic sugar for adding a `missing`
+aggregation as a sibling to this one. Behind the scenes, this flag will in fact create a normal `missing` aggregation, that
+will appear in the response like a normal `missing` aggregation response. when `track_missing` is set to `true`, the name
+of the created `missing` aggregation is derived from the name of this `terms` aggregations (e.g. if this `terms` aggregation
+is called `tags`, the name of the corresponding `missing` aggregation will be named `tags_missing`. It is
+also possible to just provide the name of the aggregation as the value of the `track_missing` field (that is, the `track_missing`
+settings can either accepts `true|false` values or a `string` indicating the name of the `missing` aggregation.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "tags" : {
+             "terms" : {
+                 "field" : "tags",
+                 "track_missing" : true
+             }
+         }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "tags_missing" : {
+            "value" : 4 <1>
+        },
+        "tags" : {
+            "buckets": [
+               ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+<1> 4 documents are not associated with tags
+
+If `term_missing` is set to a string value, say `"doc_without_tags"`, the response would then be:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "docs_without_tags" : {
+            "value" : 4
+        },
+        "tags" : {
+            "buckets": [
+               ...
+            ]
+        }
+    }
+}
+--------------------------------------------------

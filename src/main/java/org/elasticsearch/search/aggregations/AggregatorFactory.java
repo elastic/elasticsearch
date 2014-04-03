@@ -20,6 +20,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
@@ -55,11 +58,15 @@ public abstract class AggregatorFactory {
     }
 
     /**
-     * Validates the state of this factory (makes sure the factory is properly configured)
+     * Processes the factory and validates its state (makes sure the factory is properly configured). It also enables
+     * this factory to register additional sibling factories - this accounts for potential syntactic sugar where the
+     * factory can be configured to add more aggregations that may relate to it. For example, any value source aggregation
+     * may register a {@code missing} aggregation to also bring back the number of document for which no values were found.
      */
-    public final void validate() {
-        doValidate();
-        factories.validate();
+    public final List<AggregatorFactory> process() {
+        List<AggregatorFactory> siblings = doProcess();
+        factories.process();
+        return siblings;
     }
 
     /**
@@ -67,6 +74,10 @@ public abstract class AggregatorFactory {
      */
     public AggregatorFactory parent() {
         return parent;
+    }
+
+    protected void parent(AggregatorFactory parent) {
+        this.parent = parent;
     }
 
     /**
@@ -81,7 +92,8 @@ public abstract class AggregatorFactory {
      */
     public abstract Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount);
 
-    public void doValidate() {
+    public List<AggregatorFactory> doProcess() {
+        return Collections.emptyList();
     }
 
 }

@@ -415,3 +415,10 @@ than the other one, you have the ability to provide Elasticsearch with a hint:
 <1> the possible values are `map` and `ordinals`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.
+
+
+===== Track Missing
+added[1.2.0]
+
+Like the normal <<search-aggregations-bucket-terms-aggregation-track-missing,terms>> aggregation, this aggregation also support
+`track_missing` setting as a syntactic sugar for a sibling `missing` aggregation on the same values source as this one.

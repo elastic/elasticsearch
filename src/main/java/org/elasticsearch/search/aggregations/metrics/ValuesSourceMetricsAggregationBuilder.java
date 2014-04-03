@@ -34,6 +34,7 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
     private String script;
     private String lang;
     private Map<String, Object> params;
+    private Object trackMissing;
 
     protected ValuesSourceMetricsAggregationBuilder(String name, String type) {
         super(name, type);
@@ -76,6 +77,16 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
         return (B) this;
     }
 
+    public B trackMissing(String missingName) {
+        this.trackMissing = missingName;
+        return (B) this;
+    }
+
+    public B trackMissing(boolean trackMissing) {
+        this.trackMissing = trackMissing;
+        return (B) this;
+    }
+
     @Override
     protected void internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (field != null) {
@@ -92,6 +103,10 @@ public abstract class ValuesSourceMetricsAggregationBuilder<B extends ValuesSour
 
         if (this.params != null && !this.params.isEmpty()) {
             builder.field("params").map(this.params);
+        }
+
+        if (trackMissing != null) {
+            builder.field("track_missing", trackMissing);
         }
     }
 }

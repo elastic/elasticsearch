@@ -129,3 +129,67 @@ shard_size::    Optional. To allow for more accurate counting of the top cells
                 added[1.1.0] A value of `0` makes the shard size unlimited.
 
 
+==== Track Missing
+added[1.2.0]
+
+Like all other values source aggregations (those aggregations that are either based on document fields or on scripts) this
+aggregation supports the `track_missing` setting. This setting serves as a syntactic sugar for adding a `missing`
+aggregation as a sibling to this one. Behind the scenes, this flag will in fact create a normal `missing` aggregation, that
+will appear in the response like a normal `missing` aggregation response. When `track_missing` is set to `true`, the name
+of the created `missing` aggregation is derived from the name of this `geohash_grid` aggregations (e.g. if this `geohash_grid` aggregation
+is called `zoom1`, the name of the corresponding `missing` aggregation will be named `zoom1_missing`. It is
+also possible to just provide the name of the aggregation as the value of the `track_missing` field (that is, the `track_missing`
+settings can either accepts `true|false` values or a `string` indicating the name of the `missing` aggregation.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations" : {
+        "zoom1" : {
+            "geohash_grid" : {
+                "field" : "location",
+                "precision" : 3,
+                "track_missing" : true
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "zoom1_missing" : {
+            "value" : 4 <1>
+        },
+        "zoom1": {
+            "buckets": [
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+<1> 4 documents are not associated with a `geo_point`
+
+If `term_missing` is set to a string value, say `"no_location"`, the response would then be:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "no_location" : {
+            "value" : 4 <1>
+        },
+        "zoom1": {
+            "buckets": [
+                ...
+            ]
+        }
+    }
+}
+--------------------------------------------------

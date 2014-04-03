@@ -273,3 +273,78 @@ If a sub aggregation is also based on the same value source as the range aggrega
 -------------------------------------------------- 
 
 <1> We don't need to specify the `price` as we "inherit" it by default from the parent `range` aggregation
+
+[[search-aggregations-bucket-range-aggregation-track-missing]]
+==== Track Missing
+added[1.2.0]
+
+Like all other values source aggregations (those aggregations that are either based on document fields or on scripts) this
+aggregation supports the `track_missing` setting. This setting serves as a syntactic sugar for adding a `missing`
+aggregation as a sibling to this one. Behind the scenes, this flag will in fact create a normal `missing` aggregation, that
+will appear in the response like a normal `missing` aggregation response. When `track_missing` is set to `true`, the name
+of the created `missing` aggregation is derived from the name of this `range` aggregations (e.g. if this `range` aggregation
+is called `price_ranges`, the name of the corresponding `missing` aggregation will be named `price_ranges_missing`. It is
+also possible to just provide the name of the aggregation as the value of the `track_missing` field (that is, the `track_missing`
+settings can either accepts `true|false` values or a `string` indicating the name of the `missing` aggregation.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "price_ranges" : {
+            "range" : {
+                "field" : "price",
+                "track_missing" : true,
+                "ranges" : [
+                    { "to" : 50 },
+                    { "from" : 50, "to" : 100 },
+                    { "from" : 100 }
+                ]
+            },
+            "aggs" : {
+                "price_stats" : {
+                    "stats" : {} <1>
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "price_ranges_missing" : {
+            "value" : 4 <1>
+        },
+        "price_ranges" : {
+            "buckets": [
+               ...
+            ]
+        }
+    }
+}
+--------------------------------------------------
+
+<1> 4 documents are not associated with a price
+
+If `term_missing` is set to a string value, say `"no_price"`, the response would then be:
+
+source,js]
+--------------------------------------------------
+{
+    "aggregations": {
+        "no_price" : {
+            "value" : 4
+        },
+        "price_ranges" : {
+            "buckets": [
+               ...
+            ]
+        }
+    }
+}
+--------------------------------------------------

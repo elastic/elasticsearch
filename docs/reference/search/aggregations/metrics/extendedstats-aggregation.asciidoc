@@ -80,3 +80,11 @@ It turned out that the exam was way above the level of the students and a grade 
     }
 }
 --------------------------------------------------
+
+
+==== Track Missing
+added[1.2.0]
+
+Like other values source based aggregations, the `extended_stats` aggregation also supports the `track_missing` setting,
+as a syntactic sugar for a sibling `missing` aggregation on the same values source as this one. You can read more
+about `track_missing` <<search-aggregations-metrics-avg-aggregation-track-missing,here>>.

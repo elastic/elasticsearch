@@ -19,7 +19,12 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  *
@@ -55,10 +60,18 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public void doValidate() {
+    public List<AggregatorFactory> doProcess() {
         if (config == null || !config.valid()) {
             resolveValuesSourceConfigFromAncestors(name, parent, config.valueSourceType());
         }
+        if (config.trackMissing == null) {
+            return Collections.emptyList();
+        }
+        List<AggregatorFactory> factories  = new ArrayList<>();
+        if (config.trackMissing != null) {
+            factories.add(new MissingAggregator.Factory(config.trackMissing, config));
+        }
+        return factories;
     }
 
     protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent);
@@ -72,13 +85,17 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
                 config = ((ValuesSourceAggregatorFactory) parent).config;
                 if (config != null && config.valid()) {
                     if (requiredValuesSourceType == null || requiredValuesSourceType.isAssignableFrom(config.valueSourceType)) {
-                        ValueFormat format = config.format;
-                        this.config = config;
+                        ValuesSourceConfig copy = config.safeCopy();
                         // if the user explicitly defined a format pattern, we'll do our best to keep it even when we inherit the
                         // value source form one of the ancestor aggregations
-                        if (this.config.formatPattern != null && format != null && format instanceof ValueFormat.Patternable) {
-                            this.config.format = ((ValueFormat.Patternable) format).create(this.config.formatPattern);
+                        if (this.config.formatPattern != null && copy.format != null && copy.format instanceof ValueFormat.Patternable) {
+                            copy.format = ((ValueFormat.Patternable) copy.format).create(this.config.formatPattern);
                         }
+                        // the user requested to track missing on this agg, so we need to follow the request
+                        if (this.config.trackMissing != null) {
+                            copy.trackMissing = this.config.trackMissing;
+                        }
+                        this.config = copy;
                         return;
                     }
                 }

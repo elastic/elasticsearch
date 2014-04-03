@@ -136,3 +136,9 @@ settings and filter the returned buckets based on a `min_doc_count` setting (by 
 `min_doc_count > 0` will be returned). This histogram also supports the `extended_bounds` settings, that enables extending
 the bounds of the histogram beyond the data itself (to read more on why you'd want to do that please refer to the
 explanation <<search-aggregations-bucket-histogram-aggregation-extended-bounds,here>>.
+
+==== Track Missing
+added[1.2.0]
+
+`track_missing` is also supported by this aggregation, as a syntactic sugar for a sibling `missing` aggregation on the
+same values source as this one (you can read more about `track_missing` <<search-aggregations-bucket-histogram-aggregation-track-missing,here>>).

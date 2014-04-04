@@ -117,4 +117,21 @@ public class GeohashMappingGeoPointTests extends ElasticsearchTestCase {
         GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
         assertThat(geoPointFieldMapper.geoHashPrecision(), is(10));
     }
+
+    @Test
+    public void testNullValue() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("point", (Object) null)
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("point"), nullValue());
+    }
 }

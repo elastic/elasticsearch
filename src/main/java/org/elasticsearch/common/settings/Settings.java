@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -211,6 +212,20 @@ public interface Settings extends ToXContent {
      * (eg. 12%). If it does not exists, parses the default value provided.
      */
     ByteSizeValue getAsMemory(String[] setting, String defaultValue) throws SettingsException;
+
+    /**
+     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
+     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
+     * it does not exist, parses the default value provided.
+     */
+    RatioValue getAsRatio(String setting, String defaultValue) throws SettingsException;
+
+    /**
+     * Returns the setting value (as a RatioValue) associated with the setting key. Provided values can
+     * either be a percentage value (eg. 23%), or expressed as a floating point number (eg. 0.23). If
+     * it does not exist, parses the default value provided.
+     */
+    RatioValue getAsRatio(String[] settings, String defaultValue) throws SettingsException;
 
     /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,

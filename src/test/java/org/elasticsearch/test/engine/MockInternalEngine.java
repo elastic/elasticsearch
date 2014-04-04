@@ -163,7 +163,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
+        public void close() throws ElasticsearchException {
             RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
             synchronized (lock) {
                 // make sure we only get this once and store the stack of the first caller!
@@ -182,7 +182,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
             // problems.
             assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already closed. Initial refCount was: [" + initialRefCount + "]";
             try {
-                return wrappedSearcher.release();
+                wrappedSearcher.close();
             } catch (RuntimeException ex) {
                 logger.debug("Failed to release searcher", ex);
                 throw ex;

@@ -58,7 +58,7 @@ public class RecyclerBenchmark {
                     }
                     while (recycles.getAndDecrement() > 0) {
                         final Recycler.V<?> v = recycler.obtain();
-                        v.release();
+                        v.close();
                     }
                 }
             };

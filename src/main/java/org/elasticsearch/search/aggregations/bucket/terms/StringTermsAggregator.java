@@ -240,8 +240,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(bucketOrds);
+    public void doClose() {
+        Releasables.close(bucketOrds);
     }
 
     /**
@@ -267,7 +267,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             final long maxOrd = ordinals.getMaxOrd();
             if (ordinalToBucket == null || ordinalToBucket.size() < maxOrd) {
                 if (ordinalToBucket != null) {
-                    ordinalToBucket.release();
+                    ordinalToBucket.close();
                 }
                 ordinalToBucket = context().bigArrays().newLongArray(BigArrays.overSize(maxOrd), false);
             }
@@ -298,8 +298,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
 
         @Override
-        public void doRelease() {
-            Releasables.release(bucketOrds, ordinalToBucket);
+        public void doClose() {
+            Releasables.close(bucketOrds, ordinalToBucket);
         }
     }
 

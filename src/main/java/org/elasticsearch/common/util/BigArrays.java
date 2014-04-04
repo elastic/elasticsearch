@@ -96,9 +96,8 @@ public class BigArrays extends AbstractComponent {
         }
 
         @Override
-        public final boolean release() {
-            Releasables.release(releasable);
-            return true;
+        public final void close() {
+            Releasables.close(releasable);
         }
 
     }
@@ -369,7 +368,7 @@ public class BigArrays extends AbstractComponent {
             final ByteArray newArray = newByteArray(size, arr.clearOnResize);
             final byte[] rawArray = ((ByteArrayWrapper) array).array;
             newArray.set(0, rawArray, 0, (int) Math.min(rawArray.length, newArray.size()));
-            array.release();
+            array.close();
             return newArray;
         }
     }
@@ -451,7 +450,7 @@ public class BigArrays extends AbstractComponent {
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
-            array.release();
+            array.close();
             return newArray;
         }
     }
@@ -500,7 +499,7 @@ public class BigArrays extends AbstractComponent {
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
-            array.release();
+            array.close();
             return newArray;
         }
     }
@@ -546,7 +545,7 @@ public class BigArrays extends AbstractComponent {
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
-            array.release();
+            array.close();
             return newArray;
         }
     }
@@ -630,7 +629,7 @@ public class BigArrays extends AbstractComponent {
             for (long i = 0, end = Math.min(size, array.size()); i < end; ++i) {
                 newArray.set(i, array.get(i));
             }
-            array.release();
+            array.close();
             return newArray;
         }
     }

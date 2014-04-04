@@ -368,7 +368,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     // ignore
                 }
             }
-            Releasables.release(bytes);
+            Releasables.close(bytes);
             released = true;
             return location;
         } catch (Throwable e) {
@@ -376,7 +376,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.readLock().unlock();
             if (!released) {
-                Releasables.release(out.bytes());
+                Releasables.close(out.bytes());
             }
         }
     }

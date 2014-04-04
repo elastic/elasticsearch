@@ -138,8 +138,7 @@ public class FsChannelSnapshot implements Translog.Snapshot {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
+    public void close() throws ElasticsearchException {
         raf.decreaseRefCount(true);
-        return true;
     }
 }

@@ -533,7 +533,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
             context.keepAlive(keepAlive);
         } catch (Throwable e) {
-            context.release();
+            context.close();
             throw ExceptionsHelper.convertToRuntime(e);
         }
 
@@ -546,7 +546,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             return;
         }
         context.indexShard().searchService().onFreeContext(context);
-        context.release();
+        context.close();
     }
 
     private void freeContext(SearchContext context) {
@@ -554,7 +554,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (removed != null) {
             removed.indexShard().searchService().onFreeContext(removed);
         }
-        context.release();
+        context.close();
     }
 
     public void freeAllScrollContexts() {

@@ -114,8 +114,8 @@ public class AvgAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(counts, sums);
+    public void doClose() {
+        Releasables.close(counts, sums);
     }
 
 }

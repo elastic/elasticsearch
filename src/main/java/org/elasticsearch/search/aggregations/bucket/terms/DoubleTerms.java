@@ -150,7 +150,7 @@ public class DoubleTerms extends InternalTerms {
                 ordered.insertWithOverflow(b);
             }
         }
-        buckets.release();
+        buckets.close();
         InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = (Bucket) ordered.pop();

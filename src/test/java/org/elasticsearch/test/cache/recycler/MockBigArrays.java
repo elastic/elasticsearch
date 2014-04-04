@@ -267,13 +267,13 @@ public class MockBigArrays extends BigArrays {
             return getDelegate().size();
         }
 
-        public boolean release() {
+        public void close() {
             if (!released.compareAndSet(false, true)) {
                 throw new IllegalStateException("Double release");
             }
             ACQUIRED_ARRAYS.remove(this);
             randomizeContent(0, size());
-            return getDelegate().release();
+            getDelegate().close();
         }
 
     }

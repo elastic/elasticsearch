@@ -189,7 +189,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
             ordered.add(value);
         }
 
-        map.release();
+        map.close();
 
         // just initialize it as already ordered facet
         InternalFullDateHistogramFacet ret = new InternalFullDateHistogramFacet(getName());

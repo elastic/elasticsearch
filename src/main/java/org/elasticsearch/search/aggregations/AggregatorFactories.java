@@ -134,7 +134,7 @@ public class AggregatorFactories {
                 }
 
                 @Override
-                public void doRelease() {
+                public void doClose() {
                     final Iterable<Aggregator> aggregatorsIter = new Iterable<Aggregator>() {
 
                         @Override
@@ -157,7 +157,7 @@ public class AggregatorFactories {
                         }
 
                     };
-                    Releasables.release(Iterables.concat(aggregatorsIter, Collections.singleton(aggregators)));
+                    Releasables.close(Iterables.concat(aggregatorsIter, Collections.singleton(aggregators)));
                 }
             };
         }

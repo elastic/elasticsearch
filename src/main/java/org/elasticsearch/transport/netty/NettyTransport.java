@@ -31,7 +31,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -604,7 +603,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
-                Releasables.release(bStream.bytes());
+                Releasables.close(bStream.bytes());
             }
         }
     }

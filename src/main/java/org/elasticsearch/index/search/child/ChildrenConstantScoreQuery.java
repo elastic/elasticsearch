@@ -128,7 +128,7 @@ public class ChildrenConstantScoreQuery extends Query {
             return parentWeight;
         } finally {
            if (releaseParentIds) {
-               Releasables.release(parentIds);
+               Releasables.close(parentIds);
            }
         }
 
@@ -209,9 +209,8 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(parentIds);
-            return true;
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIds);
         }
 
         private final class ParentDocIdIterator extends FilteredDocIdSetIterator {

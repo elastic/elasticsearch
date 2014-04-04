@@ -74,7 +74,7 @@ public class ValueScriptDateHistogramFacetExecutor extends FacetExecutor {
             }
         }
 
-        entries.release();
+        entries.close();
         return new InternalFullDateHistogramFacet(facetName, comparatorType, entries1);
     }
 

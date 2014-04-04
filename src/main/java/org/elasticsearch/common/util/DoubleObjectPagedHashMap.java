@@ -166,9 +166,8 @@ public class DoubleObjectPagedHashMap<T> extends AbstractPagedHashMap implements
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        Releasables.release(keys, values);
-        return true;
+    public void close() throws ElasticsearchException {
+        Releasables.close(keys, values);
     }
 
     @Override

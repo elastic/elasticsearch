@@ -227,7 +227,7 @@ public class PercolatorService extends AbstractComponent {
             indexShard.readAllowed();
             return action.doPercolate(request, context);
         } finally {
-            context.release();
+            context.close();
             shardPercolateService.postPercolate(System.nanoTime() - startTime);
         }
     }
@@ -475,7 +475,7 @@ public class PercolatorService extends AbstractComponent {
             } catch (Throwable e) {
                 logger.warn("failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
             return new PercolateShardResponse(count, context, request.index(), request.shardId());
         }
@@ -586,7 +586,7 @@ public class PercolatorService extends AbstractComponent {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
         }
     };
@@ -620,7 +620,7 @@ public class PercolatorService extends AbstractComponent {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
         }
     };
@@ -764,7 +764,7 @@ public class PercolatorService extends AbstractComponent {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
         }
 

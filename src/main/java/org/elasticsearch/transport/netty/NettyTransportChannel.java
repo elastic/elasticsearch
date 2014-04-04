@@ -98,7 +98,7 @@ public class NettyTransportChannel implements TransportChannel {
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
-                Releasables.release(bStream.bytes());
+                Releasables.close(bStream.bytes());
             }
         }
     }
@@ -136,7 +136,7 @@ public class NettyTransportChannel implements TransportChannel {
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
-                Releasables.release(stream.bytes());
+                Releasables.close(stream.bytes());
             }
         }
     }

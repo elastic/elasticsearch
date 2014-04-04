@@ -57,7 +57,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < totalLen; ++i) {
             assertEquals(ref[i], array.get(i));
         }
-        array.release();
+        array.close();
     }
 
     public void testIntArrayGrowth() {
@@ -73,7 +73,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < totalLen; ++i) {
             assertEquals(ref[i], array.get(i));
         }
-        array.release();
+        array.close();
     }
 
     public void testLongArrayGrowth() {
@@ -89,7 +89,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < totalLen; ++i) {
             assertEquals(ref[i], array.get(i));
         }
-        array.release();
+        array.close();
     }
 
     public void testFloatArrayGrowth() {
@@ -105,7 +105,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < totalLen; ++i) {
             assertEquals(ref[i], array.get(i), 0.001d);
         }
-        array.release();
+        array.close();
     }
 
     public void testDoubleArrayGrowth() {
@@ -121,7 +121,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < totalLen; ++i) {
             assertEquals(ref[i], array.get(i), 0.001d);
         }
-        array.release();
+        array.close();
     }
 
     public void testObjectArrayGrowth() {
@@ -141,7 +141,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < totalLen; ++i) {
             assertSame(ref[i], array.get(i));
         }
-        array.release();
+        array.close();
     }
 
     public void testByteArrayFill() {
@@ -162,7 +162,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < len; ++i) {
             assertEquals(array1[i], array2.get(i), 0.001d);
         }
-        array2.release();
+        array2.close();
     }
 
     public void testFloatArrayFill() {
@@ -183,7 +183,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < len; ++i) {
             assertEquals(array1[i], array2.get(i), 0.001d);
         }
-        array2.release();
+        array2.close();
     }
 
     public void testDoubleArrayFill() {
@@ -204,7 +204,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < len; ++i) {
             assertEquals(array1[i], array2.get(i), 0.001d);
         }
-        array2.release();
+        array2.close();
     }
 
     public void testLongArrayFill() {
@@ -225,7 +225,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < len; ++i) {
             assertEquals(array1[i], array2.get(i));
         }
-        array2.release();
+        array2.close();
     }
 
     public void testByteArrayBulkGet() {
@@ -242,7 +242,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
             array2.get(offset, len, ref);
             assertEquals(new BytesRef(array1, offset, len), ref);
         }
-        array2.release();
+        array2.close();
     }
 
     public void testByteArrayBulkSet() {
@@ -257,7 +257,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         for (int i = 0; i < array1.length; ++i) {
             assertEquals(array1[i], array2.get(i));
         }
-        array2.release();
+        array2.close();
     }
 
     public void testByteArrayEquals() {
@@ -268,29 +268,29 @@ public class BigArraysTests extends ElasticsearchTestCase {
         assertTrue(bigArrays.equals(empty1, empty1));
         // equality: both empty
         assertTrue(bigArrays.equals(empty1, empty2));
-        empty1.release();
-        empty2.release();
+        empty1.close();
+        empty2.close();
 
         // not equal: contents differ
         final ByteArray a1 = byteArrayWithBytes(new byte[]{0});
         final ByteArray a2 = byteArrayWithBytes(new byte[]{1});
         assertFalse(bigArrays.equals(a1, a2));
-        a1.release();
-        a2.release();
+        a1.close();
+        a2.close();
 
         // not equal: contents differ
         final ByteArray a3 = byteArrayWithBytes(new byte[]{1,2,3});
         final ByteArray a4 = byteArrayWithBytes(new byte[]{1,1,3});
         assertFalse(bigArrays.equals(a3, a4));
-        a3.release();
-        a4.release();
+        a3.close();
+        a4.close();
 
         // not equal: contents differ
         final ByteArray a5 = byteArrayWithBytes(new byte[]{1,2,3});
         final ByteArray a6 = byteArrayWithBytes(new byte[]{1,2,4});
         assertFalse(bigArrays.equals(a5, a6));
-        a5.release();
-        a6.release();
+        a5.close();
+        a6.close();
     }
 
     public void testByteArrayHashCode() {
@@ -302,7 +302,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         final ByteArray emptyByteArray = byteArrayWithBytes(BytesRef.EMPTY_BYTES);
         final int emptyByteArrayHash = bigArrays.hashCode(emptyByteArray);
         assertEquals(emptyHash, emptyByteArrayHash);
-        emptyByteArray.release();
+        emptyByteArray.close();
 
         // FUN FACT: Arrays.hashCode() and BytesReference.bytesHashCode() are inconsistent for empty byte[]
         // final int emptyHash3 = new BytesArray(BytesRef.EMPTY_BYTES).hashCode();
@@ -315,7 +315,7 @@ public class BigArraysTests extends ElasticsearchTestCase {
         final ByteArray array2 = byteArrayWithBytes(array1);
         final int array2Hash = bigArrays.hashCode(array2);
         assertEquals(array1Hash, array2Hash);
-        array2.release();
+        array2.close();
     }
 
     private ByteArray byteArrayWithBytes(byte[] bytes) {

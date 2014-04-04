@@ -164,7 +164,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 shardStatus.docs.maxDoc = searcher.reader().maxDoc();
                 shardStatus.docs.deletedDocs = searcher.reader().numDeletedDocs();
             } finally {
-                searcher.release();
+                searcher.close();
             }
 
             shardStatus.mergeStats = indexShard.mergeScheduler().stats();

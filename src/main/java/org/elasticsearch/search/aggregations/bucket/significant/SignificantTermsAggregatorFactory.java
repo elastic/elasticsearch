@@ -207,14 +207,13 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
+    public void close() throws ElasticsearchException {
         try {
             if (termsEnum instanceof Releasable) {
-                ((Releasable) termsEnum).release();
+                ((Releasable) termsEnum).close();
             }
         } finally {
             termsEnum = null;
         }
-        return true;
     }
 }

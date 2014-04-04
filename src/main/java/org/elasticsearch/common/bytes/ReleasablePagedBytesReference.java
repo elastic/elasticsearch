@@ -39,8 +39,7 @@ public class ReleasablePagedBytesReference extends PagedBytesReference implement
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        Releasables.release(bytearray);
-        return true;
+    public void close() throws ElasticsearchException {
+        Releasables.close(bytearray);
     }
 }

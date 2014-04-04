@@ -20,7 +20,9 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -28,7 +30,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+import static org.hamcrest.Matchers.is;
+
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
 public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
@@ -39,22 +43,30 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         assertThat(counts.getClient(), Matchers.equalTo(client));
     }
 
+    private void waitForNodes(int numNodes) {
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                .health(Requests.clusterHealthRequest().waitForNodes(Integer.toString(numNodes))).actionGet();
+        assertThat(actionGet.isTimedOut(), is(false));
+    }
+
     @Test
     public void testNodeCounts() {
-        cluster().startNode();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        waitForNodes(2);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.master", false));
         response = client().admin().cluster().prepareClusterStats().get();
+        waitForNodes(3);
         assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.client", true));
         response = client().admin().cluster().prepareClusterStats().get();
+        waitForNodes(4);
         assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
     }
 
@@ -68,8 +80,6 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndicesShardStats() {
-        cluster().startNode();
-
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 

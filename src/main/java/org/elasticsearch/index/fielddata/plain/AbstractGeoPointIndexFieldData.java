@@ -50,11 +50,6 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
         }
 
         @Override
-        public boolean isValuesOrdered() {
-            return false;
-        }
-
-        @Override
         public long getNumberUniqueValues() {
             return 0;
         }

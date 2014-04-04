@@ -38,11 +38,6 @@ public final class SortedSetDVBytesAtomicFieldData extends SortedSetDVAtomicFiel
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true;
-    }
-
-    @Override
     public Strings getScriptValues() {
         return new ScriptDocValues.Strings(getBytesValues(false));
     }

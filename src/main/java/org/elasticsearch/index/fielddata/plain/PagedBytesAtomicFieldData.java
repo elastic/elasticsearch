@@ -74,11 +74,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
@@ -201,11 +196,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         @Override
         public long getNumberUniqueValues() {
             return 0;
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
-            return true;
         }
 
         @Override

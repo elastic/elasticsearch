@@ -74,11 +74,6 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public boolean isValuesOrdered() {
-            return false;
-        }
-
-        @Override
         public long getMemorySizeInBytes() {
             return 0;
         }
@@ -113,11 +108,6 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         @Override
         public boolean isMultiValued() {
             return ordinals.isMultiValued();
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
-            return true;
         }
 
         @Override
@@ -199,11 +189,6 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         @Override
         public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
             return false;
         }
 
@@ -303,11 +288,6 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         @Override
         public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
             return false;
         }
 

@@ -75,11 +75,6 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         }
 
         @Override
-        public boolean isValuesOrdered() {
-            return true;
-        }
-
-        @Override
         public long getNumberUniqueValues() {
             return ordinals.getNumOrds();
         }
@@ -153,11 +148,6 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         }
 
         @Override
-        public boolean isValuesOrdered() {
-            return false;
-        }
-
-        @Override
         public long getNumberUniqueValues() {
             return numOrds;
         }
@@ -224,11 +214,6 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
 
         @Override
         public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
             return false;
         }
 

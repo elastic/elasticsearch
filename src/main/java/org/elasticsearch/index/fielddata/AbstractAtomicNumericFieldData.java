@@ -32,11 +32,6 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return false;
-    }
-
-    @Override
     public ScriptDocValues getScriptValues() {
         if (isFloat) {
             return new ScriptDocValues.Doubles(getDoubleValues());

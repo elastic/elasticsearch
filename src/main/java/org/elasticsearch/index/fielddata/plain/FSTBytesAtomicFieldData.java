@@ -75,11 +75,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
@@ -197,11 +192,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         @Override
         public int getNumDocs() {
             return ordinals.getNumDocs();
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
-            return true;
         }
 
         @Override

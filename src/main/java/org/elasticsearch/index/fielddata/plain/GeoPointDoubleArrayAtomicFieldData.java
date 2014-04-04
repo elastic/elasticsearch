@@ -71,11 +71,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         }
 
         @Override
-        public boolean isValuesOrdered() {
-            return true;
-        }
-
-        @Override
         public long getNumberUniqueValues() {
             return ordinals.getNumOrds();
         }
@@ -145,11 +140,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         }
 
         @Override
-        public boolean isValuesOrdered() {
-            return false;
-        }
-
-        @Override
         public long getNumberUniqueValues() {
             return numOrds;
         }
@@ -213,11 +203,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         @Override
         public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
             return false;
         }
 

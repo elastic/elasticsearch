@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 
@@ -46,6 +47,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@TestLogging("action.admin.indices.refresh:TRACE,action.search.type:TRACE,cluster.service:TRACE")
 public class MinDocCountTests extends ElasticsearchIntegrationTest {
 
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);

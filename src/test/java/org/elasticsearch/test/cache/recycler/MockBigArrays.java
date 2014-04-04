@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
@@ -74,29 +75,16 @@ public class MockBigArrays extends BigArrays {
             boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object input) {
-                    final Map<Object, Object> copy = Maps.newHashMap(ACQUIRED_ARRAYS);
-                    for (Object key : copy.keySet()) {
-                        if (masterCopy.containsKey(key)) {
-                            return false;
-                        }
-                    }
-                    return true;
+                    return Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty();
                 }
             });
             if (success) {
                 return;
             }
-            final Map<Object, Object> failures = Maps.newHashMap(ACQUIRED_ARRAYS);
-            for (Map.Entry<Object, Object> entry : masterCopy.entrySet()) {
-                if (ACQUIRED_ARRAYS.containsKey(entry)) {
-                    // still around, add to failures
-                    failures.put(entry.getKey(), entry.getValue());
-                }
-            }
-
-            if (!failures.isEmpty()) {
-                final Object cause = failures.entrySet().iterator().next().getValue();
-                throw new RuntimeException(failures.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+            masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
+            if (!masterCopy.isEmpty()) {
+                final Object cause = masterCopy.entrySet().iterator().next().getValue();
+                throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
             }
         }
     }

@@ -30,7 +30,7 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;

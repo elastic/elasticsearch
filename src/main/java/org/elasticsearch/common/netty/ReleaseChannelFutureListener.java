@@ -19,13 +19,9 @@
 
 package org.elasticsearch.common.netty;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
-
-import java.nio.channels.Channel;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A channel listener that releases a {@link org.elasticsearch.common.lease.Releasable} when
@@ -34,7 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ReleaseChannelFutureListener implements ChannelFutureListener {
 
     private final Releasable releasable;
-    private final AtomicBoolean released = new AtomicBoolean();
 
     public ReleaseChannelFutureListener(Releasable releasable) {
         this.releasable = releasable;
@@ -42,8 +37,6 @@ public class ReleaseChannelFutureListener implements ChannelFutureListener {
 
     @Override
     public void operationComplete(ChannelFuture future) throws Exception {
-        if (released.compareAndSet(false, true)) {
-            releasable.release();
-        }
+        releasable.release();
     }
 }

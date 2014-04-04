@@ -53,8 +53,7 @@ public abstract class NetworkUtils {
         try {
             localAddressX = InetAddress.getLocalHost();
         } catch (UnknownHostException e) {
-            logger.trace("Failed to find local host, using loopback", e);
-            localAddressX = InetAddress.getLoopbackAddress();
+            logger.trace("Failed to find local host", e);
         }
         localAddress = localAddressX;
     }

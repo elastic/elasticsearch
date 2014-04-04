@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.cache.recycler;
 
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.AbstractModule;
 

@@ -17,11 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.cache.recycler;
+package org.elasticsearch.test.cache.recycler;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
@@ -53,29 +55,16 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                final Map<Object, Throwable> copy = Maps.newHashMap(ACQUIRED_PAGES);
-                for (Object key : copy.keySet()) {
-                    if (masterCopy.containsKey(key)) {
-                        return false;
-                    }
-                }
-                return true;
+                return Sets.intersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()).isEmpty();
             }
         });
         if (success) {
             return;
         }
-        final Map<Object, Throwable> failures = Maps.newHashMap(ACQUIRED_PAGES);
-        for (Map.Entry<Object, Throwable> entry : masterCopy.entrySet()) {
-            if (ACQUIRED_PAGES.containsKey(entry)) {
-                // still around, add to failures
-                failures.put(entry.getKey(), entry.getValue());
-            }
-        }
-
-        if (!failures.isEmpty()) {
-            final Throwable t = failures.entrySet().iterator().next().getValue();
-            throw new RuntimeException(failures.size() + " pages have not been released", t);
+        masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
+        if (!masterCopy.isEmpty()) {
+            final Throwable t = masterCopy.entrySet().iterator().next().getValue();
+            throw new RuntimeException(masterCopy.size() + " pages have not been released", t);
         }
     }
 

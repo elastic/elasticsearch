@@ -246,10 +246,10 @@ public class TopChildrenQuery extends Query {
                 ParentDoc[] _parentDocs = value.v().values().toArray(ParentDoc.class);
                 Arrays.sort(_parentDocs, PARENT_DOC_COMP);
                 parentDocs.v().put(keys[i], _parentDocs);
-                Releasables.release(value);
+                Releasables.close(value);
             }
         }
-        Releasables.release(parentDocsPerReader);
+        Releasables.close(parentDocsPerReader);
         return parentHitsResolved;
     }
 
@@ -321,9 +321,8 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(parentDocs);
-            return true;
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentDocs);
         }
 
         @Override

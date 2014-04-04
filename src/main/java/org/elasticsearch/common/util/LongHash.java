@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lease.Releasable;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps
@@ -119,15 +119,10 @@ public final class LongHash extends AbstractHash {
     }
 
     @Override
-    public boolean release() {
-        boolean success = false;
-        try {
-            super.release();
-            success = true;
-        } finally {
-            Releasables.release(success, keys);
+    public void close() {
+        try (Releasable releasable = keys) {
+            super.close();
         }
-        return true;
     }
 
 }

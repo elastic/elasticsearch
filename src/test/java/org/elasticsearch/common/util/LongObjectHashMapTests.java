@@ -52,7 +52,7 @@ public class LongObjectHashMapTests extends ElasticsearchTestCase {
         for (LongObjectPagedHashMap.Cursor<Object> cursor : map2) {
             copy.put(cursor.key, cursor.value);
         }
-        map2.release();
+        map2.close();
         assertEquals(map1, copy);
     }
 

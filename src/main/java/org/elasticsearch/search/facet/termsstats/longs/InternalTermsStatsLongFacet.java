@@ -211,7 +211,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             LongEntry[] entries1 = map.v().values().toArray(LongEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
-            map.release();
+            map.close();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.v().values;
@@ -224,7 +224,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            map.release();
+            map.close();
             return new InternalTermsStatsLongFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

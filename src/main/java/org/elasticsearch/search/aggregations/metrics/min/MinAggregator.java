@@ -114,7 +114,7 @@ public class MinAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(mins);
+    public void doClose() {
+        Releasables.close(mins);
     }
 }

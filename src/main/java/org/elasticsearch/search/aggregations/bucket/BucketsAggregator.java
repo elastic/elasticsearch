@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -129,15 +129,10 @@ public abstract class BucketsAggregator extends Aggregator {
     }
 
     @Override
-    public final boolean release() {
-        boolean success = false;
-        try {
-            super.release();
-            success = true;
-        } finally {
-            Releasables.release(success, docCounts);
+    public final void close() {
+        try (Releasable releasable = docCounts) {
+            super.close();
         }
-        return true;
     }
 
 }

@@ -91,7 +91,7 @@ public class SnapshotDeletionPolicyTests extends ElasticsearchTestCase {
         assertThat(listCommits(dir).size(), equalTo(2));
 
         // release the commit, add a document and commit, now we should be back to one commit point
-        assertThat(snapshot.release(), equalTo(true));
+        snapshot.close();
         indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
@@ -114,13 +114,13 @@ public class SnapshotDeletionPolicyTests extends ElasticsearchTestCase {
         assertThat(listCommits(dir).size(), equalTo(2));
 
         // release one snapshot, we should still have two commit points
-        assertThat(snapshot1.release(), equalTo(true));
+        snapshot1.close();
         indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(2));
 
         // release the second snapshot, we should be back to one commit
-        assertThat(snapshot2.release(), equalTo(true));
+        snapshot2.close();
         indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));
@@ -135,8 +135,8 @@ public class SnapshotDeletionPolicyTests extends ElasticsearchTestCase {
 
         // snapshot the last commit, and release it twice, the seconds should throw an exception
         SnapshotIndexCommit snapshot = deletionPolicy.snapshot();
-        assertThat(snapshot.release(), equalTo(true));
-        assertThat(snapshot.release(), equalTo(false));
+        snapshot.close();
+        snapshot.close();
     }
 
     @Test
@@ -164,13 +164,13 @@ public class SnapshotDeletionPolicyTests extends ElasticsearchTestCase {
         // release the snapshot, add a document and commit
         // we should have 3 commits points since we are holding onto the first two with snapshots
         // and we are using the keep only last
-        assertThat(snapshot.release(), equalTo(true));
+        snapshot.close();
         indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(3));
 
         // now release the snapshots, we should be back to a single commit point
-        assertThat(snapshots.release(), equalTo(true));
+        snapshots.close();
         indexWriter.addDocument(testDocument());
         indexWriter.commit();
         assertThat(listCommits(dir).size(), equalTo(1));

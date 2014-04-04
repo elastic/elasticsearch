@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
@@ -207,18 +208,13 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        try {
+    public void close() throws ElasticsearchException {
+        try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
             if (docSearcher != null) {
                 IndexReader indexReader = docSearcher.reader();
                 fieldDataService.clear(indexReader);
                 indexService.cache().clear(indexReader);
-                return docSearcher.release();
-            } else {
-                return false;
             }
-        } finally {
-            engineSearcher.release();
         }
     }
 
@@ -296,7 +292,7 @@ public class PercolateContext extends SearchContext {
 
     // Unused:
     @Override
-    public boolean clearAndRelease() {
+    public void clearAndRelease() {
         throw new UnsupportedOperationException();
     }
 

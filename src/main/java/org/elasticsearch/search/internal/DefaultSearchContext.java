@@ -207,19 +207,18 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
+    public void close() throws ElasticsearchException {
         if (scanContext != null) {
             scanContext.clear();
         }
         // clear and scope phase we  have
         searcher.release();
-        engineSearcher.release();
-        return true;
+        engineSearcher.close();
     }
 
-    public boolean clearAndRelease() {
+    public void clearAndRelease() {
         clearReleasables();
-        return release();
+        close();
     }
 
     /**
@@ -690,7 +689,7 @@ public class DefaultSearchContext extends SearchContext {
     public void clearReleasables() {
         if (clearables != null) {
             try {
-                Releasables.release(clearables);
+                Releasables.close(clearables);
             } finally {
                 clearables.clear();
             }

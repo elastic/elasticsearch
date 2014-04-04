@@ -153,7 +153,7 @@ public class ParentQuery extends Query {
         } finally {
             if (releaseCollectorResource) {
                 // either if we run into an exception or if we return early
-                Releasables.release(collector.parentIds, collector.scores);
+                Releasables.close(collector.parentIds, collector.scores);
             }
         }
         searchContext.addReleasable(childWeight);
@@ -272,9 +272,8 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(parentIds, scores, parentIdsIndexCache);
-            return true;
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIds, scores, parentIdsIndexCache);
         }
     }
 

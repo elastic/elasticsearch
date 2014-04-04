@@ -194,7 +194,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             } catch (Exception e) {
                 logger.warn("failed to purge", e);
             } finally {
-                searcher.release();
+                searcher.close();
             }
         }
     }

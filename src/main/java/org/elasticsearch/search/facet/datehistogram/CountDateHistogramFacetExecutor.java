@@ -70,7 +70,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
                 countEntries[entryIndex++] = new InternalCountDateHistogramFacet.CountEntry(keys[i], values[i]);
             }
         }
-        counts.release();
+        counts.close();
         return new InternalCountDateHistogramFacet(facetName, comparatorType, countEntries);
     }
 

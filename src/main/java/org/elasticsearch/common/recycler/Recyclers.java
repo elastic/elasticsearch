@@ -131,7 +131,7 @@ public enum Recyclers {
     }
 
     /**
-     * Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#release()} are protected by
+     * Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#close()} are protected by
      * a lock.
      */
     public static <T> Recycler<T> locked(final Recycler<T> recycler) {
@@ -167,9 +167,9 @@ public enum Recyclers {
                 return new Recycler.V<T>() {
 
                     @Override
-                    public boolean release() throws ElasticsearchException {
+                    public void close() throws ElasticsearchException {
                         synchronized (lock) {
-                            return delegate.release();
+                            delegate.close();
                         }
                     }
 

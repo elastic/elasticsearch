@@ -58,12 +58,11 @@ public class NoneRecycler<T> extends AbstractRecycler<T> {
         }
 
         @Override
-        public boolean release() {
+        public void close() {
             if (value == null) {
                 throw new ElasticsearchIllegalStateException("recycler entry already released...");
             }
             value = null;
-            return true;
         }
     }
 }

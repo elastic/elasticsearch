@@ -155,7 +155,7 @@ public class InternalCountHistogramFacet extends InternalHistogramFacet {
                 entries[entryIndex++] = new CountEntry(keys[i], values[i]);
             }
         }
-        counts.release();
+        counts.close();
 
         Arrays.sort(entries, comparatorType.comparator());
 

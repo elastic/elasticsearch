@@ -389,6 +389,16 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public RatioValue getAsRatio(String setting, String defaultValue) throws SettingsException {
+        return RatioValue.parseRatioValue(get(setting, defaultValue));
+    }
+
+    @Override
+    public RatioValue getAsRatio(String[] settings, String defaultValue) throws SettingsException {
+        return RatioValue.parseRatioValue(get(settings, defaultValue));
+    }
+
+    @Override
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
     }

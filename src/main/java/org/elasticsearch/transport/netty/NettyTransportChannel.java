@@ -20,15 +20,19 @@
 package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectOutputStream;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
 
 import java.io.IOException;
 import java.io.NotSerializableException;
@@ -71,47 +75,69 @@ public class NettyTransportChannel implements TransportChannel {
         byte status = 0;
         status = TransportStatus.setResponse(status);
 
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        bStream.skip(NettyHeader.HEADER_SIZE);
-        StreamOutput stream = bStream;
-        if (options.compress()) {
-            status = TransportStatus.setCompress(status);
-            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
-        }
-        stream = new HandlesStreamOutput(stream);
-        stream.setVersion(version);
-        response.writeTo(stream);
-        stream.close();
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(transport.bigArrays);
+        boolean addedReleaseListener = false;
+        try {
+            bStream.skip(NettyHeader.HEADER_SIZE);
+            StreamOutput stream = bStream;
+            if (options.compress()) {
+                status = TransportStatus.setCompress(status);
+                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+            }
+            stream = new HandlesStreamOutput(stream);
+            stream.setVersion(version);
+            response.writeTo(stream);
+            stream.close();
 
-        ChannelBuffer buffer = bStream.bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status, version);
-        channel.write(buffer);
+            ReleasableBytesReference bytes = bStream.bytes();
+            ChannelBuffer buffer = bytes.toChannelBuffer();
+            NettyHeader.writeHeader(buffer, requestId, status, version);
+            ChannelFuture future = channel.write(buffer);
+            ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
+            future.addListener(listener);
+            addedReleaseListener = true;
+        } finally {
+            if (!addedReleaseListener) {
+                Releasables.release(bStream.bytes());
+            }
+        }
     }
 
     @Override
     public void sendResponse(Throwable error) throws IOException {
-        BytesStreamOutput stream = new BytesStreamOutput();
+        ReleasableBytesStreamOutput stream = new ReleasableBytesStreamOutput(transport.bigArrays);
+        boolean addedReleaseListener = false;
         try {
-            stream.skip(NettyHeader.HEADER_SIZE);
-            RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
-            too.writeObject(tx);
-            too.close();
-        } catch (NotSerializableException e) {
-            stream.reset();
-            stream.skip(NettyHeader.HEADER_SIZE);
-            RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
-            ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
-            too.writeObject(tx);
-            too.close();
+            try {
+                stream.skip(NettyHeader.HEADER_SIZE);
+                RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, error);
+                ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
+                too.writeObject(tx);
+                too.close();
+            } catch (NotSerializableException e) {
+                stream.reset();
+                stream.skip(NettyHeader.HEADER_SIZE);
+                RemoteTransportException tx = new RemoteTransportException(transport.nodeName(), transport.wrapAddress(channel.getLocalAddress()), action, new NotSerializableTransportException(error));
+                ThrowableObjectOutputStream too = new ThrowableObjectOutputStream(stream);
+                too.writeObject(tx);
+                too.close();
+            }
+
+            byte status = 0;
+            status = TransportStatus.setResponse(status);
+            status = TransportStatus.setError(status);
+
+            ReleasableBytesReference bytes = stream.bytes();
+            ChannelBuffer buffer = bytes.toChannelBuffer();
+            NettyHeader.writeHeader(buffer, requestId, status, version);
+            ChannelFuture future = channel.write(buffer);
+            ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
+            future.addListener(listener);
+            addedReleaseListener = true;
+        } finally {
+            if (!addedReleaseListener) {
+                Releasables.release(stream.bytes());
+            }
         }
-
-        byte status = 0;
-        status = TransportStatus.setResponse(status);
-        status = TransportStatus.setError(status);
-
-        ChannelBuffer buffer = stream.bytes().toChannelBuffer();
-        NettyHeader.writeHeader(buffer, requestId, status, version);
-        channel.write(buffer);
     }
 }

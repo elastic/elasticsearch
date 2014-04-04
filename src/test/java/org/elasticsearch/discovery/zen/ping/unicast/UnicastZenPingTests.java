@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
@@ -55,13 +56,13 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
         ClusterName clusterName = new ClusterName("test");
         NetworkService networkService = new NetworkService(settings);
 
-        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, Version.CURRENT);
+        NettyTransport transportA = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
         final TransportService transportServiceA = new TransportService(transportA, threadPool).start();
         final DiscoveryNode nodeA = new DiscoveryNode("UZP_A", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 
         InetSocketTransportAddress addressA = (InetSocketTransportAddress) transportA.boundAddress().publishAddress();
 
-        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, Version.CURRENT);
+        NettyTransport transportB = new NettyTransport(settings, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE, Version.CURRENT);
         final TransportService transportServiceB = new TransportService(transportB, threadPool).start();
         final DiscoveryNode nodeB = new DiscoveryNode("UZP_B", transportServiceA.boundAddress().publishAddress(), Version.CURRENT);
 

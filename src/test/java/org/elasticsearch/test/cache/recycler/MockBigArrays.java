@@ -21,12 +21,16 @@ package org.elasticsearch.test.cache.recycler;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.*;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -56,12 +60,44 @@ public class MockBigArrays extends BigArrays {
         ACQUIRED_ARRAYS.clear();
     }
 
-    public static void ensureAllArraysAreReleased() {
+    public static void ensureAllArraysAreReleased() throws Exception {
         if (DISCARD) {
             DISCARD = false;
-        } else if (ACQUIRED_ARRAYS.size() > 0) {
-            final Object cause = ACQUIRED_ARRAYS.entrySet().iterator().next().getValue();
-            throw new RuntimeException(ACQUIRED_ARRAYS.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+        } else {
+            final Map<Object, Object> masterCopy = Maps.newHashMap(ACQUIRED_ARRAYS);
+            if (masterCopy.isEmpty()) {
+                return;
+            }
+            // not empty, we might be executing on a shared cluster that keeps on obtaining
+            // and releasing arrays, lets make sure that after a reasonable timeout, all master
+            // copy (snapshot) have been released
+            boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    final Map<Object, Object> copy = Maps.newHashMap(ACQUIRED_ARRAYS);
+                    for (Object key : copy.keySet()) {
+                        if (masterCopy.containsKey(key)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            });
+            if (success) {
+                return;
+            }
+            final Map<Object, Object> failures = Maps.newHashMap(ACQUIRED_ARRAYS);
+            for (Map.Entry<Object, Object> entry : masterCopy.entrySet()) {
+                if (ACQUIRED_ARRAYS.containsKey(entry)) {
+                    // still around, add to failures
+                    failures.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            if (!failures.isEmpty()) {
+                final Object cause = failures.entrySet().iterator().next().getValue();
+                throw new RuntimeException(failures.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+            }
         }
     }
 

@@ -19,15 +19,18 @@
 
 package org.elasticsearch.cache.recycler;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Array;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
 
@@ -39,10 +42,40 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         ACQUIRED_PAGES.clear();
     }
 
-    public static void ensureAllPagesAreReleased() {
-        if (ACQUIRED_PAGES.size() > 0) {
-            final Throwable t = ACQUIRED_PAGES.entrySet().iterator().next().getValue();
-            throw new RuntimeException(ACQUIRED_PAGES.size() + " pages have not been released", t);
+    public static void ensureAllPagesAreReleased() throws Exception {
+        final Map<Object, Throwable> masterCopy = Maps.newHashMap(ACQUIRED_PAGES);
+        if (masterCopy.isEmpty()) {
+            return;
+        }
+        // not empty, we might be executing on a shared cluster that keeps on obtaining
+        // and releasing pages, lets make sure that after a reasonable timeout, all master
+        // copy (snapshot) have been released
+        boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                final Map<Object, Throwable> copy = Maps.newHashMap(ACQUIRED_PAGES);
+                for (Object key : copy.keySet()) {
+                    if (masterCopy.containsKey(key)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
+        if (success) {
+            return;
+        }
+        final Map<Object, Throwable> failures = Maps.newHashMap(ACQUIRED_PAGES);
+        for (Map.Entry<Object, Throwable> entry : masterCopy.entrySet()) {
+            if (ACQUIRED_PAGES.containsKey(entry)) {
+                // still around, add to failures
+                failures.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        if (!failures.isEmpty()) {
+            final Throwable t = failures.entrySet().iterator().next().getValue();
+            throw new RuntimeException(failures.size() + " pages have not been released", t);
         }
     }
 

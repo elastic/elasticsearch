@@ -27,15 +27,19 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.HandlesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.netty.NettyStaticSetup;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
+import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +49,7 @@ import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -140,6 +145,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     final ByteSizeValue maxCumulationBufferCapacity;
     final int maxCompositeBufferComponents;
 
+    final BigArrays bigArrays;
+
     private final ThreadPool threadPool;
 
     private volatile OpenChannelsHandler serverOpenChannels;
@@ -165,10 +172,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private final ReadWriteLock globalLock = new ReentrantReadWriteLock();
 
     @Inject
-    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, Version version) {
+    public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
+        this.bigArrays = bigArrays;
         this.version = version;
 
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
@@ -547,58 +555,58 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         byte status = 0;
         status = TransportStatus.setRequest(status);
 
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        bStream.skip(NettyHeader.HEADER_SIZE);
-        StreamOutput stream = bStream;
-        // only compress if asked, and, the request is not bytes, since then only
-        // the header part is compressed, and the "body" can't be extracted as compressed
-        if (options.compress() && (!(request instanceof BytesTransportRequest))) {
-            status = TransportStatus.setCompress(status);
-            stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+        ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
+        boolean addedReleaseListener = false;
+        try {
+            bStream.skip(NettyHeader.HEADER_SIZE);
+            StreamOutput stream = bStream;
+            // only compress if asked, and, the request is not bytes, since then only
+            // the header part is compressed, and the "body" can't be extracted as compressed
+            if (options.compress() && (!(request instanceof BytesTransportRequest))) {
+                status = TransportStatus.setCompress(status);
+                stream = CompressorFactory.defaultCompressor().streamOutput(stream);
+            }
+            stream = new HandlesStreamOutput(stream);
+
+            // we pick the smallest of the 2, to support both backward and forward compatibility
+            // note, this is the only place we need to do this, since from here on, we use the serialized version
+            // as the version to use also when the node receiving this request will send the response with
+            Version version = Version.smallest(this.version, node.version());
+
+            stream.setVersion(version);
+            stream.writeString(action);
+
+            ReleasableBytesReference bytes;
+            ChannelBuffer buffer;
+            // it might be nice to somehow generalize this optimization, maybe a smart "paged" bytes output
+            // that create paged channel buffers, but its tricky to know when to do it (where this option is
+            // more explicit).
+            if (request instanceof BytesTransportRequest) {
+                BytesTransportRequest bRequest = (BytesTransportRequest) request;
+                assert node.version().equals(bRequest.version());
+                bRequest.writeThin(stream);
+                stream.close();
+                bytes = bStream.bytes();
+                ChannelBuffer headerBuffer = bytes.toChannelBuffer();
+                ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
+                // false on gathering, cause gathering causes the NIO layer to combine the buffers into a single direct buffer....
+                buffer = new CompositeChannelBuffer(headerBuffer.order(), ImmutableList.<ChannelBuffer>of(headerBuffer, contentBuffer), false);
+            } else {
+                request.writeTo(stream);
+                stream.close();
+                bytes = bStream.bytes();
+                buffer = bytes.toChannelBuffer();
+            }
+            NettyHeader.writeHeader(buffer, requestId, status, version);
+            ChannelFuture future = targetChannel.write(buffer);
+            ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
+            future.addListener(listener);
+            addedReleaseListener = true;
+        } finally {
+            if (!addedReleaseListener) {
+                Releasables.release(bStream.bytes());
+            }
         }
-        stream = new HandlesStreamOutput(stream);
-
-        // we pick the smallest of the 2, to support both backward and forward compatibility
-        // note, this is the only place we need to do this, since from here on, we use the serialized version
-        // as the version to use also when the node receiving this request will send the response with
-        Version version = Version.smallest(this.version, node.version());
-
-        stream.setVersion(version);
-        stream.writeString(action);
-
-        ChannelBuffer buffer;
-        // it might be nice to somehow generalize this optimization, maybe a smart "paged" bytes output
-        // that create paged channel buffers, but its tricky to know when to do it (where this option is
-        // more explicit).
-        if (request instanceof BytesTransportRequest) {
-            BytesTransportRequest bRequest = (BytesTransportRequest) request;
-            assert node.version().equals(bRequest.version());
-            bRequest.writeThin(stream);
-            stream.close();
-            ChannelBuffer headerBuffer = bStream.bytes().toChannelBuffer();
-            ChannelBuffer contentBuffer = bRequest.bytes().toChannelBuffer();
-            // false on gathering, cause gathering causes the NIO layer to combine the buffers into a single direct buffer....
-            buffer = new CompositeChannelBuffer(headerBuffer.order(), ImmutableList.<ChannelBuffer>of(headerBuffer, contentBuffer), false);
-        } else {
-            request.writeTo(stream);
-            stream.close();
-            buffer = bStream.bytes().toChannelBuffer();
-        }
-        NettyHeader.writeHeader(buffer, requestId, status, version);
-        targetChannel.write(buffer);
-
-        // We handle close connection exception in the #exceptionCaught method, which is the main reason we want to add this future
-//        channelFuture.addListener(new ChannelFutureListener() {
-//            @Override public void operationComplete(ChannelFuture future) throws Exception {
-//                if (!future.isSuccess()) {
-//                    // maybe add back the retry?
-//                    TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
-//                    if (handler != null) {
-//                        handler.handleException(new RemoteTransportException("Failed write request", new SendRequestTransportException(node, action, future.getCause())));
-//                    }
-//                }
-//            }
-//        });
     }
 
     @Override

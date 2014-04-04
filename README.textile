@@ -206,7 +206,7 @@ The distribution will be created under @target/releases@.
 See the "TESTING":TESTING.asciidoc file for more information about
 running the Elasticsearch test suite.
 
-h3. Upgrading to Elasticsearch 1.0?
+h3. Upgrading to Elasticsearch 1.x?
 
 In order to ensure a smooth upgrade process from earlier versions of Elasticsearch (< 0.90.x), it is recommended to perform a full cluster restart. Please see the "Upgrading" section of the "setup reference":http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/setup.html.
 

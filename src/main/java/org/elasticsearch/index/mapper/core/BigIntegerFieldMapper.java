@@ -53,6 +53,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
@@ -280,6 +281,12 @@ public class BigIntegerFieldMapper extends NumberFieldMapper<BigInteger> {
                         if ("value".equals(currentFieldName) || "_value".equals(currentFieldName)) {
                             if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
                                 objValue = parser.bigIntegerValue(coerce.value());
+                                // nasty additional check because Jackson swallows fractions at BigInteger parsing silently
+                                if (!coerce.value()) {
+                                    if (!parser.bigDecimalValue(coerce.value()).equals(new BigDecimal(objValue))) {
+                                        throw new NumberFormatException("invalid value for BigInteger: " + token);
+                                    }
+                                }
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
@@ -295,6 +302,12 @@ public class BigIntegerFieldMapper extends NumberFieldMapper<BigInteger> {
                 value = objValue;
             } else {
                 value = parser.bigIntegerValue(coerce.value());
+                // nasty additional check because Jackson swallows fractions at BigInteger parsing silently
+                if (!coerce.value()) {
+                    if (!parser.bigDecimalValue(coerce.value()).equals(new BigDecimal(value))) {
+                        throw new NumberFormatException("invalid value for BigInteger: " + parser.currentToken());
+                    }
+                }
                 if (context.includeInAll(includeInAll, this)) {
                     context.allEntries().addText(names.fullName(), parser.text(), boost);
                 }

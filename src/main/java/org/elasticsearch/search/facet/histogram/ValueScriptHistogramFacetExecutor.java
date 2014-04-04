@@ -75,7 +75,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
             }
         }
 
-        entries.release();
+        entries.close();
         return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
     }
 

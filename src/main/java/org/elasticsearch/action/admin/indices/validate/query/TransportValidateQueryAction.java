@@ -202,7 +202,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                 valid = false;
                 error = e.getMessage();
             } finally {
-                SearchContext.current().release();
+                SearchContext.current().close();
                 SearchContext.removeCurrent();
             }
         }

@@ -86,7 +86,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
      * API is responsible for releasing the returned seacher in a
      * safe manner, preferably in a try/finally block.
      *
-     * @see Searcher#release()
+     * @see Searcher#close()
      */
     Searcher acquireSearcher(String source) throws EngineException;
 
@@ -197,9 +197,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
+        public void close() throws ElasticsearchException {
             // nothing to release here...
-            return true;
         }
     }
 
@@ -932,7 +931,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public void release() {
             if (searcher != null) {
-                searcher.release();
+                searcher.close();
             }
         }
     }

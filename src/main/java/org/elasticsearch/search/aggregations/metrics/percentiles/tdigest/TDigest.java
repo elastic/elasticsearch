@@ -47,9 +47,8 @@ public class TDigest extends PercentilesEstimator {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        states.release();
-        return true;
+    public void close() throws ElasticsearchException {
+        states.close();
     }
 
     public void offer(double value, long bucketOrd) {

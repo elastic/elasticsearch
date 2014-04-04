@@ -33,7 +33,7 @@ public class LongHashTests extends ElasticsearchTestCase {
 
     private void newHash() {
         if (hash != null) {
-            hash.release();
+            hash.close();
         }
 
         // Test high load factors to make sure that collision resolution works fine
@@ -83,7 +83,7 @@ public class LongHashTests extends ElasticsearchTestCase {
             assertEquals(idToValue[(int) i], hash.get(i));
         }
 
-        hash.release();
+        hash.close();
     }
 
     @Test
@@ -103,7 +103,7 @@ public class LongHashTests extends ElasticsearchTestCase {
                 }
             }
         }
-        hash.release();
+        hash.close();
     }
 
     @Test
@@ -135,7 +135,7 @@ public class LongHashTests extends ElasticsearchTestCase {
 
             newHash();
         }
-        hash.release();
+        hash.close();
     }
 
     @Test
@@ -164,7 +164,7 @@ public class LongHashTests extends ElasticsearchTestCase {
             assertAllIn(longs, hash);
             newHash();
         }
-        hash.release();
+        hash.close();
     }
 
     @Test
@@ -194,7 +194,7 @@ public class LongHashTests extends ElasticsearchTestCase {
             assertAllIn(longs, hash);
             newHash();
         }
-        hash.release();
+        hash.close();
     }
 
     private static void assertAllIn(Set<Long> longs, LongHash hash) {

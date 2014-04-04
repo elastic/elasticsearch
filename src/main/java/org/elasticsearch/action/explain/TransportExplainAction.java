@@ -149,7 +149,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         } catch (IOException e) {
             throw new ElasticsearchException("Could not explain", e);
         } finally {
-            context.release();
+            context.close();
             SearchContext.removeCurrent();
         }
     }

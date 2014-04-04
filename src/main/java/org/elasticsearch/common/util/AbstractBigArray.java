@@ -155,19 +155,18 @@ abstract class AbstractBigArray extends AbstractArray {
 
     protected final void releasePage(int page) {
         if (recycler != null) {
-            cache[page].release();
+            cache[page].close();
             cache[page] = null;
         }
     }
 
     @Override
-    public final boolean release() {
-        super.release();
+    public final void close() {
+        super.close();
         if (recycler != null) {
-            Releasables.release(cache);
+            Releasables.close(cache);
             cache = null;
         }
-        return true;
     }
 
 }

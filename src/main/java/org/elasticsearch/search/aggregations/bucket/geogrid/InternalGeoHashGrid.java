@@ -219,7 +219,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             List<Bucket> sameCellBuckets = cursor.value;
             ordered.insertWithOverflow(sameCellBuckets.get(0).reduce(sameCellBuckets, reduceContext.bigArrays()));
         }
-        buckets.release();
+        buckets.close();
         Bucket[] list = new Bucket[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();

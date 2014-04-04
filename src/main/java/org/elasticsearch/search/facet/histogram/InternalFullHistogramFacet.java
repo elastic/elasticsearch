@@ -186,7 +186,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
             ordered.add(value);
         }
 
-        map.release();
+        map.close();
 
         // just initialize it as already ordered facet
         InternalFullHistogramFacet ret = new InternalFullHistogramFacet(getName());

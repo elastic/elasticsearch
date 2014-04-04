@@ -95,8 +95,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean clearAndRelease() {
-        return false;
+    public void clearAndRelease() {
+        // no-op
     }
 
     @Override
@@ -590,8 +590,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        return false;
+    public void close() throws ElasticsearchException {
+        // no-op
     }
 
     @Override

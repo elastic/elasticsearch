@@ -349,14 +349,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             try {
                 docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
             } catch (Throwable e) {
-                Releasables.releaseWhileHandlingException(searcher);
+                Releasables.closeWhileHandlingException(searcher);
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "Couldn't resolve version", e);
             }
 
             if (get.version() != Versions.MATCH_ANY && docIdAndVersion != null) {
                 if (get.versionType().isVersionConflict(docIdAndVersion.version, get.version())) {
-                    Releasables.release(searcher);
+                    Releasables.close(searcher);
                     Uid uid = Uid.createUid(get.uid().text());
                     throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
                 }
@@ -366,7 +366,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
                 return new GetResult(searcher, docIdAndVersion);
             } else {
-                Releasables.release(searcher);
+                Releasables.close(searcher);
                 return GetResult.NOT_EXISTS;
             }
 
@@ -1053,14 +1053,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             phase1Snapshot = deletionPolicy.snapshot();
         } catch (Throwable e) {
-            Releasables.releaseWhileHandlingException(onGoingRecoveries);
+            Releasables.closeWhileHandlingException(onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }
 
         try {
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
-            Releasables.releaseWhileHandlingException(onGoingRecoveries, phase1Snapshot);
+            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             if (closed) {
                 e = new EngineClosedException(shardId, e);
             }
@@ -1071,7 +1071,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
-            Releasables.releaseWhileHandlingException(onGoingRecoveries, phase1Snapshot);
+            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             if (closed) {
                 e = new EngineClosedException(shardId, e);
             }
@@ -1081,7 +1081,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
-            Releasables.releaseWhileHandlingException(onGoingRecoveries, phase1Snapshot, phase2Snapshot);
+            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot, phase2Snapshot);
             if (closed) {
                 e = new EngineClosedException(shardId, e);
             }
@@ -1098,9 +1098,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         } catch (Throwable e) {
             throw new RecoveryEngineException(shardId, 3, "Execution failed", e);
         } finally {
-            Releasables.release(success, onGoingRecoveries);
+            Releasables.close(success, onGoingRecoveries);
             rwl.writeLock().unlock();
-            Releasables.release(success, phase1Snapshot, phase2Snapshot, phase3Snapshot);
+            Releasables.close(success, phase1Snapshot, phase2Snapshot, phase3Snapshot);
         }
     }
 
@@ -1122,7 +1122,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 return stats;
             } finally {
-                searcher.release();
+                searcher.close();
             }
         } finally {
             rwl.readLock().unlock();
@@ -1158,7 +1158,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     segments.put(info.info.name, segment);
                 }
             } finally {
-                searcher.release();
+                searcher.close();
             }
 
             // now, correlate or add the committed ones...
@@ -1292,7 +1292,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         try {
             return Versions.loadVersion(searcher.reader(), uid);
         } finally {
-            searcher.release();
+            searcher.close();
         }
     }
 
@@ -1465,25 +1465,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
+        public void close() throws ElasticsearchException {
             if (!released.compareAndSet(false, true)) {
                 /* In general, searchers should never be released twice or this would break reference counting. There is one rare case
                  * when it might happen though: when the request and the Reaper thread would both try to release it in a very short amount
                  * of time, this is why we only log a warning instead of throwing an exception.
                  */
                 logger.warn("Searcher was released twice", new ElasticsearchIllegalStateException("Double release"));
-                return false;
+                return;
             }
             try {
                 manager.release(searcher);
-                return true;
             } catch (IOException e) {
-                return false;
+                throw new ElasticsearchIllegalStateException("Cannot close", e);
             } catch (AlreadyClosedException e) {
                 /* this one can happen if we already closed the
                  * underlying store / directory and we call into the
                  * IndexWriter to free up pending files. */
-                return false;
             } finally {
                 store.decRef();
             }
@@ -1575,7 +1573,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                 } finally {
                     // no need to release the fullSearcher, nothing really is done...
-                    Releasables.release(currentSearcher);
+                    Releasables.close(currentSearcher);
                     if (newSearcher != null && closeNewSearcher) {
                         IOUtils.closeWhileHandlingException(newSearcher.getIndexReader()); // ignore
                     }
@@ -1604,9 +1602,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
+        public void close() throws ElasticsearchException {
             endRecovery();
-            return true;
         }
     }
 

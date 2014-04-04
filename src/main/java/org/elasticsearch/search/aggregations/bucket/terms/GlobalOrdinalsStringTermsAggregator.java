@@ -159,8 +159,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        protected void doRelease() {
-            Releasables.release(bucketOrds);
+        protected void doClose() {
+            Releasables.close(bucketOrds);
         }
 
     }

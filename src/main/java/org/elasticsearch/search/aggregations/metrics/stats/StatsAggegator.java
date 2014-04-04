@@ -156,7 +156,7 @@ public class StatsAggegator extends MetricsAggregator.MultiValue {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(counts, maxes, mins, sums);
+    public void doClose() {
+        Releasables.close(counts, maxes, mins, sums);
     }
 }

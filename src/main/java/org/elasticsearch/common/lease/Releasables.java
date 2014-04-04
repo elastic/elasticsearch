@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.lease;
 
+import org.elasticsearch.ElasticsearchException;
+
 import java.util.Arrays;
 
 /** Utility methods to work with {@link Releasable}s. */
@@ -35,12 +37,12 @@ public enum Releasables {
         throw new RuntimeException(t);
     }
 
-    private static void release(Iterable<? extends Releasable> releasables, boolean ignoreException) {
+    private static void close(Iterable<? extends Releasable> releasables, boolean ignoreException) {
         Throwable th = null;
         for (Releasable releasable : releasables) {
             if (releasable != null) {
                 try {
-                    releasable.release();
+                    releasable.close();
                 } catch (Throwable t) {
                     if (th == null) {
                         th = t;
@@ -54,36 +56,70 @@ public enum Releasables {
     }
 
     /** Release the provided {@link Releasable}s. */
-    public static void release(Iterable<? extends Releasable> releasables) {
-        release(releasables, false);
+    public static void close(Iterable<? extends Releasable> releasables) {
+        close(releasables, false);
     }
 
     /** Release the provided {@link Releasable}s. */
-    public static void release(Releasable... releasables) {
-        release(Arrays.asList(releasables));
+    public static void close(Releasable... releasables) {
+        close(Arrays.asList(releasables));
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
-    public static void releaseWhileHandlingException(Iterable<Releasable> releasables) {
-        release(releasables, true);
+    public static void closeWhileHandlingException(Iterable<Releasable> releasables) {
+        close(releasables, true);
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions. */
-    public static void releaseWhileHandlingException(Releasable... releasables) {
-        releaseWhileHandlingException(Arrays.asList(releasables));
+    public static void closeWhileHandlingException(Releasable... releasables) {
+        closeWhileHandlingException(Arrays.asList(releasables));
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is <tt>false</tt>. */
-    public static void release(boolean success, Iterable<Releasable> releasables) {
+    public static void close(boolean success, Iterable<Releasable> releasables) {
         if (success) {
-            release(releasables);
+            close(releasables);
         } else {
-            releaseWhileHandlingException(releasables);
+            closeWhileHandlingException(releasables);
         }
     }
 
     /** Release the provided {@link Releasable}s, ignoring exceptions if <code>success</code> is <tt>false</tt>. */
-    public static void release(boolean success, Releasable... releasables) {
-        release(success, Arrays.asList(releasables));
+    public static void close(boolean success, Releasable... releasables) {
+        close(success, Arrays.asList(releasables));
+    }
+
+    /** Wrap several releasables into a single one. This is typically useful for use with try-with-resources: for example let's assume
+     *  that you store in a list several resources that you would like to see released after execution of the try block:
+     *
+     *  <pre>
+     *  List&lt;Releasable&gt; resources = ...;
+     *  try (Releasable releasable = Releasables.wrap(resources)) {
+     *      // do something
+     *  }
+     *  // the resources will be released when reaching here
+     *  </pre>
+     */
+    public static Releasable wrap(final Iterable<Releasable> releasables) {
+        return new Releasable() {
+
+            @Override
+            public void close() throws ElasticsearchException {
+                Releasables.close(releasables);
+            }
+
+        };
+    }
+
+    /** @see #wrap(Iterable) */
+    public static Releasable wrap(final Releasable... releasables) {
+        return new Releasable() {
+
+            @Override
+            public void close() throws ElasticsearchException {
+                Releasables.close(releasables);
+            }
+
+        };
     }
 }

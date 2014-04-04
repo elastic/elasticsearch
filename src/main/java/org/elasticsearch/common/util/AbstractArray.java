@@ -31,10 +31,9 @@ abstract class AbstractArray implements Releasable {
     }
 
     @Override
-    public boolean release() {
+    public void close() {
         assert !released : "double release";
         released = true;
-        return true; // nothing to release by default
     }
 
 }

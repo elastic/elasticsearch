@@ -170,7 +170,7 @@ public class NettyHttpChannel extends HttpChannel {
             }
         } finally {
             if (!addedReleaseListener && content instanceof Releasable) {
-                ((Releasable) content).release();
+                ((Releasable) content).close();
             }
         }
     }

@@ -271,7 +271,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                         shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
                     }
                 } finally {
-                    searcher.release();
+                    searcher.close();
                 }
             } catch (Exception e) {
                 throw new PercolatorException(shardId.index(), "failed to load queries from percolator index", e);

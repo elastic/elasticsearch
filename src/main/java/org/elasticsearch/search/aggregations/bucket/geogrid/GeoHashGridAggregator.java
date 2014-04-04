@@ -127,8 +127,8 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
 
     @Override
-    public void doRelease() {
-        Releasables.release(bucketOrds);
+    public void doClose() {
+        Releasables.close(bucketOrds);
     }
 
 }

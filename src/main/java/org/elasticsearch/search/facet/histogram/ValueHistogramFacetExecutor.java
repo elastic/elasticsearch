@@ -70,7 +70,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
                 entries1.add(value);
             }
         }
-        entries.release();
+        entries.close();
         return new InternalFullHistogramFacet(facetName, comparatorType, entries1);
     }
 

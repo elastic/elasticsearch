@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 /**
- * A snapshot index commit point. While this is held and {@link #release()}
+ * A snapshot index commit point. While this is held and {@link #close()}
  * was not called, no files will be deleted that relates to this commit point
  * ({@link #getFileNames()}).
  *
@@ -57,8 +57,8 @@ public class SnapshotIndexCommit extends IndexCommitDelegate implements Releasab
      * Releases the current snapshot, returning <code>true</code> if it was
      * actually released.
      */
-    public boolean release() {
-        return deletionPolicy.release(getGeneration());
+    public void close() {
+        deletionPolicy.close(getGeneration());
     }
 
     /**

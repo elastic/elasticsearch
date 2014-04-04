@@ -216,7 +216,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             StringEntry[] entries1 = map.v().values().toArray(StringEntry.class);
             Arrays.sort(entries1, comparatorType.comparator());
-            map.release();
+            map.close();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.v().values;
@@ -229,7 +229,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            map.release();
+            map.close();
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

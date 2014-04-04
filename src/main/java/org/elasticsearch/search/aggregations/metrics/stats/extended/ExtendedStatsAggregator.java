@@ -155,8 +155,8 @@ public class ExtendedStatsAggregator extends MetricsAggregator.MultiValue {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(counts, maxes, mins, sumOfSqrs, sums);
+    public void doClose() {
+        Releasables.close(counts, maxes, mins, sumOfSqrs, sums);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

@@ -88,7 +88,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         assertFalse(o.isRecycled());
         final byte[] b1 = o.v();
         assertFresh(b1);
-        o.release();
+        o.close();
         assertRecycled(b1);
         o = r.obtain();
         final byte[] b2 = o.v();
@@ -99,7 +99,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
             assertFresh(b2);
             assertNotSame(b1, b2);
         }
-        o.release();
+        o.close();
         r.close();
     }
 
@@ -108,19 +108,19 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         Recycler.V<byte[]> o = r.obtain();
         assertFresh(o.v());
         getRandom().nextBytes(o.v());
-        o.release();
+        o.close();
         o = r.obtain();
         assertRecycled(o.v());
-        o.release();
+        o.close();
         r.close();
     }
 
     public void testDoubleRelease() {
         final Recycler<byte[]> r = newRecycler(limit);
         final Recycler.V<byte[]> v1 = r.obtain();
-        v1.release();
+        v1.close();
         try {
-            v1.release();
+            v1.close();
         } catch (ElasticsearchIllegalStateException e) {
             // impl has protection against double release: ok
             return;
@@ -147,11 +147,11 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
         }
         // Recycler size increases on release, not on obtain!
         for (V<byte[]> v: vals) {
-            v.release();
+            v.close();
         }
 
         // release first ref, verify for destruction
-        o.release();
+        o.close();
         assertDead(data);
 
         // close the rest
@@ -168,7 +168,7 @@ public abstract class AbstractRecyclerTests extends ElasticsearchTestCase {
 
         // randomize & return to pool
         getRandom().nextBytes(data);
-        o.release();
+        o.close();
 
         // verify that recycle() ran
         assertRecycled(data);

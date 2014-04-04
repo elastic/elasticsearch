@@ -33,37 +33,31 @@ import java.io.IOException;
  */
 public class BytesStreamOutput extends StreamOutput implements BytesStream {
 
-    /**
-     * Factory/manager for our ByteArray
-     */
-    private final BigArrays bigarrays;
+    protected final BigArrays bigarrays;
+
+    protected ByteArray bytes;
+    protected int count;
 
     /**
-     * The internal list of pages.
-     */
-    private ByteArray bytes;
-
-    /**
-     * The number of valid bytes in the buffer.
-     */
-    private int count;
-
-    /**
-     * Create a nonrecycling {@link BytesStreamOutput} with 1 initial page acquired.
+     * Create a non recycling {@link BytesStreamOutput} with 1 initial page acquired.
      */
     public BytesStreamOutput() {
         this(BigArrays.PAGE_SIZE_IN_BYTES);
     }
 
     /**
-     * Create a nonrecycling {@link BytesStreamOutput} with enough initial pages acquired
-     * to satisfy the capacity given by {@link expectedSize}.
+     * Create a non recycling {@link BytesStreamOutput} with enough initial pages acquired
+     * to satisfy the capacity given by expected size.
      * 
      * @param expectedSize the expected maximum size of the stream in bytes.
      */
     public BytesStreamOutput(int expectedSize) {
-        bigarrays = BigArrays.NON_RECYCLING_INSTANCE;
-        bytes = bigarrays.newByteArray(expectedSize);
+        this(expectedSize, BigArrays.NON_RECYCLING_INSTANCE);
+    }
+
+    protected BytesStreamOutput(int expectedSize, BigArrays bigarrays) {
+        this.bigarrays = bigarrays;
+        this.bytes = bigarrays.newByteArray(expectedSize);
     }
 
     @Override

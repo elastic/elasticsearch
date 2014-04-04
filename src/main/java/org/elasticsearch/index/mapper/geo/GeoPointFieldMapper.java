@@ -525,7 +525,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 parsePointFromString(context, sparse, context.parser().text());
-            } else {
+            } else if (token != XContentParser.Token.VALUE_NULL) {
                 parse(context, GeoUtils.parseGeoPoint(context.parser(), sparse), null);
             }
         }

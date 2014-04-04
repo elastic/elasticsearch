@@ -29,10 +29,9 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.OrdinalMappingSource;
 import org.elasticsearch.index.fielddata.plain.AtomicFieldDataWithOrdinalsTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
-
-import static org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.OrdinalMappingSource;
 
 /**
  * {@link IndexFieldData} impl based on global ordinals.
@@ -160,11 +159,6 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         @Override
         public boolean isMultiValued() {
             return afd.isMultiValued();
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
-            return afd.isValuesOrdered();
         }
 
         @Override

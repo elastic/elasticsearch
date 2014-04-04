@@ -34,11 +34,6 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
     boolean isMultiValued();
 
     /**
-     * Are the values ordered? (in ascending manner).
-     */
-    boolean isValuesOrdered();
-
-    /**
      * The number of docs in this field data.
      */
     int getNumDocs();

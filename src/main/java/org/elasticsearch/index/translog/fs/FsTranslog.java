@@ -21,12 +21,14 @@ package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
@@ -62,6 +64,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     private final IndexSettingsService indexSettingsService;
+    private final BigArrays bigArrays;
 
     private final ReadWriteLock rwl = new ReentrantReadWriteLock();
     private final File[] locations;
@@ -79,9 +82,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
-    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, NodeEnvironment nodeEnv) {
+    public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, NodeEnvironment nodeEnv, BigArrays bigArrays) {
         super(shardId, indexSettings);
         this.indexSettingsService = indexSettingsService;
+        this.bigArrays = bigArrays;
         File[] shardLocations = nodeEnv.shardLocations(shardId);
         this.locations = new File[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {
@@ -101,6 +105,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         this.indexSettingsService = null;
         this.locations = new File[]{location};
         FileSystemUtils.mkdirs(location);
+        this.bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 
         this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
     }
@@ -335,8 +340,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     @Override
     public Location add(Operation operation) throws TranslogException {
         rwl.readLock().lock();
+        ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
+        boolean released = false;
         try {
-            BytesStreamOutput out = new BytesStreamOutput();
             out.writeInt(0); // marker for the size...
             TranslogStreams.writeTranslogOperation(out, operation);
             out.flush();
@@ -345,11 +351,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             int size = out.size();
             out.seek(0);
             out.writeInt(size - 4);
-            
+
             // seek back to end
             out.seek(size);
 
-            BytesReference bytes = out.bytes();
+            ReleasableBytesReference bytes = out.bytes();
             Location location = current.add(bytes);
             if (syncOnEachOperation) {
                 current.sync();
@@ -362,11 +368,16 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                     // ignore
                 }
             }
+            Releasables.release(bytes);
+            released = true;
             return location;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {
             rwl.readLock().unlock();
+            if (!released) {
+                Releasables.release(out.bytes());
+            }
         }
     }
 

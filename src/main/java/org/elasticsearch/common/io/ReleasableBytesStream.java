@@ -17,16 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.test.cache.recycler;
+package org.elasticsearch.common.io;
 
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 
-public class MockPageCacheRecyclerModule extends AbstractModule {
+/**
+ * A bytes stream that requires its bytes to be released once no longer used.
+ */
+public interface ReleasableBytesStream extends BytesStream {
 
-    @Override
-    protected void configure() {
-        bind(PageCacheRecycler.class).to(MockPageCacheRecycler.class).asEagerSingleton();
-    }
-
+    ReleasableBytesReference bytes();
 }

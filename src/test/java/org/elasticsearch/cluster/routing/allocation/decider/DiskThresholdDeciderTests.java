@@ -155,7 +155,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         // node2 now should not have new shards allocated to it, but shards can remain
         diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.6)
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "60%")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.7).build();
 
         deciders = new AllocationDeciders(ImmutableSettings.EMPTY,
@@ -430,7 +430,7 @@ public class DiskThresholdDeciderTests extends ElasticsearchAllocationTestCase {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.71).build();
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "71%").build();
 
         Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node1", new DiskUsage("node1", 100, 31)); // 69% used

@@ -37,7 +37,7 @@ curl -XPUT localhost:9200/test/_settings -d '{
 }'
 --------------------------------------------------
 
-`index.routing.allocation.require.*` can be used to 
+`index.routing.allocation.require.*` can be used to
 specify a number of rules, all of which MUST match in order for a shard
 to be allocated to a node. This is in contrast to `include` which will
 include a node if ANY rule matches.
@@ -117,14 +117,14 @@ Once enabled, Elasticsearch uses two watermarks to decide whether
 shards should be allocated or can remain on the node.
 
 `cluster.routing.allocation.disk.watermark.low` controls the low
-watermark for disk usage. It defaults to 0.70, meaning ES will not
+watermark for disk usage. It defaults to 70%, meaning ES will not
 allocate new shards to nodes once they have more than 70% disk
 used. It can also be set to an absolute byte value (like 500mb) to
 prevent ES from allocating shards if less than the configured amount
 of space is available.
 
 `cluster.routing.allocation.disk.watermark.high` controls the high
-watermark. It defaults to 0.85, meaning ES will attempt to relocate
+watermark. It defaults to 85%, meaning ES will attempt to relocate
 shards to another node if the node disk usage rises above 85%. It can
 also be set to an absolute byte value (similar to the low watermark)
 to relocate shards once less than the configured amount of space is

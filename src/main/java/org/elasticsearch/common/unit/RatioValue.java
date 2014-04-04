@@ -46,7 +46,7 @@ public class RatioValue {
     /**
      * Parses the provided string as a {@link RatioValue}, the string can
      * either be in percentage format (eg. 73.5%), or a floating-point ratio
-     * format (eg. 0.112)
+     * format (eg. 0.735)
      */
     public static RatioValue parseRatioValue(String sValue) {
         if (sValue.endsWith("%")) {

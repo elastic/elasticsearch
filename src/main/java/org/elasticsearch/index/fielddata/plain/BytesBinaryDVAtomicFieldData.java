@@ -23,7 +23,9 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues> {
 
@@ -39,11 +41,6 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
     @Override
     public boolean isMultiValued() {
         return true;
-    }
-
-    @Override
-    public boolean isValuesOrdered() {
-        return false;
     }
 
     @Override

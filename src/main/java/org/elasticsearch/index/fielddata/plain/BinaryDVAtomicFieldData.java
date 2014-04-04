@@ -48,11 +48,6 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true; // single-valued
-    }
-
-    @Override
     public int getNumDocs() {
         return reader.maxDoc();
     }

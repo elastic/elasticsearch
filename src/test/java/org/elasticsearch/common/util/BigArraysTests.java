@@ -20,7 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;

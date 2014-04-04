@@ -21,12 +21,17 @@ package org.elasticsearch.test.cache.recycler;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.*;
+import org.elasticsearch.test.ElasticsearchTestCase;
 
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -56,12 +61,31 @@ public class MockBigArrays extends BigArrays {
         ACQUIRED_ARRAYS.clear();
     }
 
-    public static void ensureAllArraysAreReleased() {
+    public static void ensureAllArraysAreReleased() throws Exception {
         if (DISCARD) {
             DISCARD = false;
-        } else if (ACQUIRED_ARRAYS.size() > 0) {
-            final Object cause = ACQUIRED_ARRAYS.entrySet().iterator().next().getValue();
-            throw new RuntimeException(ACQUIRED_ARRAYS.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+        } else {
+            final Map<Object, Object> masterCopy = Maps.newHashMap(ACQUIRED_ARRAYS);
+            if (masterCopy.isEmpty()) {
+                return;
+            }
+            // not empty, we might be executing on a shared cluster that keeps on obtaining
+            // and releasing arrays, lets make sure that after a reasonable timeout, all master
+            // copy (snapshot) have been released
+            boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    return Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty();
+                }
+            });
+            if (success) {
+                return;
+            }
+            masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
+            if (!masterCopy.isEmpty()) {
+                final Object cause = masterCopy.entrySet().iterator().next().getValue();
+                throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+            }
         }
     }
 

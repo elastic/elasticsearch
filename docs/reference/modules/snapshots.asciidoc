@@ -2,7 +2,8 @@
 == Snapshot And Restore
 
 The snapshot and restore module allows to create snapshots of individual indices or an entire cluster into a remote
-repository. At the time of the initial release only shared file system repository is supported.
+repository. At the time of the initial release only shared file system repository was supported, but now a range of
+backends are available via officially supported repository plugins.
 
 [float]
 === Repositories

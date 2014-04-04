@@ -77,7 +77,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         if (entries.v().isEmpty()) {
-            entries.release();
+            entries.close();
             return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsStringFacet.StringEntry>of(), missing);
         }
         if (size == 0) { // all terms
@@ -105,7 +105,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             ordered.add(value);
         }
 
-        entries.release();
+        entries.close();
         return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ordered, missing);
     }
 

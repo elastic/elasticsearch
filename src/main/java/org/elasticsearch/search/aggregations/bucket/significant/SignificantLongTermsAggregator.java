@@ -110,7 +110,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     @Override
     public void doRelease() {
-        Releasables.release(bucketOrds, termsAggFactory);
+        Releasables.close(bucketOrds, termsAggFactory);
     }
 
 }

@@ -24,14 +24,12 @@ import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -105,7 +103,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
 
     /**
      * Snapshots all the current commits in the index. Make sure to call
-     * {@link SnapshotIndexCommits#release()} to release it.
+     * {@link SnapshotIndexCommits#close()} to release it.
      */
     public SnapshotIndexCommits snapshots() throws IOException {
         synchronized (mutex) {
@@ -122,7 +120,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
 
     /**
      * Returns a snapshot of the index (for the last commit point). Make
-     * sure to call {@link SnapshotIndexCommit#release()} in order to release it.
+     * sure to call {@link SnapshotIndexCommit#close()} in order to release it.
      */
     public SnapshotIndexCommit snapshot() throws IOException {
         synchronized (mutex) {
@@ -164,7 +162,7 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
     /**
      * Releases the version provided. Returns <tt>true</tt> if the release was successful.
      */
-    boolean release(long version) {
+    boolean close(long version) {
         synchronized (mutex) {
             SnapshotDeletionPolicy.SnapshotHolder holder = snapshots.get(version);
             if (holder == null) {
@@ -193,12 +191,12 @@ public class SnapshotDeletionPolicy extends AbstractESDeletionPolicy {
         }
 
         @Override
-        public boolean release() {
+        public void close() {
             if (released) {
-                return false;
+                return;
             }
             released = true;
-            return ((SnapshotIndexCommit) delegate).release();
+            ((SnapshotIndexCommit) delegate).close();
         }
     }
 

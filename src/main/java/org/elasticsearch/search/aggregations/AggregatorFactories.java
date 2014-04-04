@@ -157,7 +157,7 @@ public class AggregatorFactories {
                         }
 
                     };
-                    Releasables.release(Iterables.concat(aggregatorsIter, Collections.singleton(aggregators)));
+                    Releasables.close(Iterables.concat(aggregatorsIter, Collections.singleton(aggregators)));
                 }
             };
         }

@@ -120,14 +120,13 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
+        public void close() throws ElasticsearchException {
             try {
                 searcher.getIndexReader().close();
                 rootDocMemoryIndex.reset();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to close IndexReader in percolator with nested doc", e);
             }
-            return true;
         }
 
     }

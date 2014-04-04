@@ -64,7 +64,7 @@ public class LongHashTests extends ElasticsearchTestCase {
                 assertEquals(idToValue[(int) id], longHash.key(i));
             }
         }
-        longHash.release();
+        longHash.close();
     }
 
 }

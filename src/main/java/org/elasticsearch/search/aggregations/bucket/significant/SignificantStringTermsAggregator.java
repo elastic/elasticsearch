@@ -116,7 +116,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     @Override
     public void doRelease() {
-        Releasables.release(bucketOrds, termsAggFactory);
+        Releasables.close(bucketOrds, termsAggFactory);
     }
 
     /**
@@ -143,7 +143,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             final long maxOrd = ordinals.getMaxOrd();
             if (ordinalToBucket == null || ordinalToBucket.size() < maxOrd) {
                 if (ordinalToBucket != null) {
-                    ordinalToBucket.release();
+                    ordinalToBucket.close();
                 }
                 ordinalToBucket = context().bigArrays().newLongArray(BigArrays.overSize(maxOrd), false);
             }
@@ -176,7 +176,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
         @Override
         public void doRelease() {
-            Releasables.release(bucketOrds, termsAggFactory, ordinalToBucket);
+            Releasables.close(bucketOrds, termsAggFactory, ordinalToBucket);
         }
 
     }

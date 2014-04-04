@@ -170,7 +170,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute suggest", ex);
         } finally {
-            searcher.release();
+            searcher.close();
             if (parser != null) {
                 parser.close();
             }

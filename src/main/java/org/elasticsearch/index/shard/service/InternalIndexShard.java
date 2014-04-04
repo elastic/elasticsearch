@@ -495,7 +495,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
         } finally {
-            searcher.release();
+            searcher.close();
         }
     }
 
@@ -585,7 +585,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
             }
         } finally {
-            currentSearcher.release();
+            currentSearcher.close();
         }
         return completionStats;
     }

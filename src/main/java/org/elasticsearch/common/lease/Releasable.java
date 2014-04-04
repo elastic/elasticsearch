@@ -22,9 +22,9 @@ package org.elasticsearch.common.lease;
 import org.elasticsearch.ElasticsearchException;
 
 /**
- *
+ * Specialization of {@link AutoCloseable} that may only throw an {@link ElasticsearchException}.
  */
-public interface Releasable {
+public interface Releasable extends AutoCloseable {
 
-    boolean release() throws ElasticsearchException;
+    void close() throws ElasticsearchException;
 }

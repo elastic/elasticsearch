@@ -151,7 +151,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 list[i] = (InternalStringTermsFacet.TermEntry) ordered.pop();
             }
 
-            Releasables.release(aggregators);
+            Releasables.close(aggregators);
 
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
@@ -189,7 +189,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             }
         }
 
-        Releasables.release(aggregators);
+        Releasables.close(aggregators);
 
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
@@ -210,7 +210,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
                 } else {
-                    Releasables.release(current);
+                    Releasables.close(current);
                 }
             }
             values = indexFieldData.load(context).getBytesValues(false);
@@ -238,7 +238,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 if (current.values.ordinals().getNumOrds() > 0) {
                     aggregators.add(current);
                 } else {
-                    Releasables.release(current);
+                    Releasables.close(current);
                 }
                 current = null;
             }
@@ -287,9 +287,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
 
         @Override
-        public boolean release() {
-            Releasables.release(counts);
-            return true;
+        public void close() {
+            Releasables.close(counts);
         }
 
     }

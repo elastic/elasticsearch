@@ -75,64 +75,64 @@ public abstract class AbstractSimpleTranslogTests {
     public void testTransientTranslog() {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.release();
+        snapshot.close();
 
         translog.newTransientTranslog(2);
 
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Index("test", "2", new byte[]{2}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(2));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
-        snapshot.release();
+        snapshot.close();
 
         translog.makeTransientCurrent();
 
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1)); // now its one, since it only includes "2"
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.release();
+        snapshot.close();
     }
 
     @Test
     public void testSimpleOperations() {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Index("test", "2", new byte[]{2}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(2));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Delete(newUid("3")));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(3));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(3));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.DeleteByQuery(new BytesArray(new byte[]{4}), null));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(4));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(4));
-        snapshot.release();
+        snapshot.close();
 
         snapshot = translog.snapshot();
 
@@ -154,7 +154,7 @@ public abstract class AbstractSimpleTranslogTests {
 
         assertThat(snapshot.hasNext(), equalTo(false));
 
-        snapshot.release();
+        snapshot.close();
 
         long firstId = translog.currentId();
         translog.newTranslog(2);
@@ -163,26 +163,26 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(0));
-        snapshot.release();
+        snapshot.close();
     }
 
     @Test
     public void testSnapshot() {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.release();
+        snapshot.close();
 
         snapshot = translog.snapshot();
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
         assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
-        snapshot.release();
+        snapshot.close();
 
         Translog.Snapshot snapshot1 = translog.snapshot();
         // we use the translogSize to also navigate to the last position on this snapshot
@@ -194,7 +194,7 @@ public abstract class AbstractSimpleTranslogTests {
         snapshot = translog.snapshot(snapshot1);
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
-        snapshot.release();
+        snapshot.close();
 
         snapshot = translog.snapshot(snapshot1);
         assertThat(snapshot.hasNext(), equalTo(true));
@@ -202,15 +202,15 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
         assertThat(snapshot.hasNext(), equalTo(false));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
-        snapshot.release();
-        snapshot1.release();
+        snapshot.close();
+        snapshot1.close();
     }
 
     @Test
     public void testSnapshotWithNewTranslog() {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         Translog.Snapshot actualSnapshot = translog.snapshot();
@@ -223,7 +223,7 @@ public abstract class AbstractSimpleTranslogTests {
 
         snapshot = translog.snapshot(actualSnapshot);
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        snapshot.release();
+        snapshot.close();
 
         snapshot = translog.snapshot(actualSnapshot);
         assertThat(snapshot.hasNext(), equalTo(true));
@@ -231,34 +231,34 @@ public abstract class AbstractSimpleTranslogTests {
         assertThat(index.source().toBytes(), equalTo(new byte[]{3}));
         assertThat(snapshot.hasNext(), equalTo(false));
 
-        actualSnapshot.release();
-        snapshot.release();
+        actualSnapshot.close();
+        snapshot.close();
     }
 
     @Test
     public void testSnapshotWithSeekForward() {
         Translog.Snapshot snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         snapshot = translog.snapshot();
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
         long lastPosition = snapshot.position();
-        snapshot.release();
+        snapshot.close();
 
         translog.add(new Translog.Create("test", "2", new byte[]{1}));
         snapshot = translog.snapshot();
         snapshot.seekForward(lastPosition);
         MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        snapshot.release();
+        snapshot.close();
 
         snapshot = translog.snapshot();
         snapshot.seekForward(lastPosition);
         assertThat(snapshot.hasNext(), equalTo(true));
         Translog.Create create = (Translog.Create) snapshot.next();
         assertThat(create.id(), equalTo("2"));
-        snapshot.release();
+        snapshot.close();
     }
 
     private Term newUid(String id) {

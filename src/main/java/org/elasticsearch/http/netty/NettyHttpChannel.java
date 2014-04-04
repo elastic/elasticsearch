@@ -163,7 +163,7 @@ public class NettyHttpChannel implements HttpChannel {
             }
         } finally {
             if (!addedReleaseListener && content instanceof Releasable) {
-                ((Releasable) content).release();
+                ((Releasable) content).close();
             }
         }
     }

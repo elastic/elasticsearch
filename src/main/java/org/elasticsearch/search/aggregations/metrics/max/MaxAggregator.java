@@ -116,6 +116,6 @@ public class MaxAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public void doRelease() {
-        Releasables.release(maxes);
+        Releasables.close(maxes);
     }
 }

@@ -344,7 +344,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 reducedBuckets.add(bucket);
             }
         }
-        bucketsByKey.release();
+        bucketsByKey.close();
 
         // adding empty buckets in needed
         if (minDocCount == 0) {

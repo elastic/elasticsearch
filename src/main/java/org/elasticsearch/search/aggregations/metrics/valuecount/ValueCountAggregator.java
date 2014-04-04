@@ -93,7 +93,7 @@ public class ValueCountAggregator extends MetricsAggregator.SingleValue {
 
     @Override
     public void doRelease() {
-        Releasables.release(counts);
+        Releasables.close(counts);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Bytes> {

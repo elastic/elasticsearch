@@ -36,7 +36,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
 
     private void newHash() {
         if (hash != null) {
-            hash.release();
+            hash.close();
         }
         // Test high load factors to make sure that collision resolution works fine
         final float maxLoadFactor = 0.6f + randomFloat() * 0.39f;
@@ -83,7 +83,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
                 assertEquals(idToValue[(int) id], spare);
             }
         }
-        hash.release();
+        hash.close();
     }
 
     // START - tests borrowed from LUCENE
@@ -114,7 +114,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
                 }
             }
         }
-        hash.release();
+        hash.close();
     }
 
     /**
@@ -154,7 +154,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             }
             newHash();
         }
-        hash.release();
+        hash.close();
     }
 
     /**
@@ -195,7 +195,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             assertAllIn(strings, hash);
             newHash();
         }
-        hash.release();
+        hash.close();
     }
 
     @Test
@@ -231,7 +231,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             assertAllIn(strings, hash);
             newHash();
         }
-        hash.release();
+        hash.close();
     }
 
     private void assertAllIn(Set<String> strings, BytesRefHash hash) {

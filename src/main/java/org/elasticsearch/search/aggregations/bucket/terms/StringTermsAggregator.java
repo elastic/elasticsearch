@@ -250,7 +250,7 @@ public class StringTermsAggregator extends BucketsAggregator {
 
     @Override
     public void doRelease() {
-        Releasables.release(bucketOrds);
+        Releasables.close(bucketOrds);
     }
 
     /**
@@ -276,7 +276,7 @@ public class StringTermsAggregator extends BucketsAggregator {
             final long maxOrd = ordinals.getMaxOrd();
             if (ordinalToBucket == null || ordinalToBucket.size() < maxOrd) {
                 if (ordinalToBucket != null) {
-                    ordinalToBucket.release();
+                    ordinalToBucket.close();
                 }
                 ordinalToBucket = context().bigArrays().newLongArray(BigArrays.overSize(maxOrd), false);
             }
@@ -308,7 +308,7 @@ public class StringTermsAggregator extends BucketsAggregator {
 
         @Override
         public void doRelease() {
-            Releasables.release(bucketOrds, ordinalToBucket);
+            Releasables.close(bucketOrds, ordinalToBucket);
         }
     }
 

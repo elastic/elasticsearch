@@ -60,7 +60,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
         return new V<T>() {
 
             @Override
-            public boolean release() throws ElasticsearchException {
+            public void close() throws ElasticsearchException {
                 final Throwable t = ACQUIRED_PAGES.remove(v);
                 if (t == null) {
                     throw new IllegalStateException("Releasing a page that has not been acquired");
@@ -73,7 +73,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                         Array.set(ref, i, (byte) random.nextInt(256));
                     }
                 }
-                return v.release();
+                v.close();
             }
 
             @Override

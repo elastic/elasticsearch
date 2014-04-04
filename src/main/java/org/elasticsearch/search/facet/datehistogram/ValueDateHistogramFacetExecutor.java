@@ -73,7 +73,7 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
             }
         }
 
-        entries.release();
+        entries.close();
         return new InternalFullDateHistogramFacet(facetName, comparatorType, entries1);
     }
 

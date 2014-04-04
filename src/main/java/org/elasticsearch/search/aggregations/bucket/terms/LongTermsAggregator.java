@@ -140,7 +140,7 @@ public class LongTermsAggregator extends BucketsAggregator {
 
     @Override
     public void doRelease() {
-        Releasables.release(bucketOrds);
+        Releasables.close(bucketOrds);
     }
 
 }

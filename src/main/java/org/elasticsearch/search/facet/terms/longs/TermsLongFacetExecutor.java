@@ -100,7 +100,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         if (facets.v().isEmpty()) {
-            facets.release();
+            facets.close();
             return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), missing, total);
         } else {
             LongIntOpenHashMap facetEntries  = facets.v();
@@ -118,7 +118,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = (InternalLongTermsFacet.LongEntry) ordered.pop();
                 }
-                facets.release();
+                facets.close();
                 return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
@@ -127,7 +127,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                         ordered.add(new InternalLongTermsFacet.LongEntry(keys[i], values[i]));
                     }
                 }
-                facets.release();
+                facets.close();
                 return new InternalLongTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }

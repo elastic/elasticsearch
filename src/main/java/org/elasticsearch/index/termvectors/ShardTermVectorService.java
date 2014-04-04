@@ -77,7 +77,7 @@ public class ShardTermVectorService extends AbstractIndexShardComponent {
         } catch (Throwable ex) {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         } finally {
-            searcher.release();
+            searcher.close();
         }
         return termVectorResponse;
     }

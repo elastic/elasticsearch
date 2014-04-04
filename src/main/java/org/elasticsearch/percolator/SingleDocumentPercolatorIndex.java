@@ -90,14 +90,13 @@ class SingleDocumentPercolatorIndex implements PercolatorIndex {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
+        public void close() throws ElasticsearchException {
             try {
                 searcher.getIndexReader().close();
                 memoryIndex.reset();
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to close percolator in-memory index", e);
             }
-            return true;
         }
     }
 }

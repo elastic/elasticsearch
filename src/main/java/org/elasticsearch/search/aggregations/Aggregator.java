@@ -174,15 +174,10 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
 
     /** Called upon release of the aggregator. */
     @Override
-    public boolean release() {
-        boolean success = false;
-        try {
+    public void close() {
+        try (Releasable releasable = Releasables.wrap(subAggregators)) {
             doRelease();
-            success = true;
-        } finally {
-            Releasables.release(success, subAggregators);
         }
-        return true;
     }
 
     /** Release instance-specific data. */

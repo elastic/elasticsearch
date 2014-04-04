@@ -93,7 +93,7 @@ public class PercentilesAggregator extends MetricsAggregator.MultiValue {
 
     @Override
     protected void doRelease() {
-        estimator.release();
+        estimator.close();
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

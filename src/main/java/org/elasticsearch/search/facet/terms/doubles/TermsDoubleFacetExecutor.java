@@ -101,7 +101,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         if (facets.v().isEmpty()) {
-            facets.release();
+            facets.close();
             return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), missing, total);
         } else {
             final boolean[] states = facets.v().allocated;
@@ -118,7 +118,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = (InternalDoubleTermsFacet.DoubleEntry) ordered.pop();
                 }
-                facets.release();
+                facets.close();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<>(comparatorType.comparator(), shardSize);
@@ -127,7 +127,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                         ordered.add(new InternalDoubleTermsFacet.DoubleEntry(keys[i], values[i]));
                     }
                 }
-                facets.release();
+                facets.close();
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }

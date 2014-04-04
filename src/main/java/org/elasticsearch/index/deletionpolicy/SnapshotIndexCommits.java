@@ -20,6 +20,7 @@
 package org.elasticsearch.index.deletionpolicy;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 
 import java.util.Iterator;
 import java.util.List;
@@ -47,11 +48,7 @@ public class SnapshotIndexCommits implements Iterable<SnapshotIndexCommit>, Rele
         return commits.iterator();
     }
 
-    public boolean release() {
-        boolean result = false;
-        for (SnapshotIndexCommit snapshot : commits) {
-            result |= snapshot.release();
-        }
-        return result;
+    public void close() {
+        Releasables.close(commits);
     }
 }

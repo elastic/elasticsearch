@@ -207,7 +207,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     try {
                         transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
-                    } catch(NumberFormatException e) {
+                    } catch (NumberFormatException e) {
                         throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
                     }
                 }
@@ -319,7 +319,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static TestCluster cluster() {
-        if (!(currentCluster instanceof  TestCluster)) {
+        if (!(currentCluster instanceof TestCluster)) {
             throw new UnsupportedOperationException("current test cluster is immutable");
         }
         return (TestCluster) currentCluster;
@@ -558,7 +558,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         Predicate<Object> testDocs = new Predicate<Object>() {
             public boolean apply(Object o) {
                 lastKnownCount[0] = indexer.totalIndexedDocs();
-                if (lastKnownCount[0] > numDocs) {
+                if (lastKnownCount[0] >= numDocs) {
                     long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
                     if (count == lastKnownCount[0]) {
                         // no progress - try to refresh for the next time
@@ -569,7 +569,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 } else {
                     logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount[0], numDocs);
                 }
-                return lastKnownCount[0] > numDocs;
+                return lastKnownCount[0] >= numDocs;
             }
         };
 
@@ -1088,7 +1088,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @Before
     public final void before() throws IOException {
         if (runTestScopeLifecycle()) {
-          beforeInternal();
+            beforeInternal();
         }
     }
 
@@ -1139,7 +1139,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      *
      * @see SuiteScopeTest
      */
-    protected void setupSuiteScopeCluster() throws Exception {}
+    protected void setupSuiteScopeCluster() throws Exception {
+    }
 
     private static boolean isSuiteScope(Class<?> clazz) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {

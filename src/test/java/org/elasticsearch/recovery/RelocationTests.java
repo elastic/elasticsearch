@@ -21,6 +21,7 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -128,8 +129,8 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client())) {
-            final int numDocs = scaledRandomIntBetween(200, 2500);
+        final int numDocs = scaledRandomIntBetween(200, 2500);
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client(), scaledRandomIntBetween(2, 5), true, numDocs * 2)) {
             logger.info("--> waiting for {} docs to be indexed ...", numDocs);
             waitForDocs(numDocs, indexer);
             logger.info("--> {} docs indexed", numDocs);

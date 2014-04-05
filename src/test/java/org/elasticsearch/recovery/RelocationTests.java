@@ -21,7 +21,6 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -129,8 +128,8 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        final int numDocs = scaledRandomIntBetween(200, 2500);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client(), scaledRandomIntBetween(2, 5), true, numDocs * 2)) {
+        int numDocs = scaledRandomIntBetween(200, 2500);
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type1", client(), numDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", numDocs);
             waitForDocs(numDocs, indexer);
             logger.info("--> {} docs indexed", numDocs);
@@ -142,6 +141,9 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                 int toNode = fromNode == 0 ? 1 : 0;
                 fromNode += nodeShiftBased;
                 toNode += nodeShiftBased;
+                numDocs = scaledRandomIntBetween(200, 1000);
+                logger.debug("--> Allow indexer to index [{}] documents", numDocs);
+                indexer.continueIndexing(numDocs);
                 logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
                 client().admin().cluster().prepareReroute()
                         .add(new MoveAllocationCommand(new ShardId("test", 0), nodes[fromNode], nodes[toNode]))
@@ -154,6 +156,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+                indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
             }
             logger.info("--> done relocations");

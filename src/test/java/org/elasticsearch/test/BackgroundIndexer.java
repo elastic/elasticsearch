@@ -30,6 +30,7 @@ import org.junit.Assert;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -48,21 +49,64 @@ public class BackgroundIndexer implements AutoCloseable {
     final AtomicLong idGenerator = new AtomicLong();
     final AtomicLong indexCounter = new AtomicLong();
     final CountDownLatch startLatch = new CountDownLatch(1);
+    final AtomicBoolean hasBudget = new AtomicBoolean(false); // when set to true, writers will acquire writes from a semaphore
+    final Semaphore availableBudget = new Semaphore(0);
 
+    /**
+     * Start indexing in the background using a random number of threads.
+     *
+     * @param index  index name to index into
+     * @param type   document type
+     * @param client client to use
+     */
     public BackgroundIndexer(String index, String type, Client client) {
-        this(index, type, client, RandomizedTest.scaledRandomIntBetween(2, 5));
+        this(index, type, client, -1);
     }
 
-    public BackgroundIndexer(String index, String type, Client client, int writerCount) {
-        this(index, type, client, writerCount, true, Integer.MAX_VALUE);
+    /**
+     * Start indexing in the background using a random number of threads. Indexing will be paused after numOfDocs docs has
+     * been indexed.
+     *
+     * @param index     index name to index into
+     * @param type      document type
+     * @param client    client to use
+     * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
+     */
+    public BackgroundIndexer(String index, String type, Client client, int numOfDocs) {
+        this(index, type, client, numOfDocs, RandomizedTest.scaledRandomIntBetween(2, 5));
     }
 
-    public BackgroundIndexer(final String index, final String type, final Client client, final int writerCount, boolean autoStart, final int maxNumDocs) {
+    /**
+     * Start indexing in the background using a given number of threads. Indexing will be paused after numOfDocs docs has
+     * been indexed.
+     *
+     * @param index       index name to index into
+     * @param type        document type
+     * @param client      client to use
+     * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
+     * @param writerCount number of indexing threads to use
+     */
+    public BackgroundIndexer(String index, String type, Client client, int numOfDocs, final int writerCount) {
+        this(index, type, client, numOfDocs, writerCount, true);
+    }
+
+    /**
+     * Start indexing in the background using a given number of threads. Indexing will be paused after numOfDocs docs has
+     * been indexed.
+     *
+     * @param index       index name to index into
+     * @param type        document type
+     * @param client      client to use
+     * @param numOfDocs   number of document to index before pausing. Set to -1 to have no limit.
+     * @param writerCount number of indexing threads to use
+     * @param autoStart   set to true to start indexing as soon as all threads have been created.
+     */
+    public BackgroundIndexer(final String index, final String type, final Client client, final int numOfDocs, final int writerCount, boolean autoStart) {
 
         failures = new CopyOnWriteArrayList<>();
         writers = new Thread[writerCount];
         stopLatch = new CountDownLatch(writers.length);
-        logger.info("--> starting {} indexing threads", writerCount);
+        logger.info("--> creating {} indexing threads (auto start: [{}], numOfDocs: [{}])", writerCount, autoStart, numOfDocs);
         for (int i = 0; i < writers.length; i++) {
             final int indexerId = i;
             final boolean batch = RandomizedTest.getRandom().nextBoolean();
@@ -73,9 +117,17 @@ public class BackgroundIndexer implements AutoCloseable {
                     try {
                         startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get() && indexCounter.get() < maxNumDocs) {  // step out once we reach the hard limit
+                        while (!stop.get()) {
                             if (batch) {
                                 int batchSize = RandomizedTest.getRandom().nextInt(20) + 1;
+                                if (hasBudget.get()) {
+                                    batchSize = Math.max(Math.min(batchSize, availableBudget.availablePermits()), 1);// always try to get at least one
+                                    if (!availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS)) {
+                                        // time out -> check if we have to stop.
+                                        continue;
+                                    }
+
+                                }
                                 BulkRequestBuilder bulkRequest = client.prepareBulk();
                                 for (int i = 0; i < batchSize; i++) {
                                     id = idGenerator.incrementAndGet();
@@ -92,12 +144,17 @@ public class BackgroundIndexer implements AutoCloseable {
                                 }
 
                             } else {
+
+                                if (hasBudget.get() && !availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS)) {
+                                    // time out -> check if we have to stop.
+                                    continue;
+                                }
                                 id = idGenerator.incrementAndGet();
                                 client.prepareIndex(index, type, Long.toString(id) + "-" + indexerId).setSource("test", "value" + id).get();
                                 indexCounter.incrementAndGet();
                             }
                         }
-                        logger.info("**** done indexing thread {}  stop: {} numDocsIndexed: {} maxNumDocs: {}", indexerId, stop.get(), indexCounter.get(), maxNumDocs);
+                        logger.info("**** done indexing thread {}  stop: {} numDocsIndexed: {}", indexerId, stop.get(), indexCounter.get());
                     } catch (Throwable e) {
                         failures.add(e);
                         logger.warn("**** failed indexing thread {} on doc id {}", e, indexerId, id);
@@ -110,20 +167,63 @@ public class BackgroundIndexer implements AutoCloseable {
         }
 
         if (autoStart) {
-            startLatch.countDown();
+            start(numOfDocs);
         }
     }
 
+    private void setBudget(int numOfDocs) {
+        logger.debug("updating budget to [{}]", numOfDocs);
+        if (numOfDocs >= 0) {
+            hasBudget.set(true);
+            availableBudget.release(numOfDocs);
+        } else {
+            hasBudget.set(false);
+        }
+
+    }
+
+    /** Start indexing with no limit to the number of documents */
     public void start() {
+        start(-1);
+    }
+
+    /**
+     * Start indexing
+     *
+     * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
+     */
+    public void start(int numOfDocs) {
+        assert !stop.get() : "background indexer can not be started after it has stopped";
+        setBudget(numOfDocs);
         startLatch.countDown();
     }
 
+    /** Pausing indexing by setting current document limit to 0 */
+    public void pauseIndexing() {
+        availableBudget.drainPermits();
+        setBudget(0);
+    }
+
+    /** Continue indexing after it has paused. No new document limit will be set */
+    public void continueIndexing() {
+        continueIndexing(-1);
+    }
+
+    /**
+     * Continue indexing after it has paused.
+     *
+     * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
+     */
+    public void continueIndexing(int numOfDocs) {
+        setBudget(numOfDocs);
+    }
+
+    /** Stop all background threads **/
     public void stop() throws InterruptedException {
         if (stop.get()) {
             return;
         }
         stop.set(true);
-
         Assert.assertThat("timeout while waiting for indexing threads to stop", stopLatch.await(6, TimeUnit.MINUTES), equalTo(true));
         assertNoFailures();
     }

@@ -54,10 +54,10 @@ public class BackgroundIndexer implements AutoCloseable {
     }
 
     public BackgroundIndexer(String index, String type, Client client, int writerCount) {
-        this(index, type, client, writerCount, true);
+        this(index, type, client, writerCount, true, Integer.MAX_VALUE);
     }
 
-    public BackgroundIndexer(final String index, final String type, final Client client, final int writerCount, boolean autoStart) {
+    public BackgroundIndexer(final String index, final String type, final Client client, final int writerCount, boolean autoStart, final int maxNumDocs) {
 
         failures = new CopyOnWriteArrayList<>();
         writers = new Thread[writerCount];
@@ -73,7 +73,7 @@ public class BackgroundIndexer implements AutoCloseable {
                     try {
                         startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get()) {
+                        while (!stop.get() && indexCounter.get() < maxNumDocs) {  // step out once we reach the hard limit
                             if (batch) {
                                 int batchSize = RandomizedTest.getRandom().nextInt(20) + 1;
                                 BulkRequestBuilder bulkRequest = client.prepareBulk();
@@ -97,7 +97,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 indexCounter.incrementAndGet();
                             }
                         }
-                        logger.info("**** done indexing thread {}", indexerId);
+                        logger.info("**** done indexing thread {}  stop: {} numDocsIndexed: {} maxNumDocs: {}", indexerId, stop.get(), indexCounter.get(), maxNumDocs);
                     } catch (Throwable e) {
                         failures.add(e);
                         logger.warn("**** failed indexing thread {} on doc id {}", e, indexerId, id);

@@ -23,10 +23,10 @@ import org.elasticsearch.common.lease.Releasables;
 
 /**
  * Specialized hash table implementation similar to BytesRefHash that maps
- *  long values to ids. Collisions are resolved with open addressing and linear
- *  probing, growth is smooth thanks to {@link BigArrays} and capacity is always
- *  a multiple of 2 for faster identification of buckets.
- *  This class is not thread-safe.
+ * long values to ids. Collisions are resolved with open addressing and linear
+ * probing, growth is smooth thanks to {@link BigArrays} and capacity is always
+ * a multiple of 2 for faster identification of buckets.
+ * This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class LongHash extends AbstractHash {
@@ -41,14 +41,14 @@ public final class LongHash extends AbstractHash {
     //Constructor with configurable capacity and load factor.
     public LongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        keys = bigArrays.newLongArray(capacity(), false);
+        keys = bigArrays.newLongArray(capacity, false);
     }
 
     /**
      * Return the key at <code>0 &lte; index &lte; capacity()</code>. The result is undefined if the slot is unused.
      */
-    public long key(long index) {
-        return keys.get(index);
+    public long get(long id) {
+        return keys.get(id);
     }
 
     /**
@@ -58,7 +58,7 @@ public final class LongHash extends AbstractHash {
         final long slot = slot(hash(key), mask);
         for (long index = slot; ; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1 || keys.get(index) == key) {
+            if (id == -1 || keys.get(id) == key) {
                 return id;
             }
         }
@@ -71,13 +71,18 @@ public final class LongHash extends AbstractHash {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);
-                keys.set(index, key);
+                append(id, key);
                 ++size;
                 return id;
-            } else if (keys.get(index) == key) {
+            } else if (keys.get(curId) == key) {
                 return -1 - curId;
             }
         }
+    }
+
+    private void append(long id, long key) {
+        keys = bigArrays.grow(keys, id + 1);
+        keys.set(id, key);
     }
 
     private void reset(long key, long id) {
@@ -86,10 +91,8 @@ public final class LongHash extends AbstractHash {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);
-                keys.set(index, key);
+                append(id, key);
                 break;
-            } else {
-                assert keys.get(index) != key;
             }
         }
     }
@@ -108,16 +111,10 @@ public final class LongHash extends AbstractHash {
     }
 
     @Override
-    protected void resize(long capacity) {
-        super.resize(capacity);
-        keys = bigArrays.resize(keys, capacity);
-    }
-
-    @Override
     protected void removeAndAdd(long index) {
         final long id = id(index, -1);
         assert id >= 0;
-        final long key = keys.set(index, 0);
+        final long key = keys.set(id, 0);
         reset(key, id);
     }
 

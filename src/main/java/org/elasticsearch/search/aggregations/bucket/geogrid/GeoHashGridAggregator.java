@@ -35,7 +35,7 @@ import java.util.Collections;
 
 /**
  * Aggregates data expressed as GeoHash longs (for efficiency's sake) but formats results as Geohash strings.
- * 
+ *
  */
 
 public class GeoHashGridAggregator extends BucketsAggregator {
@@ -100,19 +100,14 @@ public class GeoHashGridAggregator extends BucketsAggregator {
 
         InternalGeoHashGrid.BucketPriorityQueue ordered = new InternalGeoHashGrid.BucketPriorityQueue(size);
         OrdinalBucket spare = null;
-        for (long i = 0; i < bucketOrds.capacity(); ++i) {
-            final long ord = bucketOrds.id(i);
-            if (ord < 0) {
-                // slot is not allocated
-                continue;
-            }
-
+        for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new OrdinalBucket();
             }
-            spare.geohashAsLong = bucketOrds.key(i);
-            spare.docCount = bucketDocCount(ord);
-            spare.bucketOrd = ord;
+
+            spare.geohashAsLong = bucketOrds.get(i);
+            spare.docCount = bucketDocCount(i);
+            spare.bucketOrd = i;
             spare = (OrdinalBucket) ordered.insertWithOverflow(spare);
         }
 
@@ -129,8 +124,8 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     public InternalGeoHashGrid buildEmptyAggregation() {
         return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
     }
-    
-    
+
+
     @Override
     public void doRelease() {
         Releasables.release(bucketOrds);

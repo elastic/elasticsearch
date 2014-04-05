@@ -58,22 +58,28 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 20000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
-            int waitFor = totalNumDocs / 10;
+        int waitFor = totalNumDocs / 10;
+        int extraDocs = waitFor;
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
 
+            extraDocs = totalNumDocs / 10;
+            waitFor += extraDocs;
+            indexer.continueIndexing(extraDocs);
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
             client().admin().indices().prepareFlush().execute().actionGet();
 
-            waitFor += totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
+
+            extraDocs = totalNumDocs - waitFor;
+            indexer.continueIndexing(extraDocs);
 
             logger.info("--> allow 2 nodes for index [test] ...");
             // now start another node, while we index
@@ -108,22 +114,28 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 20000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
-            int waitFor = totalNumDocs / 10;
+        int waitFor = totalNumDocs / 10;
+        int extraDocs = waitFor;
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
 
+            extraDocs = totalNumDocs / 10;
+            waitFor += extraDocs;
+            indexer.continueIndexing(extraDocs);
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
             client().admin().indices().prepareFlush().execute().actionGet();
 
-            waitFor += totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
+
+            extraDocs = totalNumDocs - waitFor;
+            indexer.continueIndexing(extraDocs);
             logger.info("--> allow 4 nodes for index [test] ...");
             allowNodes("test", 4);
 
@@ -156,24 +168,29 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
         final int totalNumDocs = scaledRandomIntBetween(200, 20000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
-            int waitFor = totalNumDocs / 10;
+        int waitFor = totalNumDocs / 10;
+        int extraDocs = waitFor;
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
 
+            extraDocs = totalNumDocs / 10;
+            waitFor += extraDocs;
+            indexer.continueIndexing(extraDocs);
             logger.info("--> flushing the index ....");
             // now flush, just to make sure we have some data in the index, not just translog
             client().admin().indices().prepareFlush().execute().actionGet();
 
-            waitFor += totalNumDocs / 10;
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
             logger.info("--> {} docs indexed", waitFor);
 
             // now start more nodes, while we index
+            extraDocs = totalNumDocs - waitFor;
+            indexer.continueIndexing(extraDocs);
             logger.info("--> allow 4 nodes for index [test] ...");
             allowNodes("test", 4);
 
@@ -227,7 +244,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
         final int numDocs = scaledRandomIntBetween(200, 50000);
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client())) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), numDocs)) {
 
             for (int i = 0; i < numDocs; i += scaledRandomIntBetween(100, Math.min(1000, numDocs))) {
                 indexer.assertNoFailures();

@@ -558,7 +558,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         Predicate<Object> testDocs = new Predicate<Object>() {
             public boolean apply(Object o) {
                 lastKnownCount[0] = indexer.totalIndexedDocs();
-                if (lastKnownCount[0] > numDocs) {
+                if (lastKnownCount[0] >= numDocs) {
                     long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
                     if (count == lastKnownCount[0]) {
                         // no progress - try to refresh for the next time
@@ -569,7 +569,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 } else {
                     logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount[0], numDocs);
                 }
-                return lastKnownCount[0] > numDocs;
+                return lastKnownCount[0] >= numDocs;
             }
         };
 

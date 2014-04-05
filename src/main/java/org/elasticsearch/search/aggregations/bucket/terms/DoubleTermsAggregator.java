@@ -110,19 +110,13 @@ public class DoubleTermsAggregator extends BucketsAggregator {
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         DoubleTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.capacity(); ++i) {
-            final long ord = bucketOrds.id(i);
-            if (ord < 0) {
-                // slot is not allocated
-                continue;
-            }
-
+        for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new DoubleTerms.Bucket(0, 0, null);
             }
-            spare.term = Double.longBitsToDouble(bucketOrds.key(i));
-            spare.docCount = bucketDocCount(ord);
-            spare.bucketOrd = ord;
+            spare.term = Double.longBitsToDouble(bucketOrds.get(i));
+            spare.docCount = bucketDocCount(i);
+            spare.bucketOrd = i;
             spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 

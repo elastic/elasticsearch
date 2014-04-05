@@ -66,18 +66,12 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantLongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.capacity(); i++) {
-            final long ord = bucketOrds.id(i);
-            if (ord < 0) {
-                // slot is not allocated
-                continue;
-            }
-
+        for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null);
             }
-            spare.term = bucketOrds.key(i);
-            spare.subsetDf = bucketDocCount(ord);
+            spare.term = bucketOrds.get(i);
+            spare.subsetDf = bucketDocCount(i);
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
             spare.supersetSize = supersetSize;
@@ -86,7 +80,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             // Back at the central reducer these properties will be updated with global stats
             spare.updateScore();
 
-            spare.bucketOrd = ord;
+            spare.bucketOrd = i;
             spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 

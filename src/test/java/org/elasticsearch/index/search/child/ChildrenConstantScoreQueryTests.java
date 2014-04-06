@@ -346,8 +346,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
         final Index index = new Index(indexName);
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
-        final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, new ThreadPool());
-        final BigArrays bigArrays = new MockBigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
+        ThreadPool threadPool = new ThreadPool();
+        final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
+        final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new DummyCircuitBreakerService());
@@ -358,7 +359,6 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
                 childType, new CompressedString(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true
         );
 
-        ThreadPool threadPool = new ThreadPool();
         NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
         IndicesFilterCache indicesFilterCache = new IndicesFilterCache(settings, threadPool, cacheRecycler, nodeSettingsService);
         WeightedFilterCache filterCache = new WeightedFilterCache(index, settings, indicesFilterCache);

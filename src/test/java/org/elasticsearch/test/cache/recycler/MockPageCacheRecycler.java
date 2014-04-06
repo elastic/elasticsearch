@@ -40,10 +40,6 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     private static final ConcurrentMap<Object, Throwable> ACQUIRED_PAGES = Maps.newConcurrentMap();
 
-    public static void reset() {
-        ACQUIRED_PAGES.clear();
-    }
-
     public static void ensureAllPagesAreReleased() throws Exception {
         final Map<Object, Throwable> masterCopy = Maps.newHashMap(ACQUIRED_PAGES);
         if (masterCopy.isEmpty()) {
@@ -62,6 +58,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
             return;
         }
         masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
+        ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
         if (!masterCopy.isEmpty()) {
             final Throwable t = masterCopy.entrySet().iterator().next().getValue();
             throw new RuntimeException(masterCopy.size() + " pages have not been released", t);

@@ -131,27 +131,28 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         index("test1", "type", "1", "f", "f");
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
-        assertThat(response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
+        String msg = response.toString();
+        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
 
-        assertThat(response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
-        assertThat(response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
+        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
         if (sigarService.sigarAvailable()) {
             // We only get those if we have sigar
-            assertThat(response.nodesStats.getOs().getAvailableProcessors(), Matchers.greaterThan(0));
-            assertThat(response.nodesStats.getOs().getAvailableMemory().bytes(), Matchers.greaterThan(0l));
-            assertThat(response.nodesStats.getOs().getCpus().size(), Matchers.greaterThan(0));
+            assertThat(msg, response.nodesStats.getOs().getAvailableProcessors(), Matchers.greaterThan(0));
+            assertThat(msg, response.nodesStats.getOs().getAvailableMemory().bytes(), Matchers.greaterThan(0l));
+            assertThat(msg, response.nodesStats.getOs().getCpus().size(), Matchers.greaterThan(0));
         }
-        assertThat(response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
-        assertThat(response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
-        assertThat(response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
+        assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
+        assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
 
-        assertThat(response.nodesStats.getProcess().count, Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getProcess().count, Matchers.greaterThan(0));
         // 0 happens when not supported on platform
-        assertThat(response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
         // these can be -1 if not supported on platform
-        assertThat(response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
-        assertThat(response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
     }
 }

@@ -36,10 +36,12 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.rest.AbstractRestResponseActionListener;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.support.RestActionListener;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -50,7 +52,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 
-    private final static String[] SUPPORTED_NAMES = new String[] {
+    private final static String[] SUPPORTED_NAMES = new String[]{
             ThreadPool.Names.BULK,
             ThreadPool.Names.FLUSH,
             ThreadPool.Names.GENERIC,
@@ -67,7 +69,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.WARMER
     };
 
-    private final static String[] SUPPORTED_ALIASES = new String[] {
+    private final static String[] SUPPORTED_ALIASES = new String[]{
             "b",
             "f",
             "ge",
@@ -84,7 +86,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "w"
     };
 
-    private final static String[] DEFAULT_THREAD_POOLS = new String[] {
+    private final static String[] DEFAULT_THREAD_POOLS = new String[]{
             ThreadPool.Names.BULK,
             ThreadPool.Names.INDEX,
             ThreadPool.Names.SEARCH,
@@ -123,24 +125,20 @@ public class RestThreadPoolAction extends AbstractCatAction {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final String[] pools = fetchSortedPools(request, DEFAULT_THREAD_POOLS);
 
-        client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
+        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(final ClusterStateResponse clusterStateResponse) {
+            public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
                 nodesInfoRequest.clear().process(true);
-                client.admin().cluster().nodesInfo(nodesInfoRequest, new AbstractRestResponseActionListener<NodesInfoResponse>(request, channel, logger) {
+                client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
-                    public void onResponse(final NodesInfoResponse nodesInfoResponse) {
+                    public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
                         nodesStatsRequest.clear().threadPool(true);
-                        client.admin().cluster().nodesStats(nodesStatsRequest, new AbstractRestResponseActionListener<NodesStatsResponse>(request, channel, logger) {
+                        client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
-                            public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                                try {
-                                    channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse, pools), request, channel));
-                                } catch (Throwable e) {
-                                    onFailure(e);
-                                }
+                            public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
+                                return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse, pools), channel);
                             }
                         });
                     }

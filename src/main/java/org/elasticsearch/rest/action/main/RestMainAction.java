@@ -23,7 +23,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
@@ -59,61 +58,43 @@ public class RestMainAction extends BaseRestHandler {
         clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
         clusterStateRequest.local(true);
         clusterStateRequest.clear().blocks(true);
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public RestResponse buildResponse(ClusterStateResponse response) throws Exception {
                 RestStatus status = RestStatus.OK;
                 if (response.getState().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
                     status = RestStatus.SERVICE_UNAVAILABLE;
                 }
                 if (request.method() == RestRequest.Method.HEAD) {
-                    channel.sendResponse(new BytesRestResponse(status));
-                    return;
+                    return new BytesRestResponse(status);
                 }
 
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                XContentBuilder builder = channel.newBuilder();
 
-                    // Default to pretty printing, but allow ?pretty=false to disable
-                    if (!request.hasParam("pretty")) {
-                        builder.prettyPrint().lfAtEnd();
-                    }
-
-                    builder.startObject();
-                    builder.field("status", status.getStatus());
-                    if (settings.get("name") != null) {
-                        builder.field("name", settings.get("name"));
-                    }
-                    builder.startObject("version")
-                            .field("number", version.number())
-                            .field("build_hash", Build.CURRENT.hash())
-                            .field("build_timestamp", Build.CURRENT.timestamp())
-                            .field("build_snapshot", version.snapshot)
-                                    // We use the lucene version from lucene constants since
-                                    // this includes bugfix release version as well and is already in
-                                    // the right format. We can also be sure that the format is maitained
-                                    // since this is also recorded in lucene segments and has BW compat
-                            .field("lucene_version", Constants.LUCENE_MAIN_VERSION)
-                            .endObject();
-                    builder.field("tagline", "You Know, for Search");
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(status, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                // Default to pretty printing, but allow ?pretty=false to disable
+                if (!request.hasParam("pretty")) {
+                    builder.prettyPrint().lfAtEnd();
                 }
-            }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    if (request.method() == HEAD) {
-                        channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                    } else {
-                        channel.sendResponse(new BytesRestResponse(request, e));
-                    }
-                } catch (Exception e1) {
-                    logger.warn("Failed to send response", e);
+                builder.startObject();
+                builder.field("status", status.getStatus());
+                if (settings.get("name") != null) {
+                    builder.field("name", settings.get("name"));
                 }
+                builder.startObject("version")
+                        .field("number", version.number())
+                        .field("build_hash", Build.CURRENT.hash())
+                        .field("build_timestamp", Build.CURRENT.timestamp())
+                        .field("build_snapshot", version.snapshot)
+                                // We use the lucene version from lucene constants since
+                                // this includes bugfix release version as well and is already in
+                                // the right format. We can also be sure that the format is maitained
+                                // since this is also recorded in lucene segments and has BW compat
+                        .field("lucene_version", Constants.LUCENE_MAIN_VERSION)
+                        .endObject();
+                builder.field("tagline", "You Know, for Search");
+                builder.endObject();
+                return new BytesRestResponse(status, builder);
             }
         });
     }

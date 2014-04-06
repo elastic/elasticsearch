@@ -32,7 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import java.io.IOException;
 
@@ -112,27 +112,7 @@ public class RestPercolateAction extends BaseRestHandler {
             percolateRequest.operationThreading(operationThreading);
         }
 
-        client.percolate(percolateRequest, new ActionListener<PercolateResponse>() {
-            @Override
-            public void onResponse(PercolateResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(restRequest);
-                    response.toXContent(builder, restRequest);
-                    restChannel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    restChannel.sendResponse(new BytesRestResponse(restRequest, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.percolate(percolateRequest, new RestToXContentListener<PercolateResponse>(restChannel));
     }
 
     @Override

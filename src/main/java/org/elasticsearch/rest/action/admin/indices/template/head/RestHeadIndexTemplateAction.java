@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.rest.action.admin.indices.template.head;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -47,28 +46,14 @@ public class RestHeadIndexTemplateAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        client.admin().indices().getTemplates(getIndexTemplatesRequest, new ActionListener<GetIndexTemplatesResponse>() {
+        client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestResponseListener<GetIndexTemplatesResponse>(channel) {
             @Override
-            public void onResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
-                try {
-                    boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
-
-                    if (templateExists) {
-                        channel.sendResponse(new BytesRestResponse(OK));
-                    } else {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
-                    }
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
+            public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
+                boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
+                if (templateExists) {
+                    return new BytesRestResponse(OK);
+                } else {
+                    return new BytesRestResponse(NOT_FOUND);
                 }
             }
         });

@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.putRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -50,6 +51,6 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         putRepositoryRequest.source(request.content().toUtf8());
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
-        client.admin().cluster().putRepository(putRepositoryRequest, new AcknowledgedRestResponseActionListener<PutRepositoryResponse>(request, channel, logger));
+        client.admin().cluster().putRepository(putRepositoryRequest, new AcknowledgedRestListener<PutRepositoryResponse>(channel));
     }
 }

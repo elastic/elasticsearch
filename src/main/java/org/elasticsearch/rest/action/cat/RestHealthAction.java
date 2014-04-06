@@ -19,22 +19,21 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -57,23 +56,10 @@ public class RestHealthAction extends AbstractCatAction {
     public void doRequest(final RestRequest request, final RestChannel channel) {
         ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
 
-        client.admin().cluster().health(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {
+        client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
             @Override
-            public void onResponse(final ClusterHealthResponse health) {
-                try {
-                    channel.sendResponse(RestTable.buildResponse(buildTable(health, request), request, channel));
-                } catch (Throwable t) {
-                    onFailure(t);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(final ClusterHealthResponse health) throws Exception {
+                return RestTable.buildResponse(buildTable(health, request), channel);
             }
         });
     }

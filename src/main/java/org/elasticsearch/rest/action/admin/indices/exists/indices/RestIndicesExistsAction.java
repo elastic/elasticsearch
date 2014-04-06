@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.exists.indices;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -57,28 +56,16 @@ public class RestIndicesExistsAction extends BaseRestHandler {
         indicesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions()));
         indicesExistsRequest.local(request.paramAsBoolean("local", indicesExistsRequest.local()));
         indicesExistsRequest.listenerThreaded(false);
-        client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
+        client.admin().indices().exists(indicesExistsRequest, new RestResponseListener<IndicesExistsResponse>(channel) {
             @Override
-            public void onResponse(IndicesExistsResponse response) {
-                try {
-                    if (response.isExists()) {
-                        channel.sendResponse(new BytesRestResponse(OK));
-                    } else {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
-                    }
-                } catch (Throwable e) {
-                    onFailure(e);
+            public RestResponse buildResponse(IndicesExistsResponse response) {
+                if (response.isExists()) {
+                    return new BytesRestResponse(OK);
+                } else {
+                    return new BytesRestResponse(NOT_FOUND);
                 }
             }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
         });
     }
 }

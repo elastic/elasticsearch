@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
@@ -37,7 +38,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 public class RestMultiGetAction extends BaseRestHandler {
 
@@ -57,7 +57,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.listenerThreaded(false);
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
@@ -71,39 +71,8 @@ public class RestMultiGetAction extends BaseRestHandler {
         }
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
+        multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
 
-        try {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
-        }
-
-        client.multiGet(multiGetRequest, new ActionListener<MultiGetResponse>() {
-            @Override
-            public void onResponse(MultiGetResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    response.toXContent(builder, request);
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.multiGet(multiGetRequest, new RestToXContentListener<MultiGetResponse>(channel));
     }
 }

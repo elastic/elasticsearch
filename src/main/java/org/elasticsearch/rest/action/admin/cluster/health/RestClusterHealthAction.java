@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.health;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -27,15 +26,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
 
 /**
  *
@@ -55,55 +54,16 @@ public class RestClusterHealthAction extends BaseRestHandler {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.listenerThreaded(false);
-        try {
-            clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
-            clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
-            String waitForStatus = request.param("wait_for_status");
-            if (waitForStatus != null) {
-                clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
-            }
-            clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
-            clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
-            clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(PRECONDITION_FAILED, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
+        clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
+        clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
+        String waitForStatus = request.param("wait_for_status");
+        if (waitForStatus != null) {
+            clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
         }
+        clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
+        clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
+        clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
 
-        client.admin().cluster().health(clusterHealthRequest, new ActionListener<ClusterHealthResponse>() {
-            @Override
-            public void onResponse(ClusterHealthResponse response) {
-                try {
-                    RestStatus status = RestStatus.OK;
-                    // not sure..., we handle the health API, so we are not unavailable
-                    // in any case, "/" should be used for
-                    //if (response.status() == ClusterHealthStatus.RED) {
-                    //    status = RestStatus.SERVICE_UNAVAILABLE;
-                    //}
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    response.toXContent(builder, request);
-                    builder.endObject();
-
-                    channel.sendResponse(new BytesRestResponse(status, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.admin().cluster().health(clusterHealthRequest, new RestToXContentListener<ClusterHealthResponse>(channel));
     }
 }

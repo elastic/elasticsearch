@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.explain;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.support.QuerySourceBuilder;
@@ -36,6 +35,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
@@ -44,7 +44,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  * Rest action for computing a score explanation for specific documents.
@@ -103,34 +102,28 @@ public class RestExplainAction extends BaseRestHandler {
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        client.explain(explainRequest, new ActionListener<ExplainResponse>() {
-
+        client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
             @Override
-            public void onResponse(ExplainResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    builder.startObject();
-                    builder.field(Fields._INDEX, explainRequest.index())
-                            .field(Fields._TYPE, explainRequest.type())
-                            .field(Fields._ID, explainRequest.id())
-                            .field(Fields.MATCHED, response.isMatch());
+            public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field(Fields._INDEX, explainRequest.index())
+                        .field(Fields._TYPE, explainRequest.type())
+                        .field(Fields._ID, explainRequest.id())
+                        .field(Fields.MATCHED, response.isMatch());
 
-                    if (response.hasExplanation()) {
-                        builder.startObject(Fields.EXPLANATION);
-                        buildExplanation(builder, response.getExplanation());
-                        builder.endObject();
-                    }
-                    GetResult getResult = response.getGetResult();
-                    if (getResult != null) {
-                        builder.startObject(Fields.GET);
-                        response.getGetResult().toXContentEmbedded(builder, request);
-                        builder.endObject();
-                    }
+                if (response.hasExplanation()) {
+                    builder.startObject(Fields.EXPLANATION);
+                    buildExplanation(builder, response.getExplanation());
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(response.isExists() ? OK : NOT_FOUND, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
                 }
+                GetResult getResult = response.getGetResult();
+                if (getResult != null) {
+                    builder.startObject(Fields.GET);
+                    response.getGetResult().toXContentEmbedded(builder, request);
+                    builder.endObject();
+                }
+                builder.endObject();
+                return new BytesRestResponse(response.isExists() ? OK : NOT_FOUND, builder);
             }
 
             private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
@@ -145,15 +138,6 @@ public class RestExplainAction extends BaseRestHandler {
                         builder.endObject();
                     }
                     builder.endArray();
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
                 }
             }
         });

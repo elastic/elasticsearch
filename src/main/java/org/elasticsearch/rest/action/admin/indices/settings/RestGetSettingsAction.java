@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.settings;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,9 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -59,38 +56,24 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 
-        client.admin().indices().getSettings(getSettingsRequest, new ActionListener<GetSettingsResponse>() {
+        client.admin().indices().getSettings(getSettingsRequest, new RestBuilderListener<GetSettingsResponse>(channel) {
 
             @Override
-            public void onResponse(GetSettingsResponse getSettingsResponse) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
-                        // no settings, jump over it to shorten the response data
-                        if (cursor.value.getAsMap().isEmpty()) {
-                            continue;
-                        }
-                        builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                        builder.startObject(Fields.SETTINGS);
-                        cursor.value.toXContent(builder, request);
-                        builder.endObject();
-                        builder.endObject();
+            public RestResponse buildResponse(GetSettingsResponse getSettingsResponse, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                for (ObjectObjectCursor<String, Settings> cursor : getSettingsResponse.getIndexToSettings()) {
+                    // no settings, jump over it to shorten the response data
+                    if (cursor.value.getAsMap().isEmpty()) {
+                        continue;
                     }
+                    builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(Fields.SETTINGS);
+                    cursor.value.toXContent(builder, request);
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (IOException e) {
-                    onFailure(e);
+                    builder.endObject();
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

@@ -25,6 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.deleteRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -47,6 +48,6 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
         deleteRepositoryRequest.listenerThreaded(false);
         deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
-        client.admin().cluster().deleteRepository(deleteRepositoryRequest, new AcknowledgedRestResponseActionListener<DeleteRepositoryResponse>(request, channel, logger));
+        client.admin().cluster().deleteRepository(deleteRepositoryRequest, new AcknowledgedRestListener<DeleteRepositoryResponse>(channel));
     }
 }

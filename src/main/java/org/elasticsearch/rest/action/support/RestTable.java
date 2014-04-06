@@ -22,6 +22,8 @@ package org.elasticsearch.rest.action.support;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.io.UTF8StreamWriter;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,16 +39,18 @@ import java.util.List;
  */
 public class RestTable {
 
-    public static RestResponse buildResponse(Table table, RestRequest request, RestChannel channel) throws Exception {
+    public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
+        RestRequest request = channel.request();
         XContentType xContentType = XContentType.fromRestContentType(request.param("format", request.header("Content-Type")));
         if (xContentType != null) {
-            return buildXContentBuilder(table, request, channel);
+            return buildXContentBuilder(table, channel);
         }
-        return buildTextPlainResponse(table, request, channel);
+        return buildTextPlainResponse(table, channel);
     }
 
-    public static RestResponse buildXContentBuilder(Table table, RestRequest request, RestChannel channel) throws Exception {
-        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+    public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {
+        RestRequest request = channel.request();
+        XContentBuilder builder = channel.newBuilder();
         List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
         builder.startArray();
@@ -61,13 +66,15 @@ public class RestTable {
         return new BytesRestResponse(RestStatus.OK, builder);
     }
 
-    public static RestResponse buildTextPlainResponse(Table table, RestRequest request, RestChannel channel) {
+    public static RestResponse buildTextPlainResponse(Table table, RestChannel channel) throws IOException {
+        RestRequest request = channel.request();
         boolean verbose = request.paramAsBoolean("v", false);
 
         List<DisplayHeader> headers = buildDisplayHeaders(table, request);
         int[] width = buildWidths(table, request, verbose, headers);
 
-        StringBuilder out = new StringBuilder();
+        BytesStreamOutput bytesOut = channel.bytesOutput();
+        UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOut);
         if (verbose) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
@@ -85,8 +92,8 @@ public class RestTable {
             }
             out.append("\n");
         }
-
-        return new BytesRestResponse(RestStatus.OK, out.toString());
+        out.close();
+        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes(), true);
     }
 
     private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {
@@ -140,7 +147,7 @@ public class RestTable {
         return display;
     }
 
-    public static int[] buildHelpWidths(Table table, RestRequest request, boolean verbose) {
+    public static int[] buildHelpWidths(Table table, RestRequest request) {
         int[] width = new int[3];
         for (Table.Cell cell : table.getHeaders()) {
             String v = renderValue(request, cell.value);
@@ -193,7 +200,7 @@ public class RestTable {
         return width;
     }
 
-    public static void pad(Table.Cell cell, int width, RestRequest request, StringBuilder out) {
+    public static void pad(Table.Cell cell, int width, RestRequest request, UTF8StreamWriter out) throws IOException {
         String sValue = renderValue(request, cell.value);
         int length = sValue == null ? 0 : sValue.length();
         byte leftOver = (byte) (width - length);

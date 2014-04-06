@@ -19,9 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.recovery;
 
-import java.io.IOException;
-
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,16 +28,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
  * REST handler to report on index recoveries.
  */
-public class RestRecoveryAction extends BaseRestHandler  {
+public class RestRecoveryAction extends BaseRestHandler {
 
     @Inject
     public RestRecoveryAction(Settings settings, Client client, RestController controller) {
@@ -58,32 +54,16 @@ public class RestRecoveryAction extends BaseRestHandler  {
         recoveryRequest.listenerThreaded(false);
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
-        client.admin().indices().recoveries(recoveryRequest, new ActionListener<RecoveryResponse>() {
-
+        client.admin().indices().recoveries(recoveryRequest, new RestBuilderListener<RecoveryResponse>(channel) {
             @Override
-            public void onResponse(RecoveryResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-
-                    if (response.hasRecoveries()) {
-                        response.detailed(recoveryRequest.detailed());
-                        builder.startObject();
-                        response.toXContent(builder, request);
-                        builder.endObject();
-                    }
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+            public RestResponse buildResponse(RecoveryResponse response, XContentBuilder builder) throws Exception {
+                if (response.hasRecoveries()) {
+                    response.detailed(recoveryRequest.detailed());
+                    builder.startObject();
+                    response.toXContent(builder, request);
+                    builder.endObject();
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException ioe) {
-                    logger.error("Failed to send failure response", ioe);
-                }
+                return new BytesRestResponse(OK, builder);
             }
         });
 

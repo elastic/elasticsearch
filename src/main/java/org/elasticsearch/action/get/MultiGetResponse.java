@@ -124,7 +124,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.startArray(Fields.DOCS);
         for (MultiGetItemResponse response : responses) {
             if (response.isFailed()) {
@@ -137,11 +136,12 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();
+                builder.startObject();
                 getResponse.toXContent(builder, params);
+                builder.endObject();
             }
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 

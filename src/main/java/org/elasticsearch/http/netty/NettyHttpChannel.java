@@ -22,6 +22,8 @@ package org.elasticsearch.http.netty;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
 import org.elasticsearch.http.HttpChannel;
@@ -42,7 +44,7 @@ import java.util.Set;
 /**
  *
  */
-public class NettyHttpChannel implements HttpChannel {
+public class NettyHttpChannel extends HttpChannel {
 
     private static final ChannelBuffer END_JSONP;
 
@@ -54,15 +56,20 @@ public class NettyHttpChannel implements HttpChannel {
 
     private final NettyHttpServerTransport transport;
     private final Channel channel;
-    private final NettyHttpRequest request;
     private final org.jboss.netty.handler.codec.http.HttpRequest nettyRequest;
 
     public NettyHttpChannel(NettyHttpServerTransport transport, Channel channel, NettyHttpRequest request) {
+        super(request);
         this.transport = transport;
         this.channel = channel;
-        this.request = request;
         this.nettyRequest = request.request();
     }
+
+    @Override
+    public BytesStreamOutput newBytesOutput() {
+        return new ReleasableBytesStreamOutput(transport.bigArrays);
+    }
+
 
     @Override
     public void sendResponse(RestResponse response) {

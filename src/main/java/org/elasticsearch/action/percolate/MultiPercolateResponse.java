@@ -59,7 +59,6 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.startArray(Fields.RESPONSES);
         for (MultiPercolateResponse.Item item : items) {
             if (item.isFailure()) {
@@ -67,11 +66,12 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
                 builder.field(Fields.ERROR, item.getErrorMessage());
                 builder.endObject();
             } else {
+                builder.startObject();
                 item.getResponse().toXContent(builder, params);
+                builder.endObject();
             }
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 

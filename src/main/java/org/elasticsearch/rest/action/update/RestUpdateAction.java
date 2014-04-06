@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.update;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
@@ -34,9 +33,8 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -54,7 +52,7 @@ public class RestUpdateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
@@ -91,75 +89,52 @@ public class RestUpdateAction extends BaseRestHandler {
 
         // see if we have it in the body
         if (request.hasContent()) {
-            try {
-                updateRequest.source(request.content());
-                IndexRequest upsertRequest = updateRequest.upsertRequest();
-                if (upsertRequest != null) {
-                    upsertRequest.routing(request.param("routing"));
-                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    upsertRequest.timestamp(request.param("timestamp"));
-                    if (request.hasParam("ttl")) {
-                        upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
-                    }
-                    upsertRequest.version(RestActions.parseVersion(request));
-                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
+            updateRequest.source(request.content());
+            IndexRequest upsertRequest = updateRequest.upsertRequest();
+            if (upsertRequest != null) {
+                upsertRequest.routing(request.param("routing"));
+                upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                upsertRequest.timestamp(request.param("timestamp"));
+                if (request.hasParam("ttl")) {
+                    upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
                 }
-                IndexRequest doc = updateRequest.doc();
-                if (doc != null) {
-                    doc.routing(request.param("routing"));
-                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    doc.timestamp(request.param("timestamp"));
-                    if (request.hasParam("ttl")) {
-                        doc.ttl(request.paramAsTime("ttl", null).millis());
-                    }
-                    doc.version(RestActions.parseVersion(request));
-                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
-                }                
-            } catch (Exception e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
+                upsertRequest.version(RestActions.parseVersion(request));
+                upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
+            }
+            IndexRequest doc = updateRequest.doc();
+            if (doc != null) {
+                doc.routing(request.param("routing"));
+                doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                doc.timestamp(request.param("timestamp"));
+                if (request.hasParam("ttl")) {
+                    doc.ttl(request.paramAsTime("ttl", null).millis());
                 }
-                return;
+                doc.version(RestActions.parseVersion(request));
+                doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }
         }
 
-        client.update(updateRequest, new ActionListener<UpdateResponse>() {
+        client.update(updateRequest, new RestBuilderListener<UpdateResponse>(channel) {
             @Override
-            public void onResponse(UpdateResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field(Fields._INDEX, response.getIndex())
-                            .field(Fields._TYPE, response.getType())
-                            .field(Fields._ID, response.getId())
-                            .field(Fields._VERSION, response.getVersion());
+            public RestResponse buildResponse(UpdateResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject()
+                        .field(Fields._INDEX, response.getIndex())
+                        .field(Fields._TYPE, response.getType())
+                        .field(Fields._ID, response.getId())
+                        .field(Fields._VERSION, response.getVersion());
 
-                    if (response.getGetResult() != null) {
-                        builder.startObject(Fields.GET);
-                        response.getGetResult().toXContentEmbedded(builder, request);
-                        builder.endObject();
-                    }
-
+                if (response.getGetResult() != null) {
+                    builder.startObject(Fields.GET);
+                    response.getGetResult().toXContentEmbedded(builder, request);
                     builder.endObject();
-                    RestStatus status = OK;
-                    if (response.isCreated()) {
-                        status = CREATED;
-                    }
-                    channel.sendResponse(new BytesRestResponse(status, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
                 }
-            }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
+                builder.endObject();
+                RestStatus status = OK;
+                if (response.isCreated()) {
+                    status = CREATED;
                 }
+                return new BytesRestResponse(status, builder);
             }
         });
     }

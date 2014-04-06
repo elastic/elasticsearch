@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.restart;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
 import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.client.Client;
@@ -28,10 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-
-import java.io.IOException;
-
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 /**
  *
@@ -52,36 +48,22 @@ public class RestNodesRestartAction extends BaseRestHandler {
         NodesRestartRequest nodesRestartRequest = new NodesRestartRequest(nodesIds);
         nodesRestartRequest.listenerThreaded(false);
         nodesRestartRequest.delay(request.paramAsTime("delay", nodesRestartRequest.delay()));
-        client.admin().cluster().nodesRestart(nodesRestartRequest, new ActionListener<NodesRestartResponse>() {
+        client.admin().cluster().nodesRestart(nodesRestartRequest, new RestBuilderListener<NodesRestartResponse>(channel) {
             @Override
-            public void onResponse(NodesRestartResponse result) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    builder.startObject();
-                    builder.field("cluster_name", result.getClusterName().value());
+            public RestResponse buildResponse(NodesRestartResponse result, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field("cluster_name", result.getClusterName().value());
 
-                    builder.startObject("nodes");
-                    for (NodesRestartResponse.NodeRestartResponse nodeInfo : result) {
-                        builder.startObject(nodeInfo.getNode().id());
-                        builder.field("name", nodeInfo.getNode().name());
-                        builder.endObject();
-                    }
+                builder.startObject("nodes");
+                for (NodesRestartResponse.NodeRestartResponse nodeInfo : result) {
+                    builder.startObject(nodeInfo.getNode().id());
+                    builder.field("name", nodeInfo.getNode().name());
                     builder.endObject();
-
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
                 }
-            }
+                builder.endObject();
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -36,9 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -67,57 +64,39 @@ public class RestGetMappingAction extends BaseRestHandler {
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getMappings(getMappingsRequest, new ActionListener<GetMappingsResponse>() {
-
+        client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
-            public void onResponse(GetMappingsResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-
-                    ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
-                    if (mappingsByIndex.isEmpty()) {
-                        if (indices.length != 0 && types.length != 0) {
-                            channel.sendResponse(new BytesRestResponse(OK, RestXContentBuilder.emptyBuilder(request)));
-                        } else if (indices.length != 0) {
-                            channel.sendResponse(new BytesRestResponse(request, new IndexMissingException(new Index(indices[0]))));
-                        } else if (types.length != 0) {
-                            channel.sendResponse(new BytesRestResponse(request, new TypeMissingException(new Index("_all"), types[0])));
-                        } else {
-                            builder.endObject();
-                            channel.sendResponse(new BytesRestResponse(OK, builder));
-                        }
-                        return;
+            public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
+                if (mappingsByIndex.isEmpty()) {
+                    if (indices.length != 0 && types.length != 0) {
+                        return new BytesRestResponse(OK, builder.endObject());
+                    } else if (indices.length != 0) {
+                        return new BytesRestResponse(channel, new IndexMissingException(new Index(indices[0])));
+                    } else if (types.length != 0) {
+                        return new BytesRestResponse(channel, new TypeMissingException(new Index("_all"), types[0]));
+                    } else {
+                        return new BytesRestResponse(OK, builder.endObject());
                     }
+                }
 
-                    for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
-                        if (indexEntry.value.isEmpty()) {
-                            continue;
-                        }
-                        builder.startObject(indexEntry.key, XContentBuilder.FieldCaseConversion.NONE);
-                        builder.startObject(Fields.MAPPINGS);
-                        for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
-                            builder.field(typeEntry.key);
-                            builder.map(typeEntry.value.sourceAsMap());
-                        }
-                        builder.endObject();
-                        builder.endObject();
+                for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : mappingsByIndex) {
+                    if (indexEntry.value.isEmpty()) {
+                        continue;
                     }
-
+                    builder.startObject(indexEntry.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(Fields.MAPPINGS);
+                    for (ObjectObjectCursor<String, MappingMetaData> typeEntry : indexEntry.value) {
+                        builder.field(typeEntry.key);
+                        builder.map(typeEntry.value.sourceAsMap());
+                    }
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                    builder.endObject();
                 }
-            }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

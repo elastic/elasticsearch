@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.state;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -31,7 +30,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.Set;
@@ -78,31 +77,14 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.indexTemplates(request.paramAsStringArray("index_templates", Strings.EMPTY_ARRAY));
         }
 
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(ClusterStateResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                    response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to handle cluster state", e);
-                }
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                builder.endObject();
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

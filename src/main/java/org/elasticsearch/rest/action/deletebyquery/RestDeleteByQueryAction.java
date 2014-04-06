@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.deletebyquery;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
@@ -37,12 +36,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
 
 /**
  *
@@ -60,88 +56,64 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteByQueryRequest.listenerThreaded(false);
-        try {
-            if (request.hasContent()) {
-                deleteByQueryRequest.source(request.content(), request.contentUnsafe());
+        if (request.hasContent()) {
+            deleteByQueryRequest.source(request.content(), request.contentUnsafe());
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                deleteByQueryRequest.source(source);
             } else {
-                String source = request.param("source");
-                if (source != null) {
-                    deleteByQueryRequest.source(source);
-                } else {
-                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                    if (querySourceBuilder != null) {
-                        deleteByQueryRequest.source(querySourceBuilder);
-                    }
+                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                if (querySourceBuilder != null) {
+                    deleteByQueryRequest.source(querySourceBuilder);
                 }
             }
-            deleteByQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-            deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
-
-            deleteByQueryRequest.routing(request.param("routing"));
-            String replicationType = request.param("replication");
-            if (replicationType != null) {
-                deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
-            }
-            String consistencyLevel = request.param("consistency");
-            if (consistencyLevel != null) {
-                deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
-            }
-            deleteByQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteByQueryRequest.indicesOptions()));
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(PRECONDITION_FAILED, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
         }
-        client.deleteByQuery(deleteByQueryRequest, new ActionListener<DeleteByQueryResponse>() {
+        deleteByQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
+
+        deleteByQueryRequest.routing(request.param("routing"));
+        String replicationType = request.param("replication");
+        if (replicationType != null) {
+            deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
+        }
+        String consistencyLevel = request.param("consistency");
+        if (consistencyLevel != null) {
+            deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+        }
+        deleteByQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteByQueryRequest.indicesOptions()));
+        client.deleteByQuery(deleteByQueryRequest, new RestBuilderListener<DeleteByQueryResponse>(channel) {
             @Override
-            public void onResponse(DeleteByQueryResponse result) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    RestStatus restStatus = result.status();
-                    builder.startObject();
-                    builder.startObject(Fields._INDICES);
-                    for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
-                        builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+            public RestResponse buildResponse(DeleteByQueryResponse result, XContentBuilder builder) throws Exception {
+                RestStatus restStatus = result.status();
+                builder.startObject();
+                builder.startObject(Fields._INDICES);
+                for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
+                    builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                        builder.startObject(Fields._SHARDS);
-                        builder.field(Fields.TOTAL, indexDeleteByQueryResponse.getTotalShards());
-                        builder.field(Fields.SUCCESSFUL, indexDeleteByQueryResponse.getSuccessfulShards());
-                        builder.field(Fields.FAILED, indexDeleteByQueryResponse.getFailedShards());
-                        ShardOperationFailedException[] failures = indexDeleteByQueryResponse.getFailures();
-                        if (failures != null && failures.length > 0) {
-                            builder.startArray(Fields.FAILURES);
-                            for (ShardOperationFailedException shardFailure : failures) {
-                                builder.startObject();
-                                builder.field(Fields.INDEX, shardFailure.index());
-                                builder.field(Fields.SHARD, shardFailure.shardId());
-                                builder.field(Fields.REASON, shardFailure.reason());
-                                builder.endObject();
-                            }
-                            builder.endArray();
+                    builder.startObject(Fields._SHARDS);
+                    builder.field(Fields.TOTAL, indexDeleteByQueryResponse.getTotalShards());
+                    builder.field(Fields.SUCCESSFUL, indexDeleteByQueryResponse.getSuccessfulShards());
+                    builder.field(Fields.FAILED, indexDeleteByQueryResponse.getFailedShards());
+                    ShardOperationFailedException[] failures = indexDeleteByQueryResponse.getFailures();
+                    if (failures != null && failures.length > 0) {
+                        builder.startArray(Fields.FAILURES);
+                        for (ShardOperationFailedException shardFailure : failures) {
+                            builder.startObject();
+                            builder.field(Fields.INDEX, shardFailure.index());
+                            builder.field(Fields.SHARD, shardFailure.shardId());
+                            builder.field(Fields.REASON, shardFailure.reason());
+                            builder.endObject();
                         }
-                        builder.endObject();
-
-                        builder.endObject();
+                        builder.endArray();
                     }
                     builder.endObject();
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(restStatus, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
+                    builder.endObject();
                 }
+                builder.endObject();
+                builder.endObject();
+                return new BytesRestResponse(restStatus, builder);
             }
         });
     }

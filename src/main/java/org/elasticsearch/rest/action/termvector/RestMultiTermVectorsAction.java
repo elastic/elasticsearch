@@ -30,11 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
 
@@ -50,8 +50,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-        
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         multiTermVectorsRequest.listenerThreaded(false);
         TermVectorRequest template = new TermVectorRequest();
@@ -59,38 +58,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         template.type(request.param("type"));
         RestTermVectorAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
+        multiTermVectorsRequest.add(template, RestActions.getRestContent(request));
 
-        try {
-            multiTermVectorsRequest.add(template, RestActions.getRestContent(request));
-        } catch (Throwable t) {
-            try {
-                channel.sendResponse(new BytesRestResponse(request, t));
-            } catch (Throwable tIO) {
-                logger.error("Failed to send failure response", tIO);
-            }
-            return;
-        }
-
-        client.multiTermVectors(multiTermVectorsRequest, new ActionListener<MultiTermVectorsResponse>() {
-            @Override
-            public void onResponse(MultiTermVectorsResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    response.toXContent(builder, request);
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable t) {
-                    onFailure(t);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (Throwable t) {
-                    logger.error("Failed to send failure response", t);
-                }
-            }
-        });
+        client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<MultiTermVectorsResponse>(channel));
     }
 }

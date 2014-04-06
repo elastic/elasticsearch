@@ -19,12 +19,17 @@
 package org.elasticsearch.rest.action.admin.indices.warmer.delete;
 
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
@@ -49,6 +54,6 @@ public class RestDeleteWarmerAction extends BaseRestHandler {
         deleteWarmerRequest.timeout(request.paramAsTime("timeout", deleteWarmerRequest.timeout()));
         deleteWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteWarmerRequest.masterNodeTimeout()));
         deleteWarmerRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteWarmerRequest.indicesOptions()));
-        client.admin().indices().deleteWarmer(deleteWarmerRequest, new AcknowledgedRestResponseActionListener(request, channel, logger));
+        client.admin().indices().deleteWarmer(deleteWarmerRequest, new AcknowledgedRestListener<DeleteWarmerResponse>(channel));
     }
 }

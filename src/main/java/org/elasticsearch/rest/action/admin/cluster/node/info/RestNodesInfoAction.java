@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
 import com.google.common.collect.Sets;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -30,9 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -72,7 +70,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             Set<String> metricsOrNodeIds = Strings.splitStringByCommaToSet(request.param("nodeId", "_all"));
             boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);
             if (isMetricsOnly) {
-                nodeIds = new String[] { "_all" };
+                nodeIds = new String[]{"_all"};
                 metrics = metricsOrNodeIds;
             } else {
                 nodeIds = metricsOrNodeIds.toArray(new String[]{});
@@ -102,28 +100,15 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.plugins(metrics.contains("plugins"));
         }
 
-        client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
-            @Override
-            public void onResponse(NodesInfoResponse response) {
-                try {
-                    response.settingsFilter(settingsFilter);
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
+        client.admin().cluster().nodesInfo(nodesInfoRequest, new RestBuilderListener<NodesInfoResponse>(channel) {
 
             @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(NodesInfoResponse response, XContentBuilder builder) throws Exception {
+                response.settingsFilter(settingsFilter);
+                builder.startObject();
+                response.toXContent(builder, request);
+                builder.endObject();
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

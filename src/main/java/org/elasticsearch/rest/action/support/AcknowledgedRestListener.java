@@ -16,13 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest;
+package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.support.RestActionListener;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
@@ -30,24 +34,19 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class AcknowledgedRestResponseActionListener<T extends AcknowledgedResponse> extends AbstractRestResponseActionListener<T> {
+public class AcknowledgedRestListener<T extends AcknowledgedResponse> extends RestBuilderListener<T> {
 
-    public AcknowledgedRestResponseActionListener(RestRequest request, RestChannel channel, ESLogger logger) {
-        super(request, channel, logger);
+    public AcknowledgedRestListener(RestChannel channel) {
+        super(channel);
     }
 
     @Override
-    public void onResponse(T response) {
-        try {
-            XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-            builder.startObject()
-                    .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
-            addCustomFields(builder, response);
-            builder.endObject();
-            channel.sendResponse(new BytesRestResponse(OK, builder));
-        } catch (IOException e) {
-            onFailure(e);
-        }
+    public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
+        builder.startObject()
+                .field(Fields.ACKNOWLEDGED, response.isAcknowledged());
+        addCustomFields(builder, response);
+        builder.endObject();
+        return new BytesRestResponse(OK, builder);
     }
 
     /**

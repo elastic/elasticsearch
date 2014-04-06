@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
@@ -87,7 +86,7 @@ public class RestIndexAction extends BaseRestHandler {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             } else {
                 try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    XContentBuilder builder = channel.newBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
@@ -103,35 +102,21 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        client.index(indexRequest, new ActionListener<IndexResponse>() {
+        client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
             @Override
-            public void onResponse(IndexResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field(Fields._INDEX, response.getIndex())
-                            .field(Fields._TYPE, response.getType())
-                            .field(Fields._ID, response.getId())
-                            .field(Fields._VERSION, response.getVersion())
-                            .field(Fields.CREATED, response.isCreated());
-                    builder.endObject();
-                    RestStatus status = OK;
-                    if (response.isCreated()) {
-                        status = CREATED;
-                    }
-                    channel.sendResponse(new BytesRestResponse(status, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+            public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject()
+                        .field(Fields._INDEX, response.getIndex())
+                        .field(Fields._TYPE, response.getType())
+                        .field(Fields._ID, response.getId())
+                        .field(Fields._VERSION, response.getVersion())
+                        .field(Fields.CREATED, response.isCreated());
+                builder.endObject();
+                RestStatus status = OK;
+                if (response.isCreated()) {
+                    status = CREATED;
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                return new BytesRestResponse(status, builder);
             }
         });
     }

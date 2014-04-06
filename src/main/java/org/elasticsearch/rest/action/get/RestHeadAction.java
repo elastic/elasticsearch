@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.get;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
@@ -28,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -59,26 +58,13 @@ public class RestHeadAction extends BaseRestHandler {
         getRequest.fields(Strings.EMPTY_ARRAY);
         // TODO we can also just return the document size as Content-Length
 
-        client.get(getRequest, new ActionListener<GetResponse>() {
+        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
             @Override
-            public void onResponse(GetResponse response) {
-                try {
-                    if (!response.isExists()) {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
-                    } else {
-                        channel.sendResponse(new BytesRestResponse(OK));
-                    }
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
+            public RestResponse buildResponse(GetResponse response) {
+                if (!response.isExists()) {
+                    return new BytesRestResponse(NOT_FOUND);
+                } else {
+                    return new BytesRestResponse(OK);
                 }
             }
         });

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.hotthreads;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -29,8 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.*;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 
 /**
@@ -59,29 +57,16 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         nodesHotThreadsRequest.type(request.param("type", nodesHotThreadsRequest.type()));
         nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval()));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
-        client.admin().cluster().nodesHotThreads(nodesHotThreadsRequest, new ActionListener<NodesHotThreadsResponse>() {
+        client.admin().cluster().nodesHotThreads(nodesHotThreadsRequest, new RestResponseListener<NodesHotThreadsResponse>(channel) {
             @Override
-            public void onResponse(NodesHotThreadsResponse response) {
-                try {
-                    StringBuilder sb = new StringBuilder();
-                    for (NodeHotThreads node : response) {
-                        sb.append("::: ").append(node.getNode().toString()).append("\n");
-                        Strings.spaceify(3, node.getHotThreads(), sb);
-                        sb.append('\n');
-                    }
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, sb.toString()));
-                } catch (Throwable e) {
-                    onFailure(e);
+            public RestResponse buildResponse(NodesHotThreadsResponse response) throws Exception {
+                StringBuilder sb = new StringBuilder();
+                for (NodeHotThreads node : response) {
+                    sb.append("::: ").append(node.getNode().toString()).append("\n");
+                    Strings.spaceify(3, node.getHotThreads(), sb);
+                    sb.append('\n');
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                return new BytesRestResponse(RestStatus.OK, sb.toString());
             }
         });
     }

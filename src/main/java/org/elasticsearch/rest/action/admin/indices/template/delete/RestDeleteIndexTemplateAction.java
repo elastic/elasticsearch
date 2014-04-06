@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
  *
@@ -41,6 +42,6 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
         deleteIndexTemplateRequest.listenerThreaded(false);
         deleteIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexTemplateRequest.masterNodeTimeout()));
-        client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestResponseActionListener<DeleteIndexTemplateResponse>(request, channel, logger));
+        client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new AcknowledgedRestListener<DeleteIndexTemplateResponse>(channel));
     }
 }

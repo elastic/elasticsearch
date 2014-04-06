@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.cache.clear;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,13 +29,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
@@ -60,69 +56,44 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.listenerThreaded(false);
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
-        try {
-            if (request.hasParam("filter")) {
-                clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
-            }
-            if (request.hasParam("filter_cache")) {
-                clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter_cache", clearIndicesCacheRequest.filterCache()));
-            }
-            if (request.hasParam("field_data")) {
-                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
-            }
-            if (request.hasParam("fielddata")) {
-                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("fielddata", clearIndicesCacheRequest.fieldDataCache()));
-            }
-            if (request.hasParam("id")) {
-                clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
-            }
-            if (request.hasParam("id_cache")) {
-                clearIndicesCacheRequest.idCache(request.paramAsBoolean("id_cache", clearIndicesCacheRequest.idCache()));
-            }
-            if (request.hasParam("recycler")) {
-                clearIndicesCacheRequest.recycler(request.paramAsBoolean("recycler", clearIndicesCacheRequest.recycler()));
-            }
-            clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
-            clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
-
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-            if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
-            }
-            clearIndicesCacheRequest.operationThreading(operationThreading);
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
+        if (request.hasParam("filter")) {
+            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
         }
-        client.admin().indices().clearCache(clearIndicesCacheRequest, new ActionListener<ClearIndicesCacheResponse>() {
+        if (request.hasParam("filter_cache")) {
+            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter_cache", clearIndicesCacheRequest.filterCache()));
+        }
+        if (request.hasParam("field_data")) {
+            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
+        }
+        if (request.hasParam("fielddata")) {
+            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("fielddata", clearIndicesCacheRequest.fieldDataCache()));
+        }
+        if (request.hasParam("id")) {
+            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
+        }
+        if (request.hasParam("id_cache")) {
+            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id_cache", clearIndicesCacheRequest.idCache()));
+        }
+        if (request.hasParam("recycler")) {
+            clearIndicesCacheRequest.recycler(request.paramAsBoolean("recycler", clearIndicesCacheRequest.recycler()));
+        }
+        clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
+        clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
+
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.THREAD_PER_SHARD);
+        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
+            // since we don't spawn, don't allow no_threads, but change it to a single thread
+            operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
+        }
+        clearIndicesCacheRequest.operationThreading(operationThreading);
+
+        client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
             @Override
-            public void onResponse(ClearIndicesCacheResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-
-                    buildBroadcastShardsHeader(builder, response);
-
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                buildBroadcastShardsHeader(builder, response);
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

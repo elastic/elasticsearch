@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.flush;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,9 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -67,29 +64,13 @@ public class RestFlushAction extends BaseRestHandler {
         flushRequest.operationThreading(operationThreading);
         flushRequest.full(request.paramAsBoolean("full", flushRequest.full()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
-        client.admin().indices().flush(flushRequest, new ActionListener<FlushResponse>() {
+        client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
             @Override
-            public void onResponse(FlushResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-
-                    buildBroadcastShardsHeader(builder, response);
-
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(FlushResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                buildBroadcastShardsHeader(builder, response);
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

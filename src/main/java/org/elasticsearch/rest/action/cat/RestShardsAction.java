@@ -30,7 +30,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.support.RestActionListener;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -57,19 +62,15 @@ public class RestShardsAction extends AbstractCatAction {
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
-        client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
+        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(final ClusterStateResponse clusterStateResponse) {
+            public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
                 indicesStatsRequest.all();
-                client.admin().indices().stats(indicesStatsRequest, new AbstractRestResponseActionListener<IndicesStatsResponse>(request, channel, logger) {
+                client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                     @Override
-                    public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                        try {
-                            channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), request, channel));
-                        } catch (Throwable e) {
-                            onFailure(e);
-                        }
+                    public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
+                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, indicesStatsResponse), channel);
                     }
                 });
             }

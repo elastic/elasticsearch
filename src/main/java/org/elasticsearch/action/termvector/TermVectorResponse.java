@@ -164,7 +164,6 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         assert index != null;
         assert type != null;
         assert id != null;
-        builder.startObject();
         builder.field(FieldStrings._INDEX, index);
         builder.field(FieldStrings._TYPE, type);
         builder.field(FieldStrings._ID, id);
@@ -181,7 +180,6 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         while (fieldIter.hasNext()) {
             buildField(builder, spare, theFields, fieldIter);
         }
-        builder.endObject();
         builder.endObject();
         return builder;
 

@@ -27,14 +27,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.client.Requests.updateSettingsRequest;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 /**
  *
@@ -59,24 +57,15 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         ImmutableSettings.Builder updateSettings = ImmutableSettings.settingsBuilder();
         String bodySettingsStr = request.content().toUtf8();
         if (Strings.hasText(bodySettingsStr)) {
-            try {
-                Settings buildSettings = ImmutableSettings.settingsBuilder().loadFromSource(bodySettingsStr).build();
-                for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
-                    String key = entry.getKey();
-                    String value = entry.getValue();
-                    // clean up in case the body is wrapped with "settings" : { ... }
-                    if (key.startsWith("settings.")) {
-                        key = key.substring("settings.".length());
-                    }
-                    updateSettings.put(key, value);
+            Settings buildSettings = ImmutableSettings.settingsBuilder().loadFromSource(bodySettingsStr).build();
+            for (Map.Entry<String, String> entry : buildSettings.getAsMap().entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                // clean up in case the body is wrapped with "settings" : { ... }
+                if (key.startsWith("settings.")) {
+                    key = key.substring("settings.".length());
                 }
-            } catch (Exception e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, BAD_REQUEST, new SettingsException("Failed to parse index settings", e)));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                }
-                return;
+                updateSettings.put(key, value);
             }
         }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
@@ -87,6 +76,6 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         }
         updateSettingsRequest.settings(updateSettings);
 
-        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestResponseActionListener<UpdateSettingsResponse>(request, channel, logger));
+        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<UpdateSettingsResponse>(channel));
     }
 }

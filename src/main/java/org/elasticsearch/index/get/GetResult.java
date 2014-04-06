@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -210,7 +209,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         builder.field(Fields.FOUND, exists);
 
         if (source != null) {
-            RestXContentBuilder.restDocumentSource(source, builder, params);
+            XContentHelper.writeRawField("_source", source, builder, params);
         }
 
         if (fields != null && !fields.isEmpty()) {
@@ -238,14 +237,11 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!isExists()) {
-            builder.startObject();
             builder.field(Fields._INDEX, index);
             builder.field(Fields._TYPE, type);
             builder.field(Fields._ID, id);
             builder.field(Fields.FOUND, false);
-            builder.endObject();
         } else {
-            builder.startObject();
             builder.field(Fields._INDEX, index);
             builder.field(Fields._TYPE, type);
             builder.field(Fields._ID, id);
@@ -253,8 +249,6 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                 builder.field(Fields._VERSION, version);
             }
             toXContentEmbedded(builder, params);
-
-            builder.endObject();
         }
         return builder;
     }

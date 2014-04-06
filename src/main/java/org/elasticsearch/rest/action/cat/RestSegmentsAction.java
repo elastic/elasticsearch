@@ -31,6 +31,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestActionListener;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
@@ -57,43 +59,19 @@ public class RestSegmentsAction extends AbstractCatAction {
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
 
-        client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
+        client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(final ClusterStateResponse clusterStateResponse) {
+            public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
                 indicesSegmentsRequest.indices(indices);
-
-                client.admin().indices().segments(indicesSegmentsRequest, new ActionListener<IndicesSegmentResponse>() {
+                client.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
                     @Override
-                    public void onResponse(final IndicesSegmentResponse indicesSegmentResponse) {
+                    public RestResponse buildResponse(final IndicesSegmentResponse indicesSegmentResponse) throws Exception {
                         final Map<String, IndexSegments> indicesSegments = indicesSegmentResponse.getIndices();
-                        try {
-                            Table tab = buildTable(request, clusterStateResponse, indicesSegments);
-                            channel.sendResponse(RestTable.buildResponse(tab, request, channel));
-                        } catch (Throwable e) {
-                            onFailure(e);
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Throwable e) {
-                        try {
-                            channel.sendResponse(new BytesRestResponse(request, e));
-                        } catch (IOException e1) {
-                            logger.error("Failed to send failure response", e1);
-                        }
+                        Table tab = buildTable(request, clusterStateResponse, indicesSegments);
+                        return RestTable.buildResponse(tab, channel);
                     }
                 });
-
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
             }
         });
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
  *
@@ -47,6 +48,6 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
-        client.admin().indices().close(closeIndexRequest, new AcknowledgedRestResponseActionListener<CloseIndexResponse>(request, channel, logger));
+        client.admin().indices().close(closeIndexRequest, new AcknowledgedRestListener<CloseIndexResponse>(channel));
     }
 }

@@ -98,7 +98,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         final int size;
         if (minDocCount == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = shardSize;
+            size = (int) Math.min(globalOrdinals.getMaxOrd(), shardSize);
         } else {
             size = (int) Math.min(maxBucketOrd(), shardSize);
         }

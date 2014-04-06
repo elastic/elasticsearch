@@ -84,7 +84,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
@@ -280,7 +279,7 @@ public final class TestCluster extends ImmutableTestCluster {
             }
         }
         builder.put("plugins.isolation", random.nextBoolean());
-        builder.put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_DEFAULT));
+        builder.put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, 1 + random.nextInt(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_DEFAULT));
         return builder.build();
     }
 

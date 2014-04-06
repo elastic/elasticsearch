@@ -57,10 +57,6 @@ public class MockBigArrays extends BigArrays {
         DISCARD = true;
     }
 
-    public static void reset() {
-        ACQUIRED_ARRAYS.clear();
-    }
-
     public static void ensureAllArraysAreReleased() throws Exception {
         if (DISCARD) {
             DISCARD = false;
@@ -82,6 +78,7 @@ public class MockBigArrays extends BigArrays {
                 return;
             }
             masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
+            ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
             if (!masterCopy.isEmpty()) {
                 final Object cause = masterCopy.entrySet().iterator().next().getValue();
                 throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);

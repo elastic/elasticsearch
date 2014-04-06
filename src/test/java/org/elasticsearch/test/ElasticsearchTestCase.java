@@ -128,20 +128,9 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         return new File(uri);
     }
 
-    @Before
-    public void resetPageTracking() {
-        MockPageCacheRecycler.reset();
-    }
-
     @After
     public void ensureAllPagesReleased() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
-    }
-
-    @Before
-    public void resetArrayTracking() {
-        // useful if there are tests that use MockBigArrays but don't inherit from ElasticsearchTestCase
-        MockBigArrays.reset();
     }
 
     @After

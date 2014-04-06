@@ -30,8 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -50,7 +50,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/_aliases/{name}", this);
         controller.registerHandler(PUT, "/{index}/_alias", this);
         controller.registerHandler(PUT, "/_alias", this);
-        
+
         controller.registerHandler(POST, "/{index}/_alias/{name}", this);
         controller.registerHandler(POST, "/_alias/{name}", this);
         controller.registerHandler(POST, "/{index}/_aliases/{name}", this);
@@ -60,7 +60,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;
@@ -69,9 +69,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         String searchRouting = null;
 
         if (request.hasContent()) {
-            XContentParser parser = null;
-            try {
-                parser = XContentFactory.xContent(request.content()).createParser(request.content());
+            try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
                 XContentParser.Token token = parser.nextToken();
                 if (token == null) {
                     throw new ElasticsearchIllegalArgumentException("No index alias is specified");
@@ -98,27 +96,16 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                         }
                     }
                 }
-            } catch (Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                }
-                return;
-            } finally {
-                if (parser != null) {
-                    parser.close();
-                }
             }
         }
 
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
-        String[] aliases = new String[] {alias};
+        String[] aliases = new String[]{alias};
         IndicesAliasesRequest.AliasActions aliasAction = new AliasActions(AliasAction.Type.ADD, indices, aliases);
         indicesAliasesRequest.addAliasAction(aliasAction);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
-        
+
 
         if (routing != null) {
             aliasAction.routing(routing);
@@ -132,6 +119,6 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         if (filter != null) {
             aliasAction.filter(filter);
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestResponseActionListener<IndicesAliasesResponse>(request, channel, logger));
+        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
     }
 }

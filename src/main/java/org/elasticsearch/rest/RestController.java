@@ -140,11 +140,11 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         if (filters.length == 0) {
             try {
                 executeHandler(request, channel);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
+                    channel.sendResponse(new BytesRestResponse(channel, e));
+                } catch (Throwable e1) {
+                    logger.error("failed to send failure response for uri [" + request.uri() + "]", e1);
                 }
             }
         } else {
@@ -153,7 +153,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         }
     }
 
-    void executeHandler(RestRequest request, RestChannel channel) {
+    void executeHandler(RestRequest request, RestChannel channel) throws Exception {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
             handler.handleRequest(request, channel);
@@ -219,7 +219,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 }
             } catch (Exception e) {
                 try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
+                    channel.sendResponse(new BytesRestResponse(channel, e));
                 } catch (IOException e1) {
                     logger.error("Failed to send failure response for uri [" + request.uri() + "]", e1);
                 }
@@ -230,7 +230,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     class RestHandlerFilter extends RestFilter {
 
         @Override
-        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) {
+        public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
             executeHandler(request, channel);
         }
     }

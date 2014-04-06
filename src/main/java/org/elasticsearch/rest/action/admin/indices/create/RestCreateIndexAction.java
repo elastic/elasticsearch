@@ -24,9 +24,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
-
-import java.io.IOException;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
  *
@@ -46,21 +48,10 @@ public class RestCreateIndexAction extends BaseRestHandler {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         createIndexRequest.listenerThreaded(false);
         if (request.hasContent()) {
-            try {
-                createIndexRequest.source(request.content());
-            } catch (Exception e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                }
-                return;
-            }
+            createIndexRequest.source(request.content());
         }
-
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
-
-        client.admin().indices().create(createIndexRequest, new AcknowledgedRestResponseActionListener<CreateIndexResponse>(request, channel, logger));
+        client.admin().indices().create(createIndexRequest, new AcknowledgedRestListener<CreateIndexResponse>(channel));
     }
 }

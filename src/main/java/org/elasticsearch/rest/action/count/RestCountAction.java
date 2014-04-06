@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.count;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -32,14 +31,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.action.count.CountRequest.DEFAULT_MIN_SCORE;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
@@ -63,64 +59,40 @@ public class RestCountAction extends BaseRestHandler {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         countRequest.listenerThreaded(false);
-        try {
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-            if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-            }
-            countRequest.operationThreading(operationThreading);
-            if (request.hasContent()) {
-                countRequest.source(request.content(), request.contentUnsafe());
-            } else {
-                String source = request.param("source");
-                if (source != null) {
-                    countRequest.source(source);
-                } else {
-                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                    if (querySourceBuilder != null) {
-                        countRequest.source(querySourceBuilder);
-                    }
-                }
-            }
-            countRequest.routing(request.param("routing"));
-            countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
-            countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-            countRequest.preference(request.param("preference"));
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
+        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
+            // since we don't spawn, don't allow no_threads, but change it to a single thread
+            operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
         }
-
-        client.count(countRequest, new ActionListener<CountResponse>() {
-            @Override
-            public void onResponse(CountResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    builder.field("count", response.getCount());
-
-                    buildBroadcastShardsHeader(builder, response);
-
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(response.status(), builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+        countRequest.operationThreading(operationThreading);
+        if (request.hasContent()) {
+            countRequest.source(request.content(), request.contentUnsafe());
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                countRequest.source(source);
+            } else {
+                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                if (querySourceBuilder != null) {
+                    countRequest.source(querySourceBuilder);
                 }
             }
+        }
+        countRequest.routing(request.param("routing"));
+        countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
+        countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        countRequest.preference(request.param("preference"));
 
+        client.count(countRequest, new RestBuilderListener<CountResponse>(channel) {
             @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(CountResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field("count", response.getCount());
+
+                buildBroadcastShardsHeader(builder, response);
+
+                builder.endObject();
+                return new BytesRestResponse(response.status(), builder);
             }
         });
     }

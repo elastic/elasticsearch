@@ -16,37 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest;
+
+package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
 
 import java.io.IOException;
 
 /**
+ * A REST enabled action listener that has a basic onFailure implementation, and requires
+ * sub classes to only implement {@link #buildResponse(Object)}.
  */
-public abstract class AbstractRestResponseActionListener<T extends ActionResponse> implements ActionListener<T> {
+public abstract class RestResponseListener<Response> extends RestActionListener<Response> {
 
-    protected final RestChannel channel;
-    protected final RestRequest request;
-    protected final ESLogger logger;
-
-    public AbstractRestResponseActionListener(final RestRequest request, final RestChannel channel, final ESLogger logger) {
-        this.request = request;
-        this.channel = channel;
-        this.logger = logger;
+    protected RestResponseListener(RestChannel channel) {
+        super(channel);
     }
 
     @Override
-    public abstract void onResponse(T t);
-
-    @Override
-    public void onFailure(Throwable e) {
-        try {
-            channel.sendResponse(new BytesRestResponse(request, e));
-        } catch (IOException e1) {
-            logger.error("Failed to send failure response", e1);
-        }
+    protected final void processResponse(Response response) throws Exception {
+        channel.sendResponse(buildResponse(response));
     }
+
+    /**
+     * Builds the response to send back through the channel.
+     */
+    public abstract RestResponse buildResponse(Response response) throws Exception;
 }

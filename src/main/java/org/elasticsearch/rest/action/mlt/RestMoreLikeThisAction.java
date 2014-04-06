@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
@@ -36,9 +37,7 @@ import static org.elasticsearch.client.Requests.moreLikeThisRequest;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  *
@@ -58,71 +57,39 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         mltRequest.routing(request.param("routing"));
 
         mltRequest.listenerThreaded(false);
-        try {
-            //TODO the ParseField class that encapsulates the supported names used for an attribute
-            //needs some work if it is to be used in a REST context like this too
-            // See the MoreLikeThisQueryParser constants that hold the valid syntax
-            mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
-            mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
-            mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
-            mltRequest.maxQueryTerms(request.paramAsInt("max_query_terms", -1));
-            mltRequest.stopWords(request.paramAsStringArray("stop_words", null));
-            mltRequest.minDocFreq(request.paramAsInt("min_doc_freq", -1));
-            mltRequest.maxDocFreq(request.paramAsInt("max_doc_freq", -1));
-            mltRequest.minWordLength(request.paramAsInt("min_word_len", request.paramAsInt("min_word_length",-1)));
-            mltRequest.maxWordLength(request.paramAsInt("max_word_len", request.paramAsInt("max_word_length",-1)));
-            mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
+        //TODO the ParseField class that encapsulates the supported names used for an attribute
+        //needs some work if it is to be used in a REST context like this too
+        // See the MoreLikeThisQueryParser constants that hold the valid syntax
+        mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
+        mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
+        mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
+        mltRequest.maxQueryTerms(request.paramAsInt("max_query_terms", -1));
+        mltRequest.stopWords(request.paramAsStringArray("stop_words", null));
+        mltRequest.minDocFreq(request.paramAsInt("min_doc_freq", -1));
+        mltRequest.maxDocFreq(request.paramAsInt("max_doc_freq", -1));
+        mltRequest.minWordLength(request.paramAsInt("min_word_len", request.paramAsInt("min_word_length", -1)));
+        mltRequest.maxWordLength(request.paramAsInt("max_word_len", request.paramAsInt("max_word_length", -1)));
+        mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
 
-            mltRequest.searchType(SearchType.fromString(request.param("search_type")));
-            mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
-            mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
-            mltRequest.searchQueryHint(request.param("search_query_hint"));
-            mltRequest.searchSize(request.paramAsInt("search_size", mltRequest.searchSize()));
-            mltRequest.searchFrom(request.paramAsInt("search_from", mltRequest.searchFrom()));
-            String searchScroll = request.param("search_scroll");
-            if (searchScroll != null) {
-                mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
+        mltRequest.searchType(SearchType.fromString(request.param("search_type")));
+        mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
+        mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
+        mltRequest.searchQueryHint(request.param("search_query_hint"));
+        mltRequest.searchSize(request.paramAsInt("search_size", mltRequest.searchSize()));
+        mltRequest.searchFrom(request.paramAsInt("search_from", mltRequest.searchFrom()));
+        String searchScroll = request.param("search_scroll");
+        if (searchScroll != null) {
+            mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
+        }
+        if (request.hasContent()) {
+            mltRequest.searchSource(request.content(), request.contentUnsafe());
+        } else {
+            String searchSource = request.param("search_source");
+            if (searchSource != null) {
+                mltRequest.searchSource(searchSource);
             }
-            if (request.hasContent()) {
-                mltRequest.searchSource(request.content(), request.contentUnsafe());
-            } else {
-                String searchSource = request.param("search_source");
-                if (searchSource != null) {
-                    mltRequest.searchSource(searchSource);
-                }
-            }
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
         }
 
-        client.moreLikeThis(mltRequest, new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    builder.startObject();
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.moreLikeThis(mltRequest, new RestToXContentListener<SearchResponse>(channel));
     }
 }

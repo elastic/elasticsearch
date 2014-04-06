@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.deleteMappingRequest;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
@@ -56,6 +57,6 @@ public class RestDeleteMappingAction extends BaseRestHandler {
         deleteMappingRequest.timeout(request.paramAsTime("timeout", deleteMappingRequest.timeout()));
         deleteMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteMappingRequest.masterNodeTimeout()));
         deleteMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteMappingRequest.indicesOptions()));
-        client.admin().indices().deleteMapping(deleteMappingRequest, new AcknowledgedRestResponseActionListener<DeleteMappingResponse>(request, channel, logger));
+        client.admin().indices().deleteMapping(deleteMappingRequest, new AcknowledgedRestListener<DeleteMappingResponse>(channel));
     }
 }

@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchShardTarget;
@@ -411,7 +410,7 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         if (source != null) {
-            RestXContentBuilder.restDocumentSource(source, builder, params);
+            XContentHelper.writeRawField("_source", source, builder, params);
         }
         if (fields != null && !fields.isEmpty()) {
             builder.startObject(Fields.FIELDS);

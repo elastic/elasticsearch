@@ -19,8 +19,7 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.indices.recovery.RecoveryState;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
@@ -30,16 +29,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import org.apache.lucene.util.CollectionUtil;
-
-import java.io.IOException;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -71,28 +71,10 @@ public class RestRecoveryAction extends AbstractCatAction {
         recoveryRequest.listenerThreaded(false);
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
-        client.admin().indices().recoveries(recoveryRequest, new ActionListener<RecoveryResponse>() {
-
+        client.admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
             @Override
-            public void onResponse(final RecoveryResponse response) {
-                try {
-                    channel.sendResponse(RestTable.buildResponse(buildRecoveryTable(request, response), request, channel));
-                } catch (Throwable e) {
-                    try {
-                        channel.sendResponse(new BytesRestResponse(request, e));
-                    } catch (IOException e2) {
-                        logger.error("Unable to send recovery status response", e2);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(final RecoveryResponse response) throws Exception {
+                return RestTable.buildResponse(buildRecoveryTable(request, response), channel);
             }
         });
     }
@@ -122,8 +104,8 @@ public class RestRecoveryAction extends AbstractCatAction {
      * buildRecoveryTable will build a table of recovery information suitable
      * for displaying at the command line.
      *
-     * @param request   A Rest request
-     * @param response  A recovery status response
+     * @param request  A Rest request
+     * @param response A recovery status response
      * @return A table containing index, shardId, node, target size, recovered size and percentage for each recovering replica
      */
     public Table buildRecoveryTable(RestRequest request, RecoveryResponse response) {

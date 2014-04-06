@@ -24,6 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
 
@@ -55,20 +56,9 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.template(request.param("template", putRequest.template()));
         putRequest.order(request.paramAsInt("order", putRequest.order()));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
-
-        try {
-            putRequest.create(request.paramAsBoolean("create", false));
-            putRequest.cause(request.param("cause", ""));
-            putRequest.source(request.content());
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new BytesRestResponse(request, e));
-            } catch (IOException e1) {
-                logger.warn("Failed to send response", e1);
-            }
-            return;
-        }
-
-        client.admin().indices().putTemplate(putRequest, new AcknowledgedRestResponseActionListener<PutIndexTemplateResponse>(request, channel, logger));
+        putRequest.create(request.paramAsBoolean("create", false));
+        putRequest.cause(request.param("cause", ""));
+        putRequest.source(request.content());
+        client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<PutIndexTemplateResponse>(channel));
     }
 }

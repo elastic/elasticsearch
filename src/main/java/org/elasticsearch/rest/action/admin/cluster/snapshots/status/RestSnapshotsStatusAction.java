@@ -19,22 +19,20 @@
 
 package org.elasticsearch.rest.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 import static org.elasticsearch.client.Requests.snapshotsStatusRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * Returns status of currently running snapshot
@@ -59,19 +57,6 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         SnapshotsStatusRequest snapshotsStatusResponse = snapshotsStatusRequest(repository).snapshots(snapshots);
 
         snapshotsStatusResponse.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusResponse.masterNodeTimeout()));
-        client.admin().cluster().snapshotsStatus(snapshotsStatusResponse, new AbstractRestResponseActionListener<SnapshotsStatusResponse>(request, channel, logger) {
-            @Override
-            public void onResponse(SnapshotsStatusResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (IOException e) {
-                    onFailure(e);
-                }
-            }
-        });
+        client.admin().cluster().snapshotsStatus(snapshotsStatusResponse, new RestToXContentListener<SnapshotsStatusResponse>(channel));
     }
 }

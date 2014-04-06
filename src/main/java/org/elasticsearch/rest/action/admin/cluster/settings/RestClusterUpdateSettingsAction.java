@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,30 +44,20 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.listenerThreaded(false);
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
-        try {
-            Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
-            if (source.containsKey("transient")) {
-                clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
-            }
-            if (source.containsKey("persistent")) {
-                clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
-            }
-        } catch (Exception e) {
-            try {
-                channel.sendResponse(new BytesRestResponse(request, e));
-            } catch (IOException e1) {
-                logger.warn("Failed to send response", e1);
-            }
-            return;
+        Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
+        if (source.containsKey("transient")) {
+            clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
+        }
+        if (source.containsKey("persistent")) {
+            clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
         }
 
-        client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new AcknowledgedRestResponseActionListener<ClusterUpdateSettingsResponse>(request, channel, logger) {
-
+        client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {
                 builder.startObject("persistent");
@@ -76,14 +67,6 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
                 builder.startObject("transient");
                 response.getTransientSettings().toXContent(builder, request);
                 builder.endObject();
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("failed to handle cluster state", e);
-                }
-                super.onFailure(e);
             }
         });
     }

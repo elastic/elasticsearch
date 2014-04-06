@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.alias.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,9 +32,8 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -64,50 +62,33 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
-        client.admin().indices().getAliases(getAliasesRequest, new ActionListener<GetAliasesResponse>() {
-
+        client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
-            public void onResponse(GetAliasesResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    // empty body, if indices were specified but no aliases were
-                    if (indices.length > 0 && response.getAliases().isEmpty()) {
-                        channel.sendResponse(new BytesRestResponse(OK, RestXContentBuilder.emptyBuilder(request)));
-                        return;
-                    } else if (response.getAliases().isEmpty()) {
-                        String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
-                        builder.startObject()
-                                .field("error", message)
-                                .field("status", RestStatus.NOT_FOUND.getStatus())
-                                .endObject();
-                        channel.sendResponse(new BytesRestResponse(RestStatus.NOT_FOUND, builder));
-                        return;
-                    }
+            public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
+                // empty body, if indices were specified but no aliases were
+                if (indices.length > 0 && response.getAliases().isEmpty()) {
+                    return new BytesRestResponse(OK, builder.startObject().endObject());
+                } else if (response.getAliases().isEmpty()) {
+                    String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
+                    builder.startObject()
+                            .field("error", message)
+                            .field("status", RestStatus.NOT_FOUND.getStatus())
+                            .endObject();
+                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                }
 
-                    builder.startObject();
-                    for (ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
-                        builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
-                        builder.startObject(Fields.ALIASES);
-                        for (AliasMetaData alias : entry.value) {
-                            AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
-                        }
-                        builder.endObject();
-                        builder.endObject();
+                builder.startObject();
+                for (ObjectObjectCursor<String, List<AliasMetaData>> entry : response.getAliases()) {
+                    builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(Fields.ALIASES);
+                    for (AliasMetaData alias : entry.value) {
+                        AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                     }
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                    builder.endObject();
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

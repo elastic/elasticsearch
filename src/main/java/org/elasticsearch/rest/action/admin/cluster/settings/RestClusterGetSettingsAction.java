@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.settings;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -28,7 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 
@@ -49,36 +48,22 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                 .routingTable(false)
                 .nodes(false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(ClusterStateResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
+            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
 
-                    builder.startObject("persistent");
-                    response.getState().metaData().persistentSettings().toXContent(builder, request);
-                    builder.endObject();
+                builder.startObject("persistent");
+                response.getState().metaData().persistentSettings().toXContent(builder, request);
+                builder.endObject();
 
-                    builder.startObject("transient");
-                    response.getState().metaData().transientSettings().toXContent(builder, request);
-                    builder.endObject();
+                builder.startObject("transient");
+                response.getState().metaData().transientSettings().toXContent(builder, request);
+                builder.endObject();
 
-                    builder.endObject();
+                builder.endObject();
 
-                    channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

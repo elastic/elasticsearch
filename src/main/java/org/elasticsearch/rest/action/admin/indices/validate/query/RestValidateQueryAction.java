@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.validate.query;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -33,13 +32,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
@@ -64,84 +60,60 @@ public class RestValidateQueryAction extends BaseRestHandler {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
-        try {
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
-            if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-            }
-            validateQueryRequest.operationThreading(operationThreading);
-            if (request.hasContent()) {
-                validateQueryRequest.source(request.content(), request.contentUnsafe());
+        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
+        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
+            // since we don't spawn, don't allow no_threads, but change it to a single thread
+            operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
+        }
+        validateQueryRequest.operationThreading(operationThreading);
+        if (request.hasContent()) {
+            validateQueryRequest.source(request.content(), request.contentUnsafe());
+        } else {
+            String source = request.param("source");
+            if (source != null) {
+                validateQueryRequest.source(source);
             } else {
-                String source = request.param("source");
-                if (source != null) {
-                    validateQueryRequest.source(source);
-                } else {
-                    QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
-                    if (querySourceBuilder != null) {
-                        validateQueryRequest.source(querySourceBuilder);
-                    }
+                QuerySourceBuilder querySourceBuilder = RestActions.parseQuerySource(request);
+                if (querySourceBuilder != null) {
+                    validateQueryRequest.source(querySourceBuilder);
                 }
             }
-            validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-            if (request.paramAsBoolean("explain", false)) {
-                validateQueryRequest.explain(true);
-            } else {
-                validateQueryRequest.explain(false);
-            }
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
+        }
+        validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        if (request.paramAsBoolean("explain", false)) {
+            validateQueryRequest.explain(true);
+        } else {
+            validateQueryRequest.explain(false);
         }
 
-        client.admin().indices().validateQuery(validateQueryRequest, new ActionListener<ValidateQueryResponse>() {
+        client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
             @Override
-            public void onResponse(ValidateQueryResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    builder.field("valid", response.isValid());
+            public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field("valid", response.isValid());
 
-                    buildBroadcastShardsHeader(builder, response);
+                buildBroadcastShardsHeader(builder, response);
 
-                    if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
-                        builder.startArray("explanations");
-                        for (QueryExplanation explanation : response.getQueryExplanation()) {
-                            builder.startObject();
-                            if (explanation.getIndex() != null) {
-                                builder.field("index", explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
-                            }
-                            builder.field("valid", explanation.isValid());
-                            if (explanation.getError() != null) {
-                                builder.field("error", explanation.getError());
-                            }
-                            if (explanation.getExplanation() != null) {
-                                builder.field("explanation", explanation.getExplanation());
-                            }
-                            builder.endObject();
+                if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
+                    builder.startArray("explanations");
+                    for (QueryExplanation explanation : response.getQueryExplanation()) {
+                        builder.startObject();
+                        if (explanation.getIndex() != null) {
+                            builder.field("index", explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
                         }
-                        builder.endArray();
+                        builder.field("valid", explanation.isValid());
+                        if (explanation.getError() != null) {
+                            builder.field("error", explanation.getError());
+                        }
+                        if (explanation.getExplanation() != null) {
+                            builder.field("explanation", explanation.getExplanation());
+                        }
+                        builder.endObject();
                     }
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                    builder.endArray();
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

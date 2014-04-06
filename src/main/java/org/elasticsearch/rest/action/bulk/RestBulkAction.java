@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.bulk;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -36,14 +35,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  * <pre>
@@ -73,7 +69,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");
@@ -90,84 +86,60 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
-        try {
-            bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, defaultRouting, null, allowExplicitIndex);
-        } catch (Exception e) {
-            try {
-                XContentBuilder builder = restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
-        }
+        bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, defaultRouting, null, allowExplicitIndex);
 
-        client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
+        client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
             @Override
-            public void onResponse(BulkResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
+            public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field(Fields.TOOK, response.getTookInMillis());
+                builder.field(Fields.ERRORS, response.hasFailures());
+                builder.startArray(Fields.ITEMS);
+                for (BulkItemResponse itemResponse : response) {
                     builder.startObject();
-                    builder.field(Fields.TOOK, response.getTookInMillis());
-                    builder.field(Fields.ERRORS, response.hasFailures());
-                    builder.startArray(Fields.ITEMS);
-                    for (BulkItemResponse itemResponse : response) {
-                        builder.startObject();
-                        builder.startObject(itemResponse.getOpType());
-                        builder.field(Fields._INDEX, itemResponse.getIndex());
-                        builder.field(Fields._TYPE, itemResponse.getType());
-                        builder.field(Fields._ID, itemResponse.getId());
-                        long version = itemResponse.getVersion();
-                        if (version != -1) {
-                            builder.field(Fields._VERSION, itemResponse.getVersion());
-                        }
-                        if (itemResponse.isFailed()) {
-                            builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
-                            builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
-                        } else {
-                            if (itemResponse.getResponse() instanceof DeleteResponse) {
-                                DeleteResponse deleteResponse = itemResponse.getResponse();
-                                if (deleteResponse.isFound()) {
-                                    builder.field(Fields.STATUS, RestStatus.OK.getStatus());
-                                } else {
-                                    builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
-                                }
-                                builder.field(Fields.FOUND, deleteResponse.isFound());
-                            } else if (itemResponse.getResponse() instanceof IndexResponse) {
-                                IndexResponse indexResponse = itemResponse.getResponse();
-                                if (indexResponse.isCreated()) {
-                                    builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                                } else {
-                                    builder.field(Fields.STATUS, RestStatus.OK.getStatus());
-                                }
-                            } else if (itemResponse.getResponse() instanceof UpdateResponse) {
-                                UpdateResponse updateResponse = itemResponse.getResponse();
-                                if (updateResponse.isCreated()) {
-                                    builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                                } else {
-                                    builder.field(Fields.STATUS, RestStatus.OK.getStatus());
-                                }
+                    builder.startObject(itemResponse.getOpType());
+                    builder.field(Fields._INDEX, itemResponse.getIndex());
+                    builder.field(Fields._TYPE, itemResponse.getType());
+                    builder.field(Fields._ID, itemResponse.getId());
+                    long version = itemResponse.getVersion();
+                    if (version != -1) {
+                        builder.field(Fields._VERSION, itemResponse.getVersion());
+                    }
+                    if (itemResponse.isFailed()) {
+                        builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
+                        builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
+                    } else {
+                        if (itemResponse.getResponse() instanceof DeleteResponse) {
+                            DeleteResponse deleteResponse = itemResponse.getResponse();
+                            if (deleteResponse.isFound()) {
+                                builder.field(Fields.STATUS, RestStatus.OK.getStatus());
+                            } else {
+                                builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
+                            }
+                            builder.field(Fields.FOUND, deleteResponse.isFound());
+                        } else if (itemResponse.getResponse() instanceof IndexResponse) {
+                            IndexResponse indexResponse = itemResponse.getResponse();
+                            if (indexResponse.isCreated()) {
+                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
+                            } else {
+                                builder.field(Fields.STATUS, RestStatus.OK.getStatus());
+                            }
+                        } else if (itemResponse.getResponse() instanceof UpdateResponse) {
+                            UpdateResponse updateResponse = itemResponse.getResponse();
+                            if (updateResponse.isCreated()) {
+                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
+                            } else {
+                                builder.field(Fields.STATUS, RestStatus.OK.getStatus());
                             }
                         }
-                        builder.endObject();
-                        builder.endObject();
                     }
-                    builder.endArray();
-
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                    builder.endObject();
                 }
-            }
+                builder.endArray();
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

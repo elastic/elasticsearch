@@ -17,17 +17,28 @@
  * under the License.
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 
 /**
- *
+ * A REST action listener that builds an {@link XContentBuilder} based response.
  */
-public abstract class HttpChannel extends RestChannel {
+public abstract class RestBuilderListener<Response> extends RestResponseListener<Response> {
 
-    protected HttpChannel(RestRequest request) {
-        super(request);
+    public RestBuilderListener(RestChannel channel) {
+        super(channel);
     }
+
+    @Override
+    public final RestResponse buildResponse(Response response) throws Exception {
+        return buildResponse(response, channel.newBuilder());
+    }
+
+    /**
+     * Builds a response to send back over the channel.
+     */
+    public abstract RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception;
 }

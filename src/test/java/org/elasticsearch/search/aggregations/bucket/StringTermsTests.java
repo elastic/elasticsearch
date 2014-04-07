@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.base.Strings;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -942,6 +943,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     }
 
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
 
@@ -962,6 +964,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
 
@@ -983,6 +986,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
 
@@ -1004,6 +1008,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
 

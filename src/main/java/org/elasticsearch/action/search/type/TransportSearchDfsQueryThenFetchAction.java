@@ -168,7 +168,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
             }
             this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
-            successulOps.decrementAndGet();
+            successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
                 executeFetchPhase();
             }
@@ -272,7 +272,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                 logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
             }
             this.addShardFailure(shardIndex, shardTarget, t);
-            successulOps.decrementAndGet();
+            successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
                 finishHim();
             }
@@ -298,7 +298,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
             }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

@@ -122,6 +122,31 @@ based model] . This similarity has the following options:
 Type name: `IB`
 
 [float]
+[[lm_dirichlet]]
+==== LM Dirichlet similarity.
+
+http://lucene.apache.org/core/4_7_1/core/org/apache/lucene/search/similarities/LMDirichletSimilarity.html[LM
+Dirichlet similarity] . This similarity has the following options:
+
+[horizontal]
+`mu`::  Default to `2000`.
+
+Type name: `LMDirichlet`
+
+[float]
+[[lm_jelinek_mercer]]
+==== LM Jelinek Mercer similarity.
+
+http://lucene.apache.org/core/4_7_1/core/org/apache/lucene/search/similarities/LMJelinekMercerSimilarity.html[LM
+Jelinek Mercer similarity] . This similarity has the following options:
+
+[horizontal]
+`lambda`::  The optimal value depends on both the collection and the query. The optimal value is around `0.1`
+for title queries and `0.7` for long queries. Default to `0.1`.
+
+Type name: `LMJelinekMercer`
+
+[float]
 [[default-base]]
 ==== Default and Base Similarities
 

@@ -151,6 +151,47 @@ public class SimilarityTests extends ElasticsearchTestCase {
         assertThat(((NormalizationH2) similarity.getNormalization()).getC(), equalTo(3f));
     }
 
+    @Test
+    public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        Settings indexSettings = ImmutableSettings.settingsBuilder()
+                .put("index.similarity.my_similarity.type", "LMDirichlet")
+                .put("index.similarity.my_similarity.mu", 3000f)
+                .build();
+        SimilarityService similarityService = similarityService(indexSettings);
+        DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
+        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(LMDirichletSimilarityProvider.class));
+
+        LMDirichletSimilarity similarity = (LMDirichletSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        assertThat(similarity.getMu(), equalTo(3000f));
+    }
+
+    @Test
+    public void testResolveSimilaritiesFromMapping_LMJelinekMercer() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        Settings indexSettings = ImmutableSettings.settingsBuilder()
+                .put("index.similarity.my_similarity.type", "LMJelinekMercer")
+                .put("index.similarity.my_similarity.lambda", 0.7f)
+                .build();
+        SimilarityService similarityService = similarityService(indexSettings);
+        DocumentMapper documentMapper = similarityService.mapperService().documentMapperParser().parse(mapping);
+        assertThat(documentMapper.mappers().name("field1").mapper().similarity(), instanceOf(LMJelinekMercerSimilarityProvider.class));
+
+        LMJelinekMercerSimilarity similarity = (LMJelinekMercerSimilarity) documentMapper.mappers().name("field1").mapper().similarity().get();
+        assertThat(similarity.getLambda(), equalTo(0.7f));
+    }
+
+
     private static SimilarityService similarityService() {
         return similarityService(ImmutableSettings.Builder.EMPTY_SETTINGS);
     }

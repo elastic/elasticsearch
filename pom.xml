@@ -1414,7 +1414,7 @@
               <reportSets>
                 <reportSet>
                   <reports>
-                    <report>dependencies</report>
+                    <report>index</report>
                   </reports>
                 </reportSet>
               </reportSets>

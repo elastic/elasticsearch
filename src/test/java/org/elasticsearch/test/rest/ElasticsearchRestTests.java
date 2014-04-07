@@ -19,14 +19,10 @@
 
 package org.elasticsearch.test.rest;
 
-import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.ReplicateOnEachVm;
 import com.google.common.collect.Lists;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
@@ -135,12 +131,14 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
         String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
         RestSpec restSpec = RestSpec.parseFrom(DEFAULT_SPEC_PATH, specPaths);
+        assert restTestExecutionContext == null;
         restTestExecutionContext = new RestTestExecutionContext(restSpec);
     }
 
     @AfterClass
     public static void close() {
         restTestExecutionContext.close();
+        restTestExecutionContext = null;
     }
 
     @Before

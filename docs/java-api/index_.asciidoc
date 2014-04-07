@@ -100,7 +100,7 @@ Elasticsearch provides built-in helpers to generate JSON content.
 --------------------------------------------------
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 
-XContentBuilder builder = jsonBuilder()
+XContentBuilder builder = XContentFactory.jsonBuilder()
     .startObject()
         .field("user", "kimchy")
         .field("postDate", new Date())
@@ -133,7 +133,7 @@ twitter, under a type called tweet, with id valued 1:
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 
 IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
-        .setSource(jsonBuilder()
+        .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
                         .field("postDate", new Date())

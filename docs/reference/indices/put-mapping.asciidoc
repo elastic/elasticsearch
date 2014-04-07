@@ -6,7 +6,7 @@ specific type.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/twitter/tweet/_mapping' -d '
+$ curl -XPUT 'http://localhost:9200/twitter/_mapping/tweet' -d '
 {
     "tweet" : {
         "properties" : {
@@ -49,7 +49,7 @@ call, or even on `_all` the indices.
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/kimchy,elasticsearch/tweet/_mapping' -d '
+$ curl -XPUT 'http://localhost:9200/kimchy,elasticsearch/_mapping/tweet' -d '
 {
     "tweet" : {
         "properties" : {

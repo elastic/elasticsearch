@@ -172,7 +172,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                 logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
             }
             this.addShardFailure(shardIndex, shardTarget, t);
-            successulOps.decrementAndGet();
+            successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
                 finishHim();
             }
@@ -198,7 +198,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
             }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

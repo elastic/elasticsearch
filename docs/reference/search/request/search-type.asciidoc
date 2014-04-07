@@ -109,7 +109,7 @@ curl -XGET 'localhost:9200/_search?search_type=scan&scroll=10m&size=50' -d '
 '
 --------------------------------------------------
 
-The `scroll` parameter control the keep alive time of the scrolling
+The `scroll` parameter controls the keep alive time of the scrolling
 request and initiates the scrolling process. The timeout applies per
 round trip (i.e. between the previous scan scroll request, to the next).
 

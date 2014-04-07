@@ -410,43 +410,43 @@ public abstract class StreamOutput extends OutputStream {
             writeShort((Short) value);
         } else if (type == int[].class) {
             writeByte((byte) 17);
-            writePrimitiveIntArray((int[]) value);
+            writeIntArray((int[]) value);
         } else if (type == long[].class) {
             writeByte((byte) 18);
-            writePrimitiveLongArray((long[]) value);
+            writeLongArray((long[]) value);
         } else if (type == float[].class) {
             writeByte((byte) 19);
-            writePrimitiveFloatArray((float[]) value);
+            writeFloatArray((float[]) value);
         } else if (type == double[].class) {
             writeByte((byte) 20);
-            writePrimitiveDoubleArray((double[]) value);
+            writeDoubleArray((double[]) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }
     }
 
-    public void writePrimitiveIntArray(int[] value) throws IOException {
+    public void writeIntArray(int[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeInt(value[i]);
         }
     }
     
-    public void writePrimitiveLongArray(long[] value) throws IOException {
+    public void writeLongArray(long[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeLong(value[i]);
         }
     }
     
-    public void writePrimitiveFloatArray(float[] value) throws IOException {
+    public void writeFloatArray(float[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeFloat(value[i]);
         }
     }
     
-    public void writePrimitiveDoubleArray(double[] value) throws IOException {
+    public void writeDoubleArray(double[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeDouble(value[i]);

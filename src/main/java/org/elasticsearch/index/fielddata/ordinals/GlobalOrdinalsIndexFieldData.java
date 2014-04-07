@@ -145,9 +145,15 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
                     return bytesValues[readerIndex].getValueByOrd(segmentOrd);
                 }
 
+
                 @Override
                 public BytesRef copyShared() {
                     return bytesValues[readerIndex].copyShared();
+                }
+
+                @Override
+                public void copyShared(BytesRef scratch) {
+                    bytesValues[readerIndex].copyShared(scratch);
                 }
 
                 @Override

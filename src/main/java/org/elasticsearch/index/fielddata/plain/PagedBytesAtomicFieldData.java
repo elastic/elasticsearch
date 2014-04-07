@@ -140,6 +140,13 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         @Override
+        public void copyShared(BytesRef scratch) {
+            scratch.bytes = this.scratch.bytes;
+            scratch.offset = this.scratch.offset;
+            scratch.length = this.scratch.length;
+        }
+
+        @Override
         public BytesRef copyShared() {
             // when we fill from the pages bytes, we just reference an existing buffer slice, its enough
             // to create a shallow copy of the bytes to be safe for "reads".

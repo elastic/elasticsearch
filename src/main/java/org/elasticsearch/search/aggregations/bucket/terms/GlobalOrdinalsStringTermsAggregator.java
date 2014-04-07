@@ -20,9 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -80,15 +78,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
     }
 
-    private static void copy(BytesRef from, BytesRef to) {
-        if (to.bytes.length < from.length) {
-            to.bytes = new byte[ArrayUtil.oversize(from.length, RamUsageEstimator.NUM_BYTES_BYTE)];
-        }
-        to.offset = 0;
-        to.length = from.length;
-        System.arraycopy(from.bytes, from.offset, to.bytes, 0, from.length);
-    }
-
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (globalOrdinals == null) { // no context in this reader
@@ -115,7 +104,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
-            copy(globalValues.getValueByOrd(termOrd), spare.termBytes);
+            globalValues.getValueByOrd(termOrd);
+            globalValues.copyShared(spare.termBytes);
             spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 

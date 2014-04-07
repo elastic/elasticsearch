@@ -75,6 +75,13 @@ public abstract class BytesValues {
     }
 
     /**
+     * Similar to {@link #copyShared()}, but allows to specify the ByteRef to copy into.
+     */
+    public void copyShared(BytesRef scratch) {
+        this.scratch.copyBytes(scratch);
+    }
+
+    /**
      * Sets iteration to the specified docID and returns the number of
      * values for this document ID,
      * @param docId document ID

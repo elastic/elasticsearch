@@ -425,28 +425,28 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private void writePrimitiveIntArray(int[] value) throws IOException {
+    public void writePrimitiveIntArray(int[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeInt(value[i]);
         }
     }
     
-    private void writePrimitiveLongArray(long[] value) throws IOException {
+    public void writePrimitiveLongArray(long[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeLong(value[i]);
         }
     }
     
-    private void writePrimitiveFloatArray(float[] value) throws IOException {
+    public void writePrimitiveFloatArray(float[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeFloat(value[i]);
         }
     }
     
-    private void writePrimitiveDoubleArray(double[] value) throws IOException {
+    public void writePrimitiveDoubleArray(double[] value) throws IOException {
         writeVInt(value.length);
         for (int i=0; i<value.length; i++) {
             writeDouble(value[i]);

@@ -119,11 +119,12 @@ This syntax is from versions prior to 1.0:
 
 * When the cluster is up and running, shard reallocation can be enabled.
 
-This synax is from release 1.0 and later:
+This syntax is from release 1.0 and later:
 [source,sh]
 ------------------------------------------------------
 	curl -XPUT localhost:9200/_cluster/settings -d '{
      		"persistent" : {
+		"cluster.routing.allocation.disable_allocation": false,
          	"cluster.routing.allocation.enable" : "all"
      		}
  	}'

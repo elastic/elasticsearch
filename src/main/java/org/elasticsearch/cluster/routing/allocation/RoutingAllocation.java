@@ -29,7 +29,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The {@link RoutingAllocation} keep the state of the current allocation
@@ -96,7 +98,7 @@ public class RoutingAllocation {
 
     private final ClusterInfo clusterInfo;
 
-    private Map<ShardId, String> ignoredShardToNodes = null;
+    private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
     private boolean ignoreDisable = false;
 
@@ -186,13 +188,22 @@ public class RoutingAllocation {
 
     public void addIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
-            ignoredShardToNodes = new HashMap<ShardId, String>();
+            ignoredShardToNodes = new HashMap<ShardId, Set<String>>();
         }
-        ignoredShardToNodes.put(shardId, nodeId);
+        Set<String> nodes = ignoredShardToNodes.get(shardId);
+        if (nodes == null) {
+            nodes = new HashSet<String>();
+            ignoredShardToNodes.put(shardId, nodes);
+        }
+        nodes.add(nodeId);
     }
 
     public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
-        return ignoredShardToNodes != null && nodeId.equals(ignoredShardToNodes.get(shardId));
+        if (ignoredShardToNodes == null) {
+            return false;
+        }
+        Set<String> nodes = ignoredShardToNodes.get(shardId);
+        return nodes != null && nodes.contains(nodeId);
     }
 
     /**

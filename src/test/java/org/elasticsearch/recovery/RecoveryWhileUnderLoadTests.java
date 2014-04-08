@@ -264,7 +264,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
             logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
             allowNodes("test", 3);
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("number_of_replicas", 1)).get());
-            assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
+            assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus().execute().actionGet().isTimedOut(), equalTo(false));
 
             logger.info("--> refreshing the index");
             refreshAndAssert();

@@ -86,7 +86,7 @@ We can also use the JSON query language Elasticsearch provides instead of a quer
 curl -XGET 'http://localhost:9200/twitter/tweet/_search?pretty=true' -d '
 { 
     "query" : { 
-        "text" : { "user": "kimchy" }
+        "match" : { "user": "kimchy" }
     } 
 }'
 </pre>

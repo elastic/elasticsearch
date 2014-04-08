@@ -186,7 +186,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Less than the required {}% free disk threshold ({}% free) on node [{}], preventing allocation",
                         freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
             }
-            return allocation.decision(Decision.NO, NAME, "less than required [%d%%] free disk on node, free: [%d%%]",
+            return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
                     freeDiskThresholdLow, freeDiskThresholdLow);
         }
 
@@ -204,7 +204,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (freeSpaceAfterShard < freeDiskThresholdHigh) {
             logger.warn("After allocating, node [{}] would have less than the required {}% free disk threshold ({}% free), preventing allocation",
                     node.nodeId(), freeDiskThresholdHigh, freeSpaceAfterShard);
-            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%d%%] free disk on node, free: [%d%%]",
+            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%s%%] free disk on node, free: [%s%%]",
                     freeDiskThresholdLow, freeSpaceAfterShard);
         }
 
@@ -266,7 +266,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Less than the required {}% free disk threshold ({}% free) on node {}, shard cannot remain",
                         freeDiskThresholdHigh, freeDiskPercentage, node.nodeId());
             }
-            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%d%%] free disk on node, free: [%d%%]",
+            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%s%%] free disk on node, free: [%s%%]",
                     freeDiskThresholdHigh, freeDiskPercentage);
         }
 

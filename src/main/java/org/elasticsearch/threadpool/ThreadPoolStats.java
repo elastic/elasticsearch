@@ -19,6 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -119,8 +120,10 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             rejected = in.readLong();
             largest = in.readInt();
             completed = in.readLong();
-            min = in.readInt();
-            max = in.readInt();
+            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+                min = in.readInt();
+                max = in.readInt();
+            }
         }
 
         @Override
@@ -132,8 +135,10 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             out.writeLong(rejected);
             out.writeInt(largest);
             out.writeLong(completed);
-            out.writeInt(min);
-            out.writeInt(max);
+            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+                out.writeInt(min);
+                out.writeInt(max);
+            }
         }
 
         @Override

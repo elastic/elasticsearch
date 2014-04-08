@@ -58,8 +58,29 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         if (!objectMapper.nested().isNested()) {
             throw new AggregationExecutionException("facet nested path [" + nestedPath + "] is not nested");
         }
-        parentFilter = aggregationContext.searchContext().filterCache().cache(NonNestedDocsFilter.INSTANCE);
+
+        NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
+        final Filter parentFilterNotCached;
+        if (closestNestedAggregator == null) {
+            parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
+        } else {
+            // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
+            // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed
+            // so we lookup its child filter when we really need it and that time the closest parent nested aggs
+            // has been created and we can use its child filter as the parent filter.
+            parentFilterNotCached = new ClosestNestedParentFilter(closestNestedAggregator);
+        }
+        parentFilter = aggregationContext.searchContext().filterCache().cache(parentFilterNotCached);
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+    }
+
+    private NestedAggregator findClosestNestedAggregator(Aggregator parent) {
+        for (; parent != null; parent = parent.parent()) {
+            if (parent instanceof NestedAggregator) {
+                return (NestedAggregator) parent;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -120,6 +141,35 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         @Override
         public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
             return new NestedAggregator(name, factories, path, context, parent);
+        }
+    }
+
+    private final static class ClosestNestedParentFilter extends Filter {
+
+        private final NestedAggregator nestedAggregator;
+
+        private ClosestNestedParentFilter(NestedAggregator nestedAggregator) {
+            this.nestedAggregator = nestedAggregator;
+        }
+
+        @Override
+        public int hashCode() {
+            return nestedAggregator.childFilter.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return nestedAggregator.childFilter.equals(obj);
+        }
+
+        @Override
+        public String toString() {
+            return nestedAggregator.childFilter.toString();
+        }
+
+        @Override
+        public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits liveDocs) throws IOException {
+            return nestedAggregator.childFilter.getDocIdSet(ctx, liveDocs);
         }
     }
 }

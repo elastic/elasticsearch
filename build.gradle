@@ -64,7 +64,7 @@ task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->
 task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
     group = "Distribution"
     description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
-	classifier = "yarn"
+	classifier = "hadoop2"
 
     from("../") {
         include "LICENSE.txt"
@@ -81,7 +81,7 @@ task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
 
 task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
     group = "Distribution"
-    description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
+    description = "Builds archive (without any Hadoop dependencies) suitable for download page."
 	classifier = "light"
 
     from("../") {

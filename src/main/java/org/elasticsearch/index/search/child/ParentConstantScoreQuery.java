@@ -87,29 +87,31 @@ public class ParentConstantScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        SearchContext searchContext = SearchContext.current();
-        BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
-        ParentIdsCollector collector = new ParentIdsCollector(parentType, parentChildIndexFieldData, parentIds);
-
-        final Query parentQuery;
-        if (rewrittenParentQuery != null) {
-            parentQuery = rewrittenParentQuery;
-        } else {
+        final SearchContext searchContext = SearchContext.current();
+        final BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
+        boolean releaseParentIds = true;
+        try {
+            ParentIdsCollector collector = new ParentIdsCollector(parentType, parentChildIndexFieldData, parentIds);
+            assert rewrittenParentQuery != null;
             assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-            parentQuery = rewrittenParentQuery = originalParentQuery.rewrite(searcher.getIndexReader());
-        }
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity());
-        indexSearcher.search(parentQuery, collector);
+            final Query parentQuery = rewrittenParentQuery;
+            IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+            indexSearcher.setSimilarity(searcher.getSimilarity());
+            indexSearcher.search(parentQuery, collector);
 
-        if (parentIds.size() == 0) {
-            Releasables.release(parentIds);
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
-        }
+            if (parentIds.size() == 0) {
+                return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            }
 
-        ChildrenWeight childrenWeight = new ChildrenWeight(childrenFilter, parentIds);
-        searchContext.addReleasable(childrenWeight);
-        return childrenWeight;
+            final ChildrenWeight childrenWeight = new ChildrenWeight(childrenFilter, parentIds);
+            searchContext.addReleasable(childrenWeight);
+            releaseParentIds = false;
+            return childrenWeight;
+        } finally {
+            if (releaseParentIds) {
+                Releasables.release(parentIds);
+            }
+        }
     }
 
     private final class ChildrenWeight extends Weight implements Releasable {

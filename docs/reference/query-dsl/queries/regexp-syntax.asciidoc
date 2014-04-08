@@ -184,10 +184,10 @@ negates the character class. The allowed forms are:
     [a-c]   # 'a' or 'b' or 'c'
     [-abc]  # '-' or 'a' or 'b' or 'c'
     [abc\-] # '-' or 'a' or 'b' or 'c'
+    [^abc]  # any character except 'a' or 'b' or 'c'
     [^a-c]  # any character except 'a' or 'b' or 'c'
-    [^a-c]  # any character except 'a' or 'b' or 'c'
-    [-abc]  # '-' or 'a' or 'b' or 'c'
-    [abc\-] # '-' or 'a' or 'b' or 'c'
+    [^-abc]  # any character except '-' or 'a' or 'b' or 'c'
+    [^abc\-] # any character except '-' or 'a' or 'b' or 'c'
 
 Note that the dash `"-"` indicates a range of characeters, unless it is
 the first character or if it is escaped with a backslash.

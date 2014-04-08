@@ -1,6 +1,14 @@
 ---
 "Basic mlt":
   - do:
+     indices.create:
+       index:    test_1
+       body:
+         settings:
+           index:
+             number_of_replicas: 0
+
+  - do:
       index:
           index:  test_1
           type:   test
@@ -13,7 +21,7 @@
   - do:
       cluster.health:
            wait_for_status: green
-           timeout: 1s   
+
   - do:
       mlt:
           index:  test_1

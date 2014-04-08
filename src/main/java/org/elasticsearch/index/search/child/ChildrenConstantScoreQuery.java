@@ -98,37 +98,41 @@ public class ChildrenConstantScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        SearchContext searchContext = SearchContext.current();
-        BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
-        ParentIdCollector collector = new ParentIdCollector(parentType, parentChildIndexFieldData, parentIds);
-        final Query childQuery;
-        if (rewrittenChildQuery == null) {
-            childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
-        } else {
+        final SearchContext searchContext = SearchContext.current();
+        final BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
+        boolean releaseParentIds = true;
+        try {
+            final ParentIdCollector collector = new ParentIdCollector(parentType, parentChildIndexFieldData, parentIds);
+            assert rewrittenChildQuery != null;
             assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-            childQuery = rewrittenChildQuery;
-        }
-        IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
-        indexSearcher.setSimilarity(searcher.getSimilarity());
-        indexSearcher.search(childQuery, collector);
+            final Query childQuery = rewrittenChildQuery;
+            IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+            indexSearcher.setSimilarity(searcher.getSimilarity());
+            indexSearcher.search(childQuery, collector);
 
-        long remaining = parentIds.size();
-        if (remaining == 0) {
-            Releasables.release(parentIds);
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            long remaining = parentIds.size();
+            if (remaining == 0) {
+                return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            }
+
+            Filter shortCircuitFilter = null;
+            if (remaining == 1) {
+                BytesRef id = parentIds.get(0, new BytesRef());
+                shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+            } else if (remaining <= shortCircuitParentDocSet) {
+                shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
+            }
+            final ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, parentIds);
+            searchContext.addReleasable(parentWeight);
+            releaseParentIds = false;
+            return parentWeight;
+        } finally {
+           if (releaseParentIds) {
+               Releasables.release(parentIds);
+           }
         }
 
-        Filter shortCircuitFilter = null;
-        if (remaining == 1) {
-            BytesRef id = parentIds.get(0, new BytesRef());
-            shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
-        } else if (remaining <= shortCircuitParentDocSet) {
-            shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
-        }
 
-        ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, parentIds);
-        searchContext.addReleasable(parentWeight);
-        return parentWeight;
     }
 
     private final class ParentWeight extends Weight implements Releasable  {

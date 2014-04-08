@@ -133,17 +133,13 @@ public class ParentQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
+        final ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
         ChildWeight childWeight;
         boolean releaseCollectorResource = true;
         try {
-            final Query parentQuery;
-            if (rewrittenParentQuery == null) {
-                parentQuery = rewrittenParentQuery = searcher.rewrite(originalParentQuery);
-            } else {
-                assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-                parentQuery = rewrittenParentQuery;
-            }
+            assert rewrittenParentQuery != null;
+            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+            final Query  parentQuery = rewrittenParentQuery;
             IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);

@@ -12,7 +12,7 @@ BulkRequestBuilder bulkRequest = client.prepareBulk();
 
 // either use client#prepare, or use Requests# to directly build index/delete requests
 bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
-        .setSource(jsonBuilder()
+        .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
                         .field("postDate", new Date())
@@ -22,7 +22,7 @@ bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
         );
 
 bulkRequest.add(client.prepareIndex("twitter", "tweet", "2")
-        .setSource(jsonBuilder()
+        .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
                         .field("postDate", new Date())

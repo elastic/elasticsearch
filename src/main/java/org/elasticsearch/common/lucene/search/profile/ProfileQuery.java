@@ -102,8 +102,7 @@ public class ProfileQuery extends Query implements ProfileComponent {
         if (rewrittenQuery == subQuery) {
             return this;
         }
-        //ProfileQuery newProfile = (ProfileQuery) this.clone();      // @TODO why not just set subQuery and return this?
-        this.subQuery = rewrittenQuery;
+        this.subQuery = new ProfileQuery(rewrittenQuery);
         return this;
     }
 

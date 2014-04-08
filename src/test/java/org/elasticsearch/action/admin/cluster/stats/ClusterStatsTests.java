@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -45,7 +46,7 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     private void waitForNodes(int numNodes) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForNodes(Integer.toString(numNodes))).actionGet();
+                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))).actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 

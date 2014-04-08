@@ -14,6 +14,8 @@
       },
       "params": {}
     },
-    "body": null
+    "body": {
+      "description": "A comma-separated list of scroll IDs to clear if none was specified via the scroll_id parameter"
+    }
   }
 }

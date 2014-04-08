@@ -21,7 +21,6 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
@@ -37,12 +36,11 @@ import org.elasticsearch.index.store.fs.MmapFsDirectoryService;
 import org.elasticsearch.index.store.fs.NioFsDirectoryService;
 import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
+import org.elasticsearch.test.TestCluster;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class MockDirectoryHelper {
     public static final String RANDOM_IO_EXCEPTION_RATE = "index.store.mock.random.io_exception_rate";
@@ -126,7 +124,6 @@ public class MockDirectoryHelper {
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {
 
-        private final Map<String, Exception> locks = new ConcurrentHashMap<>();
         private final ESLogger logger;
         private final boolean crash;
         private RuntimeException closeException;
@@ -139,9 +136,6 @@ public class MockDirectoryHelper {
 
         @Override
         public synchronized void close() throws IOException {
-            for (Exception ex : locks.values()) {
-                logger.info("Lock still open - opened from: ", ex);
-            }
             try {
                 super.close();
             } catch (RuntimeException ex) {
@@ -163,23 +157,6 @@ public class MockDirectoryHelper {
         public synchronized void crash() throws IOException {
             if (crash) {
                 super.crash();
-            }
-        }
-
-        @Override
-        public Lock makeLock(String lockName) {
-            Lock l = super.makeLock(lockName);
-            if (l != null) {
-                locks.put(lockName, new Exception());
-            }
-            return l;
-        }
-
-        public void clearLock(String lockName) throws IOException {
-            try {
-                super.clearLock(lockName);
-            } finally {
-                locks.remove(lockName);
             }
         }
     }

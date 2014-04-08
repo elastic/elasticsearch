@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTest {
     
@@ -101,7 +102,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             numInitialDocs = between(10, 100);
             ensureYellow();
             for (int i = 0; i < numInitialDocs ; i++) {
-                client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", "init").get();
+                client().prepareIndex("test", "initial", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", "init").get();
             }
             client().admin().indices().prepareRefresh("test").execute().get();
             client().admin().indices().prepareFlush("test").execute().get();
@@ -141,14 +142,16 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         long numCreated = 0;
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs ; i++) {
+            added[i] = false;
             try {
-                IndexResponse indexResponse = client().prepareIndex("test", "type", "" + (i + numInitialDocs)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
+                IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
                 if (indexResponse.isCreated()) {
                     numCreated++;
                     added[i] = true;
                 }
             } catch (ElasticsearchException ex) {
             }
+
         }
         NumShards test = getNumShards("test");
         logger.info("Start Refresh");
@@ -160,11 +163,19 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
         for (int i = 0; i < numSearches; i++) {
             try {
                 int docToQuery = between(0, numDocs-1);
+                long expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
+                SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
+                if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
+                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(expectedResults));
+                }
                 // check match all
-                searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).get();
+                searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery()).get();
+                logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
+                if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
+                    assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(numCreated));
+                }
             } catch (SearchPhaseExecutionException ex) {
                 if (expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0) {
                     logger.info("expected SearchPhaseException: [{}]", ex.getMessage());
@@ -181,9 +192,9 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                     .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE, 0)
                     .put(MockDirectoryHelper.RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0));
             client().admin().indices().prepareOpen("test").execute().get();
-            ensureYellow();
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
-            assertThat(searchResponse.getHits().totalHits(), Matchers.equalTo(numInitialDocs));
+            ensureGreen();
+            SearchResponse searchResponse = client().prepareSearch().setTypes("initial").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+            assertHitCount(searchResponse, numInitialDocs);
         }
     }
 

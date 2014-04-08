@@ -26,9 +26,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
@@ -103,6 +106,43 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                     .endArray()
                     .endObject()));
         }
+
+        assertAcked(prepareCreate("idx_nested_nested_aggs")
+                .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("nested1")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("nested2")
+                                    .field("type", "nested")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .endObject().endObject().endObject()));
+
+        builders.add(
+                client().prepareIndex("idx_nested_nested_aggs", "type", "1")
+                        .setSource(jsonBuilder().startObject()
+                                .startArray("nested1")
+                                    .startObject()
+                                    .field("a", "a")
+                                        .startArray("nested2")
+                                            .startObject()
+                                                .field("b", 2)
+                                            .endObject()
+                                        .endArray()
+                                    .endObject()
+                                    .startObject()
+                                        .field("a", "b")
+                                        .startArray("nested2")
+                                            .startObject()
+                                                .field("b", 2)
+                                            .endObject()
+                                        .endArray()
+                                    .endObject()
+                                .endArray()
+                            .endObject())
+        );
+
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -238,6 +278,42 @@ public class NestedTests extends ElasticsearchIntegrationTest {
             assertThat(max.getValue(), equalTo(numChildren[i] == 0 ? Double.NEGATIVE_INFINITY : (double) i + numChildren[i]));
         }
     }
+
+    @Test
+    public void nestNestedAggs() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
+                .addAggregation(nested("level1").path("nested1")
+                        .subAggregation(terms("a").field("nested1.a")
+                                .subAggregation(nested("level2").path("nested1.nested2")
+                                        .subAggregation(sum("sum").field("nested1.nested2.b")))))
+                .get();
+        assertSearchResponse(response);
+
+
+        Nested level1 = response.getAggregations().get("level1");
+        assertThat(level1, notNullValue());
+        assertThat(level1.getName(), equalTo("level1"));
+        assertThat(level1.getDocCount(), equalTo(2l));
+
+        StringTerms a = level1.getAggregations().get("a");
+        Terms.Bucket bBucket = a.getBucketByKey("a");
+        assertThat(bBucket.getDocCount(), equalTo(1l));
+
+        Nested level2 = bBucket.getAggregations().get("level2");
+        assertThat(level2.getDocCount(), equalTo(1l));
+        Sum sum = level2.getAggregations().get("sum");
+        assertThat(sum.getValue(), equalTo(2d));
+
+        a = level1.getAggregations().get("a");
+        bBucket = a.getBucketByKey("b");
+        assertThat(bBucket.getDocCount(), equalTo(1l));
+
+        level2 = bBucket.getAggregations().get("level2");
+        assertThat(level2.getDocCount(), equalTo(1l));
+        sum = level2.getAggregations().get("sum");
+        assertThat(sum.getValue(), equalTo(2d));
+    }
+
 
     @Test
     public void emptyAggregation() throws Exception {

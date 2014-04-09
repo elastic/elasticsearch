@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.scroll;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -26,6 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -37,7 +39,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -298,6 +300,40 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
         assertThat(searchResponse2.getHits().getTotalHits(), equalTo(0l));
         assertThat(searchResponse2.getHits().hits().length, equalTo(0));
+    }
+
+    @Test
+    public void testClearNonExistentScrollId() throws Exception {
+        createIndex("idx");
+        ClearScrollResponse response = client().prepareClearScroll()
+                .addScrollId("cXVlcnlUaGVuRmV0Y2g7MzsyOlpBRC1qOUhrUjhhZ0NtQWUxU2FuWlE7MjpRcjRaNEJ2R1JZV1VEMW02ZGF1LW5ROzI6S0xUal9lZDRTd3lWNUhUU2VSb01CQTswOw==")
+                .get();
+        // Whether we actually clear a scroll, we can't know, since that information isn't serialized in the
+        // free search context response, which is returned from each node we want to clear a particular scroll.
+        assertThat(response.isSucceeded(), is(true));
+    }
+
+    @Test
+    public void testClearIllegalScrollId() throws Exception {
+        createIndex("idx");
+        try {
+            client().prepareClearScroll().addScrollId("c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1").get();
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
+        try {
+            // Fails during base64 decoding (Base64-encoded string must have at least four characters)
+            client().prepareClearScroll().addScrollId("a").get();
+            fail();
+        } catch (ElasticsearchIllegalArgumentException e) {
+        }
+        try {
+            client().prepareClearScroll().addScrollId("abcabc").get();
+            fail();
+            // if running without -ea this will also throw ElasticsearchIllegalArgumentException
+        } catch (UncategorizedExecutionException e) {
+            assertThat(e.getRootCause(), instanceOf(AssertionError.class));
+        }
     }
 
     @Test

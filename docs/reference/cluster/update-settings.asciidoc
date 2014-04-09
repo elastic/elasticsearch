@@ -65,22 +65,32 @@ There is a specific list of settings that can be updated, those include:
 
 [float]
 ===== Balanced Shards
+All these values are relative to one another.  The first three are used to
+compose a three separate weighting functions into one.  The cluster is balanced
+when no allowed action can bring the weights of each node closer together by
+more then the fourth setting.  Actions might not be allowed, for instance,
+due to forced awareness or allocation filtering.
 
 `cluster.routing.allocation.balance.shard`::
-     Defines the weight factor for shards allocated on a node 
-     (float). Defaults to `0.45f`.
+     Defines the weight factor for shards allocated on a node
+     (float). Defaults to `0.45f`.  Raising this raises the tendency to
+     equalize the number of shards across all nodes in the cluster.
 
 `cluster.routing.allocation.balance.index`::
-     Defines a factor to the number of shards per index allocated 
-      on a specific node (float). Defaults to `0.5f`.
+     Defines a factor to the number of shards per index allocated
+      on a specific node (float). Defaults to `0.5f`.  Raising this raises the
+      tendency to equalize the number of shards per index across all nodes in
+      the cluster.
 
 `cluster.routing.allocation.balance.primary`::
-      defines a weight factor for the number of primaries of a specific index 
-      allocated on a node (float). `0.05f`.
+     Defines a weight factor for the number of primaries of a specific index
+      allocated on a node (float). `0.05f`.  Raising this raises the tendency
+      to equalize the number of primary shards across all nodes in the cluster.
 
 `cluster.routing.allocation.balance.threshold`::
-      minimal optimization value of operations that should be performed (non 
-      negative float). Defaults to `1.0f`.
+     Minimal optimization value of operations that should be performed (non
+      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
+      to be less aggressive about optimizing the shard balance.
 
 [float]
 ===== Concurrent Rebalance

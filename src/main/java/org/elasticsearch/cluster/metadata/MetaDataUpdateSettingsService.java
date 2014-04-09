@@ -75,21 +75,29 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         // we need to do this each time in case it was changed by update settings
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            String autoExpandReplicas = indexMetaData.settings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
+            final String autoExpandSettingName = IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
+            String autoExpandReplicas = indexMetaData.settings().get(autoExpandSettingName);
             if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
                 try {
                     int min;
                     int max;
                     try {
-                        min = Integer.parseInt(autoExpandReplicas.substring(0, autoExpandReplicas.indexOf('-')));
-                        String sMax = autoExpandReplicas.substring(autoExpandReplicas.indexOf('-') + 1);
+                        final int dash = autoExpandReplicas.indexOf('-');
+                        if (-1 == dash) {
+                            logger.warn("Unexpected value [{}] for setting [{}]; it should be dash delimited",
+                                    autoExpandReplicas, autoExpandSettingName);
+                            throw new IllegalArgumentException(String.format(
+                                    "Cannot parse [%s] into upper and lower", autoExpandReplicas));
+                        }
+                        min = Integer.parseInt(autoExpandReplicas.substring(0, dash));
+                        String sMax = autoExpandReplicas.substring(dash + 1);
                         if (sMax.equals("all")) {
                             max = event.state().nodes().dataNodes().size() - 1;
                         } else {
                             max = Integer.parseInt(sMax);
                         }
                     } catch (Exception e) {
-                        logger.warn("failed to set [{}], wrong format [{}]", e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, autoExpandReplicas);
+                        logger.warn("failed to set [{}], wrong format [{}]", e, autoExpandSettingName, autoExpandReplicas);
                         continue;
                     }
 

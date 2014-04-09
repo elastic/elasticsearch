@@ -121,7 +121,6 @@ public class RestThreadPoolAction extends AbstractCatAction {
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        final String[] pools = fetchSortedPools(request, DEFAULT_THREAD_POOLS);
 
         client.admin().cluster().state(clusterStateRequest, new AbstractRestResponseActionListener<ClusterStateResponse>(request, channel, logger) {
             @Override
@@ -137,7 +136,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                             @Override
                             public void onResponse(NodesStatsResponse nodesStatsResponse) {
                                 try {
-                                    channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse, pools), request, channel));
+                                    channel.sendResponse(RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), request, channel));
                                 } catch (Throwable e) {
                                     onFailure(e);
                                 }
@@ -153,7 +152,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
+        table.addCell("id", "default:false;alias:nodeId;desc:unique node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("host", "alias:h;desc:host name");
         table.addCell("ip", "alias:i;desc:ip address");
@@ -177,7 +176,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             );
             table.addCell(
                     pool + ".size",
-                    "alias:" + poolAlias + "s;default:false;text-align:right;desc:number of active " + pool + " threads"
+                    "alias:" + poolAlias + "s;default:false;text-align:right;desc:number of " + pool + " threads"
             );
             table.addCell(
                     pool + ".queue",
@@ -210,7 +209,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats, String[] pools) {
+    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         boolean fullId = req.paramAsBoolean("full_id", false);
         DiscoveryNodes nodes = state.getState().nodes();
         Table table = getTableWithHeader(req);

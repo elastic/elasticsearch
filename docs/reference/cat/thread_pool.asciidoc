@@ -42,3 +42,70 @@ host2                  0                0                 0
 
 Here the host columns and the active, rejected and completed suggest thread pool statistic are displayed. The suggest
 thread pool won't be displayed by default, so you always need be specific about what statistic you want to display.
+
+[float]
+=== Available Thread Pools
+
+Currently available http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-threadpool.html[thread pools]:
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Thread Pool |Alias |Description
+|`bulk` |`b` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html[Bulk] operations
+|`flush` |`f` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-flush.html[Flush] operations
+|`generic` |`ge` |Thread pool used for generic operations (e.g., background node discovery)
+|`get` |`g` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-get.html[Get] operations
+|`index` |`i` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-index_.html[Index/Delete] operations
+|`management` |`ma` |Thread pool used for management of Elasticsearch (e.g., cluster management)
+|`merge` |`m` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-merge.html[Merge] operations
+|`optimize` |`o` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-optimize.html[Optimize] operations
+|`percolate` |`p` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-percolate.html[Percolator] operations
+|`refresh` |`r` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-refresh.html[Refresh] operations
+|`search` |`s` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search.html[Search/Count] operations
+|`snapshot` |`sn` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-snapshots.html[Snapshot] operations
+|`suggest` |su` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-suggesters.html[Suggester] operations
+|`warmer` |`w` |Thread pool used for http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/indices-warmers.html[Index/Segment Warm-up] operations
+|=======================================================================
+
+By themselves, the thread pools will _not_ provide details about themselves; the
+thread pool name (or alias) must be combined with a thread pool field below to
+retrieve the requested information.
+
+[float]
+==== Thread Pool Fields
+
+For each thread pool, you can load details about it by appending the field names
+in the table below. To use the full field name, take the thread pool's name
+(e.g., `bulk`) and append the field name (e.g., `bulk.active`). The same can be
+done to use the aliased field names (e.g., `sa` is equivalent to
+`search.active`).
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Field Name |Alias |Description
+|* `.active` |* `a` |The number of active threads in the current (*) thread pool
+|* `.size` |* `s` |The number of threads in the current (*) thread pool
+|* `.queue` |* `q` |The number of queued threads in the current (*) thread pool
+|* `.rejected` |* `r` |The number of rejected threads in the current (*) thread pool
+|* `.largest` |* `l` |The highest number of active threads in the current (*) thread pool
+|* `.completed |* `c` |The number of completed threads in the current (*) thread pool
+|* `.min` |* `mi` |The configured minimum number of active threads allowed in the current (*) thread pool (`-1` if none)
+|* `.max` |* `ma` |The configured maximum number of active threads allowed in the current (*) thread pool (`-1` if none)
+|=======================================================================
+
+[float]
+=== Other Fields
+
+In addition to details about each thread pool, it is also convenient to get an
+understanding of where those thread pools reside.  As such, you can request
+other details like the `ip` of the responding node(s).
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Field Name |Alias |Description
+|`id` |`nodeId` |The unique node ID
+|`pid` |`p` |The process ID of the running node
+|`host` |`h` |The hostname for the current node
+|`ip` |`i` |The IP address for the current node
+|`post` |`po` |The bound transport port for the current node
+|=======================================================================

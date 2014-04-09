@@ -96,13 +96,17 @@ public abstract class TransportSearchHelper {
         try {
             byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
             UnicodeUtil.UTF8toUTF16(decode, 0, decode.length, spare);
-        } catch (IOException e) {
+        } catch (Exception | AssertionError e) {
             throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare, ';');
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);
+        if (contextSize + 2 > elements.length) {
+            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+        }
+
         @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] context = new Tuple[contextSize];
         for (int i = 0; i < contextSize; i++) {
             String element = elements[index++];

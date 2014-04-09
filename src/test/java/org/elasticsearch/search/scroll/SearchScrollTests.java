@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -38,8 +39,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -322,9 +322,17 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         } catch (ElasticsearchIllegalArgumentException e) {
         }
         try {
-            client().prepareClearScroll().addScrollId("abcabc").get();
+            // Fails during base64 decoding (Base64-encoded string must have at least four characters)
+            client().prepareClearScroll().addScrollId("a").get();
             fail();
         } catch (ElasticsearchIllegalArgumentException e) {
+        }
+        try {
+            client().prepareClearScroll().addScrollId("abcabc").get();
+            fail();
+            // if running without -ea this will also throw ElasticsearchIllegalArgumentException
+        } catch (UncategorizedExecutionException e) {
+            assertThat(e.getRootCause(), instanceOf(AssertionError.class));
         }
     }
 

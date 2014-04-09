@@ -96,14 +96,18 @@ public abstract class TransportSearchHelper {
         try {
             byte[] decode = Base64.decode(scrollId, Base64.URL_SAFE);
             UnicodeUtil.UTF8toUTF16(decode, 0, decode.length, spare);
-        } catch (Exception | AssertionError e) {
+        } catch (Exception e) {
             throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare, ';');
+        if (elements.length < 2) {
+            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+        }
+
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);
-        if (contextSize + 2 > elements.length) {
+        if (elements.length < contextSize + 2) {
             throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
         }
 

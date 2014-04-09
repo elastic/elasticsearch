@@ -939,7 +939,7 @@ public abstract class ResponseTerms implements Streamable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(maxTerms);
             out.writeVLong(termsHash.size());
-            for (long i = 0; i < termsHash.capacity(); i++) {
+            for (long i = 0; i < termsHash.size(); i++) {
                 out.writeLong(termsHash.get(i));
             }
         }

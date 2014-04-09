@@ -19,12 +19,17 @@
 
 package org.elasticsearch.common.io;
 
+import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -172,33 +177,56 @@ public class FileSystemUtils {
         return false;
     }
 
-    public static void syncFile(File fileToSync) throws IOException {
-        boolean success = false;
-        int retryCount = 0;
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47 : "Use IOUtils#fsync instead of syncFile in Lucene 4.8";
+    }
+
+    /**
+     * Ensure that any writes to the given file is written to the storage device that contains it.
+     * @param fileToSync the file to fsync
+     * @param isDir if true, the given file is a directory (we open for read and ignore IOExceptions,
+     *  because not all file systems and operating systems allow to fsync on a directory)
+     */
+    public static void syncFile(File fileToSync, boolean isDir) throws IOException {
         IOException exc = null;
-        while (!success && retryCount < 5) {
-            retryCount++;
-            RandomAccessFile file = null;
-            try {
+
+        // If the file is a directory we have to open read-only, for regular files we must open r/w for the fsync to have an effect.
+        // See http://blog.httrack.com/blog/2013/11/15/everything-you-always-wanted-to-know-about-fsync/
+        try (final FileChannel file = FileChannel.open(fileToSync.toPath(), isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
+            for (int retry = 0; retry < 5; retry++) {
                 try {
-                    file = new RandomAccessFile(fileToSync, "rw");
-                    file.getFD().sync();
-                    success = true;
-                } finally {
-                    if (file != null)
-                        file.close();
-                }
-            } catch (IOException ioe) {
-                if (exc == null)
-                    exc = ioe;
-                try {
-                    // Pause 5 msec
-                    Thread.sleep(5);
-                } catch (InterruptedException ie) {
-                    throw new InterruptedIOException(ie.getMessage());
+                    file.force(true);
+                    return;
+                } catch (IOException ioe) {
+                    if (exc == null) {
+                        exc = ioe;
+                    }
+                    try {
+                        // Pause 5 msec
+                        Thread.sleep(5L);
+                    } catch (InterruptedException ie) {
+                        ThreadInterruptedException ex = new ThreadInterruptedException(ie);
+                        ex.addSuppressed(exc);
+                        throw ex;
+                    }
                 }
             }
+        } catch (IOException ioe) {
+            if (exc == null) {
+                exc = ioe;
+            }
         }
+
+        if (isDir) {
+            assert (Constants.LINUX || Constants.MAC_OS_X) == false :
+                    "On Linux and MacOSX fsyncing a directory should not throw IOException, "+
+                            "we just don't want to rely on that in production (undocumented). Got: " + exc;
+            // Ignore exception if it is a directory
+            return;
+        }
+
+        // Throw original exception
+        throw exc;
     }
 
     public static void copyFile(File sourceFile, File destinationFile) throws IOException {
@@ -250,7 +278,13 @@ public class FileSystemUtils {
         return true;
     }
 
-    private FileSystemUtils() {
+    private FileSystemUtils() {}
 
+    public static void tryDeleteFile(File file) {
+        try {
+            file.delete();
+        } catch (SecurityException e1) {
+            // ignore
+        }
     }
 }

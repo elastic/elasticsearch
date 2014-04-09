@@ -30,10 +30,10 @@
                     "type": "boolean",
                     "description": "Specify whether to return verbose statistics about each iteration (default: false)"
                 }
-            },
-            "body": {
-                "description": "The search definition using the Query DSL"
             }
+        },
+        "body": {
+            "description": "The search definition using the Query DSL"
         }
     }
 }

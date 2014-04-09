@@ -28,6 +28,8 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -72,6 +74,14 @@ public class ElasticsearchAssertions {
 
     public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
         assertAcked(builder.get());
+    }
+
+    public static void assertNoTimeout(ClusterHealthRequestBuilder requestBuilder) {
+        assertNoTimeout(requestBuilder.get());
+    }
+
+    public static void assertNoTimeout(ClusterHealthResponse response) {
+        assertThat("ClusterHealthResponse has timed out", response.isTimedOut(), is(false));
     }
 
     public static void assertAcked(AcknowledgedResponse response) {

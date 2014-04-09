@@ -22,6 +22,9 @@ MAX_OPEN_FILES=65535
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
+# Maximum amount of processes
+#MAX_PROCESSES=
+
 # Elasticsearch log directory
 LOG_DIR=/var/log/elasticsearch
 

@@ -56,7 +56,7 @@ public class RestSpec {
                     XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
                     RestApi restApi = new RestApiParser().parse(parser);
                     restSpec.addApi(restApi);
-                } catch (IOException ex) {
+                } catch (Throwable ex) {
                     throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
                 }
             }

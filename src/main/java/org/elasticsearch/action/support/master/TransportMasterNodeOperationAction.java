@@ -91,7 +91,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     @Override
     protected void doExecute(final Request request, final ActionListener<Response> listener) {
-        innerExecute(request, listener, new ClusterStateObserver(clusterService, request.masterNodeTimeout()), false);
+        innerExecute(request, listener, new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger), false);
     }
 
     private void innerExecute(final Request request, final ActionListener<Response> listener, final ClusterStateObserver observer, final boolean retrying) {
@@ -105,28 +105,29 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     listener.onFailure(blockException);
                     return;
                 }
-                observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                                               @Override
-                                               public void onNewClusterState(ClusterState state) {
-                                                   innerExecute(request, listener, observer, false);
-                                               }
+                observer.waitForNextChange(
+                        new ClusterStateObserver.Listener() {
+                            @Override
+                            public void onNewClusterState(ClusterState state) {
+                                innerExecute(request, listener, observer, false);
+                            }
 
-                                               @Override
-                                               public void onClusterServiceClose() {
-                                                   listener.onFailure(blockException);
-                                               }
+                            @Override
+                            public void onClusterServiceClose() {
+                                listener.onFailure(blockException);
+                            }
 
-                                               @Override
-                                               public void onTimeout(TimeValue timeout) {
-                                                   listener.onFailure(blockException);
-                                               }
-                                           }, new ClusterStateObserver.ValidationPredicate() {
-                                               @Override
-                                               protected boolean validate(ClusterState newState) {
-                                                   ClusterBlockException blockException = checkBlock(request, clusterService.state());
-                                                   return (blockException == null || !blockException.retryable());
-                                               }
-                                           }
+                            @Override
+                            public void onTimeout(TimeValue timeout) {
+                                listener.onFailure(blockException);
+                            }
+                        }, new ClusterStateObserver.ValidationPredicate() {
+                            @Override
+                            protected boolean validate(ClusterState newState) {
+                                ClusterBlockException blockException = checkBlock(request, clusterService.state());
+                                return (blockException == null || !blockException.retryable());
+                            }
+                        }
                 );
 
             } else {
@@ -151,33 +152,34 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     listener.onFailure(new MasterNotDiscoveredException());
                 } else {
                     logger.debug("no known master node, scheduling a retry");
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                                                   @Override
-                                                   public void onNewClusterState(ClusterState state) {
-                                                       innerExecute(request, listener, observer, true);
-                                                   }
+                    observer.waitForNextChange(
+                            new ClusterStateObserver.Listener() {
+                                @Override
+                                public void onNewClusterState(ClusterState state) {
+                                    innerExecute(request, listener, observer, true);
+                                }
 
-                                                   @Override
-                                                   public void onClusterServiceClose() {
-                                                       listener.onFailure(new NodeClosedException(clusterService.localNode()));
-                                                   }
+                                @Override
+                                public void onClusterServiceClose() {
+                                    listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                                }
 
-                                                   @Override
-                                                   public void onTimeout(TimeValue timeout) {
-                                                       listener.onFailure(new MasterNotDiscoveredException("waited for [" + timeout + "]"));
-                                                   }
-                                               }, new ClusterStateObserver.ChangePredicate() {
-                                                   @Override
-                                                   public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus,
-                                                                        ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
-                                                       return newState.nodes().masterNodeId() != null;
-                                                   }
+                                @Override
+                                public void onTimeout(TimeValue timeout) {
+                                    listener.onFailure(new MasterNotDiscoveredException("waited for [" + timeout + "]"));
+                                }
+                            }, new ClusterStateObserver.ChangePredicate() {
+                                @Override
+                                public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus,
+                                                     ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
+                                    return newState.nodes().masterNodeId() != null;
+                                }
 
-                                                   @Override
-                                                   public boolean apply(ClusterChangedEvent event) {
-                                                       return event.nodesDelta().masterNodeChanged();
-                                                   }
-                                               }
+                                @Override
+                                public boolean apply(ClusterChangedEvent event) {
+                                    return event.nodesDelta().masterNodeChanged();
+                                }
+                            }
                     );
                 }
                 return;

@@ -126,7 +126,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         }
 
         public void start() {
-            observer = new ClusterStateObserver(clusterService, request.timeout());
+            observer = new ClusterStateObserver(clusterService, request.timeout(), logger);
             doStart();
         }
 

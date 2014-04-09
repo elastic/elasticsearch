@@ -126,7 +126,7 @@ public class RestApiParser {
             }
 
             parser.nextToken();
-            assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+            assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was ["  + parser.currentToken() +"]";
             parser.nextToken();
 
             return restApi;

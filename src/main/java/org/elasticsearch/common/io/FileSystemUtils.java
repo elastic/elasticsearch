@@ -80,11 +80,7 @@ public class FileSystemUtils {
         } catch (IOException ioe) {
             int i = 0;
             for (RandomAccessFile raf : files) {
-                try {
-                    raf.close();
-                } catch (IOException e) {
-                    // ignore
-                }
+                IOUtils.closeWhileHandlingException(raf);
                 new File(testDir, "tmp" + i++).delete();
             }
             if (dirCreated) {
@@ -227,33 +223,6 @@ public class FileSystemUtils {
 
         // Throw original exception
         throw exc;
-    }
-
-    public static void copyFile(File sourceFile, File destinationFile) throws IOException {
-        FileInputStream sourceIs = null;
-        FileChannel source = null;
-        FileOutputStream destinationOs = null;
-        FileChannel destination = null;
-        try {
-            sourceIs = new FileInputStream(sourceFile);
-            source = sourceIs.getChannel();
-            destinationOs = new FileOutputStream(destinationFile);
-            destination = destinationOs.getChannel();
-            destination.transferFrom(source, 0, source.size());
-        } finally {
-            if (source != null) {
-                source.close();
-            }
-            if (sourceIs != null) {
-                sourceIs.close();
-            }
-            if (destination != null) {
-                destination.close();
-            }
-            if (destinationOs != null) {
-                destinationOs.close();
-            }
-        }
     }
 
     /**

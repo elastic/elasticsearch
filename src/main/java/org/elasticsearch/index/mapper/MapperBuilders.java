@@ -173,4 +173,8 @@ public final class MapperBuilders {
     public static CompletionFieldMapper.Builder completionField(String name) {
         return new CompletionFieldMapper.Builder(name);
     }
+
+    public static FreetextFieldMapper.Builder freetextField(String name) {
+        return new FreetextFieldMapper.Builder(name);
+    }
 }

@@ -280,5 +280,6 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * http://tlrx.github.com/elasticsearch-view-plugin[Elasticsearch View Plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 * https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
+* https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
 
 

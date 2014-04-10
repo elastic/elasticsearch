@@ -1,0 +1,7 @@
+---
+"Test benchmark list":
+
+  - do:
+        benchmark.list: {}
+        catch: request
+

@@ -266,7 +266,7 @@ Response:
 === Percolating an existing document
 
 In order to percolate in newly indexed document, the percolate existing document can be used. Based on the response
-from an index request the `_id` and other meta information can be used to the immediately percolate the newly added
+from an index request the `_id` and other meta information can be used to immediately percolate the newly added
 document.
 
 .Supported options for percolating an existing document on top of existing percolator options:

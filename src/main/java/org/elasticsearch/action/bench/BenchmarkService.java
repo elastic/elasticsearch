@@ -97,18 +97,15 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
      */
     public void listBenchmarks(final BenchmarkStatusRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
 
-        DiscoveryNodes nodes = clusterService.state().nodes();
-        int nodeCount = 0;
-        for (DiscoveryNode node : nodes) {
-            if (isBenchmarkNode(node)) {
-                nodeCount++;
-            }
-        }
-
-        BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodeCount, request, listener);
-        for (DiscoveryNode node : nodes) {
-            if (isBenchmarkNode(node)) {
-                transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
+        final List<DiscoveryNode> nodes = availableBenchmarkNodes();
+        if (nodes.size() == 0) {
+            listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmarks"));
+        } else {
+            BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), request, listener);
+            for (DiscoveryNode node : nodes) {
+                if (isBenchmarkNode(node)) {
+                    transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
+                }
             }
         }
     }
@@ -116,42 +113,47 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     /**
      * Aborts actively running benchmarks on the cluster
      *
-     * @param id        Benchmark id to abort
-     * @param listener  Response listener
+     * @param benchmarkName Benchmark name to abort
+     * @param listener      Response listener
      */
-    public void abortBenchmark(final String id, final ActionListener<AbortBenchmarkResponse> listener) {
+    public void abortBenchmark(final String benchmarkName, final ActionListener<AbortBenchmarkResponse> listener) {
 
-        BenchmarkStateListener benchmarkStateListener = new BenchmarkStateListener() {
-            @Override
-            public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
-                if (entry != null) {
-                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
-                            BenchmarkAbortAsyncHandler async = new BenchmarkAbortAsyncHandler(entry.nodes().length, id, listener);
-                            for (String nodeId : entry.nodes()) {
-                                final DiscoveryNode node = nodes.get(nodeId);
-                                if (node != null) {
-                                    transportService.sendRequest(node, AbortExecutionHandler.ACTION, new NodeAbortRequest(id), async);
-                                } else {
-                                    logger.debug("Node for ID [" + nodeId + "] not found in cluster state - skipping");
+        final List<DiscoveryNode> nodes = availableBenchmarkNodes();
+        if (nodes.size() == 0) {
+            listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmarks"));
+        } else {
+            BenchmarkStateListener benchmarkStateListener = new BenchmarkStateListener() {
+                @Override
+                public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
+                    if (entry != null) {
+                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
+                                BenchmarkAbortAsyncHandler async = new BenchmarkAbortAsyncHandler(entry.nodes().length, benchmarkName, listener);
+                                for (String nodeId : entry.nodes()) {
+                                    final DiscoveryNode node = nodes.get(nodeId);
+                                    if (node != null) {
+                                        transportService.sendRequest(node, AbortExecutionHandler.ACTION, new NodeAbortRequest(benchmarkName), async);
+                                    } else {
+                                        logger.debug("Node for ID [" + nodeId + "] not found in cluster state - skipping");
+                                    }
                                 }
                             }
-                        }
-                    });
-                } else {
-                    listener.onResponse(new AbortBenchmarkResponse(id, "Benchmark with id [" + id + "] not found"));
+                        });
+                    } else {
+                        listener.onResponse(new AbortBenchmarkResponse(benchmarkName, "Benchmark with name [" + benchmarkName + "] not found"));
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
-            }
-        };
+                @Override
+                public void onFailure(Throwable t) {
+                    listener.onFailure(t);
+                }
+            };
 
-        clusterService.submitStateUpdateTask("abort_benchmark", new AbortBenchmarkTask(id, benchmarkStateListener));
+            clusterService.submitStateUpdateTask("abort_benchmark", new AbortBenchmarkTask(benchmarkName, benchmarkStateListener));
+        }
     }
 
     /**
@@ -162,32 +164,41 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
      */
     public void startBenchmark(final BenchmarkRequest request, final ActionListener<BenchmarkResponse> listener) {
 
-        final BenchmarkStateListener benchListener = new BenchmarkStateListener() {
-            @Override
-            public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
-                        final BenchmarkSearchAsyncHandler async = new BenchmarkSearchAsyncHandler(entry.nodes().length, request, listener);
-                        for (String nodeId : entry.nodes()) {
-                            final DiscoveryNode node = nodes.get(nodeId);
-                            if (node == null) {
-                                async.handleExceptionInternal(
-                                        new ElasticsearchIllegalStateException("Node for ID [" + nodeId + "] not found in cluster state - skipping"));
+        final List<DiscoveryNode> nodes = availableBenchmarkNodes();
+        if (nodes.size() == 0) {
+            listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmark [" +
+                    request.benchmarkName() + "]"));
+        } else {
+            final BenchmarkStateListener benchListener = new BenchmarkStateListener() {
+                @Override
+                public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
+                            final BenchmarkSearchAsyncHandler async = new BenchmarkSearchAsyncHandler(entry.nodes().length, request, listener);
+                            for (String nodeId : entry.nodes()) {
+                                final DiscoveryNode node = nodes.get(nodeId);
+                                if (node == null) {
+                                    async.handleExceptionInternal(
+                                            new ElasticsearchIllegalStateException("Node for ID [" + nodeId + "] not found in cluster state - skipping"));
+                                } else {
+                                    logger.debug("Starting benchmark [{}] node [{}]", request.benchmarkName(), node.name());
+                                    transportService.sendRequest(node, BenchExecutionHandler.ACTION, new NodeBenchRequest(request), async);
+                                }
                             }
-                            transportService.sendRequest(node, BenchExecutionHandler.ACTION, new NodeBenchRequest(request), async);
                         }
-                    }
-                });
-            }
-            @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
-            }
-        };
+                    });
+                }
 
-        clusterService.submitStateUpdateTask("start_benchmark", new StartBenchmarkTask(request, benchListener));
+                @Override
+                public void onFailure(Throwable t) {
+                    listener.onFailure(t);
+                }
+            };
+
+            clusterService.submitStateUpdateTask("start_benchmark", new StartBenchmarkTask(request, benchListener));
+        }
     }
 
     private void finishBenchmark(final BenchmarkResponse benchmarkResponse, final String benchmarkId, final ActionListener<BenchmarkResponse> listener) {
@@ -568,7 +579,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                     }
                 }
             }
-            logger.debug("Starting benchmark for ID [{}]", request.benchmarkName());
             List<DiscoveryNode> nodes = findNodes(request);
             String[] nodeIds = new String[nodes.size()];
             int i = 0;
@@ -717,4 +727,14 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         }
     }
 
+    private List<DiscoveryNode> availableBenchmarkNodes() {
+        DiscoveryNodes nodes = clusterService.state().nodes();
+        List<DiscoveryNode> benchmarkNodes = new ArrayList<>(nodes.size());
+        for (DiscoveryNode node : nodes) {
+            if (isBenchmarkNode(node)) {
+                benchmarkNodes.add(node);
+            }
+        }
+        return benchmarkNodes;
+    }
 }

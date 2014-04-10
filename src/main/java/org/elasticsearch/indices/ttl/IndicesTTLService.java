@@ -27,10 +27,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.*;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -44,7 +42,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.UidAndRoutingFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
@@ -57,6 +54,11 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 /**
@@ -69,34 +71,36 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final Client client;
+    private final TransportBulkAction bulkAction;
 
-    private volatile TimeValue interval;
     private final int bulkSize;
     private PurgerThread purgerThread;
 
     @Inject
-    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeSettingsService nodeSettingsService, Client client) {
+    public IndicesTTLService(Settings settings, ClusterService clusterService, IndicesService indicesService, NodeSettingsService nodeSettingsService, TransportBulkAction bulkAction) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.client = client;
-        this.interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
+        TimeValue interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
+        this.bulkAction = bulkAction;
         this.bulkSize = componentSettings.getAsInt("bulk_size", 10000);
+        this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"), interval);
 
         nodeSettingsService.addListener(new ApplySettings());
     }
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"));
         this.purgerThread.start();
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        this.purgerThread.doStop();
-        this.purgerThread.interrupt();
+        try {
+            this.purgerThread.shutdown();
+        } catch (InterruptedException e) {
+            Thread.interrupted();
+        }
     }
 
     @Override
@@ -104,33 +108,46 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     private class PurgerThread extends Thread {
-        volatile boolean running = true;
+        private final AtomicBoolean running = new AtomicBoolean(true);
+        private final Notifier notifier;
+        private final CountDownLatch shutdownLatch = new CountDownLatch(1);
 
-        public PurgerThread(String name) {
+
+        public PurgerThread(String name, TimeValue interval) {
             super(name);
             setDaemon(true);
+            this.notifier = new Notifier(interval);
         }
 
-        public void doStop() {
-            running = false;
+        public void shutdown() throws InterruptedException {
+            if (running.compareAndSet(true, false)) {
+                notifier.doNotify();
+                shutdownLatch.await();
+            }
+
+        }
+
+        public void resetInterval(TimeValue interval) {
+            notifier.setTimeout(interval);
         }
 
         public void run() {
-            while (running) {
-                try {
-                    List<IndexShard> shardsToPurge = getShardsToPurge();
-                    purgeShards(shardsToPurge);
-                } catch (Throwable e) {
-                    if (running) {
-                        logger.warn("failed to execute ttl purge", e);
+            try {
+                while (running.get()) {
+                    try {
+                        List<IndexShard> shardsToPurge = getShardsToPurge();
+                        purgeShards(shardsToPurge);
+                    } catch (Throwable e) {
+                        if (running.get()) {
+                            logger.warn("failed to execute ttl purge", e);
+                        }
+                    }
+                    if (running.get()) {
+                        notifier.await();
                     }
                 }
-                try {
-                    Thread.sleep(interval.millis());
-                } catch (InterruptedException e) {
-                    // ignore, if we are interrupted because we are shutting down, running will be false
-                }
-
+            } finally {
+                shutdownLatch.countDown();
             }
         }
 
@@ -174,6 +191,10 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             }
             return shardsToPurge;
         }
+
+        public TimeValue getInterval() {
+            return notifier.getTimeout();
+        }
     }
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
@@ -182,11 +203,13 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());
-                ExpiredDocsCollector expiredDocsCollector = new ExpiredDocsCollector(shardToPurge.routingEntry().index());
+                ExpiredDocsCollector expiredDocsCollector = new ExpiredDocsCollector();
                 searcher.searcher().search(query, expiredDocsCollector);
                 List<DocToPurge> docsToPurge = expiredDocsCollector.getDocsToPurge();
-                BulkRequestBuilder bulkRequest = client.prepareBulk();
+
+                BulkRequest bulkRequest = new BulkRequest();
                 for (DocToPurge docToPurge : docsToPurge) {
+
                     bulkRequest.add(new DeleteRequest().index(shardToPurge.routingEntry().index()).type(docToPurge.type).id(docToPurge.id).version(docToPurge.version).routing(docToPurge.routing));
                     bulkRequest = processBulkIfNeeded(bulkRequest, false);
                 }
@@ -214,12 +237,10 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     private class ExpiredDocsCollector extends Collector {
-        private final MapperService mapperService;
         private AtomicReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<>();
 
-        public ExpiredDocsCollector(String index) {
-            mapperService = indicesService.indexService(index).mapperService();
+        public ExpiredDocsCollector() {
         }
 
         public void setScorer(Scorer scorer) {
@@ -250,10 +271,10 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         }
     }
 
-    private BulkRequestBuilder processBulkIfNeeded(BulkRequestBuilder bulkRequest, boolean force) {
+    private BulkRequest processBulkIfNeeded(BulkRequest bulkRequest, boolean force) {
         if ((force && bulkRequest.numberOfActions() > 0) || bulkRequest.numberOfActions() >= bulkSize) {
             try {
-                bulkRequest.execute(new ActionListener<BulkResponse>() {
+                bulkAction.executeBulk(bulkRequest, new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse bulkResponse) {
                         logger.trace("bulk took " + bulkResponse.getTookInMillis() + "ms");
@@ -267,7 +288,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             } catch (Exception e) {
                 logger.warn("failed to process bulk", e);
             }
-            bulkRequest = client.prepareBulk();
+            bulkRequest = new BulkRequest();
         }
         return bulkRequest;
     }
@@ -275,10 +296,56 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL, IndicesTTLService.this.interval);
-            if (!interval.equals(IndicesTTLService.this.interval)) {
-                logger.info("updating indices.ttl.interval from [{}] to [{}]", IndicesTTLService.this.interval, interval);
-                IndicesTTLService.this.interval = interval;
+            final TimeValue currentInterval = IndicesTTLService.this.purgerThread.getInterval();
+            final TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL, currentInterval);
+            if (!interval.equals(currentInterval)) {
+                logger.info("updating indices.ttl.interval from [{}] to [{}]",currentInterval, interval);
+                IndicesTTLService.this.purgerThread.resetInterval(interval);
+
+            }
+        }
+    }
+
+
+    private static final class Notifier {
+
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition condition = lock.newCondition();
+        private volatile TimeValue timeout;
+
+        public Notifier(TimeValue timeout) {
+            assert timeout != null;
+            this.timeout = timeout;
+        }
+
+        public void await() {
+            lock.lock();
+            try {
+                condition.await(timeout.millis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.interrupted();
+            } finally {
+                lock.unlock();
+            }
+
+        }
+
+        public void setTimeout(TimeValue timeout) {
+            assert timeout != null;
+            this.timeout = timeout;
+            doNotify();
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
+        public void doNotify() {
+            lock.lock();
+            try {
+                condition.signalAll();
+            } finally {
+                lock.unlock();
             }
         }
     }

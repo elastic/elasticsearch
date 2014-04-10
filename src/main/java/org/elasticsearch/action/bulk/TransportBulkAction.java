@@ -53,8 +53,10 @@ import org.elasticsearch.transport.BaseTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -178,7 +180,18 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         return false;
     }
 
-    private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses) {
+    /**
+     * This method executes the {@link BulkRequest} and calls the given listener once the request returns.
+     * This method will not create any indices even if auto-create indices is enabled.
+     *
+     * @see #doExecute(BulkRequest, org.elasticsearch.action.ActionListener)
+     */
+    public void executeBulk(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
+        final long startTime = System.currentTimeMillis();
+        executeBulk(bulkRequest, startTime, listener, new AtomicArray<BulkItemResponse>(bulkRequest.requests.size()));
+    }
+
+    private void executeBulk(final BulkRequest bulkRequest, final long startTime, final ActionListener<BulkResponse> listener, final AtomicArray<BulkItemResponse> responses ) {
         ClusterState clusterState = clusterService.state();
         // TODO use timeout to wait here if its blocked...
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.WRITE);

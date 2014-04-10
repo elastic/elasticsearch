@@ -35,12 +35,11 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsTests {
 
     @Before
-    public void before1() {
+    public void before1() throws Exception {
         Settings settings = settingsBuilder()
                 .put("node.data", false)
                 .build();
-        cluster().startNode(settings);
-        cluster().startNode(ImmutableSettings.EMPTY);
+        cluster().startNodesAsync(settings, ImmutableSettings.EMPTY).get();
     }
 
 }

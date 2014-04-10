@@ -64,9 +64,10 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
 
 
     @Test
-    public void testNodesInfos() {
-        final String node_1 = cluster().startNode();
-        final String node_2 = cluster().startNode();
+    public void testNodesInfos() throws Exception {
+        List<String> nodesIds = cluster().startNodesAsync(2).get();
+        final String node_1 = nodesIds.get(0);
+        final String node_2 = nodesIds.get(1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());

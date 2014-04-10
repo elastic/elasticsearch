@@ -98,8 +98,7 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
     public void testSimpleOpenClose() throws Exception {
 
         logger.info("--> starting 2 nodes");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
-        cluster().startNode(settingsBuilder().put("gateway.type", "local").build());
+        cluster().startNodesAsync(2, settingsBuilder().put("gateway.type", "local").build()).get();
 
         logger.info("--> creating test index");
         createIndex("test");

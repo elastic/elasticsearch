@@ -55,7 +55,10 @@ public class BenchmarkResponse extends ActionResponse implements Streamable, ToX
     }
 
     /**
-     * Benchmarks can be in one of: RUNNING, COMPLETE, or ABORTED.
+     * Benchmarks can be in one of:
+     *  RUNNING     - executing normally
+     *  COMPLETE    - completed normally
+     *  ABORTED     - aborted
      */
     public static enum State {
         RUNNING((byte) 0),
@@ -131,7 +134,7 @@ public class BenchmarkResponse extends ActionResponse implements Streamable, ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.STATUS, state.toString().toLowerCase(Locale.ROOT));
+        builder.field(Fields.STATUS, state.toString());
         builder.startObject(Fields.COMPETITORS);
         if (competitionResults != null) {
             for (Map.Entry<String, CompetitionResult> entry : competitionResults.entrySet()) {
@@ -184,7 +187,6 @@ public class BenchmarkResponse extends ActionResponse implements Streamable, ToX
 
     static final class Fields {
         static final XContentBuilderString STATUS = new XContentBuilderString("status");
-        static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString COMPETITORS = new XContentBuilderString("competitors");
     }
 }

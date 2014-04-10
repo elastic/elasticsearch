@@ -45,8 +45,10 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
+import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.contentBuilder;
 
 /**
@@ -104,7 +106,7 @@ public class RestBenchAction extends BaseRestHandler {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(OK, builder);
             }
         });
     }
@@ -124,7 +126,7 @@ public class RestBenchAction extends BaseRestHandler {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(OK, builder);
             }
         });
     }
@@ -165,7 +167,7 @@ public class RestBenchAction extends BaseRestHandler {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

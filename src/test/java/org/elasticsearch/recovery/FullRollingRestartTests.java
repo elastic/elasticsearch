@@ -69,15 +69,13 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         }
 
         // now start adding nodes
-        cluster().startNode();
-        cluster().startNode();
+        cluster().startNodesAsync(2).get();
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
         // now start adding nodes
-        cluster().startNode();
-        cluster().startNode();
+        cluster().startNodesAsync(2).get();
 
         // We now have 5 nodes
         setMinimumMasterNodes(3);

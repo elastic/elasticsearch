@@ -26,6 +26,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,9 +38,14 @@ public class UpdateSettingsValidationTests extends ElasticsearchIntegrationTest 
 
     @Test
     public void testUpdateSettingsValidation() throws Exception {
-        String master = cluster().startNode(settingsBuilder().put("node.data", false).build());
-        String node_1 = cluster().startNode(settingsBuilder().put("node.master", false).build());
-        String node_2 = cluster().startNode(settingsBuilder().put("node.master", false).build());
+        List<String> nodes = cluster().startNodesAsync(
+                settingsBuilder().put("node.data", false).build(),
+                settingsBuilder().put("node.master", false).build(),
+                settingsBuilder().put("node.master", false).build()
+        ).get();
+        String master = nodes.get(0);
+        String node_1 = nodes.get(1);
+        String node_2 = nodes.get(2);
 
         createIndex("test");
         NumShards test = getNumShards("test");

@@ -1102,7 +1102,14 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     /**
-     * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
+     * Starts multiple nodes in an async manner and returns future with its name.
+     */
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes) {
+        return startNodesAsync(numNodes, ImmutableSettings.EMPTY, Version.CURRENT);
+    }
+
+    /**
+     * Starts multiple nodes in an async manner with the given settings and returns future with its name.
      */
     public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
         return startNodesAsync(numNodes, settings, Version.CURRENT);
@@ -1115,6 +1122,18 @@ public final class TestCluster extends ImmutableTestCluster {
         List<ListenableFuture<String>> futures = Lists.newArrayList();
         for (int i = 0; i < numNodes; i++) {
             futures.add(startNodeAsync(settings, version));
+        }
+        return Futures.allAsList(futures);
+    }
+
+    /**
+     * Starts multiple nodes (based on the number of settings provided) in an async manner, with explicit settings for each node.
+     * The order of the node names returned matches the order of the settings provided.
+     */
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final Settings... settings) {
+        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        for (Settings setting : settings) {
+            futures.add(startNodeAsync(setting, Version.CURRENT));
         }
         return Futures.allAsList(futures);
     }

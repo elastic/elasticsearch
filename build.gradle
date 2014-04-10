@@ -3,6 +3,7 @@ description = 'Elasticsearch HDFS Repository'
 configurations {
 	hadoop1
 	hadoop2
+	s3
 }
 
 dependencies {
@@ -38,24 +39,32 @@ dependencies {
 	}
 }
 
-
 jar {
 	manifest.attributes['Implementation-Title'] = 'elasticsearch-repository-hdfs'
 }
 
 def baseZip(Zip zip) {
 	zip.group = "Distribution"
+
+	artifacts { s3 zip }
 	
 	zip.from("../") {
 			include "LICENSE.txt"
 			include "NOTICE.txt"
 			//expand(yyyy: new Date().format("yyyy"), version: project.version)
 		}
-	zip.from (".") {
-			include "README.md"
-		}
+	zip.from (".") { include "README.md" }
 	zip.from jar.archivePath
+	
+	// tell Gradle about our output (for incremental build) - disabled for now since the sha1 is created alongside the zip
+	// zip.outputs.file file(zip.archivePath.absolutePath + '.sha1.txt')
+	
+	// execute phase
+	zip << {
+		ant.checksum(file: zip.archivePath, algorithm: 'SHA1', format: 'MD5SUM', fileext: '.sha1.txt')
+	}
 }
+
 task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->
 	baseZip(zipTask)
     description = "Builds archive (with Hadoop1 dependencies) suitable for download page."
@@ -91,5 +100,10 @@ pack() {
 		archives distZipNoHadoop
 	}
 }
+
+uploadToS3() {
+	ext.toDir = "elasticsearch/elasticsearch-repository-hdfs"
+}
+
 assemble.dependsOn = ['jar']
 defaultTasks 'build'

@@ -30,6 +30,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -51,14 +52,12 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("indices.ttl.interval", PURGE_INTERVAL)
-                .put("action.auto_create_index", false) // see #5766
                 .build();
     }
 
     @Test
     public void testPercolatingWithTimeToLive() throws Exception {
         final Client client = client();
-        client.admin().indices().prepareDelete("_all").execute().actionGet();
         ensureGreen();
 
         String percolatorMapping = XContentFactory.jsonBuilder().startObject().startObject(PercolatorService.TYPE_NAME)
@@ -148,6 +147,58 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                 ).execute().actionGet();
         assertMatchCount(percolateResponse, 0l);
         assertThat(percolateResponse.getMatches(), emptyArray());
+    }
+
+
+    @Test
+    public void testEnsureTTLDoesNotCreateIndex() throws IOException, InterruptedException {
+        final Client client = client();
+        ensureGreen();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+                .put("indices.ttl.interval", 60) // 60 sec
+                .build()).get();
+
+        String typeMapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_ttl").field("enabled", true).endObject()
+                .endObject().endObject().string();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1))
+                .addMapping("type1", typeMapping)
+                .execute().actionGet();
+        ensureGreen();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
+                .put("indices.ttl.interval", 1) // 60 sec
+                .build()).get();
+
+        for (int i = 0; i < 100; i++) {
+            logger.info("index: " + i);
+            client.prepareIndex("test", "type1", "" + i).setSource(jsonBuilder()
+                    .startObject()
+                    .startObject("query")
+                    .startObject("term")
+                    .field("field1", "value1")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setTTL(randomIntBetween(10, 500)).execute().actionGet();
+        }
+        refresh();
+        assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats("test").clear().setIndexing(true).get();
+                logger.info("delete count [{}]", indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount());
+                // TTL deletes one doc, but it is indexed in the primary shard and replica shards
+                return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() != 0;
+            }
+        }, 5, TimeUnit.SECONDS), equalTo(true));
+        cluster().wipeIndices("test");
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", typeMapping)
+                .execute().actionGet();
+
+
     }
 
 }

@@ -38,7 +38,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -249,7 +249,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 .addAggregation(histogram("histo").field("values").interval(interval))
                 .execute().actionGet();
 
-        assertThat(resp.getFailedShards(), equalTo(0));
+        assertSearchResponse(resp);
 
         Terms terms = resp.getAggregations().get("terms");
         assertThat(terms, notNullValue());

@@ -36,6 +36,7 @@ import java.util.HashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -103,6 +104,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(2))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
@@ -118,6 +120,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(2))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");        
         assertThat(topTerms.getBuckets().size(), equalTo(0));
     }
@@ -132,6 +135,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(2))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);
     }    
@@ -146,6 +150,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(2))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);
     }

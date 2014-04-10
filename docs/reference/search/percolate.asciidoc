@@ -9,7 +9,7 @@ index and then via the percolate api you define documents in order to retrieve t
 
 The reason that queries can be stored comes from the fact that in Elasticsearch both documents and queries are defined in
 JSON. This allows you to embed queries into documents via the index api. Elasticsearch can extract the query from a
-document and make it available to the percolate api. Since documents are also defines as json, you can define a document
+document and make it available to the percolate api. Since documents are also defined as json, you can define a document
 in a request to the percolate api.
 
 The percolator and most of its features work in realtime, so once a percolate query is indexed it can immediately be used
@@ -179,7 +179,7 @@ comma separated string, in that case the request can be be executed on more than
 * `preference` - Controls which shard replicas are preferred to execute the request on. Works the same as in the search api.
 * `ignore_unavailable` - Controls if missing concrete indices should silently be ignored. Same as is in the search api.
 * `percolate_format` - If `ids` is specified then the matches array in the percolate response will contain a string
-array of the matching ids instead of an array of objects. This can be useful the reduce the amount of data being send
+array of the matching ids instead of an array of objects. This can be useful to reduce the amount of data being send
 back to the client. Obviously if there are to percolator queries with same id from different indices there is no way
 the find out which percolator query belongs to what index. Any other value to `percolate_format` will be ignored.
 
@@ -266,7 +266,7 @@ Response:
 === Percolating an existing document
 
 In order to percolate in newly indexed document, the percolate existing document can be used. Based on the response
-from an index request the `_id` and other meta information can be used to the immediately percolate the newly added
+from an index request the `_id` and other meta information can be used to immediately percolate the newly added
 document.
 
 .Supported options for percolating an existing document on top of existing percolator options:

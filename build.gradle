@@ -6,7 +6,6 @@ configurations {
 }
 
 dependencies {
-	//provided(hadoopClient)
 	provided("org.apache.hadoop:hadoop-core:$hadoop12Version")
 	provided("org.elasticsearch:elasticsearch:$esVersion")
 	testCompile "org.elasticsearch:elasticsearch:$esVersion:tests"
@@ -44,55 +43,40 @@ jar {
 	manifest.attributes['Implementation-Title'] = 'elasticsearch-repository-hdfs'
 }
 
+def baseZip(Zip zip) {
+	zip.group = "Distribution"
+	
+	zip.from("../") {
+			include "LICENSE.txt"
+			include "NOTICE.txt"
+			//expand(yyyy: new Date().format("yyyy"), version: project.version)
+		}
+	zip.from (".") {
+			include "README.md"
+		}
+	zip.from jar.archivePath
+}
 task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->
-    group = "Distribution"
+	baseZip(zipTask)
     description = "Builds archive (with Hadoop1 dependencies) suitable for download page."
 	
-	from("../") {
-        include "LICENSE.txt"
-        include "NOTICE.txt"
-        //expand(yyyy: new Date().format("yyyy"), version: project.version)
-    }
-	from (".") {
-		include "README.md"
-	}
-	from jar.archivePath
 	from configurations.hadoop1.allArtifacts.files
 	from configurations.hadoop1
 }
 
 task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
-    group = "Distribution"
+    baseZip(zipTask)
     description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
 	classifier = "hadoop2"
 
-    from("../") {
-        include "LICENSE.txt"
-        include "NOTICE.txt"
-        //expand(yyyy: new Date().format("yyyy"), version: project.version)
-    }
-	from (".") {
-		include "README.md"
-	}
-	from jar.archivePath
 	from configurations.hadoop2.allArtifacts.files
 	from configurations.hadoop2
 }
 
 task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
-    group = "Distribution"
+    baseZip(zipTask)
     description = "Builds archive (without any Hadoop dependencies) suitable for download page."
 	classifier = "light"
-
-    from("../") {
-        include "LICENSE.txt"
-        include "NOTICE.txt"
-        //expand(yyyy: new Date().format("yyyy"), version: project.version)
-    }
-	from (".") {
-		include "README.asciidoc"
-	}
-	from jar.archivePath
 }
 
 task distZip(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {
@@ -100,11 +84,12 @@ task distZip(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {
 	description = "Builds all distribution zips for Elasticsearch Repository HDFS"
 }
 
-artifacts {
-	archives distZipHadoop1
-	archives distZipHadoop2
-	archives distZipNoHadoop
+pack() {
+	artifacts {
+		archives distZipHadoop1
+		archives distZipHadoop2
+		archives distZipNoHadoop
+	}
 }
-
-
 assemble.dependsOn = ['jar']
+defaultTasks 'build'

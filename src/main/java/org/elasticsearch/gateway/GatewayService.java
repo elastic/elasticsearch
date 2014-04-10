@@ -154,12 +154,6 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        if (event.state().blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
-            // we need to clear those flags, since we might need to recover again in case we disconnect
-            // from the cluster and then reconnect
-            recovered.set(false);
-            scheduledRecovery.set(false);
-        }
         if (event.localNodeMaster() && event.state().blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             ClusterState clusterState = event.state();
             DiscoveryNodes nodes = clusterState.nodes();

@@ -828,24 +828,16 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks())
                 .addGlobalBlock(NO_MASTER_BLOCK)
-                .addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)
                 .build();
 
-        // clear the routing table, we have no master, so we need to recreate the routing when we reform the cluster
-        RoutingTable routingTable = RoutingTable.builder().build();
-        // we also clean the metadata, since we are going to recover it if we become master
-        MetaData metaData = MetaData.builder().build();
-
         // clean the nodes, we are now not connected to anybody, since we try and reform the cluster
-        latestDiscoNodes = new DiscoveryNodes.Builder().put(localNode).localNodeId(localNode.id()).build();
+        latestDiscoNodes = new DiscoveryNodes.Builder(latestDiscoNodes).masterNodeId(null).build();
 
         asyncJoinCluster();
 
         return ClusterState.builder(clusterState)
                 .blocks(clusterBlocks)
                 .nodes(latestDiscoNodes)
-                .routingTable(routingTable)
-                .metaData(metaData)
                 .build();
     }
 

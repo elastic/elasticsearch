@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -129,12 +130,13 @@ public class SearchWhileRelocatingTests extends ElasticsearchIntegrationTest {
             }
             allowNodes("test", between(1, 3));
             client().admin().cluster().prepareReroute().get();
-            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).execute().actionGet();
+            // this might time out on some machines if they are really busy and you hit lots of throttling
+            ClusterHealthResponse resp = client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout("5m").get();
             stop.set(true);
             for (int j = 0; j < threads.length; j++) {
                 threads[j].join();
             }
-            assertThat(resp.isTimedOut(), equalTo(false));
+            assertNoTimeout(resp);
             if (!thrownExceptions.isEmpty() || !nonCriticalExceptions.isEmpty()) {
                 Client client = client();
                 boolean postSearchOK = true;

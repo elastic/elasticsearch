@@ -229,9 +229,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-
-        cluster().startNode(settingsBuilder().put("gateway.recover_after_nodes", 2).build());
-        cluster().startNode(settingsBuilder().put("gateway.recover_after_nodes", 2).build());
+        cluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -307,10 +305,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .put(MockDirectoryHelper.CRASH_INDEX, false)
                 .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
 
-        cluster().startNode(settings);
-        cluster().startNode(settings);
-        cluster().startNode(settings);
-        cluster().startNode(settings);
+        cluster().startNodesAsync(4, settings.build()).get();
 
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {

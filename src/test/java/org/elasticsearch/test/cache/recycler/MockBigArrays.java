@@ -294,9 +294,7 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         protected void randomizeContent(long from, long to) {
-            for (long i = from; i < to; ++i) {
-                set(i, (byte) random.nextInt(1 << 8));
-            }
+            fill(from, to, (byte) random.nextInt(1 << 8));
         }
 
         @Override
@@ -342,9 +340,7 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         protected void randomizeContent(long from, long to) {
-            for (long i = from; i < to; ++i) {
-                set(i, random.nextInt());
-            }
+            fill(from, to, random.nextInt());
         }
 
         @Override
@@ -385,9 +381,7 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         protected void randomizeContent(long from, long to) {
-            for (long i = from; i < to; ++i) {
-                set(i, random.nextLong());
-            }
+            fill(from, to, random.nextLong());
         }
 
         @Override
@@ -428,9 +422,7 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         protected void randomizeContent(long from, long to) {
-            for (long i = from; i < to; ++i) {
-                set(i, (random.nextFloat() - 0.5f) * 1000);
-            }
+            fill(from, to, (random.nextFloat() - 0.5f) * 1000);
         }
 
         @Override
@@ -471,9 +463,7 @@ public class MockBigArrays extends BigArrays {
 
         @Override
         protected void randomizeContent(long from, long to) {
-            for (long i = from; i < to; ++i) {
-                set(i, (random.nextDouble() - 0.5) * 1000);
-            }
+            fill(from, to, (random.nextDouble() - 0.5) * 1000);
         }
 
         @Override

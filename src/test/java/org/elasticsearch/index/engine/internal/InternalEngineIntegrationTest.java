@@ -152,4 +152,5 @@ public class InternalEngineIntegrationTest extends ElasticsearchIntegrationTest 
         assertThat(total, Matchers.equalTo(t));
 
     }
+
 }

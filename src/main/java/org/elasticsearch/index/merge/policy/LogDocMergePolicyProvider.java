@@ -20,8 +20,6 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.LogDocMergePolicy;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -39,12 +36,13 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDocMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
-
+    public static final String MAX_MERGE_DOCS_KEY = "index.merge.policy.max_merge_docs";
+    public static final String MIN_MERGE_DOCS_KEY = "index.merge.policy.min_merge_docs";
+    public static final String MERGE_FACTORY_KEY = "index.merge.policy.merge_factor";
     private volatile int minMergeDocs;
     private volatile int maxMergeDocs;
     private volatile int mergeFactor;
     private final boolean calibrateSizeByDeletes;
-    private boolean asyncMerge;
 
     private final Set<CustomLogDocMergePolicy> policies = new CopyOnWriteArraySet<>();
 
@@ -60,9 +58,8 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
         this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
-        this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
-        logger.debug("using [log_doc] merge policy with merge_factor[{}], min_merge_docs[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}], async_merge[{}]",
-                mergeFactor, minMergeDocs, maxMergeDocs, calibrateSizeByDeletes, asyncMerge);
+        logger.debug("using [log_doc] merge policy with merge_factor[{}], min_merge_docs[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}]",
+                mergeFactor, minMergeDocs, maxMergeDocs, calibrateSizeByDeletes);
 
         indexSettingsService.addListener(applySettings);
     }
@@ -74,12 +71,7 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
 
     @Override
     public LogDocMergePolicy newMergePolicy() {
-        CustomLogDocMergePolicy mergePolicy;
-        if (asyncMerge) {
-            mergePolicy = new EnableMergeLogDocMergePolicy(this);
-        } else {
-            mergePolicy = new CustomLogDocMergePolicy(this);
-        }
+        final CustomLogDocMergePolicy mergePolicy = new CustomLogDocMergePolicy(this);
         mergePolicy.setMinMergeDocs(minMergeDocs);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setMergeFactor(mergeFactor);
@@ -148,29 +140,6 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
         public void close() {
             super.close();
             provider.policies.remove(this);
-        }
-    }
-
-    public static class EnableMergeLogDocMergePolicy extends CustomLogDocMergePolicy {
-
-        public EnableMergeLogDocMergePolicy(LogDocMergePolicyProvider provider) {
-            super(provider);
-        }
-
-        @Override
-        public MergeSpecification findMerges(MergeTrigger trigger, SegmentInfos infos) throws IOException {
-            // we don't enable merges while indexing documents, we do them in the background
-            if (trigger == MergeTrigger.SEGMENT_FLUSH) {
-                return null;
-            }
-            return super.findMerges(trigger, infos);
-        }
-        
-        @Override
-        public MergePolicy clone() {
-            // Lucene IW makes a clone internally but since we hold on to this instance 
-            // the clone will just be the identity.
-            return this;
         }
     }
 }

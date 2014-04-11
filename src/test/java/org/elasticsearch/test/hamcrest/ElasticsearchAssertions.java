@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -200,6 +201,12 @@ public class ElasticsearchAssertions {
         assertThat("Expected at least one shard failure, got none",
                 searchResponse.getShardFailures().length, greaterThan(0));
         assertVersionSerializable(searchResponse);
+    }
+
+    public static void assertNoFailures(BulkResponse response) {
+        assertThat("Unexpected ShardFailures: " + response.buildFailureMessage(),
+                response.hasFailures(), is(false));
+        assertVersionSerializable(response);
     }
 
     public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
@@ -513,4 +520,5 @@ public class ElasticsearchAssertions {
             MockDirectoryHelper.wrappers.clear();
         }
     }
+
 }

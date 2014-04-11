@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.internal;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.MultimapBuilder;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -27,6 +30,7 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
@@ -59,6 +63,8 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -81,7 +87,17 @@ public abstract class SearchContext implements Releasable {
         return current.get();
     }
 
-    public abstract void clearAndRelease();
+    private Multimap<Lifetime, Releasable> clearables = null;
+
+    public final void close() {
+        try {
+            clearReleasables(Lifetime.CONTEXT);
+        } finally {
+            doClose();
+        }
+    }
+
+    protected abstract void doClose();
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
@@ -288,9 +304,29 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FetchSearchResult fetchResult();
 
-    public abstract void addReleasable(Releasable releasable);
+    /**
+     * Schedule the release of a resource. The time when {@link Releasable#release()} will be called on this object
+     * is function of the provided {@link Lifetime}.
+     */
+    public void addReleasable(Releasable releasable, Lifetime lifetime) {
+        if (clearables == null) {
+            clearables = MultimapBuilder.enumKeys(Lifetime.class).arrayListValues().build();
+        }
+        clearables.put(lifetime, releasable);
+    }
 
-    public abstract void clearReleasables();
+    public void clearReleasables(Lifetime lifetime) {
+        if (clearables != null) {
+            List<Collection<Releasable>> releasables = new ArrayList<>();
+            for (Lifetime lc : Lifetime.values()) {
+                if (lc.compareTo(lifetime) > 0) {
+                    break;
+                }
+                releasables.add(clearables.removeAll(lc));
+            }
+            Releasables.close(Iterables.concat(releasables));
+        }
+    }
 
     public abstract ScanContext scanContext();
 
@@ -305,4 +341,22 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean useSlowScroll();
 
     public abstract SearchContext useSlowScroll(boolean useSlowScroll);
+
+    /**
+     * The life time of an object that is used during search execution.
+     */
+    public enum Lifetime {
+        /**
+         * This life time is for objects that only live during collection time.
+         */
+        COLLECTION,
+        /**
+         * This life time is for objects that need to live until the end of the current search phase.
+         */
+        PHASE,
+        /**
+         * This life time is for objects that need to live until the search context they are attached to is destroyed.
+         */
+        CONTEXT;
+    }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.Set;
@@ -104,7 +105,7 @@ public class ParentConstantScoreQuery extends Query {
             }
 
             final ChildrenWeight childrenWeight = new ChildrenWeight(childrenFilter, parentIds);
-            searchContext.addReleasable(childrenWeight);
+            searchContext.addReleasable(childrenWeight, Lifetime.COLLECTION);
             releaseParentIds = false;
             return childrenWeight;
         } finally {

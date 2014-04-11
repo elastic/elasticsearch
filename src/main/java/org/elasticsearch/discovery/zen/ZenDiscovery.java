@@ -84,6 +84,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private AllocationService allocationService;
     private final ClusterName clusterName;
     private final DiscoveryNodeService discoveryNodeService;
+    private final DiscoverySettings discoverySettings;
     private final ZenPingService pingService;
     private final MasterFaultDetection masterFD;
     private final NodesFaultDetection nodesFD;
@@ -129,6 +130,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.discoveryNodeService = discoveryNodeService;
+        this.discoverySettings = discoverySettings;
         this.pingService = pingService;
         this.version = version;
 
@@ -317,7 +319,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                                 .put(localNode);
                         // update the fact that we are the master...
                         latestDiscoNodes = builder.build();
-                        ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NO_MASTER_BLOCK).build();
+                        ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
                         return ClusterState.builder(currentState).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
                     }
 
@@ -827,7 +829,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         master = false;
 
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks())
-                .addGlobalBlock(NO_MASTER_BLOCK)
+                .addGlobalBlock(discoverySettings.getNoMasterBlock())
                 .build();
 
         // clean the nodes, we are now not connected to anybody, since we try and reform the cluster

@@ -83,7 +83,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private volatile ClusterState clusterState;
 
-    private final ClusterBlocks.Builder initialBlocks = ClusterBlocks.builder().addGlobalBlock(Discovery.NO_MASTER_BLOCK);
+    private final ClusterBlocks.Builder initialBlocks;
 
     private volatile ScheduledFuture reconnectToNodes;
 
@@ -103,6 +103,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
+
+        initialBlocks = ClusterBlocks.builder().addGlobalBlock(discoveryService.getNoMasterBlock());
     }
 
     public NodeSettingsService settingsService() {
@@ -361,7 +363,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         }
                     }
                 } else {
-                    if (previousClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK) && !newClusterState.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+                    if (previousClusterState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock()) && !newClusterState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
                         // force an update, its a fresh update from the master as we transition from a start of not having a master to having one
                         // have a fresh instances of routing and metadata to remove the chance that version might be the same
                         Builder builder = ClusterState.builder(newClusterState);

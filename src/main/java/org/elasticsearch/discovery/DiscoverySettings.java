@@ -19,11 +19,14 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  * Exposes common discovery settings that may be supported by all the different discovery implementations
@@ -31,15 +34,18 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 public class DiscoverySettings extends AbstractComponent {
 
     public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
-
     public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
-
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
+
+    public final static int NO_MASTER_BLOCK_ID = 2;
+
+    private final ClusterBlock noMasterBlock;
 
     @Inject
     public DiscoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         nodeSettingsService.addListener(new ApplySettings());
+        this.noMasterBlock = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
     }
 
     /**
@@ -47,6 +53,10 @@ public class DiscoverySettings extends AbstractComponent {
      */
     public TimeValue getPublishTimeout() {
         return publishTimeout;
+    }
+
+    public ClusterBlock getNoMasterBlock() {
+        return noMasterBlock;
     }
 
     private class ApplySettings implements NodeSettingsService.Listener {

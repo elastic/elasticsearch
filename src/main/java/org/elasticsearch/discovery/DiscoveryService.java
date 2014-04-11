@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -37,17 +38,21 @@ import java.util.concurrent.TimeUnit;
  */
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
-    private final TimeValue initialStateTimeout;
-
     private final Discovery discovery;
-
+    private final DiscoverySettings discoverySettings;
+    private final TimeValue initialStateTimeout;
     private volatile boolean initialStateReceived;
 
     @Inject
-    public DiscoveryService(Settings settings, Discovery discovery) {
+    public DiscoveryService(Settings settings, DiscoverySettings discoverySettings, Discovery discovery) {
         super(settings);
+        this.discoverySettings = discoverySettings;
         this.discovery = discovery;
         this.initialStateTimeout = componentSettings.getAsTime("initial_state_timeout", TimeValue.timeValueSeconds(30));
+    }
+
+    public ClusterBlock getNoMasterBlock() {
+        return discoverySettings.getNoMasterBlock();
     }
 
     @Override

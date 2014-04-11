@@ -36,8 +36,6 @@ import org.elasticsearch.rest.RestStatus;
  */
 public interface Discovery extends LifecycleComponent<Discovery> {
 
-    final ClusterBlock NO_MASTER_BLOCK = new ClusterBlock(2, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-
     DiscoveryNode localNode();
 
     void addListener(InitialStateDiscoveryListener listener);

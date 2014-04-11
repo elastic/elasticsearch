@@ -125,7 +125,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
             SearchContext searchContext = SearchContext.current();
-            searchContext.clearAndRelease();
+            searchContext.release();
             SearchContext.removeCurrent();
         }
         return new PrimaryResponse<>(shardRequest.request, new ShardDeleteByQueryResponse(), null);
@@ -148,7 +148,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
             SearchContext searchContext = SearchContext.current();
-            searchContext.clearAndRelease();
+            searchContext.release();
             SearchContext.removeCurrent();
         }
     }

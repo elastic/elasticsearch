@@ -20,7 +20,6 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -47,7 +45,6 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
     private volatile ByteSizeValue maxMergedSegment;
     private volatile double segmentsPerTier;
     private volatile double reclaimDeletesWeight;
-    private boolean asyncMerge;
 
     private final ApplySettings applySettings = new ApplySettings();
 
@@ -57,7 +54,6 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
     public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
         super(store);
         this.indexSettingsService = indexSettingsService;
-        this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
         this.forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d); // percentage
         this.floorSegment = componentSettings.getAsBytesSize("floor_segment", new ByteSizeValue(2, ByteSizeUnit.MB));
         this.maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", 10);
@@ -69,8 +65,8 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
 
         fixSettingsIfNeeded();
 
-        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}], async_merge[{}]",
-                forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight, asyncMerge);
+        logger.debug("using [tiered] merge policy with expunge_deletes_allowed[{}], floor_segment[{}], max_merge_at_once[{}], max_merge_at_once_explicit[{}], max_merged_segment[{}], segments_per_tier[{}], reclaim_deletes_weight[{}]",
+                forceMergeDeletesPctAllowed, floorSegment, maxMergeAtOnce, maxMergeAtOnceExplicit, maxMergedSegment, segmentsPerTier, reclaimDeletesWeight);
 
         indexSettingsService.addListener(applySettings);
     }
@@ -91,12 +87,7 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
 
     @Override
     public TieredMergePolicy newMergePolicy() {
-        CustomTieredMergePolicyProvider mergePolicy;
-        if (asyncMerge) {
-            mergePolicy = new EnableMergeTieredMergePolicyProvider(this);
-        } else {
-            mergePolicy = new CustomTieredMergePolicyProvider(this);
-        }
+        final CustomTieredMergePolicyProvider mergePolicy = new CustomTieredMergePolicyProvider(this);
         mergePolicy.setNoCFSRatio(noCFSRatio);
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
@@ -220,22 +211,6 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
             // Lucene IW makes a clone internally but since we hold on to this instance 
             // the clone will just be the identity.
             return this;
-        }
-    }
-
-    public static class EnableMergeTieredMergePolicyProvider extends CustomTieredMergePolicyProvider {
-
-        public EnableMergeTieredMergePolicyProvider(TieredMergePolicyProvider provider) {
-            super(provider);
-        }
-
-        @Override
-        public MergePolicy.MergeSpecification findMerges(MergeTrigger trigger, SegmentInfos infos) throws IOException {
-            // we don't enable merges while indexing documents, we do them in the background
-            if (trigger == MergeTrigger.SEGMENT_FLUSH) {
-                return null;
-            }
-            return super.findMerges(trigger, infos);
         }
     }
 }

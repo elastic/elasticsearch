@@ -669,7 +669,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public boolean refreshNeeded() {
-        return dirty;
+        try {
+            // we are either dirty due to a document added or due to a
+            // finished merge - either way we should refresh
+            return dirty || !searcherManager.isSearcherCurrent();
+        } catch (IOException e) {
+            logger.error("failed to access searcher manager", e);
+            failEngine(e);
+            throw new EngineException(shardId, "failed to access searcher manager",e);
+        }
     }
 
     @Override
@@ -701,7 +709,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // maybeRefresh will only allow one refresh to execute, and the rest will "pass through",
                 // but, we want to make sure not to loose ant refresh calls, if one is taking time
                 synchronized (refreshMutex) {
-                    if (dirty || refresh.force()) {
+                    if (refreshNeeded() || refresh.force()) {
+                        // we set dirty to false, even though the refresh hasn't happened yet
+                        // as the refresh only holds for data indexed before it. Any data indexed during
+                        // the refresh will not be part of it and will set the dirty flag back to true
                         dirty = false;
                         searcherManager.maybeRefresh();
                     }
@@ -916,7 +927,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void maybeMerge() throws EngineException {
-        if (!possibleMergeNeeded) {
+        if (!possibleMergeNeeded()) {
             return;
         }
         possibleMergeNeeded = false;

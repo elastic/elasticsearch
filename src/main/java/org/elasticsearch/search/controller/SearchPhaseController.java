@@ -311,7 +311,7 @@ public class SearchPhaseController extends AbstractComponent {
         List<? extends AtomicArray.Entry<? extends FetchSearchResultProvider>> fetchResults = fetchResultsArr.asList();
 
         if (queryResults.isEmpty()) {
-            return InternalSearchResponse.EMPTY;
+            return InternalSearchResponse.empty();
         }
 
         QuerySearchResult firstResult = queryResults.get(0).value.queryResult();

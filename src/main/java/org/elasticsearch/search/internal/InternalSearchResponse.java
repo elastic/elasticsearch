@@ -40,6 +40,10 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
  */
 public class InternalSearchResponse implements Streamable, ToXContent {
 
+    public static InternalSearchResponse empty() {
+        return new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, null, false);
+    }
+
     private InternalSearchHits hits;
 
     private InternalFacets facets;
@@ -49,8 +53,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     private Suggest suggest;
 
     private boolean timedOut;
-
-    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, null, false);
 
     private InternalSearchResponse() {
     }

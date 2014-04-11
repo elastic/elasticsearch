@@ -32,6 +32,7 @@ import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentMap;
@@ -85,11 +86,21 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
                     throw new IllegalStateException("Releasing a page that has not been acquired");
                 }
                 final T ref = v();
-                for (int i = 0; i < Array.getLength(ref); ++i) {
-                    if (ref instanceof Object[]) {
-                        Array.set(ref, i, null);
-                    } else {
-                        Array.set(ref, i, (byte) random.nextInt(256));
+                if (ref instanceof Object[]) {
+                    Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);
+                } else if (ref instanceof byte[]) {
+                    Arrays.fill((byte[])ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
+                } else if (ref instanceof long[]) {
+                    Arrays.fill((long[])ref, 0, Array.getLength(ref), random.nextLong());
+                } else if (ref instanceof int[]) {
+                    Arrays.fill((int[])ref, 0, Array.getLength(ref), random.nextInt());
+                } else if (ref instanceof double[]) {
+                    Arrays.fill((double[])ref, 0, Array.getLength(ref), random.nextDouble() - 0.5);
+                } else if (ref instanceof float[]) {
+                    Arrays.fill((float[])ref, 0, Array.getLength(ref), random.nextFloat() - 0.5f);
+                } else {
+                    for (int i = 0; i < Array.getLength(ref); ++i) {
+                            Array.set(ref, i, (byte) random.nextInt(256));
                     }
                 }
                 return v.release();
@@ -112,7 +123,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<byte[]> bytePage(boolean clear) {
         final V<byte[]> page = super.bytePage(clear);
         if (!clear) {
-            random.nextBytes(page.v());
+            Arrays.fill(page.v(), 0, page.v().length, (byte)random.nextInt(1<<8));
         }
         return wrap(page);
     }
@@ -121,9 +132,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<int[]> intPage(boolean clear) {
         final V<int[]> page = super.intPage(clear);
         if (!clear) {
-            for (int i = 0; i < page.v().length; ++i) {
-                page.v()[i] = random.nextInt();
-            }
+            Arrays.fill(page.v(), 0, page.v().length, random.nextInt());
         }
         return wrap(page);
     }
@@ -132,9 +141,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<long[]> longPage(boolean clear) {
         final V<long[]> page = super.longPage(clear);
         if (!clear) {
-            for (int i = 0; i < page.v().length; ++i) {
-                page.v()[i] = random.nextLong();
-            }
+            Arrays.fill(page.v(), 0, page.v().length, random.nextLong());
         }
         return wrap(page);
     }
@@ -143,9 +150,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<double[]> doublePage(boolean clear) {
         final V<double[]> page = super.doublePage(clear);
         if (!clear) {
-            for (int i = 0; i < page.v().length; ++i) {
-                page.v()[i] = random.nextDouble() - 0.5;
-            }
+            Arrays.fill(page.v(), 0, page.v().length, random.nextDouble() - 0.5);
         }
         return wrap(page);
     }

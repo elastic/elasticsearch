@@ -116,6 +116,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
+    private final boolean rejoinOnMasterGone;
+
 
     @Nullable
     private NodeService nodeService;
@@ -140,6 +142,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean("discovery.zen.master_election.filter_data", false);
+        this.rejoinOnMasterGone = settings.getAsBoolean("discovery.zen.rejoin_on_master_gone", false);
 
         logger.debug("using ping.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
@@ -491,6 +494,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // make sure the old master node, which has failed, is not part of the nodes we publish
                         .remove(masterNode.id())
                         .masterNodeId(null).build();
+                latestDiscoNodes = discoveryNodes;
+
+                if (rejoinOnMasterGone) {
+                    return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
+                }
 
                 if (!electMaster.hasEnoughMasterNodes(discoveryNodes)) {
                     return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "not enough master nodes after master left (reason = " + reason + ")");

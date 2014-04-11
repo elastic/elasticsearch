@@ -51,6 +51,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("indices.ttl.interval", PURGE_INTERVAL)
+                .put("action.auto_create_index", false) // see #5766
                 .build();
     }
 

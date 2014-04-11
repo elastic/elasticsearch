@@ -20,7 +20,6 @@
 package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -379,10 +378,10 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")
                         .startObject("nested2").field("type", "nested")
-                            .startObject("properties")
-                                .startObject("field2_1").field("type", "string").endObject()
-                                .startObject("field2_2").field("type", "long").endObject()
-                            .endObject()
+                        .startObject("properties")
+                        .startObject("field2_1").field("type", "string").endObject()
+                        .startObject("field2_2").field("type", "long").endObject()
+                        .endObject()
                         .endObject()
                         .endObject().endObject()
                         .endObject().endObject().endObject()));
@@ -603,21 +602,21 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleNestedSorting() throws Exception {
-                assertAcked(prepareCreate("test")
-                        .setSettings(settingsBuilder()
-                                .put(indexSettings())
-                                .put("index.refresh_interval", -1))
-                        .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                                .startObject("nested1")
-                                .field("type", "nested")
-                                .startObject("properties")
-                                .startObject("field1")
-                                .field("type", "long")
-                                .field("store", "yes")
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(indexSettings())
+                        .put("index.refresh_interval", -1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .startObject("properties")
+                        .startObject("field1")
+                        .field("type", "long")
+                        .field("store", "yes")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -773,15 +772,15 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimpleNestedSorting_withNestedFilterMissing() throws Exception {
-                assertAcked(prepareCreate("test")
-                        .setSettings(settingsBuilder()
-                                .put(indexSettings())
-                                .put("index.referesh_interval", -1))
-                        .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                                .startObject("nested1")
-                                .field("type", "nested")
-                                .endObject()
-                                .endObject().endObject().endObject()));
+        assertAcked(prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(indexSettings())
+                        .put("index.referesh_interval", -1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject()));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -845,7 +844,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits()[2].id(), equalTo("3"));
         assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("10"));
 
-        searchRequestBuilder = client().prepareSearch("test").setTypes("type1") .setQuery(QueryBuilders.matchAllQuery())
+        searchRequestBuilder = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.DESC));
 
         if (randomBoolean()) {
@@ -864,27 +863,26 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         client().prepareClearScroll().addScrollId("_all").get();
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "boaz is looking into failures here")
     @Test
     public void testSortNestedWithNestedFilter() throws Exception {
-                assertAcked(prepareCreate("test")
-                        .addMapping("type1", XContentFactory.jsonBuilder().startObject()
-                                .startObject("type1")
-                                .startObject("properties")
-                                .startObject("grand_parent_values").field("type", "long").endObject()
-                                .startObject("parent").field("type", "nested")
-                                .startObject("properties")
-                                .startObject("parent_values").field("type", "long").endObject()
-                                .startObject("child").field("type", "nested")
-                                .startObject("properties")
-                                .startObject("child_values").field("type", "long").endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()
-                                .endObject()));
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                        .startObject("type1")
+                        .startObject("properties")
+                        .startObject("grand_parent_values").field("type", "long").endObject()
+                        .startObject("parent").field("type", "nested")
+                        .startObject("properties")
+                        .startObject("parent_values").field("type", "long").endObject()
+                        .startObject("child").field("type", "nested")
+                        .startObject("properties")
+                        .startObject("child_values").field("type", "long").endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()));
         ensureGreen();
 
         // sum: 11

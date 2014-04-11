@@ -136,7 +136,7 @@ public class ClusterStateObserver {
             // good enough, let's go.
             logger.trace("observer: sampled state accepted by predicate (version {})", newState.version());
             setObservedState(newState);
-            listener.onNewClusterState(lastObservedClusterState);
+            listener.onNewClusterState(newState);
         } else {
             logger.trace("observer: sampled state rejected by predicate (version {}). adding listener to ClusterService", newState.version());
             ObservingContext context = new ObservingContext(listener, changePredicate);

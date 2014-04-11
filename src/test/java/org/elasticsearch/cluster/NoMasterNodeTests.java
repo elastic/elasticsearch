@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -66,7 +67,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         }), equalTo(true));
 

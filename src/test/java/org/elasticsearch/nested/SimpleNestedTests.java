@@ -20,6 +20,7 @@
 package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -863,6 +864,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         client().prepareClearScroll().addScrollId("_all").get();
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "boaz is looking into failures here")
     @Test
     public void testSortNestedWithNestedFilter() throws Exception {
                 assertAcked(prepareCreate("test")

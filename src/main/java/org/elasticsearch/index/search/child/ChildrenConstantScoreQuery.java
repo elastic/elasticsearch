@@ -41,6 +41,7 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.Set;
@@ -123,7 +124,7 @@ public class ChildrenConstantScoreQuery extends Query {
                 shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
             }
             final ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, parentIds);
-            searchContext.addReleasable(parentWeight);
+            searchContext.addReleasable(parentWeight, Lifetime.COLLECTION);
             releaseParentIds = false;
             return parentWeight;
         } finally {

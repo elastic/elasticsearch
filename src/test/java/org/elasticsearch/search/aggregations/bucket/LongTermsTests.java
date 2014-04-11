@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -32,7 +31,6 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -513,7 +511,6 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void script_MultiValued_WithAggregatorInherited_NoExplicitType() throws Exception {
 
@@ -753,11 +750,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         assertThat(max.getValue(), equalTo(asc ? 4.0 : 2.0));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -773,11 +767,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -794,11 +785,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -816,11 +804,8 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")

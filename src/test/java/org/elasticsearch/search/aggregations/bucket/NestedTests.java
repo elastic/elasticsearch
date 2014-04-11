@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -186,10 +184,8 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getAvg(), equalTo((double) sum / count));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/5703")
     @Test
     public void onNonNestedField() throws Exception {
-        MockBigArrays.discardNextCheck();
         try {
             client().prepareSearch("idx")
                     .addAggregation(nested("nested").path("value")

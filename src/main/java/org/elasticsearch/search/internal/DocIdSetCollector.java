@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.index.cache.docset.DocSetCache;
@@ -33,7 +34,7 @@ import java.util.List;
 
 /**
  */
-public class DocIdSetCollector extends XCollector {
+public class DocIdSetCollector extends XCollector implements Releasable {
 
     private final DocSetCache docSetCache;
     private final Collector collector;
@@ -53,7 +54,7 @@ public class DocIdSetCollector extends XCollector {
         return docSets;
     }
 
-    public void release() {
+    public void close() {
         for (ContextDocIdSet docSet : docSets) {
             docSetCache.release(docSet);
         }

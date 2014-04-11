@@ -186,7 +186,41 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
     }
 
+
     @Test
+    public void irrelevantPropertiesBeforeQuery() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        client().admin().indices().preparePutMapping("test").setType("type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("bar").field("type", "integer").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        refresh();
+
+        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
+
+    }
+
+    @Test
+    public void irrelevantPropertiesAfterQuery() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        client().admin().indices().preparePutMapping("test").setType("type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("foo").field("type", "string").endObject()
+                        .startObject("bar").field("type", "integer").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        refresh();
+
+        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
+
+    }
+
     public void explainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();

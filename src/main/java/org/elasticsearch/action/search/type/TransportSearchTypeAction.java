@@ -140,7 +140,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         public void start() {
             if (expectedSuccessfulOps == 0) {
                 // no search shards to search on, bail with empty response (it happens with search across _all with no indices around and consistent with broadcast operations)
-                listener.onResponse(new SearchResponse(InternalSearchResponse.EMPTY, null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
             request.beforeStart();

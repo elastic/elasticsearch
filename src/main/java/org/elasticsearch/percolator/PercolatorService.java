@@ -31,12 +31,15 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -115,6 +118,7 @@ public class PercolatorService extends AbstractComponent {
     private final AggregationPhase aggregationPhase;
     private final SortParseElement sortParseElement;
     private final ScriptService scriptService;
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     private final CloseableThreadLocal<MemoryIndex> cache;
 
@@ -122,7 +126,8 @@ public class PercolatorService extends AbstractComponent {
     public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler,
                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
                              HighlightPhase highlightPhase, ClusterService clusterService, FacetPhase facetPhase,
-                             AggregationPhase aggregationPhase, ScriptService scriptService) {
+                             AggregationPhase aggregationPhase, ScriptService scriptService,
+                             MappingUpdatedAction mappingUpdatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.cacheRecycler = cacheRecycler;
@@ -133,6 +138,7 @@ public class PercolatorService extends AbstractComponent {
         this.facetPhase = facetPhase;
         this.aggregationPhase = aggregationPhase;
         this.scriptService = scriptService;
+        this.mappingUpdatedAction = mappingUpdatedAction;
         this.sortParseElement = new SortParseElement();
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
@@ -269,6 +275,9 @@ public class PercolatorService extends AbstractComponent {
                         MapperService mapperService = documentIndexService.mapperService();
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
+                        if (doc.mappingsModified()) {
+                            updateMappingOnMaster(docMapper, request, documentIndexService.indexUUID());
+                        }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
                     }
@@ -825,6 +834,31 @@ public class PercolatorService extends AbstractComponent {
         public InternalAggregations reducedAggregations() {
             return reducedAggregations;
         }
+    }
+
+    // TODO: maybe move this logic into MappingUpdatedAction? There is similar logic for the index and bulk api now.
+    private void updateMappingOnMaster(DocumentMapper documentMapper, final PercolateShardRequest request, String indexUUID) {
+        // we generate the order id before we get the mapping to send and refresh the source, so
+        // if 2 happen concurrently, we know that the later order will include the previous one
+        long orderId = mappingUpdatedAction.generateNextMappingUpdateOrder();
+        documentMapper.refreshSource();
+        DiscoveryNode node = clusterService.localNode();
+        final MappingUpdatedAction.MappingUpdatedRequest mappingRequest = new MappingUpdatedAction.MappingUpdatedRequest(
+                request.index(), indexUUID, request.documentType(), documentMapper.mappingSource(), orderId, node != null ? node.id() : null
+        );
+        logger.trace("Sending mapping updated to master: {}", mappingRequest);
+        mappingUpdatedAction.execute(mappingRequest, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
+            @Override
+            public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
+                // all is well
+                logger.debug("Successfully updated master with mapping update: {}", mappingRequest);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                logger.warn("Failed to update master on updated mapping for {}", e, mappingRequest);
+            }
+        });
     }
 
     private InternalFacets reduceFacets(List<PercolateShardResponse> shardResults) {

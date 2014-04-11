@@ -162,19 +162,21 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     }
                 }
 
-                final long delta = maxValue - minValue;
+                final long valuesDelta = maxValue - minValue;
                 final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-                final int pageSize = 1024;
+                final int pageSize = fieldDataType.getSettings().getAsInt("single_value_page_size", 1024);
 
                 if (formatHint == null) {
-                    formatHint = chooseStorageFormat(reader, values, build, ordinals, missingValue, delta, acceptableOverheadRatio, pageSize);
+                    formatHint = chooseStorageFormat(reader, values, build, ordinals, missingValue, valuesDelta, acceptableOverheadRatio, pageSize);
                 }
 
                 logger.trace("single value format for field [{}] set to [{}]", getFieldNames().fullName(), formatHint);
 
                 switch (formatHint) {
                     case PACKED:
-                        final PackedInts.Mutable sValues = PackedInts.getMutable(reader.maxDoc(), PackedInts.bitsRequired(maxValue - minValue), acceptableOverheadRatio);
+                        int bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(valuesDelta);
+
+                        final PackedInts.Mutable sValues = PackedInts.getMutable(reader.maxDoc(), bitsRequired, acceptableOverheadRatio);
 
                         if (missingValue != 0) {
                             missingValue -= minValue;
@@ -196,19 +198,19 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
                         final AppendingDeltaPackedLongBuffer dpValues = new AppendingDeltaPackedLongBuffer(reader.maxDoc() / pageSize + 1, pageSize, acceptableOverheadRatio);
 
+                        long lastValue = 0;
                         for (int i = 0; i < reader.maxDoc(); i++) {
                             final long ord = ordinals.getOrd(i);
-                            if (ord == Ordinals.MISSING_ORDINAL) {
-                                dpValues.add(missingValue);
-                            } else {
-                                dpValues.add(values.get(ord - 1));
+                            if (ord != Ordinals.MISSING_ORDINAL) {
+                                lastValue = values.get(ord - 1);
                             }
+                            dpValues.add(lastValue);
                         }
                         dpValues.freeze();
                         if (docsWithValues == null) {
                             data = new PackedArrayAtomicFieldData.PagedSingle(dpValues, reader.maxDoc(), ordinals.getNumOrds());
                         } else {
-                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, reader.maxDoc(), missingValue, ordinals.getNumOrds());
+                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, reader.maxDoc(), docsWithValues, ordinals.getNumOrds());
                         }
                         break;
                     case ORDINALS:
@@ -252,21 +254,31 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         long pageMinOrdinal = Long.MAX_VALUE;
         long pageMaxOrdinal = Long.MIN_VALUE;
         for (int i = 1; i < reader.maxDoc(); ++i, pageIndex = (pageIndex + 1) % pageSize) {
-            pageMaxOrdinal = Math.max(ordinals.getOrd(i), pageMaxOrdinal);
-            pageMinOrdinal = Math.min(ordinals.getOrd(i), pageMinOrdinal);
+            long ordinal = ordinals.getOrd(i);
+            if (ordinal != Ordinals.MISSING_ORDINAL) {
+                pageMaxOrdinal = Math.max(ordinal, pageMaxOrdinal);
+                pageMinOrdinal = Math.min(ordinal, pageMinOrdinal);
+            }
             if (pageIndex == pageSize - 1) {
                 // end of page, we now know enough to estimate memory usage
-                // for now we use a global missing value for simplicity (for *very* sparse data have a per page
-                // missing value may be beneficial)
-                long pageMinValue = pageMinOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMinOrdinal - 1);
-                long pageMaxValue = pageMaxOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMaxOrdinal - 1);
-                long pageDelta = pageMaxValue - pageMinValue;
-                if (pageDelta != 0) {
-                    bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);
-                    formatAndBits = PackedInts.fastestFormatAndBits(pageSize, bitsRequired, acceptableOverheadRatio);
-                    pagedSingleValuesSize += formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, pageSize, formatAndBits.bitsPerValue) * 8L;
+                if (pageMaxOrdinal == Long.MAX_VALUE) {
+                    // empty page - will use the null reader which just stores size
+                    pagedSingleValuesSize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
+
+                } else {
+                    long pageMinValue = values.get(pageMinOrdinal - 1);
+                    long pageMaxValue = values.get(pageMaxOrdinal - 1);
+                    long pageDelta = pageMaxValue - pageMinValue;
+                    if (pageDelta != 0) {
+                        bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);
+                        formatAndBits = PackedInts.fastestFormatAndBits(pageSize, bitsRequired, acceptableOverheadRatio);
+                        pagedSingleValuesSize += formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, pageSize, formatAndBits.bitsPerValue) * RamUsageEstimator.NUM_BYTES_LONG;
+                        pagedSingleValuesSize += RamUsageEstimator.NUM_BYTES_LONG; // min value per page storage
+                    } else {
+                        // empty page
+                        pagedSingleValuesSize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
+                    }
                 }
-                pagedSingleValuesSize += 8L; // min value per page storage
 
                 pageMinOrdinal = Long.MAX_VALUE;
                 pageMaxOrdinal = Long.MIN_VALUE;
@@ -276,14 +288,23 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         if (pageIndex > 0) {
             // last page estimation
             pageIndex++;
-            long pageMinValue = pageMinOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMinOrdinal - 1);
-            long pageMaxValue = pageMaxOrdinal == Ordinals.MISSING_ORDINAL ? missingValue : values.get(pageMaxOrdinal - 1);
-            long pageDelta = pageMaxValue - pageMinValue;
-            if (pageDelta != 0) {
-                bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);
-                formatAndBits = PackedInts.fastestFormatAndBits(pageIndex, bitsRequired, acceptableOverheadRatio);
-                pagedSingleValuesSize += formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, pageIndex, formatAndBits.bitsPerValue) * 8L;
-                pagedSingleValuesSize += 8L; // min value per page storage
+            if (pageMaxOrdinal == Long.MAX_VALUE) {
+                // empty page - will use the null reader which just stores size
+                pagedSingleValuesSize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
+
+            } else {
+                long pageMinValue = values.get(pageMinOrdinal - 1);
+                long pageMaxValue = values.get(pageMaxOrdinal - 1);
+                long pageDelta = pageMaxValue - pageMinValue;
+                if (pageDelta != 0) {
+                    bitsRequired = valuesDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);
+                    formatAndBits = PackedInts.fastestFormatAndBits(pageSize, bitsRequired, acceptableOverheadRatio);
+                    pagedSingleValuesSize += formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, pageSize, formatAndBits.bitsPerValue) * RamUsageEstimator.NUM_BYTES_LONG;
+                    pagedSingleValuesSize += RamUsageEstimator.NUM_BYTES_LONG; // min value per page storage
+                } else {
+                    // empty page
+                    pagedSingleValuesSize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
+                }
             }
         }
 

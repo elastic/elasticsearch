@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
@@ -456,13 +457,13 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
     public static class PagedSingleSparse extends PackedArrayAtomicFieldData {
 
         private final AppendingDeltaPackedLongBuffer values;
-        private final long missingValue;
+        private final FixedBitSet docsWithValue;
         private final long numOrds;
 
-        public PagedSingleSparse(AppendingDeltaPackedLongBuffer values, int numDocs, long missingValue, long numOrds) {
+        public PagedSingleSparse(AppendingDeltaPackedLongBuffer values, int numDocs, FixedBitSet docsWithValue, long numOrds) {
             super(numDocs);
             this.values = values;
-            this.missingValue = missingValue;
+            this.docsWithValue = docsWithValue;
             this.numOrds = numOrds;
         }
 
@@ -486,29 +487,29 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         @Override
         public LongValues getLongValues() {
-            return new LongValues(values, missingValue);
+            return new LongValues(values, docsWithValue);
         }
 
         @Override
         public DoubleValues getDoubleValues() {
-            return new DoubleValues(values, missingValue);
+            return new DoubleValues(values, docsWithValue);
         }
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
 
             private final AppendingDeltaPackedLongBuffer values;
-            private final long missingValue;
+            private final FixedBitSet docsWithValue;
 
-            LongValues(AppendingDeltaPackedLongBuffer values, long missingValue) {
+            LongValues(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue) {
                 super(false);
                 this.values = values;
-                this.missingValue = missingValue;
+                this.docsWithValue = docsWithValue;
             }
 
             @Override
             public int setDocument(int docId) {
                 this.docId = docId;
-                return values.get(docId) != missingValue ? 1 : 0;
+                return docsWithValue.get(docId) ? 1 : 0;
             }
 
             @Override
@@ -520,18 +521,18 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
             private final AppendingDeltaPackedLongBuffer values;
-            private final long missingValue;
+            private final FixedBitSet docsWithValue;
 
-            DoubleValues(AppendingDeltaPackedLongBuffer values, long missingValue) {
+            DoubleValues(AppendingDeltaPackedLongBuffer values, FixedBitSet docsWithValue) {
                 super(false);
                 this.values = values;
-                this.missingValue = missingValue;
+                this.docsWithValue = docsWithValue;
             }
 
             @Override
             public int setDocument(int docId) {
                 this.docId = docId;
-                return values.get(docId) != missingValue ? 1 : 0;
+                return docsWithValue.get(docId) ? 1 : 0;
             }
 
             @Override

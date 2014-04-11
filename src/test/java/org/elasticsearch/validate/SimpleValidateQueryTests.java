@@ -22,6 +22,7 @@ import com.google.common.base.Charsets;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -190,7 +191,6 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
     }
 
-    @Test
     public void explainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();
@@ -285,6 +285,24 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getIndex(), equalTo("test"));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
+    }
+
+    @Test
+    public void irrelevantPropertiesBeforeQuery() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        refresh();
+
+        assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}")).get().isValid(), equalTo(false));
+    }
+
+    @Test
+    public void irrelevantPropertiesAfterQuery() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        refresh();
+
+        assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}")).get().isValid(), equalTo(false));
     }
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {

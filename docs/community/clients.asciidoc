@@ -116,7 +116,9 @@ See the {client}/javascript-api/current/index.html[official Elasticsearch JavaSc
 
 * https://github.com/gphat/wabisabi[wabisabi]:
   Asynchronous REST API Scala client.
-
+  
+* https://github.com/twitter/storehaus[Twitter Storehaus]:
+  Thin asynchronous Scala client.
 
 [[community-clojure]]
 === Clojure

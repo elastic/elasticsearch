@@ -281,7 +281,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         },
         SINGLE_VALUED_SPARSE_RANDOM {
             public int numValues(Random r) {
-                return r.nextFloat() < 0.1f ? 1 : 0;
+                return r.nextFloat() < 0.01 ? 1 : 0;
             }
 
             @Override
@@ -291,7 +291,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         },
         MULTI_VALUED_SPARSE_RANDOM {
             public int numValues(Random r) {
-                return r.nextFloat() < 0.1f ? 1 + r.nextInt(5) : 0;
+                return r.nextFloat() < 0.01f ? 1 + r.nextInt(5) : 0;
             }
 
             @Override

@@ -69,10 +69,8 @@ import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
-import org.elasticsearch.search.internal.DefaultSearchContext;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.*;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -575,6 +573,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void cleanContext(SearchContext context) {
+        assert context == SearchContext.current();
+        context.clearReleasables(Lifetime.PHASE);
         SearchContext.removeCurrent();
     }
 

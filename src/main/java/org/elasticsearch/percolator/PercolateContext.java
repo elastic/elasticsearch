@@ -23,7 +23,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -208,7 +207,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    protected void doClose() {
         try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
             if (docSearcher != null) {
                 IndexReader indexReader = docSearcher.reader();
@@ -291,11 +290,6 @@ public class PercolateContext extends SearchContext {
     }
 
     // Unused:
-    @Override
-    public void clearAndRelease() {
-        throw new UnsupportedOperationException();
-    }
-
     @Override
     public void preProcess() {
         throw new UnsupportedOperationException();
@@ -672,16 +666,6 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public FetchSearchResult fetchResult() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void addReleasable(Releasable releasable) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void clearReleasables() {
         throw new UnsupportedOperationException();
     }
 

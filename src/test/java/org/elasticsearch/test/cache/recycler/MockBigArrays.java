@@ -45,26 +45,11 @@ public class MockBigArrays extends BigArrays {
      */
     private static final boolean TRACK_ALLOCATIONS = false;
 
-    private static boolean DISCARD = false;
-
     private static ConcurrentMap<Object, Object> ACQUIRED_ARRAYS = new ConcurrentHashMap<>();
 
-    /**
-     * Discard the next check that all arrays should be released. This can be useful if for a specific test, the cost to make
-     * sure the array is released is higher than the cost the user would experience if the array would not be released.
-     */
-    public static void discardNextCheck() {
-        DISCARD = true;
-    }
-
     public static void ensureAllArraysAreReleased() throws Exception {
-        if (DISCARD) {
-            DISCARD = false;
-        } else {
-            final Map<Object, Object> masterCopy = Maps.newHashMap(ACQUIRED_ARRAYS);
-            if (masterCopy.isEmpty()) {
-                return;
-            }
+        final Map<Object, Object> masterCopy = Maps.newHashMap(ACQUIRED_ARRAYS);
+        if (!masterCopy.isEmpty()) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
@@ -74,14 +59,13 @@ public class MockBigArrays extends BigArrays {
                     return Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty();
                 }
             });
-            if (success) {
-                return;
-            }
-            masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
-            ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-            if (!masterCopy.isEmpty()) {
-                final Object cause = masterCopy.entrySet().iterator().next().getValue();
-                throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+            if (!success) {
+                masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
+                ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
+                if (!masterCopy.isEmpty()) {
+                    final Object cause = masterCopy.entrySet().iterator().next().getValue();
+                    throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+                }
             }
         }
     }

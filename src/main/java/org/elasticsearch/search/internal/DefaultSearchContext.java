@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -177,8 +176,6 @@ public class DefaultSearchContext extends SearchContext {
 
     private volatile long lastAccessTime = -1;
 
-    private List<Releasable> clearables = null;
-
     private volatile boolean useSlowScroll;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
@@ -207,18 +204,12 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void close() throws ElasticsearchException {
+    public void doClose() throws ElasticsearchException {
         if (scanContext != null) {
             scanContext.clear();
         }
         // clear and scope phase we  have
-        searcher.release();
-        engineSearcher.close();
-    }
-
-    public void clearAndRelease() {
-        clearReleasables();
-        close();
+        Releasables.close(searcher, engineSearcher);
     }
 
     /**
@@ -675,25 +666,6 @@ public class DefaultSearchContext extends SearchContext {
 
     public FetchSearchResult fetchResult() {
         return fetchResult;
-    }
-
-    @Override
-    public void addReleasable(Releasable releasable) {
-        if (clearables == null) {
-            clearables = new ArrayList<>();
-        }
-        clearables.add(releasable);
-    }
-
-    @Override
-    public void clearReleasables() {
-        if (clearables != null) {
-            try {
-                Releasables.close(clearables);
-            } finally {
-                clearables.clear();
-            }
-        }
     }
 
     public ScanContext scanContext() {

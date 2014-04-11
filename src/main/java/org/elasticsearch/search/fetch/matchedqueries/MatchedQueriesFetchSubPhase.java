@@ -30,6 +30,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.List;
@@ -97,7 +98,7 @@ public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
             } catch (IOException e) {
                 // ignore
             } finally {
-                SearchContext.current().clearReleasables();
+                SearchContext.current().clearReleasables(Lifetime.COLLECTION);
             }
         }
     }

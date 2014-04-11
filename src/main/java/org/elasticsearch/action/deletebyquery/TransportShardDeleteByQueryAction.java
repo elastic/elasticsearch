@@ -124,9 +124,9 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
             SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
-            SearchContext searchContext = SearchContext.current();
-            searchContext.clearAndRelease();
-            SearchContext.removeCurrent();
+            try (SearchContext searchContext = SearchContext.current()) {
+                SearchContext.removeCurrent();
+            }
         }
         return new PrimaryResponse<>(shardRequest.request, new ShardDeleteByQueryResponse(), null);
     }
@@ -147,9 +147,9 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
             SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
-            SearchContext searchContext = SearchContext.current();
-            searchContext.clearAndRelease();
-            SearchContext.removeCurrent();
+            try (SearchContext searchContext = SearchContext.current();) {
+                SearchContext.removeCurrent();
+            }
         }
     }
 

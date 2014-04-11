@@ -261,7 +261,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
             }
             if (pageIndex == pageSize - 1) {
                 // end of page, we now know enough to estimate memory usage
-                if (pageMaxOrdinal == Long.MAX_VALUE) {
+                if (pageMaxOrdinal == Long.MIN_VALUE) {
                     // empty page - will use the null reader which just stores size
                     pagedSingleValuesSize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
 
@@ -288,7 +288,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         if (pageIndex > 0) {
             // last page estimation
             pageIndex++;
-            if (pageMaxOrdinal == Long.MAX_VALUE) {
+            if (pageMaxOrdinal == Long.MIN_VALUE) {
                 // empty page - will use the null reader which just stores size
                 pagedSingleValuesSize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
 

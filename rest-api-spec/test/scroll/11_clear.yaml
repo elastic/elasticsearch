@@ -1,4 +1,9 @@
 ---
+setup:
+  - skip:
+      version: 0 - 999
+      reason:  This test some impacts other tests
+---
 "Clear scroll":
   - do:
       indices.create:

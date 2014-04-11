@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -59,7 +60,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> should be blocked, no master...");
         ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> start second node, cluster should be formed");
         cluster().startNode(settings);
@@ -68,9 +69,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
@@ -96,11 +97,11 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState  state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> starting the previous master node again...");
         cluster().startNode(settings);
@@ -109,9 +110,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
@@ -132,7 +133,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         }), equalTo(true));
 
@@ -143,9 +144,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(false));
 
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
@@ -180,21 +181,21 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
         
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                return state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
 
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
         state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-        assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
+        assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
 
         logger.info("--> start two more nodes");
         cluster().startNode(settings);
@@ -295,9 +296,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 boolean success = true;
                 for (Client client : cluster()) {
                     ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                    success &= state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+                    success &= state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK));
+                        logger.debug("Checking for NO_MASTER_BLOCK on client: {} NO_MASTER_BLOCK: [{}]", client, state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
                     }
                 }
                 return success;

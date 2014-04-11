@@ -141,7 +141,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     protected void checkStateMeetsSettingsAndMaybeRecover(ClusterState state, boolean asyncRecovery) {
         DiscoveryNodes nodes = state.nodes();
-        if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+        if (state.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
             logger.debug("not recovering from gateway, no master elected yet");
         } else if (recoverAfterNodes != -1 && (nodes.masterAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug("not recovering from gateway, nodes_size (data+master) [" + nodes.masterAndDataNodes().size() + "] < recover_after_nodes [" + recoverAfterNodes + "]");

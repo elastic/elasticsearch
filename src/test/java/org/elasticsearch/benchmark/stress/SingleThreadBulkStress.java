@@ -50,6 +50,7 @@ public class SingleThreadBulkStress {
 
         int shardsCount = Integer.parseInt(System.getProperty("es.shards", "1"));
         int replicaCount = Integer.parseInt(System.getProperty("es.replica", "1"));
+        boolean autoGenerateId = true;
 
         Settings settings = settingsBuilder()
                 .put("index.refresh_interval", "1s")
@@ -94,7 +95,7 @@ public class SingleThreadBulkStress {
             BulkRequestBuilder request = client1.prepareBulk();
             for (int j = 0; j < BATCH; j++) {
                 counter++;
-                request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter)).source(source(Integer.toString(counter), "test" + counter)));
+                request.add(Requests.indexRequest("test").type("type1").id(autoGenerateId ? null : Integer.toString(counter)).source(source(Integer.toString(counter), "test" + counter)));
             }
             BulkResponse response = request.execute().actionGet();
             if (response.hasFailures()) {

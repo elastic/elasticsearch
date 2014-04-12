@@ -99,7 +99,8 @@ public class SuggestStatsTests extends ElasticsearchIntegrationTest {
 
         // check suggest time
         assertThat(indicesStats.getTotal().getSuggest().getTimeInMillis(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSuggest().getTimeInMillis(), lessThanOrEqualTo(endTime - startTime));
+        // the upperbound is num shards * total time since we do searches in parallel
+        assertThat(indicesStats.getTotal().getSuggest().getTimeInMillis(), lessThanOrEqualTo(totalShards * (endTime - startTime)));
 
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
         NodeStats[] nodes = nodeStats.getNodes();

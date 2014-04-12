@@ -130,7 +130,12 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         cluster().ensureAtLeastNumNodes(1);
         SigarService sigarService = cluster().getInstance(SigarService.class);
         index("test1", "type", "1", "f", "f");
-
+        /*
+         * Ensure at least one shard is allocated otherwise the FS stats might
+         * return 0. This happens if the File#getTotalSpace() and friends is called
+         * on a directory that doesn't exist or has not yet been created.
+         */
+        ensureYellow("test1");
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();
         assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000

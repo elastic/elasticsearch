@@ -382,7 +382,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
         if (snapshotMetaData == null || snapshotMetaData.entries().isEmpty()) {
             return ImmutableList.of();
         }
-        if (repository == null) {
+        if ("_all".equals(repository)) {
             return snapshotMetaData.entries();
         }
         if (snapshotMetaData.entries().size() == 1) {

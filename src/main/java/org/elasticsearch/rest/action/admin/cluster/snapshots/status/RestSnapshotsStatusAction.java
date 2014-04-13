@@ -49,7 +49,7 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        String repository = request.param("repository");
+        String repository = request.param("repository", "_all");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
             snapshots = Strings.EMPTY_ARRAY;

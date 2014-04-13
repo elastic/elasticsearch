@@ -87,7 +87,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
         ImmutableList<SnapshotMetaData.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
 
         if (currentSnapshots.isEmpty()) {
-            buildResponse(request, currentSnapshots, null);
+            listener.onResponse(buildResponse(request, currentSnapshots, null));
+            return;
         }
 
         Set<String> nodesIds = newHashSet();

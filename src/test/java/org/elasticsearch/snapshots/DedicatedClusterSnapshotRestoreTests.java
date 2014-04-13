@@ -238,7 +238,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(12));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
-        assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));
 
         assertAcked(client().admin().indices().prepareClose("test-idx-1", "test-idx-2").execute().actionGet());
 

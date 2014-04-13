@@ -28,20 +28,30 @@ public enum SnapshotState {
     /**
      * Snapshot process has started
      */
-    IN_PROGRESS((byte) 0),
+    IN_PROGRESS((byte) 0, false, false),
     /**
      * Snapshot process completed successfully
      */
-    SUCCESS((byte) 1),
+    SUCCESS((byte) 1, true, true),
     /**
      * Snapshot failed
      */
-    FAILED((byte) 2);
+    FAILED((byte) 2, true, false),
+    /**
+     * Snapshot was partial successful
+     */
+    PARTIAL((byte) 3, true, true);
 
     private byte value;
 
-    private SnapshotState(byte value) {
+    private boolean completed;
+
+    private boolean restorable;
+
+    private SnapshotState(byte value, boolean completed, boolean restorable) {
         this.value = value;
+        this.completed = completed;
+        this.restorable = restorable;
     }
 
     /**
@@ -59,7 +69,17 @@ public enum SnapshotState {
      * @return true if snapshot completed, false otherwise
      */
     public boolean completed() {
-        return this == SUCCESS || this == FAILED;
+        return completed;
+    }
+
+
+    /**
+     * Returns true if snapshot can be restored (at least partially)
+     *
+     * @return true if snapshot can be restored, false otherwise
+     */
+    public boolean restorable() {
+        return restorable;
     }
 
     /**
@@ -76,6 +96,8 @@ public enum SnapshotState {
                 return SUCCESS;
             case 2:
                 return FAILED;
+            case 3:
+                return PARTIAL;
             default:
                 throw new ElasticsearchIllegalArgumentException("No snapshot state for value [" + value + "]");
         }

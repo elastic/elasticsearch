@@ -119,7 +119,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             final MetaData metaData = repository.readSnapshotMetaData(snapshotId, filteredIndices);
 
             // Make sure that we can restore from this snapshot
-            if (snapshot.state() != SnapshotState.SUCCESS) {
+            if (!snapshot.state().restorable()) {
                 throw new SnapshotRestoreException(snapshotId, "unsupported snapshot state [" + snapshot.state() + "]");
             }
             if (Version.CURRENT.before(snapshot.version())) {

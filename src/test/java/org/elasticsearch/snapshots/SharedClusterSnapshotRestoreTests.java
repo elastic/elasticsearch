@@ -409,6 +409,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get();
             assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
             SnapshotInfo snapshotInfo = getSnapshotsResponse.getSnapshots().get(0);
+            assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
             assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
             assertThat(snapshotInfo.totalShards(), greaterThan(snapshotInfo.successfulShards()));
 

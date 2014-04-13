@@ -59,7 +59,7 @@ root and inner object types:
 --------------------------------------------------
 {
     "_default_" : {
-        "date_formats" : ["yyyy-MM-dd", "dd-MM-yyyy", "date_optional_time"]
+        "dynamic_date_formats" : ["yyyy-MM-dd", "dd-MM-yyyy", "date_optional_time"]
     }
 }
 --------------------------------------------------

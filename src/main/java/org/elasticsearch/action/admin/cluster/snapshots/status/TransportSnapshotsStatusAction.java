@@ -206,6 +206,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                                 state = SnapshotMetaData.State.FAILED;
                                 break;
                             case SUCCESS:
+                            case PARTIAL:
+                                // Translating both PARTIAL and SUCCESS to SUCCESS for now
+                                // TODO: add the differentiation on the metadata level in the next major release
                                 state = SnapshotMetaData.State.SUCCESS;
                                 break;
                             default:

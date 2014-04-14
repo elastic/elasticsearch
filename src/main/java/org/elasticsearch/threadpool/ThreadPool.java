@@ -518,11 +518,6 @@ public class ThreadPool extends AbstractComponent {
                     running = false;
                     return;
                 }
-                try {
-                    FileSystemUtils.checkMkdirsStall(estimatedTimeInMillis);
-                } catch (Exception e) {
-                    // ignore
-                }
             }
         }
     }

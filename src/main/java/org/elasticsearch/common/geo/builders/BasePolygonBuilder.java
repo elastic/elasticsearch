@@ -359,7 +359,8 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
         for (int i = 0; i < numHoles; i++) {
             final Edge current = holes[i];
-            final int intersections = intersections(current.coordinate.x, edges);
+            double x = findMinimumXCoord(current);
+            final int intersections = intersections(x, edges);
             final int pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER);
             assert pos < 0 : "illegal state: two edges cross the datum at the same position";
             final int index = -(pos+2);
@@ -373,6 +374,18 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
             components.get(component).add(points[i]);
         }
+    }
+
+    private static double findMinimumXCoord(Edge current) {
+        double coordinate = current.coordinate.x;
+
+        Edge next = current.next;
+        while (next != null && !current.equals(next)) {
+            coordinate = coordinate >= 0 ? Math.max(next.coordinate.x, coordinate) : Math.min(next.coordinate.x, coordinate);
+            next = next.next;
+        }
+
+        return coordinate;
     }
 
     private static int merge(Edge[] intersections, int offset, int length, Edge[] holes, int numHoles) {

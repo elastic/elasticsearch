@@ -60,7 +60,6 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
             Instance instance = new Instance();
             instance.setName("Mock Node " + tags);
             instance.setMachineType("Mock Type machine");
-            instance.setImage("mock-image-type");
             instance.setStatus("STARTED");
             Tags instanceTags = new Tags();
             instanceTags.setItems(tags);

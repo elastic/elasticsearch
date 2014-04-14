@@ -87,9 +87,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testSimpleSuggest() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -110,9 +109,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testDifferentSeparator() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "separator_shingle")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -134,9 +132,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testNgramsAreExtractedFromAnalyzer() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "my_shingle")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -155,10 +152,9 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testDifferentAnalyzers() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("search_analyzer", "standard")
                 .field("index_analyzer", "suggest_analyzer_synonyms")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -176,9 +172,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testDifferentSegmentsNotContainingSuggestData() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -199,9 +194,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testSuggestDoesNotFailWithEmptyData() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -224,7 +218,7 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(new FreeTextSuggestionBuilder("broken").field("foo").text("f").size(10)).execute().actionGet();
         assertThat(suggestResponse.getFailedShards(), greaterThanOrEqualTo(1));
-        assertThat(suggestResponse.getShardFailures()[0].reason(), containsString("Field [foo] is not configured with freetext postings format"));
+        assertThat(suggestResponse.getShardFailures()[0].reason(), containsString("Field [foo] is not configured as freetext field"));
     }
 
     @Test
@@ -243,14 +237,12 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testMultipleSuggestInOneMappingWork() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject()
                 .startObject(FIELD + "2")
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject() .endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -278,9 +270,7 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("type", "string")
                 .startObject("fields")
                 .startObject("freetext")
-                    .field("type", "string")
-                    .field("postings_format", "freetext")
-                    .field("analyzer", "standard")
+                    .field("type", "freetext")
                 .endObject()
                 .endObject()
                 .endObject().endObject().endObject().endObject())
@@ -300,6 +290,7 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertSuggestions(suggestResponse, "a", "printer");
     }
 
+    /*
     @Test
     public void testUpgradingPostingsFormatShouldWork() throws Exception {
         ensureGreen();
@@ -315,8 +306,7 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
         // upgrade mapping to multifield
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
-                .field("postings_format", "freetext")
+                .field("type", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -337,13 +327,13 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertSuggestions(suggestResponse, "a", "printer");
     }
+    */
 
     @Test
     public void testDefaultAnalyzer() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
-                .field("postings_format", "freetext")
+                .field("type", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -362,9 +352,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testScoring() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -389,9 +378,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testMergingWorksWithUpdatedDocument() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));
@@ -416,9 +404,8 @@ public class FreeTextSuggestSearchTests extends ElasticsearchIntegrationTest {
     public void testThatStatsAreWorking() throws Exception {
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties").startObject(FIELD)
-                .field("type", "string")
+                .field("type", "freetext")
                 .field("analyzer", "standard")
-                .field("postings_format", "freetext")
                 .endObject().endObject().endObject().endObject())
                 .get();
         assertThat(putMappingResponse.isAcknowledged(), is(true));

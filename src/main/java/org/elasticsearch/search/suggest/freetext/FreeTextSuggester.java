@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.core.FreetextFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
@@ -49,9 +50,13 @@ public class FreeTextSuggester extends Suggester<FreeTextSuggestionContext> {
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
                 FreeTextSuggestionContext suggestionContext, IndexReader indexReader, CharsRef spare) throws IOException {
 
-        if (suggestionContext.mapper().postingsFormatProvider() == null || !"freetext".equals(suggestionContext.mapper().postingsFormatProvider().get().getName())) {
-            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not configured with freetext postings format");
+        if (!(suggestionContext.mapper() instanceof FreetextFieldMapper)) {
+            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not configured as freetext field");
         }
+
+//        if (suggestionContext.mapper().postingsFormatProvider() == null || !"freetext".equals(suggestionContext.mapper().postingsFormatProvider().get().getName())) {
+//            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not configured with freetext postings format");
+//        }
 
         Suggest.Suggestion suggestion = new Suggest.Suggestion(name, suggestionContext.getSize());
         UnicodeUtil.UTF8toUTF16(suggestionContext.getText(), spare);

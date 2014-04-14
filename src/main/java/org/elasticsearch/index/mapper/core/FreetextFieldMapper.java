@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.index.mapper.core;
 
 import com.google.common.base.Charsets;
@@ -76,7 +94,7 @@ public class FreetextFieldMapper extends AbstractFieldMapper<String> {
                 }
             }
 
-            return UNIGRAM;
+            return BIGRAM;
         }
     }
 
@@ -121,13 +139,12 @@ public class FreetextFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             FreetextFieldMapper.Builder builder = freetextField(name);
-            boolean separatorConfigured = false;
             boolean gramsConfigured = false;
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("type")) {
+                if (fieldName.equals("type") || fieldName.equals("postings_format")) {
                     continue;
                 }
                 if (fieldName.equals("analyzer")) {
@@ -140,7 +157,6 @@ public class FreetextFieldMapper extends AbstractFieldMapper<String> {
                     builder.searchAnalyzer(getNamedAnalyzer(parserContext, fieldNode.toString()));
                 } else if (Fields.SEPARATOR.match(fieldName)) {
                     builder.separator(nodeByteValue(fieldNode));
-                    separatorConfigured = true;
                 } else if (Fields.GRAM.match(fieldName)) {
                     builder.gram(Gram.valueOf(fieldNode.toString()));
                     gramsConfigured = true;
@@ -163,12 +179,8 @@ public class FreetextFieldMapper extends AbstractFieldMapper<String> {
             ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(builder.indexAnalyzer);
 
             if (shingleFilterFactory != null) {
-                if (!separatorConfigured) {
-                    builder.separator(shingleFilterFactory.getTokenSeparator().getBytes(Charsets.UTF_8)[0]);
-                }
-
-                // TODO this defaults to unigrams, if the max shingle size is not 2 or 3, good?
-                if (shingleFilterFactory != null) {
+                // TODO this defaults to bigrams, if the max shingle size is not 1 or 3, good?
+                if (!gramsConfigured) {
                     builder.gram(Gram.findByLength(shingleFilterFactory.getMaxShingleSize()));
                 }
             }
@@ -207,14 +219,13 @@ public class FreetextFieldMapper extends AbstractFieldMapper<String> {
             multiFields.parse(this, context);
         }
 
-        for (byte data : input.getBytes(Charsets.UTF_8)) {
-            if (data == separator) {
-                throw new ElasticsearchParseException("Field["+ names.name() +"] may not contain ngram separator ["+ separator +"]");
-            }
+        boolean containsSeparator = input.indexOf(separator) >= 0;
+        if (containsSeparator) {
+            throw new ElasticsearchParseException("Field["+ names.name() +"] may not contain ngram separator ["+ separator +"]");
         }
 
-        // TODO add field
-        //context.doc().add();
+        // TODO WHERE DOES POSTINGSFORMAT COME INTO PLAY???
+        context.doc().add(new StringFieldMapper.StringField(names().fullName(), input, fieldType));
     }
 
     @Override
@@ -233,5 +244,13 @@ public class FreetextFieldMapper extends AbstractFieldMapper<String> {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    public Gram getGram() {
+        return gram;
+    }
+
+    public byte getSeparator() {
+        return separator;
     }
 }

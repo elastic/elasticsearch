@@ -33,32 +33,8 @@ import java.nio.file.StandardOpenOption;
  */
 public class FileSystemUtils {
 
-    private static ESLogger logger = ESLoggerFactory.getLogger(FileSystemUtils.class.getName());
-
-    private static final long mkdirsStallTimeout = TimeValue.timeValueMinutes(5).millis();
-    private static final Object mkdirsMutex = new Object();
-    private static volatile Thread mkdirsThread;
-    private static volatile long mkdirsStartTime;
-
     public static boolean mkdirs(File dir) {
-        synchronized (mkdirsMutex) {
-            try {
-                mkdirsThread = Thread.currentThread();
-                mkdirsStartTime = System.currentTimeMillis();
-                return dir.mkdirs();
-            } finally {
-                mkdirsThread = null;
-            }
-        }
-    }
-
-    public static void checkMkdirsStall(long currentTime) {
-        Thread mkdirsThread1 = mkdirsThread;
-        long stallTime = currentTime - mkdirsStartTime;
-        if (mkdirsThread1 != null && (stallTime > mkdirsStallTimeout)) {
-            logger.error("mkdirs stalled for {} on {}, trying to interrupt", new TimeValue(stallTime), mkdirsThread1.getName());
-            mkdirsThread1.interrupt(); // try and interrupt it...
-        }
+        return dir.mkdirs();
     }
 
     public static boolean hasExtensions(File root, String... extensions) {

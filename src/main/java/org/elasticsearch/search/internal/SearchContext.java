@@ -91,7 +91,7 @@ public abstract class SearchContext implements Releasable {
 
     public final boolean release() {
         try {
-            clearReleasables(Lifetime.SEARCH_CONTEXT);
+            clearReleasables(Lifetime.CONTEXT);
             return true;
         } finally {
             doRelease();
@@ -354,10 +354,10 @@ public abstract class SearchContext implements Releasable {
         /**
          * This life time is for objects that need to live until the end of the current search phase.
          */
-        SEARCH_PHASE,
+        PHASE,
         /**
          * This life time is for objects that need to live until the search context they are attached to is destroyed.
          */
-        SEARCH_CONTEXT;
+        CONTEXT;
     }
 }

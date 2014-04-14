@@ -86,7 +86,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
         this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
         // TODO: change it to SEARCH_PHASE, but this would imply allocating the aggregators in the QUERY
         // phase instead of DFS like it is done today
-        context.searchContext().addReleasable(this, Lifetime.SEARCH_CONTEXT);
+        context.searchContext().addReleasable(this, Lifetime.CONTEXT);
     }
 
     /**

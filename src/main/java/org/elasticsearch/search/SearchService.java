@@ -574,7 +574,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private void cleanContext(SearchContext context) {
         assert context == SearchContext.current();
-        context.clearReleasables(Lifetime.SEARCH_PHASE);
+        context.clearReleasables(Lifetime.PHASE);
         SearchContext.removeCurrent();
     }
 

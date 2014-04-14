@@ -43,26 +43,24 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
 
     public static void ensureAllPagesAreReleased() throws Exception {
         final Map<Object, Throwable> masterCopy = Maps.newHashMap(ACQUIRED_PAGES);
-        if (masterCopy.isEmpty()) {
-            return;
-        }
-        // not empty, we might be executing on a shared cluster that keeps on obtaining
-        // and releasing pages, lets make sure that after a reasonable timeout, all master
-        // copy (snapshot) have been released
-        boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return Sets.intersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()).isEmpty();
-            }
-        });
-        if (success) {
-            return;
-        }
-        masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
-        ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
         if (!masterCopy.isEmpty()) {
-            final Throwable t = masterCopy.entrySet().iterator().next().getValue();
-            throw new RuntimeException(masterCopy.size() + " pages have not been released", t);
+            // not empty, we might be executing on a shared cluster that keeps on obtaining
+            // and releasing pages, lets make sure that after a reasonable timeout, all master
+            // copy (snapshot) have been released
+            boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    return Sets.intersection(masterCopy.keySet(), ACQUIRED_PAGES.keySet()).isEmpty();
+                }
+            });
+            if (!success) {
+                masterCopy.keySet().retainAll(ACQUIRED_PAGES.keySet());
+                ACQUIRED_PAGES.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
+                if (!masterCopy.isEmpty()) {
+                    final Throwable t = masterCopy.entrySet().iterator().next().getValue();
+                    throw new RuntimeException(masterCopy.size() + " pages have not been released", t);
+                }
+            }
         }
     }
 

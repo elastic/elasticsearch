@@ -49,26 +49,24 @@ public class MockBigArrays extends BigArrays {
 
     public static void ensureAllArraysAreReleased() throws Exception {
         final Map<Object, Object> masterCopy = Maps.newHashMap(ACQUIRED_ARRAYS);
-        if (masterCopy.isEmpty()) {
-            return;
-        }
-        // not empty, we might be executing on a shared cluster that keeps on obtaining
-        // and releasing arrays, lets make sure that after a reasonable timeout, all master
-        // copy (snapshot) have been released
-        boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                return Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty();
-            }
-        });
-        if (success) {
-            return;
-        }
-        masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
-        ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
         if (!masterCopy.isEmpty()) {
-            final Object cause = masterCopy.entrySet().iterator().next().getValue();
-            throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+            // not empty, we might be executing on a shared cluster that keeps on obtaining
+            // and releasing arrays, lets make sure that after a reasonable timeout, all master
+            // copy (snapshot) have been released
+            boolean success = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    return Sets.intersection(masterCopy.keySet(), ACQUIRED_ARRAYS.keySet()).isEmpty();
+                }
+            });
+            if (!success) {
+                masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
+                ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
+                if (!masterCopy.isEmpty()) {
+                    final Object cause = masterCopy.entrySet().iterator().next().getValue();
+                    throw new RuntimeException(masterCopy.size() + " arrays have not been released", cause instanceof Throwable ? (Throwable) cause : null);
+                }
+            }
         }
     }
 

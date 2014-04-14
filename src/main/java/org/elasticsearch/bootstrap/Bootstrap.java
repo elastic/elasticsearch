@@ -32,6 +32,7 @@ import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.process.JmxProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -183,7 +184,7 @@ public class Bootstrap {
 
         if (System.getProperty("es.max-open-files", "false").equals("true")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.info("max_open_files [{}]", FileSystemUtils.maxOpenFiles(new File(tuple.v2().workFile(), "open_files")));
+            logger.info("max_open_files [{}]", JmxProcessProbe.getMaxFileDescriptorCount());
         }
 
         // warn if running using the client VM

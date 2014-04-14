@@ -130,7 +130,6 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
             for (Instance instance : instances) {
                 String name = instance.getName();
                 String type = instance.getMachineType();
-                String image = instance.getImage();
 
                 String status = instance.getStatus();
                 logger.trace("gce instance {} with status {} found.", name, status);
@@ -227,8 +226,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         // If user has set `es_port` metadata, we don't need to ping all ports
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
                         for (int i = 0; i < addresses.length; i++) {
-                            logger.trace("adding {}, type {}, image {}, address {}, transport_address {}, status {}", name, type,
-                                    image, ip_private, addresses[i], status);
+                            logger.trace("adding {}, type {}, image {}, address {}, transport_address {}, status {}", name, type
+                                    , ip_private, addresses[i], status);
                             cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + i, addresses[i], Version.CURRENT));
                         }
                     }

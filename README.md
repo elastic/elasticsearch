@@ -12,7 +12,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 
 |       GCE Cloud Plugin     |    elasticsearch    |   gce api    | Release date |
 |----------------------------|---------------------|--------------|:------------:|
-| 3.0.0-SNAPSHOT             | master              |  1.17.0-rc   |  XXXX-XX-XX  |
+| 3.0.0-SNAPSHOT             | master              |  1.18.0-rc   |  XXXX-XX-XX  |
 
 Please read documentation relative to the version you are using:
 

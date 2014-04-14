@@ -264,7 +264,6 @@ def ensure_no_open_tickets(version):
   try:
     log('Checking for open tickets on Github for version %s' % version)
     log('Check if node is available')
-    print( 'https://api.github.com:443/repos/elasticsearch/elasticsearch/issues?state=open&labels=%s' % version)
     conn.request('GET', '/repos/elasticsearch/elasticsearch/issues?state=open&labels=%s' % version, headers= {'User-Agent' : 'Elasticsearch version checker'})
     res = conn.getresponse()
     if res.status == 200:

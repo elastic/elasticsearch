@@ -89,11 +89,15 @@ public class QueryPhase implements SearchPhase {
     @Override
     public void preProcess(SearchContext context) {
         context.preProcess();
-        facetPhase.preProcess(context);
-        aggregationPhase.preProcess(context);
     }
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
+        // Pre-process facets and aggregations as late as possible. In the case of a DFS_Q_T_F
+        // request, preProcess is called on the DFS phase phase, this is why we pre-process them
+        // here to make sure it happens during the QUERY phase
+        facetPhase.preProcess(searchContext);
+        aggregationPhase.preProcess(searchContext);
+
         searchContext.queryResult().searchTimedOut(false);
 
         searchContext.searcher().inStage(ContextIndexSearcher.Stage.MAIN_QUERY);

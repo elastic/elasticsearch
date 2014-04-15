@@ -20,12 +20,12 @@
 package org.elasticsearch.common;
 
 import com.google.common.base.Charsets;
-import jsr166y.ThreadLocalRandom;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  *

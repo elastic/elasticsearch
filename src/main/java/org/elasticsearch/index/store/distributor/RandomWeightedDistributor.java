@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.store.distributor;
 
-import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Implements directory distributor that picks a directory at random. The probability of selecting a directory

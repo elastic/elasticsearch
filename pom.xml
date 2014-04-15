@@ -584,10 +584,6 @@
                             <shadedPattern>org.elasticsearch.common.hppc</shadedPattern>
                         </relocation>
                         <relocation>
-                            <pattern>jsr166y</pattern>
-                            <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166y</shadedPattern>
-                        </relocation>
-                        <relocation>
                             <pattern>jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
                         </relocation>
@@ -1049,7 +1045,6 @@
                             <failOnUnsupportedJava>false</failOnUnsupportedJava>
                             <excludes>
                                 <exclude>jsr166e/**</exclude>
-                                <exclude>jsr166y/**</exclude>
                                 <!-- start excludes for valid system-out -->
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
@@ -1345,7 +1340,6 @@
               <configuration>
                 <excludes>
                   <exclude>jsr166e/**</exclude>
-                  <exclude>jsr166y/**</exclude>
                   <exclude>org/apache/lucene/**</exclude>
                 </excludes>
               </configuration>
@@ -1388,7 +1382,6 @@
                 <targetJdk>1.7</targetJdk>
                 <excludes>
                   <exclude>**/jsr166e/**</exclude>
-                  <exclude>**/jsr166y/**</exclude>
                   <exclude>**/org/apache/lucene/**</exclude>
                   <exclude>**/org/apache/elasticsearch/common/Base64.java</exclude>
                 </excludes>

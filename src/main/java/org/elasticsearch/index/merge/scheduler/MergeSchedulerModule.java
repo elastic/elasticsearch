@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 public class MergeSchedulerModule extends AbstractModule {
 
     public static final String MERGE_SCHEDULER_TYPE_KEY = "index.merge.scheduler.type";
-    public static final Class<? extends MergeSchedulerProvider> DEFAULT = SerialMergeSchedulerProvider.class;
+    public static final Class<? extends MergeSchedulerProvider> DEFAULT = ConcurrentMergeSchedulerProvider.class;
 
     private final Settings settings;
 

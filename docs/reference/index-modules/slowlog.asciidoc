@@ -59,7 +59,7 @@ index_search_slow_log_file:
 [[index-slow-log]]
 === Index Slow log
 
-p.The indexing slow log, similar in functionality to the search slow
+The indexing slow log, similar in functionality to the search slow
 log. The log file is ends with `_index_indexing_slowlog.log`. Log and
 the thresholds are configured in the elasticsearch.yml file in the same
 way as the search slowlog. Index slowlog sample:

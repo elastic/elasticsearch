@@ -112,7 +112,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
                     (System.currentTimeMillis() - startTime)
             );
         }
-        return new GlobalOrdinalsIndexFieldData(indexFieldData.index(), settings, indexFieldData.getFieldNames(),
+        return new InternalGlobalOrdinalsIndexFieldData(indexFieldData.index(), settings, indexFieldData.getFieldNames(),
                 fieldDataType, withOrdinals, globalOrdToFirstSegment, globalOrdToFirstSegmentDelta,
                 segmentOrdToGlobalOrdLookups, memorySizeInBytes
         );

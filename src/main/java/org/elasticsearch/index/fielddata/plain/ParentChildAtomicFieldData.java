@@ -122,6 +122,10 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
         }
     }
 
+    public WithOrdinals getAtomicFieldData(String type) {
+        return typeToIds.get(type);
+    }
+
     @Override
     public ScriptDocValues getScriptValues() {
         return new ScriptDocValues.Strings(getBytesValues(false));

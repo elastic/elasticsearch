@@ -27,7 +27,10 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
@@ -41,7 +44,6 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.Set;
@@ -58,11 +60,12 @@ public class ChildrenConstantScoreQuery extends Query {
     private final Filter parentFilter;
     private final int shortCircuitParentDocSet;
     private final Filter nonNestedDocsFilter;
+    private final ExecutionMode executionMode;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter, String executionHint) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;
@@ -70,6 +73,7 @@ public class ChildrenConstantScoreQuery extends Query {
         this.originalChildQuery = childQuery;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
+        this.executionMode = ExecutionMode.fromString(executionHint);
     }
 
     @Override
@@ -100,57 +104,56 @@ public class ChildrenConstantScoreQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         final SearchContext searchContext = SearchContext.current();
-        final BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
+        assert rewrittenChildQuery != null;
+        assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+
         boolean releaseParentIds = true;
+        AbstractParentCollector collector = null;
         try {
-            final ParentIdCollector collector = new ParentIdCollector(parentType, parentChildIndexFieldData, parentIds);
-            assert rewrittenChildQuery != null;
-            assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
             final Query childQuery = rewrittenChildQuery;
             IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
             indexSearcher.setSimilarity(searcher.getSimilarity());
+            collector = executionMode.createCollector(parentType, parentChildIndexFieldData, searchContext);
             indexSearcher.search(childQuery, collector);
 
-            long remaining = parentIds.size();
+            long remaining = collector.foundParents();
             if (remaining == 0) {
                 return Queries.newMatchNoDocsQuery().createWeight(searcher);
             }
 
             Filter shortCircuitFilter = null;
             if (remaining == 1) {
-                BytesRef id = parentIds.get(0, new BytesRef());
+                BytesRef id = collector.parentIdValues().get(0, new BytesRef());
                 shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
             } else if (remaining <= shortCircuitParentDocSet) {
-                shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
+                shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, collector.parentIdValues());
             }
-            final ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, parentIds);
-            searchContext.addReleasable(parentWeight, Lifetime.COLLECTION);
+            final ParentWeight parentWeight = new ParentWeight(parentFilter, shortCircuitFilter, collector);
+            searchContext.addReleasable(collector, SearchContext.Lifetime.COLLECTION);
             releaseParentIds = false;
             return parentWeight;
         } finally {
            if (releaseParentIds) {
-               Releasables.close(parentIds);
+               Releasables.close(collector);
            }
         }
-
-
     }
 
-    private final class ParentWeight extends Weight implements Releasable  {
+    private final class ParentWeight extends Weight  {
 
         private final Filter parentFilter;
         private final Filter shortCircuitFilter;
-        private final BytesRefHash parentIds;
+        private final AbstractParentCollector parentIds;
 
         private long remaining;
         private float queryNorm;
         private float queryWeight;
 
-        public ParentWeight(Filter parentFilter, Filter shortCircuitFilter, BytesRefHash parentIds) {
+        public ParentWeight(Filter parentFilter, Filter shortCircuitFilter, AbstractParentCollector parentIds) {
             this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
             this.shortCircuitFilter = shortCircuitFilter;
             this.parentIds = parentIds;
-            this.remaining = parentIds.size();
+            this.remaining = parentIds.foundParents();
         }
 
         @Override
@@ -194,61 +197,195 @@ public class ChildrenConstantScoreQuery extends Query {
 
             DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, acceptDocs);
             if (!DocIdSets.isEmpty(parentDocIdSet)) {
-                BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(parentType);
                 // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
                 // count down (short circuit) logic will then work as expected.
                 parentDocIdSet = BitsFilteredDocIdSet.wrap(parentDocIdSet, context.reader().getLiveDocs());
-                if (bytesValues != null) {
-                    DocIdSetIterator innerIterator = parentDocIdSet.iterator();
-                    if (innerIterator != null) {
-                        ParentDocIdIterator parentDocIdIterator = new ParentDocIdIterator(innerIterator, parentIds, bytesValues);
-                        return ConstantScorer.create(parentDocIdIterator, this, queryWeight);
+                DocIdSetIterator innerIterator = parentDocIdSet.iterator();
+                if (innerIterator != null) {
+                    DocIdSetIterator parentIdIterator = executionMode.createIterator(context, innerIterator, this, parentIds, parentChildIndexFieldData, parentType);
+                    if (parentIdIterator != null) {
+                        return ConstantScorer.create(parentIdIterator, this, queryWeight);
                     }
                 }
             }
             return null;
         }
 
+    }
+
+    public enum ExecutionMode {
+
+        ORDINALS(new ParseField("ordinals")) {
+            @Override
+            AbstractParentCollector createCollector(String type, ParentChildIndexFieldData ifd, SearchContext searchContext) {
+                BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
+                return new ParentIdCollector(searchContext, type, ifd, parentIds);
+            }
+
+            @Override
+            DocIdSetIterator createIterator(AtomicReaderContext context, DocIdSetIterator parents, ParentWeight parentWeight, AbstractParentCollector collector, ParentChildIndexFieldData parentChildIndexFieldData, String type) {
+                BytesValues bytesValues = parentChildIndexFieldData.load(context).getBytesValues(type);
+                if (bytesValues == null) {
+                    return null;
+                }
+                return new ParentIdIterator(parents, parentWeight, collector.parentIdValues(), bytesValues);
+            }
+
+        },
+        GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
+            @Override
+            AbstractParentCollector createCollector(String type, ParentChildIndexFieldData ifd, SearchContext searchContext) {
+                OpenBitSet parentOrds = new OpenBitSet(512);
+                ParentChildIndexFieldData.WithOrdinals global = ifd.getGlobalParentChild(
+                        type, searchContext.searcher().getIndexReader()
+                );
+                return new ParentOrdCollector(searchContext, parentOrds, global);
+            }
+
+            @Override
+            DocIdSetIterator createIterator(AtomicReaderContext context, DocIdSetIterator parents, ParentWeight parentWeight, AbstractParentCollector collector, ParentChildIndexFieldData parentChildIndexFieldData, String type) {
+                ParentOrdCollector parentOrdCollector = (ParentOrdCollector) collector;
+                OpenBitSet parentOrds = parentOrdCollector.parentOrds;
+                BytesValues.WithOrdinals topLevelValues = parentOrdCollector.indexFieldData.load(context).getBytesValues(false);
+                if (topLevelValues == null) {
+                    return null;
+                }
+                return new ParentOrdIterator(parents, parentOrds, topLevelValues.ordinals(), parentWeight);
+            }
+
+        };
+
+        private final ParseField name;
+
+        ExecutionMode(ParseField name) {
+            this.name = name;
+        }
+
+        public ParseField getName() {
+            return name;
+        }
+
+        abstract AbstractParentCollector createCollector(String type, ParentChildIndexFieldData ifd, SearchContext searchContext);
+
+        abstract DocIdSetIterator createIterator(AtomicReaderContext context, DocIdSetIterator parents, ParentWeight parentWeight, AbstractParentCollector collector, ParentChildIndexFieldData parentChildIndexFieldData, String type);
+
+        public static ExecutionMode fromString(String value) {
+            for (ExecutionMode mode : values()) {
+                if (mode.name.match(value)) {
+                    return mode;
+                }
+            }
+            throw new ElasticsearchIllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+        }
+
+    }
+
+    abstract static class AbstractParentCollector extends NoopCollector implements Releasable {
+
+        protected final SearchContext searchContext;
+
+        protected AbstractParentCollector(SearchContext searchContext) {
+            this.searchContext = searchContext;
+        }
+
+        abstract BytesRefHash parentIdValues();
+
+        abstract long foundParents();
+
+    }
+
+    private final static class ParentOrdCollector extends AbstractParentCollector {
+
+        private final OpenBitSet parentOrds;
+        private final ParentChildIndexFieldData.WithOrdinals indexFieldData;
+
+        private BytesValues.WithOrdinals values;
+        private Ordinals.Docs ordinals;
+        private BytesRefHash parentIds;
+
+        private ParentOrdCollector(SearchContext searchContext, OpenBitSet parentOrds, ParentChildIndexFieldData.WithOrdinals indexFieldData) {
+            super(searchContext);
+            this.parentOrds = parentOrds;
+            this.indexFieldData = indexFieldData;
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            if (ordinals != null) {
+                long globalOrd = ordinals.getOrd(doc);
+                if (globalOrd != Ordinals.MISSING_ORDINAL) {
+                    parentOrds.set(globalOrd);
+                }
+            }
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext context) throws IOException {
+            values = indexFieldData.load(context).getBytesValues(false);
+            if (values != null) {
+                ordinals = values.ordinals();
+            } else {
+                ordinals = null;
+            }
+        }
+
+        @Override
+        BytesRefHash parentIdValues() {
+            parentIds = new BytesRefHash(parentOrds.cardinality(), searchContext.bigArrays());
+            for (long parentOrd = parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
+                parentIds.add(values.getValueByOrd(parentOrd));
+            }
+            return parentIds;
+        }
+
+        @Override
+        long foundParents() {
+            return parentOrds.cardinality();
+        }
+
         @Override
         public void close() throws ElasticsearchException {
             Releasables.close(parentIds);
         }
+    }
 
-        private final class ParentDocIdIterator extends FilteredDocIdSetIterator {
+    private final static class ParentOrdIterator extends FilteredDocIdSetIterator {
 
-            private final BytesRefHash parentIds;
-            private final BytesValues values;
+        private final OpenBitSet parentOrds;
+        private final Ordinals.Docs ordinals;
+        private final ParentWeight parentWeight;
 
-            private ParentDocIdIterator(DocIdSetIterator innerIterator, BytesRefHash parentIds, BytesValues values) {
-                super(innerIterator);
-                this.parentIds = parentIds;
-                this.values = values;
+        private ParentOrdIterator(DocIdSetIterator innerIterator, OpenBitSet parentOrds, Ordinals.Docs ordinals, ParentWeight parentWeight) {
+            super(innerIterator);
+            this.parentOrds = parentOrds;
+            this.ordinals = ordinals;
+            this.parentWeight = parentWeight;
+        }
+
+        @Override
+        protected boolean match(int doc) {
+            if (parentWeight.remaining == 0) {
+                try {
+                    advance(DocIdSetIterator.NO_MORE_DOCS);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                return false;
             }
 
-            @Override
-            protected boolean match(int doc) {
-                if (remaining == 0) {
-                    try {
-                        advance(DocIdSetIterator.NO_MORE_DOCS);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return false;
-                }
-
-                values.setDocument(doc);
-                BytesRef parentId = values.nextValue();
-                int hash = values.currentValueHash();
-                boolean match = parentIds.find(parentId, hash) >= 0;
+            long parentOrd = ordinals.getOrd(doc);
+            if (parentOrd != Ordinals.MISSING_ORDINAL) {
+                boolean match = parentOrds.get(parentOrd);
                 if (match) {
-                    remaining--;
+                    parentWeight.remaining--;
                 }
                 return match;
             }
+            return false;
         }
     }
 
-    private final static class ParentIdCollector extends NoopCollector {
+    private final static class ParentIdCollector extends AbstractParentCollector {
 
         private final BytesRefHash parentIds;
         private final String parentType;
@@ -261,7 +398,8 @@ public class ChildrenConstantScoreQuery extends Query {
         // and prevents from fetch the actual id from FD and checking if it exists in parentIds
         private FixedBitSet seenOrdinals;
 
-        protected ParentIdCollector(String parentType, ParentChildIndexFieldData indexFieldData, BytesRefHash parentIds) {
+        protected ParentIdCollector(SearchContext searchContext, String parentType, ParentChildIndexFieldData indexFieldData, BytesRefHash parentIds) {
+            super(searchContext);
             this.parentType = parentType;
             this.indexFieldData = indexFieldData;
             this.parentIds = parentIds;
@@ -292,7 +430,56 @@ public class ChildrenConstantScoreQuery extends Query {
                     seenOrdinals.clear(0, maxOrd);
                 }
             }
+        }
 
+        @Override
+        BytesRefHash parentIdValues() {
+            return parentIds;
+        }
+
+        @Override
+        long foundParents() {
+            return parentIds.size();
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIds);
+        }
+    }
+
+    private final static class ParentIdIterator extends FilteredDocIdSetIterator {
+
+        private final ParentWeight parentWeight;
+        private final BytesRefHash parentIds;
+        private final BytesValues values;
+
+        private ParentIdIterator(DocIdSetIterator innerIterator, ParentWeight parentWeight, BytesRefHash parentIds, BytesValues values) {
+            super(innerIterator);
+            this.parentWeight = parentWeight;
+            this.parentIds = parentIds;
+            this.values = values;
+        }
+
+        @Override
+        protected boolean match(int doc) {
+            if (parentWeight.remaining == 0) {
+                try {
+                    advance(DocIdSetIterator.NO_MORE_DOCS);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                return false;
+            }
+
+            values.setDocument(doc);
+            BytesRef parentId = values.nextValue();
+            int hash = values.currentValueHash();
+            boolean match = parentIds.find(parentId, hash) >= 0;
+            if (match) {
+                parentWeight.remaining--;
+            }
+            return match;
         }
     }
 

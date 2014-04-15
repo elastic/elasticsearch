@@ -93,7 +93,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE);
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE, "ordinals");
         QueryUtils.check(query);
     }
 
@@ -120,13 +120,17 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
         IndexReader indexReader = DirectoryReader.open(indexWriter.w, false);
         IndexSearcher searcher = new IndexSearcher(indexReader);
+        ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(
+                SearchContext.current(), new Engine.SimpleSearcher(ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher)
+        ));
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         int shortCircuitParentDocSet = random().nextInt(5);
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null);
+        String executionHint = random().nextBoolean() ? "ordinals" : "global_ordinals";
+        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null, executionHint);
 
         BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
         searcher.search(query, collector);
@@ -269,15 +273,16 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
+            String executionHint = random().nextBoolean() ? "ordinals" : "global_ordinals";
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser
-                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionHint);
             } else {
                 // Usage in HasChildFilterParser
                 query = new XConstantScoreQuery(
                         new CustomQueryWrappingFilter(
-                                new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter)
+                                new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionHint)
                         )
                 );
             }

@@ -60,6 +60,7 @@ public class HasChildFilterParser implements FilterParser {
         boolean queryFound = false;
         String childType = null;
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
+        String executionHint = "global_ordinals";
 
         String filterName = null;
         String currentFieldName = null;
@@ -104,6 +105,8 @@ public class HasChildFilterParser implements FilterParser {
                     // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
+                } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
+                    executionHint = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -144,7 +147,7 @@ public class HasChildFilterParser implements FilterParser {
 
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
-        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionHint);
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));

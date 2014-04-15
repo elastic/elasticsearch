@@ -62,6 +62,7 @@ public class HasChildQueryParser implements QueryParser {
         ScoreType scoreType = null;
         int shortCircuitParentDocSet = 8192;
         String queryName = null;
+        String executionHint = "global_ordinals";
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -103,6 +104,8 @@ public class HasChildQueryParser implements QueryParser {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("execution_hint".equals(currentFieldName)) {
+                    executionHint = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -153,7 +156,7 @@ public class HasChildQueryParser implements QueryParser {
         if (!deleteByQuery && scoreType != null) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
-            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionHint);
             if (deleteByQuery) {
                 query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
             }

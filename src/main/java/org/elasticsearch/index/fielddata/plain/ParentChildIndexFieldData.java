@@ -25,6 +25,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -57,6 +58,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
 
     private final NavigableSet<BytesRef> parentTypes;
     private final CircuitBreakerService breakerService;
+    private final GlobalOrdinalsBuilder globalOrdinalsBuilder;
 
     // If child type (a type with _parent field) is added or removed, we want to make sure modifications don't happen
     // while loading.
@@ -64,10 +66,11 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
 
     public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
-                                     CircuitBreakerService breakerService) {
+                                     CircuitBreakerService breakerService, GlobalOrdinalsBuilder globalOrdinalsBuilder) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         parentTypes = new TreeSet<>(BytesRef.getUTF8SortedAsUnicodeComparator());
         this.breakerService = breakerService;
+        this.globalOrdinalsBuilder = globalOrdinalsBuilder;
         for (DocumentMapper documentMapper : mapperService) {
             beforeCreate(documentMapper);
         }
@@ -155,6 +158,11 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         }
     }
 
+    public WithOrdinals getGlobalParentChild(String type, IndexReader indexReader) {
+        PerParentTypeGlobalOrdinals perParentType = new PerParentTypeGlobalOrdinals(type);
+        return perParentType.loadGlobal(indexReader);
+    }
+
     @Override
     public void beforeCreate(DocumentMapper mapper) {
         synchronized (lock) {
@@ -201,7 +209,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
-            return new ParentChildIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, mapperService, breakerService);
+            return new ParentChildIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache,
+                    mapperService, breakerService, globalOrdinalBuilder);
         }
     }
 
@@ -251,6 +260,89 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
             assert termsEnum instanceof RamAccountingTermsEnum;
             long estimatedBytes = ((RamAccountingTermsEnum) termsEnum).getTotalBytes();
             breaker.addWithoutBreaking(-(estimatedBytes - actualUsed));
+        }
+    }
+
+    private final class PerParentTypeGlobalOrdinals implements WithOrdinals {
+
+        private final String type;
+
+        public PerParentTypeGlobalOrdinals(String type) {
+            this.type = type;
+        }
+
+        @Override
+        public AtomicFieldData.WithOrdinals load(AtomicReaderContext context) {
+            return loadDirect(context);
+        }
+
+        @Override
+        public AtomicFieldData.WithOrdinals loadDirect(AtomicReaderContext context) {
+            ParentChildAtomicFieldData parentChildAtomicFieldData = ParentChildIndexFieldData.this.load(context);
+            AtomicFieldData.WithOrdinals typeAfd = parentChildAtomicFieldData.getAtomicFieldData(type);
+            if(typeAfd != null) {
+                return typeAfd;
+            } else {
+                return PagedBytesAtomicFieldData.empty(context.reader().maxDoc());
+            }
+        }
+
+        @Override
+        public WithOrdinals loadGlobal(IndexReader indexReader) {
+            if (indexReader.leaves().size() <= 1) {
+                // ordinals are already global
+                return this;
+            }
+
+            try {
+                return cache.load(indexReader, this);
+            } catch (Throwable e) {
+                if (e instanceof ElasticsearchException) {
+                    throw (ElasticsearchException) e;
+                } else {
+                    throw new ElasticsearchException(e.getMessage(), e);
+                }
+            }
+        }
+
+        @Override
+        public WithOrdinals localGlobalDirect(IndexReader indexReader) throws Exception {
+            return globalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService);
+        }
+
+        @Override
+        public FieldMapper.Names getFieldNames() {
+            return ParentChildIndexFieldData.this.getFieldNames();
+        }
+
+        @Override
+        public FieldDataType getFieldDataType() {
+            return ParentChildIndexFieldData.this.getFieldDataType();
+        }
+
+        @Override
+        public boolean valuesOrdered() {
+            return ParentChildIndexFieldData.this.valuesOrdered();
+        }
+
+        @Override
+        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+
+        }
+
+        @Override
+        public void clear(IndexReader reader) {
+
+        }
+
+        @Override
+        public Index index() {
+            return ParentChildIndexFieldData.this.index();
         }
     }
 

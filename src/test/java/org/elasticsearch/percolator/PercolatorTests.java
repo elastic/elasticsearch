@@ -151,8 +151,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimple2() throws Exception {
-        createIndex("index", "test");
-        ensureGreen("index", "test");
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long"));
 
         // introduce the doc
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -170,7 +169,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "test1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field2", "value")).endObject())
                 .execute().actionGet();
-        refresh();
 
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -183,7 +181,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "test2")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("query", termQuery("field1", 1)).endObject())
                 .execute().actionGet();
-        refresh();
 
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -195,7 +192,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
 
         client().prepareDelete("test", PercolatorService.TYPE_NAME, "test2").execute().actionGet();
-        refresh();
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(doc).execute().actionGet();
@@ -212,7 +208,6 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                         ).endObject()
                 )
                 .execute().actionGet();
-        refresh();
 
         response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")

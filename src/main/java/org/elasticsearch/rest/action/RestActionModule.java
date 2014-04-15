@@ -64,6 +64,7 @@ import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAct
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
 import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
+import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.segments.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsAction;
@@ -78,7 +79,7 @@ import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQu
 import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
-import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
+import org.elasticsearch.rest.action.analyzer.RestAnalyzerAction;
 import org.elasticsearch.rest.action.bench.RestBenchAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
@@ -214,6 +215,8 @@ public class RestActionModule extends AbstractModule {
         bind(RestRecoveryAction.class).asEagerSingleton();
         // Benchmark API
         bind(RestBenchAction.class).asEagerSingleton();
+
+        bind(RestAnalyzerAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

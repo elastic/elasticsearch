@@ -1,0 +1,42 @@
+ويمكنني أن أكل الزجاج، فإنه لا يؤذيني
+Ես կարող եմ ուտել ապակի, դա չի խանգարում ինձ
+Beira dut jan daiteke, ez du minik niri
+Consigo comer vidro. Não me machuca.
+Мога да ям стъкло, тя не ме боли
+Puc menjar vidre, que no em fa mal
+我可以吃玻璃，它不会伤害我
+我可以吃玻璃，它不會傷害我
+私はガラスを食べることができ、それは私を傷つけることはありません。
+나는 유리를 먹을 수있는, 그것은 나를 다치게하지 않습니다
+Můžu jíst sklo, to mě bolí
+Jeg kan spise glas, gør det ikke ondt mig
+Ik kan glas eet, doet het me geen pijn
+I can eat glass, it does not hurt me.
+Voin syödä lasia, se ei satuta minua
+Je peux manger verre, ça ne me fait pas de mal
+Podo comer vidro, non me machucar
+Ich kann Glas essen, ist es mir nicht weh
+Μπορώ να φάω το γυαλί, δεν μου κάνει κακό
+मैं कांच खा सकते हैं, यह मुझे चोट नहीं करता है
+Tudok enni üveg, nem fáj nekem
+Aku bisa makan kaca, itu tidak menyakiti saya
+Jeg kan spise glass, gjør det ikke vondt meg
+من می توانم شیشه خوردن، آن را به من صدمه دیده است
+Eu posso comer vidro, ele não me machucar
+Eu pot mânca de sticlă, nu-mi face rău
+Я могу съесть стакан, это не мне больно
+Puedo comer vidrio, que no me duele
+Jag kan äta glas, inte skada mig
+Ben cam yiyebilir, o bana zarar vermez
+
+ฉันสามารถกินแก้วจะไม่ทำร้ายฉัน
+
+
+Stem overrides (Danish):
+kind kinder fiets bromfiets ei eier
+
+Normlization (German, Hindi):
+groß gross वाङ्मय वाङ्‍मय वाङ‍्मय वाङ्‌मय
+
+Elision filters (Italian, Catalan, and French must see these differently):
+l'appariscenza c'era M'Pessoba Puisqu’il

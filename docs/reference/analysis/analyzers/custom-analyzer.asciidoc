@@ -50,3 +50,62 @@ index :
                 escaped_tags : [xxx, yyy]
                 read_ahead : 1024
 --------------------------------------------------
+
+[float]
+[[fetching-analyzers-as-custom]]
+=== Fetching Analyzers as Custom
+coming[1.2.0]
+While the builtin analyzers are reasonably customizable they don't allow for
+inserting additional analyzers.  To do that the analyzer must be rebuilt as a
+custom analyzer.  The _analyzer endpoint provides a starting point for this
+process:
+
+[source,js]
+--------------------------------------------------
+$ curl 'http://localhost:9200/_analyzer/standard,arabic'
+--------------------------------------------------
+
+Which returns:
+[source,js]
+--------------------------------------------------
+{
+  "analyzer": {
+    "custom_arabic": {
+      "tokenizer": "standard",
+      "type": "custom",
+      "filter": [
+        "standard",
+        "lowercase",
+        "arabic_stop",
+        "arabic_normalization",
+        "arabic_stem"
+      ]
+    },
+    "custom_standard": {
+      "tokenizer": "standard",
+      "type": "custom",
+      "filter": [
+        "standard",
+        "lowercase"
+      ]
+    }
+  },
+  "filter": {
+    "arabic_stemmer": {
+      "language": "arabic",
+      "type": "stemmer"
+    },
+    "arabic_stop": {
+      "type": "stop",
+      "stopwords": [
+        "فان",
+.... snip ....
+        "ان"
+      ]
+    }
+  }
+}
+--------------------------------------------------
+
+Which is a copy of the analysis configuration required to build the standard
+and arabic analyzers.

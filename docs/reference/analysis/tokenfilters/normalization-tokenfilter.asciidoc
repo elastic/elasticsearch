@@ -4,12 +4,13 @@
 There are several token filters available which try to normalize special
 characters of a certain language.
 
-You can currently choose between `arabic_normalization` and
-`persian_normalization` normalization in your token filter
-configuration. For more information check the
-http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/ar/ArabicNormalizer.html[ArabicNormalizer]
-or the
-http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/fa/PersianNormalizer.html[PersianNormalizer]
-documentation.
+The following normalizers are supported:
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/ar/ArabicNormalizer.html[arabic],
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/de/GermanNormalizationFilter.html[german],
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/hi/HindiNormalizer.html[hindi],
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/in/IndicNormalizer.html[indic],
+http://lucene.apache.org/core/4_3_1/analyzers-common/org/apache/lucene/analysis/fa/PersianNormalizer.html[persian].
 
-*Note:* These filters are available since `0.90.2`
+*Note:* Arabic and Persian filters have been available since `0.90.2`.
+
+*Note:* German, Hindi, and Indic filters have been available since `1.2.0`.

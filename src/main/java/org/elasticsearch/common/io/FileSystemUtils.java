@@ -74,20 +74,23 @@ public class FileSystemUtils {
         return false;
     }
 
-    public static boolean deleteRecursively(File[] roots) {
+    /**
+     * Deletes the given files recursively. if <tt>deleteRoots</tt> is set to <code>true</code>
+     * the given root files will be deleted as well. Otherwise only their content is deleted.
+     */
+    public static boolean deleteRecursively(File[] roots, boolean deleteRoots) {
         boolean deleted = true;
         for (File root : roots) {
-            deleted &= deleteRecursively(root);
+            deleted &= deleteRecursively(root, deleteRoots);
         }
         return deleted;
     }
 
-    public static boolean deleteRecursively(File root) {
-        return deleteRecursively(root, true);
-    }
-
-    private static boolean innerDeleteRecursively(File root) {
-        return deleteRecursively(root, true);
+    /**
+     * Deletes the given files recursively including the given roots.
+     */
+    public static boolean deleteRecursively(File... roots) {
+       return deleteRecursively(roots, true);
     }
 
     /**
@@ -105,7 +108,7 @@ public class FileSystemUtils {
                 File[] children = root.listFiles();
                 if (children != null) {
                     for (File aChildren : children) {
-                        innerDeleteRecursively(aChildren);
+                        deleteRecursively(aChildren, true);
                     }
                 }
             }

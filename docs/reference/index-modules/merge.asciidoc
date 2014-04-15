@@ -187,11 +187,7 @@ Defaults to unbounded.
 
 The merge schedule controls the execution of merge operations once they
 are needed (according to the merge policy). The following types are
-supported, with the default being the `SerialMergeScheduler`.
-
-Note, the default is the serial merge scheduler since there is a merge
-thread pool that explicitly schedules merges, and it makes sure that
-merges are serial within a shard, yet concurrent across multiple shards.
+supported, with the default being the `ConcurrentMergeScheduler`.
 
 [float]
 ==== ConcurrentMergeScheduler

@@ -617,10 +617,13 @@ property, as this example shows:
 [source,js]
 --------------------------------------------------
 {
-  "book" : {
-    "properties" : {
-      "title" : { "type" : "string", "similarity" : "BM25" }
-    }
+   "book":{
+      "properties":{
+         "title":{
+            "type":"string", "similarity":"BM25" 
+         }
+      }
+   }
 }
 --------------------------------------------------
 

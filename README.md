@@ -92,7 +92,7 @@ Here is how it can be configured:
     gateway:
         type: s3
         s3:
-            bucket: bucket_name
+            bucket: bucket-name
 
 The following are a list of settings (prefixed with `gateway.s3`) that can further control the s3 gateway:
 
@@ -109,7 +109,7 @@ The S3 repository is using S3 to store snapshots. The S3 repository can be creat
     $ curl -XPUT 'http://localhost:9200/_snapshot/my_s3_repository' -d '{
         "type": "s3",
         "settings": {
-            "bucket": "my_backet_name",
+            "bucket": "my-bucket-name",
             "region": "us-west"
         }
     }'
@@ -147,7 +147,7 @@ cloud:
 
 repositories:
     s3:
-        bucket: "bucket_name"
+        bucket: "bucket-name"
         region: "us-west-2"
         private-bucket:
             bucket: <bucket not accessible by default key>

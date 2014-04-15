@@ -84,9 +84,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.factories = factories;
         this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
-        // TODO: change it to SEARCH_PHASE, but this would imply allocating the aggregators in the QUERY
-        // phase instead of DFS like it is done today
-        context.searchContext().addReleasable(this, Lifetime.CONTEXT);
+        context.searchContext().addReleasable(this, Lifetime.PHASE);
     }
 
     /**

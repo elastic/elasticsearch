@@ -22,10 +22,7 @@ package org.elasticsearch.action.search.type;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchOperationThreading;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
@@ -170,7 +167,11 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
-                executeFetchPhase();
+                if (successfulOps.get() == 0) {
+                    listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", buildShardFailures()));
+                } else {
+                    executeFetchPhase();
+                }
             }
         }
 

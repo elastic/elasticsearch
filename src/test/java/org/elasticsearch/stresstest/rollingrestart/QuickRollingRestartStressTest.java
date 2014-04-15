@@ -20,7 +20,6 @@
 package org.elasticsearch.stresstest.rollingrestart;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +31,7 @@ import org.elasticsearch.node.NodeBuilder;
 
 import java.util.Date;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  */

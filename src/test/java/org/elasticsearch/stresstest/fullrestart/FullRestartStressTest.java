@@ -19,7 +19,6 @@
 
 package org.elasticsearch.stresstest.fullrestart;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.count.CountResponse;
@@ -41,6 +40,7 @@ import org.elasticsearch.node.internal.InternalNode;
 
 import java.io.File;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;

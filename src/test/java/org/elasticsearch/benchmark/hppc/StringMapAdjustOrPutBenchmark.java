@@ -24,12 +24,12 @@ import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class StringMapAdjustOrPutBenchmark {
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 

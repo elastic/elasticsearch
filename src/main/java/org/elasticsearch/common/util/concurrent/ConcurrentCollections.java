@@ -20,24 +20,17 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.google.common.collect.Sets;
-import jsr166e.ConcurrentHashMapV8;
-import jsr166y.ConcurrentLinkedDeque;
-import jsr166y.LinkedTransferQueue;
 
 import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.*;
 
 /**
  *
  */
 public abstract class ConcurrentCollections {
 
-    private final static boolean useConcurrentHashMapV8 = Boolean.parseBoolean(System.getProperty("es.useConcurrentHashMapV8", "false"));
     private final static boolean useLinkedTransferQueue = Boolean.parseBoolean(System.getProperty("es.useLinkedTransferQueue", "false"));
 
     static final int aggressiveConcurrencyLevel;
@@ -50,16 +43,10 @@ public abstract class ConcurrentCollections {
      * Creates a new CHM with an aggressive concurrency level, aimed at high concurrent update rate long living maps.
      */
     public static <K, V> ConcurrentMap<K, V> newConcurrentMapWithAggressiveConcurrency() {
-        if (useConcurrentHashMapV8) {
-            return new ConcurrentHashMapV8<>(16, 0.75f, aggressiveConcurrencyLevel);
-        }
         return new ConcurrentHashMap<>(16, 0.75f, aggressiveConcurrencyLevel);
     }
 
     public static <K, V> ConcurrentMap<K, V> newConcurrentMap() {
-        if (useConcurrentHashMapV8) {
-            return new ConcurrentHashMapV8<>();
-        }
         return new ConcurrentHashMap<>();
     }
 

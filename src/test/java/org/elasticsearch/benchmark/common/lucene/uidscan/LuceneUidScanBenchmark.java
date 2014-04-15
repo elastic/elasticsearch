@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.benchmark.common.lucene.uidscan;
 
-import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.File;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  *

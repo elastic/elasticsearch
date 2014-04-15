@@ -1388,7 +1388,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("grandissue", "child_type_two", "4").setParent("2").setRouting("1")
                 .setSource("name", "Kate")
                 .get();
-        client().admin().indices().prepareRefresh("grandissue").get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("grandissue").setQuery(
                 boolQuery().must(

@@ -247,6 +247,7 @@ bin/plugin --install mobz/elasticsearch-head --timeout 0
 * https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor Plugin] (by Zachary Tong)
 * https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
+* https://github.com/xyu/elasticsearch-whatson[Whatson Plugin] (by Xiao Yu)
 
 [float]
 [[repository-plugins]]

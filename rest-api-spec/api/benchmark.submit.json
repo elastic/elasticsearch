@@ -1,14 +1,13 @@
 {
-    "bench" : {
+    "benchmark.submit" : {
         "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
-        "methods": ["GET", "PUT", "POST"],
+        "methods": ["PUT"],
         "url": {
             "path": "/_bench",
             "paths": [
                 "/_bench",
                 "/{index}/_bench",
-                "/{index}/{type}/_bench",
-                "/_bench/abort/{name}"
+                "/{index}/{type}/_bench"
             ],
             "parts": {
                 "index": {
@@ -22,10 +21,6 @@
                 }
             },
             "params": {
-                "wait_for_completion": {
-                    "type": "boolean",
-                    "description": "Specify whether the caller will wait for the benchmark to complete or return immediately after submission (default: true)"
-                },
                 "verbose": {
                     "type": "boolean",
                     "description": "Specify whether to return verbose statistics about each iteration (default: false)"

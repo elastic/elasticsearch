@@ -1739,6 +1739,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateMappingDynamicallyWhilePercolating() throws Exception {
         createIndex("test");
+        ensureSearchable();
 
         // percolation source
         XContentBuilder percolateDocumentSource = XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -1749,6 +1750,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         PercolateResponse response = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
                 .setSource(percolateDocumentSource).execute().actionGet();
+        assertAllSuccessful(response);
         assertMatchCount(response, 0l);
         assertThat(response.getMatches(), arrayWithSize(0));
 

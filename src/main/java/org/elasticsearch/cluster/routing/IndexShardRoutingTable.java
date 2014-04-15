@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.UnmodifiableIterator;
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.google.common.collect.Lists.newArrayList;
 

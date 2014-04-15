@@ -19,7 +19,6 @@
 
 package org.elasticsearch.stresstest.get;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 

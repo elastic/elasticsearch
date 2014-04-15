@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import jsr166y.ThreadLocalRandom;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 

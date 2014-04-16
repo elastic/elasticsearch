@@ -57,6 +57,7 @@ governing permissions and limitations under the License. -->
         <tests.client.ratio></tests.client.ratio>
         <es.plugin.port>9300</es.plugin.port>
         <es.logger.level>INFO</es.logger.level>
+        <es.config>${project.build.testOutputDirectory}/elasticsearch.yml</es.config>
     </properties>
 
     <dependencies>

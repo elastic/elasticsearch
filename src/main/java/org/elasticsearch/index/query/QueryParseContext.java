@@ -113,6 +113,10 @@ public class QueryParseContext {
         return this.index;
     }
 
+    public void parser(XContentParser parser) {
+        this.parser = parser;
+    }
+
     public XContentParser parser() {
         return parser;
     }

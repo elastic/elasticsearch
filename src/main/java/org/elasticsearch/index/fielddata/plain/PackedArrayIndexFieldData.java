@@ -99,7 +99,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         PackedArrayAtomicFieldData data = null;
-        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(), getNumericType());
+        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
             data = PackedArrayAtomicFieldData.empty(reader.maxDoc());
             estimator.adjustForNoTerms(data.getMemorySizeInBytes());
@@ -335,10 +335,12 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         private final MemoryCircuitBreaker breaker;
         private final NumericType type;
+        private final String fieldName;
 
-        public PackedArrayEstimator(MemoryCircuitBreaker breaker, NumericType type) {
+        public PackedArrayEstimator(MemoryCircuitBreaker breaker, NumericType type, String fieldName) {
             this.breaker = breaker;
             this.type = type;
+            this.fieldName = fieldName;
         }
 
         /**
@@ -357,7 +359,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
          */
         @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {
-            return new RamAccountingTermsEnum(type.wrapTermsEnum(terms.iterator(null)), breaker, this);
+            return new RamAccountingTermsEnum(type.wrapTermsEnum(terms.iterator(null)), breaker, this, this.fieldName);
         }
 
         /**

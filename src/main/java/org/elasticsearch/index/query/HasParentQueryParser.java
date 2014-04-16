@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -58,7 +59,6 @@ public class HasParentQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query innerQuery = null;
         boolean queryFound = false;
         float boost = 1.0f;
         String parentType = null;
@@ -67,19 +67,18 @@ public class HasParentQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
+        XContentStructure.InnerQuery iq = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                // Usually, the query would be parsed here, but the child
+                // type may not have been extracted yet, so use the
+                // XContentStructure.<type> facade to parse if available,
+                // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
-                    // TODO handle `query` element before `type` element...
-                    String[] origTypes = QueryParseContext.setTypesWithPrevious(parentType == null ? null : new String[]{parentType});
-                    try {
-                        innerQuery = parseContext.parseInnerQuery();
-                        queryFound = true;
-                    } finally {
-                        QueryParseContext.setTypes(origTypes);
-                    }
+                    iq = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
+                    queryFound = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] query does not support [" + currentFieldName + "]");
                 }
@@ -114,12 +113,14 @@ public class HasParentQueryParser implements QueryParser {
         if (!queryFound) {
             throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'query' field");
         }
-        if (innerQuery == null) {
-            return null;
-        }
-
         if (parentType == null) {
             throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'parent_type' field");
+        }
+
+        Query innerQuery = iq.asQuery(parentType);
+
+        if (innerQuery == null) {
+            return null;
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);

@@ -25,10 +25,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -61,38 +60,29 @@ public class HasParentFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
         boolean queryFound = false;
+        boolean filterFound = false;
         String parentType = null;
 
-        boolean cache = false;
-        CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
+        XContentStructure.InnerQuery innerQuery = null;
+        XContentStructure.InnerFilter innerFilter = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                // Usually, the query would be parsed here, but the child
+                // type may not have been extracted yet, so use the
+                // XContentStructure.<type> facade to parse if available,
+                // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
-                    // TODO handle `query` element before `type` element...
-                    String[] origTypes = QueryParseContext.setTypesWithPrevious(parentType == null ? null : new String[]{parentType});
-                    try {
-                        query = parseContext.parseInnerQuery();
-                        queryFound = true;
-                    } finally {
-                        QueryParseContext.setTypes(origTypes);
-                    }
+                    innerQuery = new XContentStructure.InnerQuery(parseContext, parentType == null ? null : new String[] {parentType});
+                    queryFound = true;
                 } else if ("filter".equals(currentFieldName)) {
-                    // TODO handle `filter` element before `type` element...
-                    String[] origTypes = QueryParseContext.setTypesWithPrevious(parentType == null ? null : new String[]{parentType});
-                    try {
-                        Filter innerFilter = parseContext.parseInnerFilter();
-                        query = new XConstantScoreQuery(innerFilter);
-                        queryFound = true;
-                    } finally {
-                        QueryParseContext.setTypes(origTypes);
-                    }
+                    innerFilter = new XContentStructure.InnerFilter(parseContext, parentType == null ? null : new String[] {parentType});
+                    filterFound = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
@@ -104,23 +94,30 @@ public class HasParentFilterParser implements FilterParser {
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("_cache".equals(currentFieldName)) {
-                    cache = parser.booleanValue();
+                    // noop to be backwards compatible
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
-                    cacheKey = new CacheKeyFilter.Key(parser.text());
+                    // noop to be backwards compatible
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
             }
         }
-        if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' field");
+        if (!queryFound && !filterFound) {
+            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' or 'filter' field");
         }
-        if (query == null) {
-            return null;
-        }
-
         if (parentType == null) {
             throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
+        }
+
+        Query query;
+        if (queryFound) {
+            query = innerQuery.asQuery(parentType);
+        } else {
+            query = innerFilter.asFilter(parentType);
+        }
+
+        if (query == null) {
+            return null;
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);

@@ -239,7 +239,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
          */
         @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {
-            return new RamAccountingTermsEnum(filteredEnum, breaker, this);
+            return new RamAccountingTermsEnum(filteredEnum, breaker, this, "parent/child id cache");
         }
 
         /**

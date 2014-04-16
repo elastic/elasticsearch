@@ -1924,6 +1924,31 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
     }
 
+    // https://github.com/elasticsearch/elasticsearch/issues/5783
+    @Test
+    public void testQueryBeforeChildType() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("features")
+                .addMapping("posts", "_parent", "type=features")
+                .addMapping("specials"));
+        ensureGreen();
+
+        client().prepareIndex("test", "features", "1").setSource("field", "foo").get();
+        client().prepareIndex("test", "posts", "1").setParent("1").setSource("field", "bar").get();
+        refresh();
+
+        SearchResponse resp;
+        resp = client().prepareSearch("test")
+                .setSource("{\"query\": {\"has_child\": {\"type\": \"posts\", \"query\": {\"match\": {\"field\": \"bar\"}}}}}").get();
+        assertHitCount(resp, 1L);
+
+        // Now reverse the order for the type after the query
+        resp = client().prepareSearch("test")
+                .setSource("{\"query\": {\"has_child\": {\"query\": {\"match\": {\"field\": \"bar\"}}, \"type\": \"posts\"}}}").get();
+        assertHitCount(resp, 1L);
+
+    }
+
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
         HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);
         hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));

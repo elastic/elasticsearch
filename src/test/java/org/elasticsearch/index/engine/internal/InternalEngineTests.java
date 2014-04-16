@@ -108,6 +108,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool();
         store = createStore();
@@ -116,9 +117,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         storeReplica.deleteContent();
         engineSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
         engine = createEngine(engineSettingsService, store, createTranslog());
+        if (randomBoolean()) {
+            engine.enableGcDeletes(false);
+        }
         engine.start();
         replicaSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
         replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
+        if (randomBoolean()) {
+            replicaEngine.enableGcDeletes(false);
+        }
         replicaEngine.start();
     }
 

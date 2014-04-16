@@ -59,7 +59,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.index.service.StubIndexService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Description;
@@ -149,7 +148,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
                 .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
                 .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
         RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
-        int numUniqueChildValues = scaledRandomIntBetween(1, 10000);
+        int numUniqueChildValues = scaledRandomIntBetween(100, 2000);
         String[] childValues = new String[numUniqueChildValues];
         for (int i = 0; i < numUniqueChildValues; i++) {
             childValues[i] = Integer.toString(i);
@@ -157,7 +156,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
         IntOpenHashSet filteredOrDeletedDocs = new IntOpenHashSet();
         int childDocId = 0;
-        int numParentDocs = scaledRandomIntBetween(1, 2000);
+        int numParentDocs = scaledRandomIntBetween(1, numUniqueChildValues);
         ObjectObjectOpenHashMap<String, NavigableSet<String>> childValueToParentIds = new ObjectObjectOpenHashMap<>();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {
             boolean markParentAsDeleted = rarely();

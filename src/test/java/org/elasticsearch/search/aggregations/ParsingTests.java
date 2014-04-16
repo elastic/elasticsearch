@@ -33,6 +33,7 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
     @Test(expected=SearchPhaseExecutionException.class)
     public void testTwoTypes() throws Exception {
         createIndex("idx");
+        ensureGreen();
         client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
             .startObject()
                 .startObject("in_stock")
@@ -47,6 +48,34 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
                         .field("field", "stock")
                     .endObject()
                 .endObject()
+            .endObject()).execute().actionGet();
+    }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testTwoAggs() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("by_date")
+                    .startObject("date_histogram")
+                        .field("field", "timestamp")
+                        .field("interval", "month")
+                    .endObject()
+                    .startObject("aggs")
+                        .startObject("tag_count")
+                            .startObject("cardinality")
+                                .field("field", "tag")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                    .startObject("aggs") // 2nd "aggs": illegal
+                        .startObject("tag_count2")
+                            .startObject("cardinality")
+                                .field("field", "tag")
+                            .endObject()
+                        .endObject()
+                    .endObject()
             .endObject()).execute().actionGet();
     }
 
@@ -69,6 +98,7 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
         }
 
         createIndex("idx");
+        ensureGreen();
         client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
             .startObject()
                 .startObject(name)
@@ -81,4 +111,49 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
                     .endObject()
             .endObject()).execute().actionGet();
     }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testMissingName() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("by_date")
+                    .startObject("date_histogram")
+                        .field("field", "timestamp")
+                        .field("interval", "month")
+                    .endObject()
+                    .startObject("aggs")
+                        // the aggregation name is missing
+                        //.startObject("tag_count")
+                            .startObject("cardinality")
+                                .field("field", "tag")
+                            .endObject()
+                        //.endObject()
+                    .endObject()
+            .endObject()).execute().actionGet();
+    }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testMissingType() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject("by_date")
+                    .startObject("date_histogram")
+                        .field("field", "timestamp")
+                        .field("interval", "month")
+                    .endObject()
+                    .startObject("aggs")
+                        .startObject("tag_count")
+                            // the aggregation type is missing
+                            //.startObject("cardinality")
+                                .field("field", "tag")
+                            //.endObject()
+                        .endObject()
+                    .endObject()
+            .endObject()).execute().actionGet();
+    }
+
 }

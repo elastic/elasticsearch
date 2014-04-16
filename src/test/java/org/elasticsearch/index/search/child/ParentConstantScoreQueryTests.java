@@ -88,14 +88,14 @@ public class ParentConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
                 .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH)
                 .setRAMBufferSizeMB(scaledRandomIntBetween(16, 64)); // we might index a lot - don't go crazy here
         RandomIndexWriter indexWriter = new RandomIndexWriter(r, directory, iwc);
-        int numUniqueParentValues = scaledRandomIntBetween(1, 1000);
+        int numUniqueParentValues = scaledRandomIntBetween(100, 2000);
         String[] parentValues = new String[numUniqueParentValues];
         for (int i = 0; i < numUniqueParentValues; i++) {
             parentValues[i] = Integer.toString(i);
         }
 
         int childDocId = 0;
-        int numParentDocs = scaledRandomIntBetween(1, 2000);
+        int numParentDocs = scaledRandomIntBetween(1, numUniqueParentValues);
         ObjectObjectOpenHashMap<String, NavigableSet<String>> parentValueToChildDocIds = new ObjectObjectOpenHashMap<>();
         IntIntOpenHashMap childIdToParentId = new IntIntOpenHashMap();
         for (int parentDocId = 0; parentDocId < numParentDocs; parentDocId++) {

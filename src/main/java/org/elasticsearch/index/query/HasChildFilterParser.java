@@ -22,9 +22,9 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -56,38 +56,30 @@ public class HasChildFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
         boolean queryFound = false;
+        boolean filterFound = false;
         String childType = null;
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
 
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
+        XContentStructure.InnerQuery innerQuery = null;
+        XContentStructure.InnerFilter innerFilter = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                // Usually, the query would be parsed here, but the child
+                // type may not have been extracted yet, so use the
+                // XContentStructure.<type> facade to parse if available,
+                // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
-                    // TODO we need to set the type, but, `query` can come before `type`...
-                    // since we switch types, make sure we change the context
-                    String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
-                    try {
-                        query = parseContext.parseInnerQuery();
-                        queryFound = true;
-                    } finally {
-                        QueryParseContext.setTypes(origTypes);
-                    }
+                    innerQuery = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] {childType});
+                    queryFound = true;
                 } else if ("filter".equals(currentFieldName)) {
-                    // TODO handle `filter` element before `type` element...
-                    String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
-                    try {
-                        Filter innerFilter = parseContext.parseInnerFilter();
-                        query = new XConstantScoreQuery(innerFilter);
-                        queryFound = true;
-                    } finally {
-                        QueryParseContext.setTypes(origTypes);
-                    }
+                    innerFilter = new XContentStructure.InnerFilter(parseContext, childType == null ? null : new String[] {childType});
+                    filterFound = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -109,14 +101,22 @@ public class HasChildFilterParser implements FilterParser {
                 }
             }
         }
-        if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'query' field");
-        }
-        if (query == null) {
-            return null;
+        if (!queryFound && !filterFound) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'query' or 'filter' field");
         }
         if (childType == null) {
             throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'type' field");
+        }
+
+        Query query;
+        if (queryFound) {
+            query = innerQuery.asQuery(childType);
+        } else {
+            query = innerFilter.asFilter(childType);
+        }
+
+        if (query == null) {
+            return null;
         }
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);

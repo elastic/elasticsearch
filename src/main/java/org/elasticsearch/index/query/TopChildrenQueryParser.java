@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -55,7 +56,6 @@ public class TopChildrenQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query innerQuery = null;
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
@@ -66,20 +66,18 @@ public class TopChildrenQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
+        XContentStructure.InnerQuery iq = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                // Usually, the query would be parsed here, but the child
+                // type may not have been extracted yet, so use the
+                // XContentStructure.<type> facade to parse if available,
+                // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
+                    iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] {childType});
                     queryFound = true;
-                    // TODO we need to set the type, but, `query` can come before `type`... (see HasChildFilterParser)
-                    // since we switch types, make sure we change the context
-                    String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
-                    try {
-                        innerQuery = parseContext.parseInnerQuery();
-                    } finally {
-                        QueryParseContext.setTypes(origTypes);
-                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
                 }
@@ -111,6 +109,8 @@ public class TopChildrenQueryParser implements QueryParser {
         if (childType == null) {
             throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
         }
+
+        Query innerQuery = iq.asQuery(childType);
 
         if (innerQuery == null) {
             return null;

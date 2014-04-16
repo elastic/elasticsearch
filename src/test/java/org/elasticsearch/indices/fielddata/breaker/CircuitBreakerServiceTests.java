@@ -83,7 +83,8 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             // execute a search that loads field data (sorting on the "test" field)
             // again, this time it should trip the breaker
             assertFailures(client.prepareSearch("cb-test").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}"),
-                        RestStatus.INTERNAL_SERVER_ERROR, containsString("Data too large, data would be larger than limit of [100] bytes"));
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                    containsString("Data too large, data for field [test] would be larger than limit of [100/100b]"));
         } finally {
             // Reset settings
             Settings resetSettings = settingsBuilder()
@@ -134,7 +135,8 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
             // execute a search that loads field data (sorting on the "test" field)
             // again, this time it should trip the breaker
             assertFailures(client.prepareSearch("ramtest").setSource("{\"sort\": \"test\",\"query\":{\"match_all\":{}}}"),
-                        RestStatus.INTERNAL_SERVER_ERROR, containsString("Data too large, data would be larger than limit of [100] bytes"));
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                    containsString("Data too large, data for field [test] would be larger than limit of [100/100b]"));
         } finally {
             // Reset settings
             Settings resetSettings = settingsBuilder()

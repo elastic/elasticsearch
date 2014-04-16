@@ -63,7 +63,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
     public PagedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(), getFieldNames().fullName());
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
             PagedBytesAtomicFieldData emptyData = PagedBytesAtomicFieldData.empty(reader.maxDoc());
@@ -133,11 +133,13 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
 
         private final AtomicReaderContext context;
         private final MemoryCircuitBreaker breaker;
+        private final String fieldName;
         private long estimatedBytes;
 
-        PagedBytesEstimator(AtomicReaderContext context, MemoryCircuitBreaker breaker) {
+        PagedBytesEstimator(AtomicReaderContext context, MemoryCircuitBreaker breaker, String fieldName) {
             this.breaker = breaker;
             this.context = context;
+            this.fieldName = fieldName;
         }
 
         /**
@@ -210,15 +212,15 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
                 if (logger.isTraceEnabled()) {
                     logger.trace("Filter exists, can't circuit break normally, using RamAccountingTermsEnum");
                 }
-                return new RamAccountingTermsEnum(filter(terms, reader), breaker, this);
+                return new RamAccountingTermsEnum(filter(terms, reader), breaker, this, this.fieldName);
             } else {
                 estimatedBytes = this.estimateStringFieldData();
                 // If we weren't able to estimate, wrap in the RamAccountingTermsEnum
                 if (estimatedBytes == 0) {
-                    return new RamAccountingTermsEnum(filter(terms, reader), breaker, this);
+                    return new RamAccountingTermsEnum(filter(terms, reader), breaker, this, this.fieldName);
                 }
 
-                breaker.addEstimateBytesAndMaybeBreak(estimatedBytes);
+                breaker.addEstimateBytesAndMaybeBreak(estimatedBytes, fieldName);
                 return filter(terms, reader);
             }
         }

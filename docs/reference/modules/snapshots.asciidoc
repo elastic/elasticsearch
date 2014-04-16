@@ -35,7 +35,7 @@ $ curl -XGET 'http://localhost:9200/_snapshot/my_backup?pretty'
   "my_backup" : {
     "type" : "fs",
     "settings" : {
-      "compress" : "false",
+      "compress" : "true",
       "location" : "/mount/backups/my_backup"
     }
   }

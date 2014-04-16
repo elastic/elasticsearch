@@ -1032,13 +1032,14 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.4.1</version>
+                <version>1.5</version>
 
                 <executions>
                     <execution>
                         <id>check-forbidden-apis</id>
                         <configuration>
                             <targetVersion>1.7</targetVersion>
+                            <failOnMissingClasses>false</failOnMissingClasses> <!-- this is a bug in forbidden APIs since 1.5 looks also at annotations -->
                             <!-- disallow undocumented classes like sun.misc.Unsafe: -->
                             <internalRuntimeForbidden>true</internalRuntimeForbidden>
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
@@ -1070,6 +1071,7 @@
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>
                             </signaturesFiles>
+                            <signatures>${forbidden.signatures}</signatures>
                         </configuration>
                         <phase>compile</phase>
                         <goals>
@@ -1089,6 +1091,7 @@
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
+                            <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
                         <phase>test-compile</phase>
                         <goals>

@@ -242,7 +242,8 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
     run_mvn('clean',
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
-  run_mvn('clean %s -DskipTests' %(target))
+  run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
+  run_mvn('clean %s -DskipTests' % (target))
   success = False
   try:
     run_mvn('-DskipTests rpm:rpm')

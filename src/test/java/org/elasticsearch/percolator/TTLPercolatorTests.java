@@ -26,8 +26,11 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.AlreadyExpiredException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -152,7 +155,6 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testEnsureTTLDoesNotCreateIndex() throws IOException, InterruptedException {
-        final Client client = client();
         ensureGreen();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
                 .put("indices.ttl.interval", 60) // 60 sec
@@ -162,7 +164,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                 .startObject("_ttl").field("enabled", true).endObject()
                 .endObject().endObject().string();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1))
                 .addMapping("type1", typeMapping)
                 .execute().actionGet();
@@ -172,29 +174,37 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                 .build()).get();
 
         for (int i = 0; i < 100; i++) {
-            logger.info("index: " + i);
-            client.prepareIndex("test", "type1", "" + i).setSource(jsonBuilder()
-                    .startObject()
-                    .startObject("query")
-                    .startObject("term")
-                    .field("field1", "value1")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            ).setTTL(randomIntBetween(10, 500)).execute().actionGet();
+            logger.debug("index doc {} ", i);
+            try {
+                client().prepareIndex("test", "type1", "" + i).setSource(jsonBuilder()
+                        .startObject()
+                        .startObject("query")
+                        .startObject("term")
+                        .field("field1", "value1")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                ).setTTL(randomIntBetween(1, 500)).execute().actionGet();
+            } catch (MapperParsingException e) {
+                logger.info("failed indexing {}", i, e);
+                // if we are unlucky the TTL is so small that we see the expiry date is already in the past when
+                // we parse the doc ignore those...
+                assertThat(e.getCause(), Matchers.instanceOf(AlreadyExpiredException.class));
+            }
+
         }
         refresh();
         assertThat(awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
-                IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats("test").clear().setIndexing(true).get();
-                logger.info("delete count [{}]", indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount());
+                IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setIndexing(true).get();
+                logger.debug("delete count [{}]", indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount());
                 // TTL deletes one doc, but it is indexed in the primary shard and replica shards
                 return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() != 0;
             }
         }, 5, TimeUnit.SECONDS), equalTo(true));
         cluster().wipeIndices("test");
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", typeMapping)
                 .execute().actionGet();
 

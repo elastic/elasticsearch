@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -41,9 +40,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -56,8 +53,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -185,7 +180,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             applyVersion(request.items()[j], preVersions[j], preVersionTypes[j]);
                         }
                         for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-                            updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
+                            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2(), true);
                         }
                         throw (ElasticsearchException) e;
                     }
@@ -345,7 +340,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         }
 
         for (Tuple<String, String> mappingToUpdate : mappingsToUpdate) {
-            updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2());
+            mappingUpdatedAction.updateMappingOnMaster(mappingToUpdate.v1(), mappingToUpdate.v2(), true);
         }
 
         if (request.refresh()) {
@@ -597,41 +592,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } catch (Throwable e) {
                 // ignore
             }
-        }
-    }
-
-    private void updateMappingOnMaster(final String index, final String type) {
-        try {
-            MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
-            final DocumentMapper documentMapper = mapperService.documentMapper(type);
-            if (documentMapper == null) { // should not happen
-                return;
-            }
-            IndexMetaData metaData = clusterService.state().metaData().index(index);
-            if (metaData == null) {
-                return;
-            }
-
-            // we generate the order id before we get the mapping to send and refresh the source, so
-            // if 2 happen concurrently, we know that the later order will include the previous one
-            long orderId = mappingUpdatedAction.generateNextMappingUpdateOrder();
-            documentMapper.refreshSource();
-
-            DiscoveryNode node = clusterService.localNode();
-            final MappingUpdatedAction.MappingUpdatedRequest request = new MappingUpdatedAction.MappingUpdatedRequest(index, metaData.uuid(), type, documentMapper.mappingSource(), orderId, node != null ? node.id() : null);
-            mappingUpdatedAction.execute(request, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
-                @Override
-                public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
-                    // all is well
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    logger.warn("failed to update master on updated mapping for {}", e, request);
-                }
-            });
-        } catch (Throwable e) {
-            logger.warn("failed to update master on updated mapping for index [{}], type [{}]", e, index, type);
         }
     }
 

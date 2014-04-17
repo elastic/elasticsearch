@@ -20,13 +20,17 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import com.google.common.base.Predicate;
+import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
@@ -40,6 +44,8 @@ import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
@@ -61,6 +67,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
+                .put(DiscoverySettings.NO_MASTER_BLOCK, "all")
                 .build();
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
@@ -195,5 +202,71 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             }
         }
+    }
+
+    @Test
+    public void testNoMasterActions_writeMasterBlock() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put("action.auto_create_index", false)
+                .put("discovery.zen.minimum_master_nodes", 2)
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms")
+                .put(DiscoverySettings.NO_MASTER_BLOCK, "write")
+                .build();
+
+        internalCluster().startNode(settings);
+        // start a second node, create an index, and then shut it down so we have no master block
+        internalCluster().startNode(settings);
+        prepareCreate("test1").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).get();
+        prepareCreate("test2").setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).get();
+        client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
+        client().prepareIndex("test1", "type1", "1").setSource("field", "value1").get();
+        client().prepareIndex("test2", "type1", "1").setSource("field", "value1").get();
+        refresh();
+
+        internalCluster().stopRandomDataNode();
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object o) {
+                ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+                return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
+            }
+        }), equalTo(true));
+
+
+        GetResponse getResponse = client().prepareGet("test1", "type1", "1").get();
+        assertExists(getResponse);
+
+        CountResponse countResponse = client().prepareCount("test1").get();
+        assertHitCount(countResponse, 1l);
+
+        SearchResponse searchResponse = client().prepareSearch("test1").get();
+        assertHitCount(searchResponse, 1l);
+
+        countResponse = client().prepareCount("test2").get();
+        assertThat(countResponse.getTotalShards(), equalTo(2));
+        assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+
+        TimeValue timeout = TimeValue.timeValueMillis(200);
+        long now = System.currentTimeMillis();
+        try {
+            client().prepareUpdate("test1", "type1", "1").setDoc("field", "value2").setTimeout(timeout).get();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException e) {
+            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        now = System.currentTimeMillis();
+        try {
+            client().prepareIndex("test1", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
+            fail("Expected ClusterBlockException");
+        } catch (ClusterBlockException e) {
+            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        }
+
+        internalCluster().startNode(settings);
+        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
     }
 }

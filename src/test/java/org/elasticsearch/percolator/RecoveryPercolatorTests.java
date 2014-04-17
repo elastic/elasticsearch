@@ -20,7 +20,6 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -31,6 +30,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
@@ -49,6 +49,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
+    @Ignore()
     public void testRestartNodePercolator1() throws Exception {
 
         logger.info("--> starting 1 nodes");
@@ -86,7 +87,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @AwaitsFix(bugUrl="investigate why this test fails so often")
+    @Ignore()
     @Slow
     public void testRestartNodePercolator2() throws Exception {
         logger.info("--> starting 1 nodes");

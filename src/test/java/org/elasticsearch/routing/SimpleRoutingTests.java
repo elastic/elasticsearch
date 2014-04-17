@@ -234,6 +234,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
+                        .startObject("routing_field").field("type", "string").field("index", randomBoolean() ? "no" : "not_analyzed").field("doc_values", randomBoolean() ? "yes" : "no").endObject()
                         .endObject().endObject())
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();

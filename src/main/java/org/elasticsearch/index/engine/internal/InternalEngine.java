@@ -209,7 +209,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     @Override
     public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
         ByteSizeValue preValue = this.indexingBufferSize;
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             this.indexingBufferSize = indexingBufferSize;
             IndexWriter indexWriter = this.indexWriter;
             if (indexWriter != null) {
@@ -309,7 +309,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     public GetResult get(Get get) throws EngineException {
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             if (get.realtime()) {
                 VersionValue versionValue = versionMap.get(versionKey(get.uid()));
                 if (versionValue != null) {
@@ -368,7 +368,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void create(Create create) throws EngineException {
-        try (InternalLock  _ = readLock.acquire())  {
+        try (InternalLock _ = readLock.acquire()) {
             IndexWriter writer = this.indexWriter;
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
@@ -378,14 +378,14 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             possibleMergeNeeded = true;
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
-           maybeFailEngine(t);
-           throw new CreateFailedEngineException(shardId, create, t);
+            maybeFailEngine(t);
+            throw new CreateFailedEngineException(shardId, create, t);
         }
     }
 
     private void maybeFailEngine(Throwable t) {
         if (t instanceof OutOfMemoryError || (t instanceof IllegalStateException && t.getMessage().contains("OutOfMemoryError"))) {
-            failEngine(t);
+            failEngine("out of memory", t);
         }
     }
 
@@ -451,7 +451,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void index(Index index) throws EngineException {
-        try (InternalLock  _ = readLock.acquire())  {
+        try (InternalLock _ = readLock.acquire()) {
             IndexWriter writer = this.indexWriter;
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
@@ -523,7 +523,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void delete(Delete delete) throws EngineException {
-        try (InternalLock  _ = readLock.acquire())  {
+        try (InternalLock _ = readLock.acquire()) {
             IndexWriter writer = this.indexWriter;
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
@@ -587,7 +587,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
-        try (InternalLock  _ = readLock.acquire())  {
+        try (InternalLock _ = readLock.acquire()) {
             IndexWriter writer = this.indexWriter;
             if (writer == null) {
                 throw new EngineClosedException(shardId);
@@ -645,8 +645,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return dirty || !searcherManager.isSearcherCurrent();
         } catch (IOException e) {
             logger.error("failed to access searcher manager", e);
-            failEngine(e);
-            throw new EngineException(shardId, "failed to access searcher manager",e);
+            failEngine("failed to access searcher manager", e);
+            throw new EngineException(shardId, "failed to access searcher manager", e);
         }
     }
 
@@ -668,7 +668,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
             // maybeRefresh will only allow one refresh to execute, and the rest will "pass through",
             // but, we want to make sure not to loose ant refresh calls, if one is taking time
@@ -687,7 +687,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         } catch (EngineClosedException e) {
             throw e;
         } catch (Throwable t) {
-            failEngine(t);
+            failEngine("refresh failed", t);
             throw new RefreshFailedEngineException(shardId, t);
         }
     }
@@ -746,7 +746,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     }
                 }
             } else if (flush.type() == Flush.Type.COMMIT_TRANSLOG) {
-                try (InternalLock  _ = readLock.acquire()) {
+                try (InternalLock _ = readLock.acquire()) {
                     final IndexWriter indexWriter = currentIndexWriter();
                     if (onGoingRecoveries.get() > 0) {
                         throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
@@ -774,7 +774,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 // note, its ok to just commit without cleaning the translog, its perfectly fine to replay a
                 // translog on an index that was opened on a committed point in time that is "in the future"
                 // of that translog
-                try (InternalLock  _ = readLock.acquire()) {
+                try (InternalLock _ = readLock.acquire()) {
                     final IndexWriter indexWriter = currentIndexWriter();
                     // we allow to *just* commit if there is an ongoing recovery happening...
                     // its ok to use this, only a flush will cause a new translogId, and we are locked here from
@@ -792,7 +792,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
 
             // reread the last committed segment infos
-            try (InternalLock  _ = readLock.acquire()) {
+            try (InternalLock _ = readLock.acquire()) {
                 ensureOpen();
                 readLastCommittedSegmentsInfo();
             } catch (Throwable e) {
@@ -801,14 +801,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
             }
 
-        } catch (FlushFailedEngineException ex){
-           maybeFailEngine(ex.getCause());
-           throw ex;
+        } catch (FlushFailedEngineException ex) {
+            maybeFailEngine(ex.getCause());
+            throw ex;
         } finally {
             flushLock.unlock();
             flushing.decrementAndGet();
         }
     }
+
     private void ensureOpen() {
         if (indexWriter == null) {
             throw new EngineClosedException(shardId, failedEngine);
@@ -817,6 +818,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     /**
      * Returns the current index writer. This method will never return <code>null</code>
+     *
      * @throws EngineClosedException if the engine is already closed
      */
     private IndexWriter currentIndexWriter() {
@@ -857,7 +859,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             return;
         }
         possibleMergeNeeded = false;
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             Merges.maybeMerge(currentIndexWriter());
         } catch (Throwable t) {
             maybeFailEngine(t);
@@ -872,7 +874,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         }
         if (optimizeMutex.compareAndSet(false, true)) {
             ElasticsearchMergePolicy elasticsearchMergePolicy = null;
-            try (InternalLock  _ = readLock.acquire()) {
+            try (InternalLock _ = readLock.acquire()) {
                 final IndexWriter writer = currentIndexWriter();
 
                 if (writer.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy) {
@@ -923,7 +925,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             flush(new Flush().type(Flush.Type.COMMIT).waitIfOngoing(true));
             ensureOpen();
             return deletionPolicy.snapshot();
@@ -1002,7 +1004,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public SegmentsStats segmentsStats() {
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
             Searcher searcher = acquireSearcher("segments_stats");
             try {
@@ -1019,7 +1021,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public List<Segment> segments() {
-        try (InternalLock  _ = readLock.acquire()) {
+        try (InternalLock _ = readLock.acquire()) {
             ensureOpen();
             Map<String, Segment> segments = new HashMap<>();
 
@@ -1133,21 +1135,28 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {
-            failEngine(e);
+            failEngine("merge exception", e);
         }
     }
 
-    private void failEngine(Throwable failure) {
+    @Override
+    public void failEngine(String reason, @Nullable Throwable failure) {
         if (failEngineLock.tryLock()) {
             assert !readLock.assertLockIsHeld() : "readLock is held by a thread that tries to fail the engine";
             if (failedEngine != null) {
+                logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
                 return;
             }
             try {
-                logger.warn("failed engine", failure);
-                failedEngine = failure;
+                logger.warn("failed engine [{}]", reason, failure);
+                // we must set a failure exception, generate one if not supplied
+                if (failure == null) {
+                    failedEngine = new EngineException(shardId(), reason);
+                } else {
+                    failedEngine = failure;
+                }
                 for (FailedEngineListener listener : failedEngineListeners) {
-                    listener.onFailedEngine(shardId, failure);
+                    listener.onFailedEngine(shardId, reason, failure);
                 }
             } finally {
                 // close the engine whatever happens...
@@ -1155,7 +1164,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
 
         } else {
-            logger.debug("Tried to fail engine but could not acquire lock - engine should be failed by now", failure);
+            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
         }
     }
 
@@ -1229,7 +1238,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         assert isMergedSegment(reader);
                         final Engine.Searcher searcher = new SimpleSearcher("warmer", new IndexSearcher(reader));
                         final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
-                        if (warmer != null) warmer.warm(context);
+                        if (warmer != null) {
+                            warmer.warm(context);
+                        }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
                         if (!closed) {
@@ -1281,7 +1292,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     !codecName.equals(InternalEngine.this.codecName) ||
                     failOnMergeFailure != InternalEngine.this.failOnMergeFailure ||
                     codecBloomLoad != codecService.isLoadBloomFilter()) {
-                try (InternalLock  _ = readLock.acquire()) {
+                try (InternalLock _ = readLock.acquire()) {
                     if (indexConcurrency != InternalEngine.this.indexConcurrency) {
                         logger.info("updating index.index_concurrency from [{}] to [{}]", InternalEngine.this.indexConcurrency, indexConcurrency);
                         InternalEngine.this.indexConcurrency = indexConcurrency;
@@ -1488,11 +1499,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             endRecovery();
         }
     }
-    
+
     private static final class InternalLock implements Releasable {
         private final ThreadLocal<Boolean> lockIsHeld;
         private final Lock lock;
-        
+
         InternalLock(Lock lock) {
             ThreadLocal<Boolean> tl = null;
             assert (tl = new ThreadLocal<>()) != null;
@@ -1511,8 +1522,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             assert onAssertLock();
             return this;
         }
-        
-        
+
+
         protected boolean onAssertRelease() {
             lockIsHeld.set(Boolean.FALSE);
             return true;

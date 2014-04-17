@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
@@ -799,7 +800,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private class FailedEngineHandler implements Engine.FailedEngineListener {
         @Override
-        public void onFailedEngine(final ShardId shardId, final Throwable failure) {
+        public void onFailedEngine(final ShardId shardId, final String reason, final @Nullable Throwable failure) {
             ShardRouting shardRouting = null;
             final IndexService indexService = indicesService.indexService(shardId.index().name());
             if (indexService != null) {
@@ -809,29 +810,33 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
             if (shardRouting == null) {
-                logger.warn("[{}][{}] engine failed, but can't find index shard", shardId.index().name(), shardId.id());
+                logger.warn("[{}][{}] engine failed, but can't find index shard. failure reason: [{}]",
+                        shardId.index().name(), shardId.id(), reason);
                 return;
             }
             final ShardRouting fShardRouting = shardRouting;
             final String indexUUID = indexService.indexUUID(); // we know indexService is not null here.
+            final String failureMessage = "engine failure, message [" + reason + "]" +
+                    (failure == null ? "" : "[" + detailedMessage(failure) + "]");
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {
                         if (indexService.hasShard(shardId.id())) {
                             try {
-                                indexService.removeShard(shardId.id(), "engine failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+
+                                indexService.removeShard(shardId.id(), failureMessage);
                             } catch (IndexShardMissingException e) {
                                 // the node got closed on us, ignore it
                             } catch (Throwable e1) {
-                                logger.warn("[{}][{}] failed to delete shard after failed engine", e1, indexService.index().name(), shardId.id());
+                                logger.warn("[{}][{}] failed to delete shard after failed engine ([{}])", e1, indexService.index().name(), shardId.id(), reason);
                             }
                         }
                         try {
                             failedShards.put(fShardRouting.shardId(), new FailedShard(fShardRouting.version()));
-                            shardStateAction.shardFailed(fShardRouting, indexUUID, "engine failure, message [" + detailedMessage(failure) + "]");
+                            shardStateAction.shardFailed(fShardRouting, indexUUID, failureMessage);
                         } catch (Throwable e1) {
-                            logger.warn("[{}][{}] failed to mark shard as failed after a failed engine", e1, indexService.index().name(), shardId.id());
+                            logger.warn("[{}][{}] failed to mark shard as failed after a failed engine ([{}])", e1, indexService.index().name(), shardId.id(), reason);
                         }
                     }
                 }

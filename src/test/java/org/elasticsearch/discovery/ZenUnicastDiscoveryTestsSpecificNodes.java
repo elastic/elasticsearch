@@ -25,12 +25,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
-import java.util.concurrent.CountDownLatch;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,45 +54,7 @@ public class ZenUnicastDiscoveryTestsSpecificNodes extends ElasticsearchIntegrat
                 .put("discovery.zen.ping.unicast.hosts", "localhost:15300,localhost:15301,localhost:15302")
                 .put("transport.tcp.port", "15300-15400")
                 .build();
-
-        final CountDownLatch latch = new CountDownLatch(3);
-        final AtomicArray<String> nodes = new AtomicArray<>(3);
-        Runnable r1 = new Runnable() {
-
-            @Override
-            public void run() {
-                logger.info("--> start first node");
-                nodes.set(0, cluster().startNode(settings));
-                latch.countDown();
-            }
-        };
-        new Thread(r1).start();
-
-        sleep(between(500, 3000));
-        Runnable r2 = new Runnable() {
-
-            @Override
-            public void run() {
-                logger.info("--> start second node");
-                nodes.set(1, cluster().startNode(settings));
-                latch.countDown();
-            }
-        };
-        new Thread(r2).start();
-
-
-        sleep(between(500, 3000));
-        Runnable r3 = new Runnable() {
-
-            @Override
-            public void run() {
-                logger.info("--> start third node");
-                nodes.set(2, cluster().startNode(settings));
-                latch.countDown();
-            }
-        };
-        new Thread(r3).start();
-        latch.await();
+        List<String> nodes = cluster().startNodesAsync(3, settings).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));

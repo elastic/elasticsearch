@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.aggregations.AggregationModule;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -70,5 +71,6 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(HighlightPhase.class).asEagerSingleton();
 
         bind(SearchServiceTransportAction.class).asEagerSingleton();
+        bind(MoreLikeThisFetchService.class).asEagerSingleton();
     }
 }

@@ -20,12 +20,18 @@
 package org.elasticsearch.mlt;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -339,6 +345,120 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                 .actionGet();
         assertSearchResponse(mltResponse);
         assertEquals(mltResponse.getHits().hits().length, 8);
+    }
+
+    public void testSimpleMoreLikeThisIds() throws Exception {
+        logger.info("Creating index test");
+        assertAcked(prepareCreate("test").addMapping("type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("text").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene").setId("1"));
+        builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene release").setId("2"));
+        builders.add(client().prepareIndex("test", "type1").setSource("text", "apache lucene").setId("3"));
+        indexRandom(true, builders);
+
+        logger.info("Running MoreLikeThis");
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids("1").exclude(false).minTermFreq(1).minDocFreq(1);
+        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
+        assertHitCount(mltResponse, 3l);
+    }
+
+    @Test
+    public void testCompareMoreLikeThisDSLWithAPI() throws Exception {
+        logger.info("Creating index test");
+        assertAcked(prepareCreate("test").addMapping("type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("text").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        String[] texts = new String[] {
+            "Apache Lucene",
+            "free and open source",
+            "information retrieval",
+            "software library",
+            "programmed in Java",
+            "Doug Cutting",
+            "Apache Software Foundation",
+            "Apache Software License",
+            "Lucene programming languages",
+            "Delphi, Perl, C#, C++, Python, Ruby, and PHP"
+        };
+        List<IndexRequestBuilder> builders = new ArrayList<>(10);
+        for (int i = 0; i < texts.length; i++) {
+            builders.add(client().prepareIndex("test", "type1").setSource("text", texts[i]).setId(String.valueOf(i)));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Running MoreLikeThis DSL with IDs");
+        Client client = client();
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids("0").minTermFreq(1).minDocFreq(1);
+        SearchResponse mltResponseDSL = client.prepareSearch()
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setTypes("type1")
+                .setQuery(queryBuilder)
+                .execute().actionGet();
+        assertSearchResponse(mltResponseDSL);
+
+        logger.info("Running MoreLikeThis API");
+        MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").id("0").minTermFreq(1).minDocFreq(1);
+        SearchResponse mltResponseAPI = client.moreLikeThis(mltRequest).actionGet();
+        assertSearchResponse(mltResponseAPI);
+
+        logger.info("Ensure the documents and scores returned are the same.");
+        SearchHit[] hitsDSL = mltResponseDSL.getHits().hits();
+        SearchHit[] hitsAPI = mltResponseAPI.getHits().hits();
+        assertThat("Not the same number of results.", hitsAPI.length, equalTo(hitsDSL.length));
+        for (int i = 0; i < hitsDSL.length; i++) {
+            assertThat("Expected id: " + hitsDSL[i].getId() + " at position " + i + " but wasn't.",
+                    hitsAPI[i].getId(), equalTo(hitsDSL[i].getId()));
+            assertThat("Expected score: " + hitsDSL[i].getScore() + " at position " + i + " but wasn't.",
+                    hitsAPI[i].getScore(), equalTo(hitsDSL[i].getScore()));
+        }
+    }
+
+    @Test
+    public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
+        logger.info("Creating index test");
+        int numOfTypes = randomIntBetween(2, 10);
+        CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test");
+        for (int i = 0; i < numOfTypes; i++) {
+            createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
+                    .startObject("text").field("type", "string").endObject()
+                    .endObject().endObject().endObject());
+        }
+        assertAcked(createRequestBuilder);
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        List<IndexRequestBuilder> builders = new ArrayList<>(numOfTypes);
+        for (int i = 0; i < numOfTypes; i++) {
+            builders.add(client().prepareIndex("test", "type" + i).setSource("text", "lucene" + " " + i).setId(String.valueOf(i)));
+        }
+        indexRandom(true, builders);
+
+        logger.info("Running MoreLikeThis");
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").exclude(false).minTermFreq(1).minDocFreq(1)
+                .addItem(new MoreLikeThisQueryBuilder.Item("test", "type0", "0"));
+
+        String[] types = new String[numOfTypes];
+        for (int i = 0; i < numOfTypes; i++) {
+            types[i] = "type"+i;
+        }
+        SearchResponse mltResponse = client().prepareSearch().setTypes(types).setQuery(queryBuilder).execute().actionGet();
+        assertHitCount(mltResponse, numOfTypes);
     }
 
 }

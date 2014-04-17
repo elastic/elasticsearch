@@ -30,6 +30,7 @@ import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -63,6 +64,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
@@ -80,6 +82,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
@@ -137,6 +140,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/query/mapping.json");
         injector.getInstance(MapperService.class).merge("person", new CompressedString(mapping), true);
         injector.getInstance(MapperService.class).documentMapper("person").parse(new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/query/data.json")));
+
         queryParser = injector.getInstance(IndexQueryParserService.class);
     }
 
@@ -1669,6 +1673,58 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         assertThat(mltQuery.getLikeText(), equalTo("something"));
         assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
         assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
+    }
+
+    @Test
+    public void testMoreLikeThisIds() throws Exception {
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        List<MoreLikeThisFetchService.LikeText> likeTexts = new ArrayList<>();
+        String index = "test";
+        String type = "person";
+        for (int i = 1; i < 5; i++) {
+            for (String field : new String[]{"name.first", "name.last"}) {
+                MoreLikeThisFetchService.LikeText likeText = new MoreLikeThisFetchService.LikeText(
+                        field, index + " " + type + " " + i + " " + field);
+                likeTexts.add(likeText);
+            }
+        }
+
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-ids.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat(booleanQuery.getClauses().length, is(likeTexts.size()));
+
+        for (int i=0; i<likeTexts.size(); i++) {
+            BooleanClause booleanClause = booleanQuery.getClauses()[i];
+            assertThat(booleanClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+            assertThat(booleanClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) booleanClause.getQuery();
+            assertThat(mltQuery.getLikeText(), is(likeTexts.get(i).text));
+            assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
+        }
+    }
+
+    private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
+
+        public MockMoreLikeThisFetchService() {
+            super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        }
+
+        public List<LikeText> fetch(List<MultiGetRequest.Item> items) throws IOException {
+            List<LikeText> likeTexts = new ArrayList<>();
+            for (MultiGetRequest.Item item: items) {
+                for (String field : item.fields()) {
+                    LikeText likeText = new LikeText(
+                            field, item.index() + " " + item.type() + " " + item.id() + " " + field);
+                    likeTexts.add(likeText);
+                }
+            }
+            return likeTexts;
+        }
     }
 
     @Test

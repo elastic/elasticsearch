@@ -125,10 +125,6 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-    }
-
-    @Override
     public boolean includeInObject() {
         return false;
     }

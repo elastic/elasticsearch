@@ -165,10 +165,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-    }
-
-    @Override
     public void preParse(ParseContext context) throws IOException {
     }
 

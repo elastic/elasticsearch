@@ -31,8 +31,6 @@ public interface RootMapper extends Mapper {
 
     void postParse(ParseContext context) throws IOException;
 
-    void validate(ParseContext context) throws MapperParsingException;
-
     /**
      * Should the mapper be included in the root {@link org.elasticsearch.index.mapper.object.ObjectMapper}.
      */

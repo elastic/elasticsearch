@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
@@ -567,12 +568,17 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                         id = parseContext.id();
                     }
                     if (parseContext.shouldParseRouting()) {
+                        if (routing != null && !routing.equals(parseContext.routing())) {
+                            throw new MapperParsingException("The provided routing value [" + routing + "] doesn't match the routing key stored in the document: [" + parseContext.routing() + "]");
+                        }
                         routing = parseContext.routing();
                     }
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
                         timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter());
                     }
+                } catch (MapperParsingException e) {
+                    throw e;
                 } catch (Exception e) {
                     throw new ElasticsearchParseException("failed to parse doc to extract routing/timestamp/id", e);
                 } finally {

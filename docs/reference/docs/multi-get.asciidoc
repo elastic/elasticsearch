@@ -106,7 +106,7 @@ curl 'localhost:9200/_mget' -d '{
             "_id" : "3",
             "_source" : {
                 "include": ["user"],
-                "_exclude": ["user.location"]
+                "exclude": ["user.location"]
             }
         }
     ]

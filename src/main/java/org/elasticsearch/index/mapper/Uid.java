@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.common.lucene.BytesRefs;
 
 import java.util.Collection;
@@ -94,12 +95,25 @@ public final class Uid {
         return new Uid(uid.substring(0, delimiterIndex), uid.substring(delimiterIndex + 1));
     }
 
+    public static BytesRef[] createUids(List<MultiGetRequest.Item> items) {
+        BytesRef[] uids = new BytesRef[items.size()];
+        int idx = 0;
+        for (MultiGetRequest.Item item : items) {
+            uids[idx++] = createUidAsBytes(item);
+        }
+        return uids;
+    }
+
     public static BytesRef createUidAsBytes(String type, String id) {
         return createUidAsBytes(new BytesRef(type), new BytesRef(id));
     }
 
     public static BytesRef createUidAsBytes(String type, BytesRef id) {
         return createUidAsBytes(new BytesRef(type), id);
+    }
+
+    public static BytesRef createUidAsBytes(MultiGetRequest.Item item) {
+        return createUidAsBytes(item.type(), item.id());
     }
 
     public static BytesRef createUidAsBytes(BytesRef type, BytesRef id) {

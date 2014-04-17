@@ -16,6 +16,37 @@ running it against one or more fields.
 }
 --------------------------------------------------
 
+Additionally, More Like This can find documents that are "like" a set of
+chosen documents. The syntax to specify one or more documents is similar to
+the <<docs-multi-get,Multi GET API>>, and supports the `ids` or `docs` array.
+If only one document is specified, the query behaves the same as the 
+<<search-more-like-this,More Like This API>>.
+
+[source,js]
+--------------------------------------------------
+{
+    "more_like_this" : {
+        "fields" : ["name.first", "name.last"],
+        "docs" : [
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "1"
+        },
+        {
+            "_index" : "test",
+            "_type" : "type",
+            "_id" : "2"
+        }
+        ],
+        "ids" : ["3", "4"],
+        "min_term_freq" : 1,
+        "max_query_terms" : 12
+    }
+}
+--------------------------------------------------
+
+
 `more_like_this` can be shortened to `mlt`.
 
 Under the hood, `more_like_this` simply creates multiple `should` clauses in a `bool` query of
@@ -31,6 +62,10 @@ terms should be considered as interesting. In order to give more weight to
 more interesting terms, each boolean clause associated with a term could be
 boosted by the term tf-idf score times some boosting factor `boost_terms`.
 
+When a search for multiple `docs` is issued, More Like This generates a
+`more_like_this` query per document field in `fields`. These `fields` are
+specified as a top level parameter or within each `doc`.
+
 The `more_like_this` top level parameters include:
 
 [cols="<,<",options="header",]
@@ -39,7 +74,16 @@ The `more_like_this` top level parameters include:
 |`fields` |A list of the fields to run the more like this query against.
 Defaults to the `_all` field.
 
-|`like_text` |The text to find documents like it, *required*.
+|`like_text` |The text to find documents like it, *required* if `ids` is
+not specified.
+
+|`ids` or `docs` |A list of documents following the same syntax as the 
+<<docs-multi-get,Multi GET API>>. This parameter is *required* if
+`like_text` is not specified. The texts are fetched from `fields` unless
+specified in each `doc`, and cannot be set to `_all`.
+
+|`exclude` |When using `ids`, specifies whether the documents should be
+excluded from the search. Defaults to `true`.
 
 |`percent_terms_to_match` |The percentage of terms to match on (float
 value). Defaults to `0.3` (30 percent).

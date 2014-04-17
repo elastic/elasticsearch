@@ -22,7 +22,10 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -44,6 +47,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
@@ -54,11 +59,9 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.ExceptionsHelper.detailedMessage;
-
 /**
  */
-public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ActionRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
+public abstract class TransportShardReplicationOperationAction<Request extends ShardReplicationOperationRequest, ReplicaRequest extends ShardReplicationOperationRequest, Response extends ActionResponse> extends TransportAction<Request, Response> {
 
     protected final TransportService transportService;
     protected final ClusterService clusterService;
@@ -242,7 +245,12 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         @Override
         public void messageReceived(final ReplicaOperationRequest request, final TransportChannel channel) throws Exception {
-            shardOperationOnReplica(request);
+            try {
+                shardOperationOnReplica(request);
+            } catch (Throwable t) {
+                failReplicaIfNeeded(request.request.index(), request.shardId, t);
+                throw t;
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -700,7 +708,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId().id(), response.replicaRequest());
             if (!nodeId.equals(clusterState.nodes().localNodeId())) {
-                DiscoveryNode node = clusterState.nodes().get(nodeId);
+                final DiscoveryNode node = clusterState.nodes().get(nodeId);
                 transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty vResponse) {
@@ -710,9 +718,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     @Override
                     public void handleException(TransportException exp) {
                         if (!ignoreReplicaException(exp.unwrapCause())) {
-                            logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), exp);
+                            logger.warn("Failed to perform " + transportAction + " on remote replica " + node + shardIt.shardId(), exp);
                             shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                    "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(exp) + "]");
+                                    "Failed to perform [" + transportAction + "] on replica, message [" + ExceptionsHelper.detailedMessage(exp) + "]");
                         }
                         finishIfPossible();
                     }
@@ -733,11 +741,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                                 try {
                                     shardOperationOnReplica(shardRequest);
                                 } catch (Throwable e) {
-                                    if (!ignoreReplicaException(e)) {
-                                        logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
-                                        shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                                "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
-                                    }
+                                    failReplicaIfNeeded(shard.index(), shard.id(), e);
                                 }
                                 if (counter.decrementAndGet() == 0) {
                                     listener.onResponse(response.response());
@@ -751,11 +755,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                             }
                         });
                     } catch (Throwable e) {
-                        if (!ignoreReplicaException(e)) {
-                            logger.warn("Failed to perform " + transportAction + " on replica " + shardIt.shardId(), e);
-                            shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                    "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
-                        }
+                        failReplicaIfNeeded(shard.index(), shard.id(), e);
                         // we want to decrement the counter here, in teh failure handling, cause we got rejected
                         // from executing on the thread pool
                         if (counter.decrementAndGet() == 0) {
@@ -766,17 +766,30 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     try {
                         shardOperationOnReplica(shardRequest);
                     } catch (Throwable e) {
-                        if (!ignoreReplicaException(e)) {
-                            logger.warn("Failed to perform " + transportAction + " on replica" + shardIt.shardId(), e);
-                            shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                                    "Failed to perform [" + transportAction + "] on replica, message [" + detailedMessage(e) + "]");
-                        }
+                        failReplicaIfNeeded(shard.index(), shard.id(), e);
                     }
                     if (counter.decrementAndGet() == 0) {
                         listener.onResponse(response.response());
                     }
                 }
             }
+        }
+
+    }
+
+    private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
+        if (!ignoreReplicaException(t)) {
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService == null) {
+                logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
+                return;
+            }
+            IndexShard indexShard = indexService.shard(shardId);
+            if (indexShard == null) {
+                logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
+                return;
+            }
+            indexShard.failShard(transportAction + " failed on replica", t);
         }
     }
 

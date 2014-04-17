@@ -156,6 +156,8 @@ public interface IndexShard extends IndexShardComponent {
 
     void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException;
 
+    void failShard(String reason, @Nullable Throwable e);
+
     Engine.Searcher acquireSearcher(String source);
 
     Engine.Searcher acquireSearcher(String source, Mode mode);

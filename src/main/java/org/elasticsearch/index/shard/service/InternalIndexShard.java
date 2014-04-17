@@ -631,6 +631,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
+    public void failShard(String reason, @Nullable Throwable e) {
+        // fail the engine. This will cause this shard to also be removed from the node's index service.
+        engine.failEngine(reason, e);
+    }
+
+    @Override
     public Engine.Searcher acquireSearcher(String source) {
         return acquireSearcher(source, Mode.READ);
     }

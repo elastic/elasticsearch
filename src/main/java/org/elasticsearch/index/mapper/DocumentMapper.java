@@ -522,10 +522,6 @@ public class DocumentMapper implements ToXContent {
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
             }
-
-            for (RootMapper rootMapper : rootMappersOrdered) {
-                rootMapper.validate(context);
-            }
         } catch (Throwable e) {
             // if its already a mapper parsing exception, no need to wrap it...
             if (e instanceof MapperParsingException) {

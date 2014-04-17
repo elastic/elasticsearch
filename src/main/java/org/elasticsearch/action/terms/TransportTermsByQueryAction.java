@@ -304,7 +304,7 @@ public class TransportTermsByQueryAction extends TransportBroadcastOperationActi
             throw new QueryPhaseExecutionException(context, "failed to execute termsByQuery", e);
         } finally {
             // this will also release the index searcher
-            context.clearAndRelease();
+            context.close();
             SearchContext.removeCurrent();
         }
     }

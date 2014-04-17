@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -34,18 +35,24 @@ import org.elasticsearch.rest.RestStatus;
 public class DiscoverySettings extends AbstractComponent {
 
     public static final String PUBLISH_TIMEOUT = "discovery.zen.publish_timeout";
-    public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
-    private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
+    public static final String NO_MASTER_BLOCK = "discovery.zen.no_master_block";
 
+    public static final TimeValue DEFAULT_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
+    public static final String DEFAULT_NO_MASTER_BLOCK = "write";
     public final static int NO_MASTER_BLOCK_ID = 2;
 
-    private final ClusterBlock noMasterBlock;
+    private final static ClusterBlock ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+    private final static ClusterBlock WRITE = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
+    private final static ClusterBlock METADATA = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.METADATA);
+
+    private volatile ClusterBlock noMasterBlock;
+    private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
 
     @Inject
     public DiscoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
         nodeSettingsService.addListener(new ApplySettings());
-        this.noMasterBlock = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
+        this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
     }
 
     /**
@@ -69,6 +76,25 @@ public class DiscoverySettings extends AbstractComponent {
                     publishTimeout = newPublishTimeout;
                 }
             }
+            String newNoMasterBlockValue = settings.get(NO_MASTER_BLOCK);
+            if (newNoMasterBlockValue != null) {
+                ClusterBlock newNoMasterBlock = parseNoMasterBlock(newNoMasterBlockValue);
+                if (newNoMasterBlock != noMasterBlock) {
+                    noMasterBlock = newNoMasterBlock;
+                }
+            }
+        }
+    }
+
+    private ClusterBlock parseNoMasterBlock(String value) {
+        if ("all".equals(value)) {
+            return ALL;
+        } else if ("write".equals(value)) {
+            return WRITE;
+        } else if ("metadata".equals(value)) {
+            return METADATA;
+        } else {
+            throw new ElasticsearchIllegalArgumentException("invalid master block [" + value + "]");
         }
     }
 }

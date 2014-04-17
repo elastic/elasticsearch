@@ -77,25 +77,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Inject
     public FilterAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        ImmutableMap<String, String> requireMap = settings.getByPrefix(CLUSTER_ROUTING_REQUIRE_GROUP).getAsMap();
-        if (requireMap.isEmpty()) {
-            clusterRequireFilters = null;
-        } else {
-            clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
-        }
-        ImmutableMap<String, String> includeMap = settings.getByPrefix(CLUSTER_ROUTING_INCLUDE_GROUP).getAsMap();
-        if (includeMap.isEmpty()) {
-            clusterIncludeFilters = null;
-        } else {
-            clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
-        }
-        ImmutableMap<String, String> excludeMap = settings.getByPrefix(CLUSTER_ROUTING_EXCLUDE_GROUP).getAsMap();
-        if (excludeMap.isEmpty()) {
-            clusterExcludeFilters = null;
-        } else {
-            clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
-        }
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     @Override
@@ -145,19 +127,29 @@ public class FilterAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
             ImmutableMap<String, String> requireMap = settings.getByPrefix(CLUSTER_ROUTING_REQUIRE_GROUP).getAsMap();
-            if (!requireMap.isEmpty()) {
+            if (requireMap.isEmpty()) {
+                clusterRequireFilters = null;
+            } else {
                 clusterRequireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
             ImmutableMap<String, String> includeMap = settings.getByPrefix(CLUSTER_ROUTING_INCLUDE_GROUP).getAsMap();
-            if (!includeMap.isEmpty()) {
+            if (includeMap.isEmpty()) {
+                clusterIncludeFilters = null;
+            } else {
                 clusterIncludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
             ImmutableMap<String, String> excludeMap = settings.getByPrefix(CLUSTER_ROUTING_EXCLUDE_GROUP).getAsMap();
-            if (!excludeMap.isEmpty()) {
+            if (excludeMap.isEmpty()) {
+                clusterExcludeFilters = null;
+            } else {
                 clusterExcludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
             }
         }

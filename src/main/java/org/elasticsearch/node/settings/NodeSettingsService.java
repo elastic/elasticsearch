@@ -79,9 +79,10 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
             return;
         }
 
+        Settings allSettings = ImmutableSettings.builder().put(globalSettings).put(event.state().metaData().settings()).build();  // add node settings first, cluster settings will override node settings
         for (Listener listener : listeners) {
             try {
-                listener.onRefreshSettings(event.state().metaData().settings());
+                listener.onRefreshSettings(allSettings);
             } catch (Exception e) {
                 logger.warn("failed to refresh settings for [{}]", e, listener);
             }
@@ -117,7 +118,11 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
         this.listeners.remove(listener);
     }
 
-    public static interface Listener {
-        void onRefreshSettings(Settings settings);
+    public static abstract class Listener {
+        public Listener(Settings settings) {
+            onRefreshSettings(settings);
+        }
+
+        public abstract void onRefreshSettings(Settings settings);
     }
 }

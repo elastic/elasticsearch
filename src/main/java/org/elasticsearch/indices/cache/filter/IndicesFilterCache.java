@@ -51,9 +51,9 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
 
     private Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache;
 
-    private volatile String size;
+    private volatile String size = DEFAULT_SIZE;
     private volatile long sizeInBytes;
-    private volatile TimeValue expire;
+    private volatile TimeValue expire = DEFAULT_EXPIRE;
 
     private final TimeValue cleanInterval;
 
@@ -65,17 +65,24 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     public static final String INDICES_CACHE_FILTER_SIZE = "indices.cache.filter.size";
     public static final String INDICES_CACHE_FILTER_EXPIRE = "indices.cache.filter.expire";
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    public static final String DEFAULT_SIZE = "10%";
+    public static final TimeValue DEFAULT_EXPIRE = null;
+
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
             boolean replace = false;
-            String size = settings.get(INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size);
+            String size = settings.get(INDICES_CACHE_FILTER_SIZE, DEFAULT_SIZE);
             if (!size.equals(IndicesFilterCache.this.size)) {
                 logger.info("updating [indices.cache.filter.size] from [{}] to [{}]", IndicesFilterCache.this.size, size);
                 IndicesFilterCache.this.size = size;
                 replace = true;
             }
-            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire);
+            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, DEFAULT_EXPIRE);
             if (!Objects.equal(expire, IndicesFilterCache.this.expire)) {
                 logger.info("updating [indices.cache.filter.expire] from [{}] to [{}]", IndicesFilterCache.this.expire, expire);
                 IndicesFilterCache.this.expire = expire;
@@ -95,15 +102,12 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         super(settings);
         this.threadPool = threadPool;
         this.cacheRecycler = cacheRecycler;
-        this.size = componentSettings.get("size", "10%");
-        this.expire = componentSettings.getAsTime("expire", null);
         this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
+        nodeSettingsService.addListener(new ApplySettings(settings));
         computeSizeInBytes();
         buildCache();
         logger.debug("using [node] weighted filter cache with size [{}], actual_size [{}], expire [{}], clean_interval [{}]",
                 size, new ByteSizeValue(sizeInBytes), expire, cleanInterval);
-
-        nodeSettingsService.addListener(new ApplySettings());
         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, new ReaderCleaner());
     }
 

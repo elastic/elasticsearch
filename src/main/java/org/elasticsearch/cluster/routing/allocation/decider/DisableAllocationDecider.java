@@ -66,22 +66,30 @@ public class DisableAllocationDecider extends AllocationDecider {
     public static final String INDEX_ROUTING_ALLOCATION_DISABLE_ALLOCATION = "index.routing.allocation.disable_allocation";
     public static final String INDEX_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION = "index.routing.allocation.disable_replica_allocation";
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    public static final boolean DEFAULT_DISABLE_NEW_ALLOCATION = false;
+    public static final boolean DEFAULT_DISABLE_ALLOCATION = false;
+    public static final boolean DEFAULT_DISABLE_REPLICA_ALLOCATION = false;
+
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean disableNewAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, DisableAllocationDecider.this.disableNewAllocation);
+            boolean disableNewAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, DEFAULT_DISABLE_NEW_ALLOCATION);
             if (disableNewAllocation != DisableAllocationDecider.this.disableNewAllocation) {
                 logger.info("updating [cluster.routing.allocation.disable_new_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableNewAllocation, disableNewAllocation);
                 DisableAllocationDecider.this.disableNewAllocation = disableNewAllocation;
             }
 
-            boolean disableAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, DisableAllocationDecider.this.disableAllocation);
+            boolean disableAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, DEFAULT_DISABLE_ALLOCATION);
             if (disableAllocation != DisableAllocationDecider.this.disableAllocation) {
                 logger.info("updating [cluster.routing.allocation.disable_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableAllocation, disableAllocation);
                 DisableAllocationDecider.this.disableAllocation = disableAllocation;
             }
 
-            boolean disableReplicaAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION, DisableAllocationDecider.this.disableReplicaAllocation);
+            boolean disableReplicaAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION, DEFAULT_DISABLE_REPLICA_ALLOCATION);
             if (disableReplicaAllocation != DisableAllocationDecider.this.disableReplicaAllocation) {
                 logger.info("updating [cluster.routing.allocation.disable_replica_allocation] from [{}] to [{}]", DisableAllocationDecider.this.disableReplicaAllocation, disableReplicaAllocation);
                 DisableAllocationDecider.this.disableReplicaAllocation = disableReplicaAllocation;
@@ -89,18 +97,14 @@ public class DisableAllocationDecider extends AllocationDecider {
         }
     }
 
-    private volatile boolean disableNewAllocation;
-    private volatile boolean disableAllocation;
-    private volatile boolean disableReplicaAllocation;
+    private volatile boolean disableNewAllocation = DEFAULT_DISABLE_NEW_ALLOCATION;
+    private volatile boolean disableAllocation = DEFAULT_DISABLE_ALLOCATION;
+    private volatile boolean disableReplicaAllocation = DEFAULT_DISABLE_REPLICA_ALLOCATION;
 
     @Inject
     public DisableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.disableNewAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, false);
-        this.disableAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, false);
-        this.disableReplicaAllocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION, false);
-
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     @Override

@@ -38,14 +38,14 @@ public class ElectMasterService extends AbstractComponent {
 
     public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
 
+    public static int DEFAULT_MINIMUM_MASTER_NODES = -1;
+
     private final NodeComparator nodeComparator = new NodeComparator();
 
     private volatile int minimumMasterNodes;
 
     public ElectMasterService(Settings settings) {
         super(settings);
-        this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
-        logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
 
     public void minimumMasterNodes(int minimumMasterNodes) {

@@ -39,7 +39,7 @@ public class DiscoverySettings extends AbstractComponent {
     @Inject
     public DiscoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     /**
@@ -49,15 +49,17 @@ public class DiscoverySettings extends AbstractComponent {
         return publishTimeout;
     }
 
-    private class ApplySettings implements NodeSettingsService.Listener {
+    private class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue newPublishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, null);
-            if (newPublishTimeout != null) {
-                if (newPublishTimeout.millis() != publishTimeout.millis()) {
-                    logger.info("updating [{}] from [{}] to [{}]", PUBLISH_TIMEOUT, publishTimeout, newPublishTimeout);
-                    publishTimeout = newPublishTimeout;
-                }
+            TimeValue newPublishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, DEFAULT_PUBLISH_TIMEOUT);
+            if (newPublishTimeout.millis() != publishTimeout.millis()) {
+                logger.info("updating [{}] from [{}] to [{}]", PUBLISH_TIMEOUT, publishTimeout, newPublishTimeout);
+                publishTimeout = newPublishTimeout;
             }
         }
     }

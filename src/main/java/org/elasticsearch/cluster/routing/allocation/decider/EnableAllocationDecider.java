@@ -43,20 +43,21 @@ import java.util.Locale;
  *     <li> <code>ALL</code> all shards are allowed to be allocated
  * </ul>
  */
-public class EnableAllocationDecider extends AllocationDecider implements NodeSettingsService.Listener {
+public class EnableAllocationDecider extends AllocationDecider{
 
     public static final String NAME = "enable";
 
     public static final String CLUSTER_ROUTING_ALLOCATION_ENABLE = "cluster.routing.allocation.enable";
     public static final String INDEX_ROUTING_ALLOCATION_ENABLE = "index.routing.allocation.enable";
 
-    private volatile Allocation enable;
+    public static final Allocation DEFAULT_ENABLE = Allocation.ALL;
+
+    private volatile Allocation enable = DEFAULT_ENABLE;
 
     @Inject
     public EnableAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.ALL.name()));
-        nodeSettingsService.addListener(this);
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     @Override
@@ -95,15 +96,6 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
         }
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, this.enable.name()));
-        if (enable != this.enable) {
-            logger.info("updating [cluster.routing.allocation.enable] from [{}] to [{}]", this.enable, enable);
-            EnableAllocationDecider.this.enable = enable;
-        }
-    }
-
     public enum Allocation {
 
         NONE,
@@ -121,6 +113,21 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
                 } catch (IllegalArgumentException e) {
                     throw new ElasticsearchIllegalArgumentException("Illegal allocation.enable value [" + strValue + "]");
                 }
+            }
+        }
+    }
+
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            Allocation enable = Allocation.parse(settings.get(CLUSTER_ROUTING_ALLOCATION_ENABLE, DEFAULT_ENABLE.name()));
+            if (enable != EnableAllocationDecider.this.enable) {
+                logger.info("updating [cluster.routing.allocation.enable] from [{}] to [{}]", EnableAllocationDecider.this.enable, enable);
+                EnableAllocationDecider.this.enable = enable;
             }
         }
     }

@@ -49,10 +49,17 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
     public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    public static final String DEFAULT_RATE_LIMITING_TYPE = StoreRateLimiting.Type.MERGE.name();
+    public static final ByteSizeValue DEFAULT_RATE_LIMITING_THROTTLE = new ByteSizeValue(50, ByteSizeUnit.MB);
+
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
-            String rateLimitingType = settings.get(INDICES_STORE_THROTTLE_TYPE, IndicesStore.this.rateLimitingType);
+            String rateLimitingType = settings.get(INDICES_STORE_THROTTLE_TYPE, DEFAULT_RATE_LIMITING_TYPE);
             // try and parse the type
             StoreRateLimiting.Type.fromString(rateLimitingType);
             if (!rateLimitingType.equals(IndicesStore.this.rateLimitingType)) {
@@ -61,7 +68,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 IndicesStore.this.rateLimiting.setType(rateLimitingType);
             }
 
-            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndicesStore.this.rateLimitingThrottle);
+            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, DEFAULT_RATE_LIMITING_THROTTLE);
             if (!rateLimitingThrottle.equals(IndicesStore.this.rateLimitingThrottle)) {
                 logger.info("updating indices.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndicesStore.this.rateLimitingThrottle, rateLimitingThrottle, IndicesStore.this.rateLimitingType);
                 IndicesStore.this.rateLimitingThrottle = rateLimitingThrottle;
@@ -79,11 +86,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private final ClusterService clusterService;
 
-    private volatile String rateLimitingType;
-    private volatile ByteSizeValue rateLimitingThrottle;
+    private volatile String rateLimitingType = DEFAULT_RATE_LIMITING_TYPE;
+    private volatile ByteSizeValue rateLimitingThrottle = DEFAULT_RATE_LIMITING_THROTTLE;
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
 
-    private final ApplySettings applySettings = new ApplySettings();
+    private final ApplySettings applySettings = new ApplySettings(settings);
 
     @Inject
     public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService, ClusterService clusterService, ThreadPool threadPool) {
@@ -92,15 +99,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        // we limit with 20MB / sec by default with a default type set to merge sice 0.90.1
-        this.rateLimitingType = componentSettings.get("throttle.type", StoreRateLimiting.Type.MERGE.name());
-        rateLimiting.setType(rateLimitingType);
-        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(50, ByteSizeUnit.MB));
-        rateLimiting.setMaxRate(rateLimitingThrottle);
-
-        logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
 
         nodeSettingsService.addListener(applySettings);
+        logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
+
         clusterService.addLast(this);
     }
 

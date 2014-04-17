@@ -87,7 +87,11 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     public static final String CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES = "cluster.routing.allocation.awareness.attributes";
     public static final String CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP = "cluster.routing.allocation.awareness.force.";
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
             String[] awarenessAttributes = settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES, null);
@@ -135,18 +139,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     @Inject
     public AwarenessAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.awarenessAttributes = settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES);
 
-        forcedAwarenessAttributes = Maps.newHashMap();
-        Map<String, Settings> forceGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP);
-        for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
-            String[] aValues = entry.getValue().getAsArray("values");
-            if (aValues.length > 0) {
-                forcedAwarenessAttributes.put(entry.getKey(), aValues);
-            }
-        }
-
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     /**

@@ -41,10 +41,16 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      */
     public static final String CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED = "cluster.routing.allocation.snapshot.relocation_enabled";
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    public static final boolean DEFAULT_ENABLE_RELOCATION = false;
+
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean newEnableRelocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, enableRelocation);
+            boolean newEnableRelocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, DEFAULT_ENABLE_RELOCATION);
             if (newEnableRelocation != enableRelocation) {
                 logger.info("updating [{}] from [{}], to [{}]", CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, enableRelocation, newEnableRelocation);
                 enableRelocation = newEnableRelocation;
@@ -52,7 +58,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         }
     }
 
-    private volatile boolean enableRelocation = false;
+    private volatile boolean enableRelocation = DEFAULT_ENABLE_RELOCATION;
 
     /**
      * Creates a new {@link org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider} instance
@@ -73,8 +79,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
     @Inject
     public SnapshotInProgressAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        enableRelocation = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED, enableRelocation);
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     /**

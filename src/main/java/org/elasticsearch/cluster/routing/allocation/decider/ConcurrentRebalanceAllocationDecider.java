@@ -43,10 +43,16 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE = "cluster.routing.allocation.cluster_concurrent_rebalance";
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    public static final int DEFAULT_CLUSTER_CONCURRENT_REBALANCE = 2;
+
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
-            int clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance);
+            int clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, DEFAULT_CLUSTER_CONCURRENT_REBALANCE);
             if (clusterConcurrentRebalance != ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance) {
                 logger.info("updating [cluster.routing.allocation.cluster_concurrent_rebalance] from [{}], to [{}]", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance, clusterConcurrentRebalance);
                 ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance = clusterConcurrentRebalance;
@@ -54,14 +60,12 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
         }
     }
 
-    private volatile int clusterConcurrentRebalance;
+    private volatile int clusterConcurrentRebalance = DEFAULT_CLUSTER_CONCURRENT_REBALANCE;
 
     @Inject
     public ConcurrentRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        this.clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 2);
-        logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     @Override

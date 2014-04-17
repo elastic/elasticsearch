@@ -21,10 +21,8 @@ package org.elasticsearch.cluster.settings;
 
 import org.elasticsearch.action.UpdateSettingValidationException;
 import org.elasticsearch.action.admin.cluster.settings.delete.ClusterDeleteSettingsResponse;
-import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.update.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -46,13 +44,16 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
 
-        ClusterUpdateSettingsResponse response = client().admin().cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(key1, value1).build())
-                .get();
-
-        assertAcked(response);
-        assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+        try {
+            ClusterUpdateSettingsResponse response = client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(ImmutableSettings.builder().put(key1, value1).build())
+                    .get();
+            fail("Update non existing setting should not success");
+        } catch (UpdateSettingValidationException ex) {
+            assertThat(ex.getMessage(), containsString(key1));
+            assertThat(ex.getMessage(), containsString("not dynamically updateable"));
+        }
     }
 
     @Test
@@ -209,6 +210,31 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testRevertToDefaultSetting() {
+        DiscoverySettings discoverySettings = cluster().getInstance(DiscoverySettings.class);
+        assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.DEFAULT_PUBLISH_TIMEOUT));
+
+        ClusterUpdateSettingsResponse response = client().admin().cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "1s").build())
+                .get();
+
+        assertAcked(response);
+        assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT), equalTo("1s"));
+        assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
+
+        ClusterDeleteSettingsResponse deleteSettingsResponse = client().admin().cluster()
+                .prepareDeleteSettings()
+                .deleteTransient(true)
+                .get();
+        assertAcked(deleteSettingsResponse);
+        assertThat(deleteSettingsResponse.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT), equalTo("1s"));
+
+        assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.DEFAULT_PUBLISH_TIMEOUT));
+
+    }
+
+    @Test
     public void testUpdateDiscoveryPublishTimeout() {
 
         DiscoverySettings discoverySettings = cluster().getInstance(DiscoverySettings.class);
@@ -224,22 +250,26 @@ public class ClusterSettingsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT), equalTo("1s"));
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
 
-        response = client().admin().cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "whatever").build())
-                .get();
-
-        assertAcked(response);
-        assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+        try {
+            response = client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "whatever").build())
+                    .get();
+            fail();
+        } catch (UpdateSettingValidationException ex) {
+            assertThat(ex.getMessage(), containsString(DiscoverySettings.PUBLISH_TIMEOUT));
+        }
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
 
-        response = client().admin().cluster()
-                .prepareUpdateSettings()
-                .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, -1).build())
-                .get();
-
-        assertAcked(response);
-        assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
+        try {
+            response = client().admin().cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, -1).build())
+                    .get();
+            fail();
+        } catch (UpdateSettingValidationException ex) {
+            assertThat(ex.getMessage(), containsString(DiscoverySettings.PUBLISH_TIMEOUT));
+        }
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
     }
 }

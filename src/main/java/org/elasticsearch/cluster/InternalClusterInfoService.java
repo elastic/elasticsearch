@@ -60,7 +60,9 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
 
-    private volatile TimeValue updateFrequency;
+    public static final TimeValue DEFAULT_UPDATE_FREQUENCY = TimeValue.timeValueSeconds(30);
+
+    private volatile TimeValue updateFrequency = DEFAULT_UPDATE_FREQUENCY;
 
     private volatile ImmutableMap<String, DiskUsage> usages;
     private volatile ImmutableMap<String, Long> shardSizes;
@@ -83,9 +85,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.transportIndicesStatsAction = transportIndicesStatsAction;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
-        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
 
         // Add InternalClusterInfoService to listen for Master changes
         this.clusterService.add((LocalNodeMasterListener)this);
@@ -93,12 +93,16 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.clusterService.add((ClusterStateListener)this);
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, null);
+            TimeValue newUpdateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, DEFAULT_UPDATE_FREQUENCY);
             // ClusterInfoService is only enabled if the DiskThresholdDecider is enabled
-            Boolean newEnabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, null);
+            Boolean newEnabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, DiskThresholdDecider.DEFAULT_ENABLED);
 
             if (newUpdateFrequency != null) {
                 if (newUpdateFrequency.getMillis() < TimeValue.timeValueSeconds(10).getMillis()) {

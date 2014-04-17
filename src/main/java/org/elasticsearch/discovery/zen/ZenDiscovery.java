@@ -142,7 +142,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         logger.debug("using ping.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
         this.electMaster = new ElectMasterService(settings);
-        nodeSettingsService.addListener(new ApplySettings());
+        nodeSettingsService.addListener(new ApplySettings(settings));
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, this);
         this.masterFD.addListener(new MasterNodeFailureListener());
@@ -963,11 +963,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
             int minimumMasterNodes = settings.getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
-                    ZenDiscovery.this.electMaster.minimumMasterNodes());
+                    ElectMasterService.DEFAULT_MINIMUM_MASTER_NODES);
             if (minimumMasterNodes != ZenDiscovery.this.electMaster.minimumMasterNodes()) {
                 logger.info("updating {} from [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
                         ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);

@@ -27,15 +27,17 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 /**
  * Helper for dealing with destructive operations and wildcard usage.
  */
-public final class DestructiveOperations implements NodeSettingsService.Listener {
+public final class DestructiveOperations {
 
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final String REQUIRES_NAME = "action.destructive_requires_name";
 
+    public static final boolean DEFAULT_REQUIRES_NAME = false;
+
     private final ESLogger logger;
-    private volatile boolean destructiveRequiresName;
+    private volatile boolean destructiveRequiresName = DEFAULT_REQUIRES_NAME;
 
     // TODO: Turn into a component that can be reused and wired up into all the transport actions where
     // this helper logic is required. Note: also added the logger as argument, otherwise the same log
@@ -43,7 +45,7 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
     public DestructiveOperations(ESLogger logger, Settings settings, NodeSettingsService nodeSettingsService) {
         this.logger = logger;
         destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+        nodeSettingsService.addListener(new ApplySettings(settings));
     }
 
     /**
@@ -69,12 +71,19 @@ public final class DestructiveOperations implements NodeSettingsService.Listener
         }
     }
 
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean("action.destructive_requires_name", destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
+    class ApplySettings extends NodeSettingsService.Listener {
+
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            boolean newValue = settings.getAsBoolean(REQUIRES_NAME, DEFAULT_REQUIRES_NAME);
+            if (destructiveRequiresName != newValue) {
+                logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
+                DestructiveOperations.this.destructiveRequiresName = newValue;
+            }
         }
     }
 

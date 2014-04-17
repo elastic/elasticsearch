@@ -134,7 +134,7 @@ public class ThreadPool extends AbstractComponent {
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         if (nodeSettingsService != null) {
-            nodeSettingsService.addListener(new ApplySettings());
+            nodeSettingsService.addListener(new ApplySettings(settings));
         }
 
         TimeValue estimatedTimeInterval = componentSettings.getAsTime("estimated_time_interval", TimeValue.timeValueMillis(200));
@@ -658,7 +658,11 @@ public class ThreadPool extends AbstractComponent {
 
     }
 
-    class ApplySettings implements NodeSettingsService.Listener {
+    class ApplySettings extends NodeSettingsService.Listener {
+        public ApplySettings(Settings settings) {
+            super(settings);
+        }
+
         @Override
         public void onRefreshSettings(Settings settings) {
             updateSettings(settings);

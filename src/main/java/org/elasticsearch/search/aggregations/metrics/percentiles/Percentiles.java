@@ -18,56 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
-
-import java.io.IOException;
 
 /**
  *
  */
 public interface Percentiles extends Aggregation, Iterable<Percentiles.Percentile> {
-
-    public static abstract class Estimator {
-
-        public static TDigest tDigest() {
-            return new TDigest();
-        }
-
-        private final String type;
-
-        protected Estimator(String type) {
-            this.type = type;
-        }
-
-        public static class TDigest extends Estimator {
-
-            protected double compression = -1;
-
-            TDigest() {
-                super("tdigest");
-            }
-
-            public TDigest compression(double compression) {
-                this.compression = compression;
-                return this;
-            }
-
-            @Override
-            void paramsToXContent(XContentBuilder builder) throws IOException {
-                if (compression > 0) {
-                    builder.field("compression", compression);
-                }
-            }
-        }
-
-        String type() {
-            return type;
-        }
-
-        abstract void paramsToXContent(XContentBuilder builder) throws IOException;
-
-    }
 
     public static interface Percentile {
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,13 +29,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -44,21 +44,22 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.SUITE, numDataNodes =0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/2488")
+    @TestLogging("discovery.zen:TRACE")
     public void failWithMinimumMasterNodesConfigured() throws Exception {
         final Settings settings = ImmutableSettings.settingsBuilder()
-                .put("discovery.zen.minimum_master_nodes", 2)
+                .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
+                .put("discovery.zen.minimum_master_nodes", 2)
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                .put("discovery.zen.rejoin_on_master_gone", true)
                 .build();
-        List<String>nodes = cluster().startNodesAsync(3, settings).get();
+        List<String> nodes = cluster().startNodesAsync(3, settings).get();
 
         // Wait until a green status has been reaches and 3 nodes are part of the cluster
-        List<String> nodesList = Arrays.asList(nodes.toArray(new String[3]));
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("3")
@@ -67,7 +68,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         // Figure out what is the elected master node
         DiscoveryNode masterDiscoNode = null;
-        for (String node : nodesList) {
+        for (String node : nodes) {
             ClusterState state = cluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(3));
             if (masterDiscoNode == null) {
@@ -84,7 +85,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
         // Pick a node that isn't the elected master.
         String unluckyNode = null;
-        for (String node : nodesList) {
+        for (String node : nodes) {
             if (!node.equals(masterDiscoNode.getName())) {
                 unluckyNode = node;
             }
@@ -96,12 +97,13 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         addFailToSendNoConnectRule(unluckyNode, masterDiscoNode.getName());
         try {
             // Wait until elected master has removed that the unlucky node...
-            awaitBusy(new Predicate<Object>() {
+            boolean applied = awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object input) {
                     return masterClient.admin().cluster().prepareState().setLocal(true).get().getState().nodes().size() == 2;
                 }
-            });
+            }, 1, TimeUnit.MINUTES);
+            assertThat(applied, is(true));
 
             // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
             // continuously ping until network failures have been resolved.
@@ -123,7 +125,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 .get();
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
 
-        for (String node : nodesList) {
+        for (String node : nodes) {
             ClusterState state = cluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(3));
             // The elected master shouldn't have changed, since the unlucky node never could have elected himself as

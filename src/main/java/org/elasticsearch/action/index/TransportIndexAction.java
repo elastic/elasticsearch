@@ -36,22 +36,16 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Performs the index operation.
@@ -73,8 +67,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
     private final MappingUpdatedAction mappingUpdatedAction;
 
-    private final boolean waitForMappingChange;
-
     @Inject
     public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                 IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
@@ -84,7 +76,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = settings.getAsBoolean("action.allow_id_generation", true);
-        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", false);
     }
 
     @Override
@@ -205,7 +196,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
             if (index.parsedDoc().mappingsModified()) {
-                updateMappingOnMaster(request, indexMetaData);
+                mappingUpdatedAction.updateMappingOnMaster(request.index(), request.type(), indexMetaData.getUUID(), false);
             }
             indexShard.index(index);
             version = index.version();
@@ -217,7 +208,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .versionType(request.versionType())
                     .origin(Engine.Operation.Origin.PRIMARY);
             if (create.parsedDoc().mappingsModified()) {
-                updateMappingOnMaster(request, indexMetaData);
+                mappingUpdatedAction.updateMappingOnMaster(request.index(), request.type(), indexMetaData.getUUID(), false);
             }
             indexShard.create(create);
             version = create.version();
@@ -263,49 +254,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             try {
                 indexShard.refresh(new Engine.Refresh("refresh_flag_index").force(false));
             } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    private void updateMappingOnMaster(final IndexRequest request, IndexMetaData indexMetaData) {
-        final CountDownLatch latch = new CountDownLatch(1);
-        try {
-            final MapperService mapperService = indicesService.indexServiceSafe(request.index()).mapperService();
-            final DocumentMapper documentMapper = mapperService.documentMapper(request.type());
-            if (documentMapper == null) { // should not happen
-                return;
-            }
-            // we generate the order id before we get the mapping to send and refresh the source, so
-            // if 2 happen concurrently, we know that the later order will include the previous one
-            long orderId = mappingUpdatedAction.generateNextMappingUpdateOrder();
-            documentMapper.refreshSource();
-            DiscoveryNode node = clusterService.localNode();
-            final MappingUpdatedAction.MappingUpdatedRequest mappingRequest =
-                    new MappingUpdatedAction.MappingUpdatedRequest(request.index(), indexMetaData.uuid(), request.type(), documentMapper.mappingSource(), orderId, node != null ? node.id() : null);
-            logger.trace("Sending mapping updated to master: {}", mappingRequest);
-            mappingUpdatedAction.execute(mappingRequest, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
-                @Override
-                public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
-                    // all is well
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Throwable e) {
-                    latch.countDown();
-                    logger.warn("Failed to update master on updated mapping for {}", e, mappingRequest);
-                }
-            });
-        } catch (Exception e) {
-            latch.countDown();
-            logger.warn("Failed to update master on updated mapping for index [" + request.index() + "], type [" + request.type() + "]", e);
-        }
-
-        if (waitForMappingChange) {
-            try {
-                latch.await(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
                 // ignore
             }
         }

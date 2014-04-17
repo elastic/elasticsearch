@@ -1032,14 +1032,13 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.5</version>
+                <version>1.5.1</version>
 
                 <executions>
                     <execution>
                         <id>check-forbidden-apis</id>
                         <configuration>
                             <targetVersion>1.7</targetVersion>
-                            <failOnMissingClasses>false</failOnMissingClasses> <!-- this is a bug in forbidden APIs since 1.5 looks also at annotations -->
                             <!-- disallow undocumented classes like sun.misc.Unsafe: -->
                             <internalRuntimeForbidden>true</internalRuntimeForbidden>
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
@@ -1063,10 +1062,10 @@
                                 <!-- end excludes for Math.abs -->
                             </excludes>
                             <bundledSignatures>
-                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
-                                <bundledSignaure>jdk-system-out</bundledSignaure>
+                                <bundledSignature>jdk-system-out</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>
@@ -1087,7 +1086,7 @@
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
                             <failOnUnsupportedJava>false</failOnUnsupportedJava>
                             <bundledSignatures>
-                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>

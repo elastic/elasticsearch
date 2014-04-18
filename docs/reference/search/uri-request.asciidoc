@@ -97,5 +97,7 @@ not. Defaults to `true`.
 
 |`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
 not. Defaults to `false`.
+
+|`agg_type_hint` |Whether aggregations should include a _type property to indicate the type of aggregation, defaults to `false`.
 |=======================================================================
 

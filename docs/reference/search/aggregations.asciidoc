@@ -131,6 +131,36 @@ aggregated for the buckets created by their "parent" bucket aggregation.
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
+[float]
+=== Aggregation Response
+
+Aggregation responses are typically returned in the following format
+
+[source,js]
+--------------------------------------------------
+{
+   "aggs": {
+       "NAME_OF_AGGREGATION" : {
+           //Aggregation properties here
+       }
+   }
+}
+--------------------------------------------------
+
+If you need the `aggregation type` in the response as well you can specify the `agg_type_hint` flag on the search request.
+This will return the aggregations in the following format:
+
+[source,js]
+--------------------------------------------------
+{
+   "aggs": {
+       "NAME_OF_AGGREGATION" : {
+           "_type" : "TYPE_OF_AGGREGATION",
+           //Aggregation properties here
+       }
+   }
+}
+--------------------------------------------------
 
 include::aggregations/metrics.asciidoc[]
 

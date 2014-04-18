@@ -2651,6 +2651,104 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         phraseBoostTestCase("postings");
     }
 
+    @Test
+    public void testSkipMatching() throws IOException {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "field1", "type=string," + randomStoreField() + "term_vector=with_positions_offsets,index_options=offsets"));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", "test").get();
+        refresh();
+
+        SearchRequestBuilder search = client().prepareSearch("test").setQuery(matchQuery("field1", "test"))
+                .addHighlightedField(new HighlightBuilder.Field("field1").noMatchSize(100).skipMatching(true));
+        SearchResponse response = search.setHighlighterType("plain").get();
+        assertHighlight(response, 0, "field1", 0, 1, equalTo("test"));
+
+        response = search.setHighlighterType("fvh").get();
+        assertHighlight(response, 0, "field1", 0, 1, equalTo("test"));
+
+        response = search.setHighlighterType("postings").get();
+        assertHighlight(response, 0, "field1", 0, 1, equalTo("test"));
+    }
+
+    @Test
+    public void testConditionalHighlighting() {
+        assertAcked(prepareCreate("test")
+            .addMapping("type1", "text", "type=string," + randomStoreField())
+            .addMapping("type1", "aux_text", "type=string," + randomStoreField())
+            .addMapping("type1", "double_aux_text", "type=string," + randomStoreField()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("text", "text", "aux_text", "aux text", "double_aux_text", "double aux text")
+                .get();
+        refresh();
+
+        // Check a long chain of no_match conditionals
+        SearchRequestBuilder request = client().prepareSearch("test").addHighlightedField(
+                new HighlightBuilder.Field("text").addNoMatchConditionalField(
+                        new HighlightBuilder.Field("aux_text").addNoMatchConditionalField(
+                                new HighlightBuilder.Field("double_aux_text").addNoMatchConditionalField(
+                                        new HighlightBuilder.Field("text").noMatchSize(100).skipMatching(true)))));
+        SearchResponse response = request.setQuery(matchQuery("_all", "text")).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("<em>text</em>"));
+        assertNotHighlighted(response, 0, "aux_text");
+        assertNotHighlighted(response, 0, "double_aux_text");
+
+        response = request.setQuery(matchQuery("_all", "aux")).get();
+        assertNotHighlighted(response, 0, "text");
+        assertHighlight(response, 0, "aux_text", 0, 1, equalTo("<em>aux</em> text"));
+        assertNotHighlighted(response, 0, "double_aux_text");
+
+        response = request.setQuery(matchQuery("_all", "double")).get();
+        assertNotHighlighted(response, 0, "text");
+        assertNotHighlighted(response, 0, "aux_text");
+        assertHighlight(response, 0, "double_aux_text", 0, 1, equalTo("<em>double</em> aux text"));
+
+        response = request.setQuery(idsQuery("type1").ids("1")).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("text"));
+        assertNotHighlighted(response, 0, "aux_text");
+        assertNotHighlighted(response, 0, "double_aux_text");
+
+        // Now check a long chain of match conditionals
+        request = client().prepareSearch("test").addHighlightedField(
+                new HighlightBuilder.Field("text").addMatchConditionalField(
+                        new HighlightBuilder.Field("aux_text").addMatchConditionalField(
+                                new HighlightBuilder.Field("double_aux_text"))));
+        response = request.setQuery(matchQuery("_all", "text")).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("<em>text</em>"));
+        assertHighlight(response, 0, "aux_text", 0, 1, equalTo("aux <em>text</em>"));
+        assertHighlight(response, 0, "double_aux_text", 0, 1, equalTo("double aux <em>text</em>"));
+
+        response = request.setQuery(matchQuery("_all", "aux")).get();
+        assertNotHighlighted(response, 0, "text");
+        assertNotHighlighted(response, 0, "aux_text");
+        assertNotHighlighted(response, 0, "double_aux_text");
+
+        response = request.setQuery(matchQuery("_all", "double")).get();
+        assertNotHighlighted(response, 0, "text");
+        assertNotHighlighted(response, 0, "aux_text");
+        assertNotHighlighted(response, 0, "double_aux_text");
+
+        // Now check some crazy forking stuff
+        request = client().prepareSearch("test")
+                .addHighlightedField(new HighlightBuilder.Field("text")
+                        .addNoMatchConditionalField(new HighlightBuilder.Field("aux_text")
+                                .addNoMatchConditionalField(new HighlightBuilder.Field("double_aux_text")
+                                        .addNoMatchConditionalField(new HighlightBuilder.Field("text").noMatchSize(100))))
+                        .addMatchConditionalField(new HighlightBuilder.Field("aux_text").highlightQuery(boolQuery()
+                                .should(matchQuery("_all", "aux")).should(matchQuery("_all", "text")))));
+        response = request.setQuery(matchQuery("_all", "text")).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("<em>text</em>"));
+        assertHighlight(response, 0, "aux_text", 0, 1, equalTo("<em>aux</em> <em>text</em>"));
+        assertNotHighlighted(response, 0, "double_aux_text");
+
+        response = request.setQuery(idsQuery("type1").ids("1")).get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("text"));
+        assertNotHighlighted(response, 0, "aux_text");
+        assertNotHighlighted(response, 0, "double_aux_text");
+    }
+
     /**
      * Test phrase boosting over normal term matches.  Note that this will never pass with the plain highlighter
      * because it doesn't support the concept of terms having a different weight based on position.

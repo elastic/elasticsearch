@@ -58,6 +58,14 @@ public class PlainHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = highlighterContext.hitContext;
         FieldMapper<?> mapper = highlighterContext.mapper;
 
+        if (field.fieldOptions().skipMatching()) {
+            try {
+                return extractNoMatchSnippetIfConfigured(highlighterContext, HighlightUtils.loadFieldValues(field, mapper, context, hitContext));
+            } catch (IOException e) {
+                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+            }
+        }
+
         Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
@@ -147,22 +155,27 @@ public class PlainHighlighter implements Highlighter {
             return new HighlightField(highlighterContext.fieldName, StringText.convertFromStringArray(fragments));
         }
 
+        return extractNoMatchSnippetIfConfigured(highlighterContext, textsToHighlight);
+    }
+
+    private HighlightField extractNoMatchSnippetIfConfigured(HighlighterContext highlighterContext, List<Object> textsToHighlight) {
         int noMatchSize = highlighterContext.field.fieldOptions().noMatchSize();
-        if (noMatchSize > 0 && textsToHighlight.size() > 0) {
-            // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
-            String fieldContents = textsToHighlight.get(0).toString();
-            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
-            int end;
-            try {
-                end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(mapper.names().indexName(), fieldContents));
-            } catch (Exception e) {
-                throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
-            }
-            if (end > 0) {
-                return new HighlightField(highlighterContext.fieldName, new Text[] { new StringText(fieldContents.substring(0, end)) });
-            }
+        if (noMatchSize == 0 || textsToHighlight.size() == 0) {
+            return null;
         }
-        return null;
+        // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
+        String fieldContents = textsToHighlight.get(0).toString();
+        Analyzer analyzer = highlighterContext.context.mapperService().documentMapper(highlighterContext.hitContext.hit().type()).mappers().indexAnalyzer();
+        int end;
+        try {
+            end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(highlighterContext.mapper.names().indexName(), fieldContents));
+        } catch (Exception e) {
+            throw new FetchPhaseExecutionException(highlighterContext.context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
+        }
+        if (end <= 0) {
+            return null;
+        }
+        return new HighlightField(highlighterContext.fieldName, new Text[] { new StringText(fieldContents.substring(0, end)) });
     }
 
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, TokenStream tokenStream) throws IOException {

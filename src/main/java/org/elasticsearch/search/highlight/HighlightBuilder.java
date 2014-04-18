@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -348,70 +349,90 @@ public class HighlightBuilder implements ToXContent {
         }
         if (fields != null) {
             builder.startObject("fields");
-            for (Field field : fields) {
-                builder.startObject(field.name());
-                if (field.preTags != null) {
-                    builder.field("pre_tags", field.preTags);
-                }
-                if (field.postTags != null) {
-                    builder.field("post_tags", field.postTags);
-                }
-                if (field.fragmentSize != -1) {
-                    builder.field("fragment_size", field.fragmentSize);
-                }
-                if (field.numOfFragments != -1) {
-                    builder.field("number_of_fragments", field.numOfFragments);
-                }
-                if (field.fragmentOffset != -1) {
-                    builder.field("fragment_offset", field.fragmentOffset);
-                }
-                if (field.highlightFilter != null) {
-                    builder.field("highlight_filter", field.highlightFilter);
-                }
-                if (field.order != null) {
-                    builder.field("order", field.order);
-                }
-                if (field.requireFieldMatch != null) {
-                    builder.field("require_field_match", field.requireFieldMatch);
-                }
-                if (field.boundaryMaxScan != -1) {
-                    builder.field("boundary_max_scan", field.boundaryMaxScan);
-                }
-                if (field.boundaryChars != null) {
-                    builder.field("boundary_chars", field.boundaryChars);
-                }
-                if (field.highlighterType != null) {
-                    builder.field("type", field.highlighterType);
-                }
-                if (field.fragmenter != null) {
-                    builder.field("fragmenter", field.fragmenter);
-                }
-                if (field.highlightQuery != null) {
-                    builder.field("highlight_query", field.highlightQuery);
-                }
-                if (field.noMatchSize != null) {
-                    builder.field("no_match_size", field.noMatchSize);
-                }
-                if (field.matchedFields != null) {
-                    builder.field("matched_fields", field.matchedFields);
-                }
-                if (field.phraseLimit != null) {
-                    builder.field("phrase_limit", field.phraseLimit);
-                }
-                if (field.options != null && field.options.size() > 0) {
-                    builder.field("options", field.options);
-                }
-                if (field.forceSource != null) {
-                    builder.field("force_source", field.forceSource);
-                }
-
-                builder.endObject();
-            }
+            fieldsToXContent(builder, fields);
             builder.endObject();
         }
 
         builder.endObject();
         return builder;
+    }
+
+    private static void fieldsToXContent(XContentBuilder builder, Iterable<Field> fields) throws IOException {
+        for (Field field : fields) {
+            builder.startObject(field.name());
+            if (field.preTags != null) {
+                builder.field("pre_tags", field.preTags);
+            }
+            if (field.postTags != null) {
+                builder.field("post_tags", field.postTags);
+            }
+            if (field.fragmentSize != -1) {
+                builder.field("fragment_size", field.fragmentSize);
+            }
+            if (field.numOfFragments != -1) {
+                builder.field("number_of_fragments", field.numOfFragments);
+            }
+            if (field.fragmentOffset != -1) {
+                builder.field("fragment_offset", field.fragmentOffset);
+            }
+            if (field.highlightFilter != null) {
+                builder.field("highlight_filter", field.highlightFilter);
+            }
+            if (field.order != null) {
+                builder.field("order", field.order);
+            }
+            if (field.requireFieldMatch != null) {
+                builder.field("require_field_match", field.requireFieldMatch);
+            }
+            if (field.boundaryMaxScan != -1) {
+                builder.field("boundary_max_scan", field.boundaryMaxScan);
+            }
+            if (field.boundaryChars != null) {
+                builder.field("boundary_chars", field.boundaryChars);
+            }
+            if (field.highlighterType != null) {
+                builder.field("type", field.highlighterType);
+            }
+            if (field.fragmenter != null) {
+                builder.field("fragmenter", field.fragmenter);
+            }
+            if (field.highlightQuery != null) {
+                builder.field("highlight_query", field.highlightQuery);
+            }
+            if (field.noMatchSize != null) {
+                builder.field("no_match_size", field.noMatchSize);
+            }
+            if (field.matchedFields != null) {
+                builder.field("matched_fields", field.matchedFields);
+            }
+            if (field.phraseLimit != null) {
+                builder.field("phrase_limit", field.phraseLimit);
+            }
+            if (field.options != null && field.options.size() > 0) {
+                builder.field("options", field.options);
+            }
+            if (field.forceSource != null) {
+                builder.field("force_source", field.forceSource);
+            }
+            if (field.matchConditionalFields != null || field.noMatchConditionalFields != null) {
+                builder.startObject("conditional");
+                if (field.matchConditionalFields != null) {
+                    builder.startObject("match");
+                    fieldsToXContent(builder, field.matchConditionalFields);
+                    builder.endObject();
+                }
+                if (field.noMatchConditionalFields != null) {
+                    builder.startObject("no_match");
+                    fieldsToXContent(builder, field.noMatchConditionalFields);
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            if (field.skipMatching != null) {
+                builder.field("skip_matching", field.skipMatching);
+            }
+            builder.endObject();
+        }
     }
 
     public static class Field {
@@ -434,6 +455,9 @@ public class HighlightBuilder implements ToXContent {
         Integer phraseLimit;
         Map<String, Object> options;
         Boolean forceSource;
+        List<Field> matchConditionalFields;
+        List<Field> noMatchConditionalFields;
+        Boolean skipMatching;
 
         public Field(String name) {
             this.name = name;
@@ -584,5 +608,39 @@ public class HighlightBuilder implements ToXContent {
             return this;
         }
 
+        /**
+         * Add a field against which highlighting should be tried only if this field doesn't have any matches.
+         * @param field field to highlight
+         * @return this for chaining
+         */
+        public Field addNoMatchConditionalField(Field field) {
+            if (noMatchConditionalFields == null) {
+                noMatchConditionalFields = new ArrayList<Field>();
+            }
+            noMatchConditionalFields.add(field);
+            return this;
+        }
+
+        /**
+         * Add a field against which highlighting should be tried only if this field has matches.
+         * @param field field to highlight
+         * @return this for chaining
+         */
+        public Field addMatchConditionalField(Field field) {
+            if (matchConditionalFields == null) {
+                matchConditionalFields = new ArrayList<Field>();
+            }
+            matchConditionalFields.add(field);
+            return this;
+        }
+
+        /**
+         * Should the highlighter skip its normal highlighting and just perform its noMatchSize action?
+         * @return this for chaining
+         */
+        public Field skipMatching(boolean skipMatching) {
+            this.skipMatching = skipMatching;
+            return this;
+        }
     }
 }

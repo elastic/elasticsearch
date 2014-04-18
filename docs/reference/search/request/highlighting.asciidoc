@@ -547,3 +547,89 @@ keep in mind that scoring more phrases consumes more time and memory.
 
 If using `matched_fields` keep in mind that `phrase_limit` phrases per
 matched field are considered.
+
+[[conditional]]
+==== Conditional Highlighting
+coming[1.2.0]
+
+It is possible to vary the highlighting configuration based on where or not
+there were matches on a field using the `conditional` object and it's child
+objects, `match` and `no_match`.  For example, the configuration below
+highlights the `text` field first, the `auxiliary_text` field if there are
+no matches there, the `file_text` field if there are no matches there, then
+finally, if it didn't find anything, extracts some text from the beginning of
+the `text` field:
+
+[source,js]
+--------------------------------------------------
+{
+    "highlight": {
+        "fields": {
+            "text": {
+                "conditional": {
+                    "no_match": {
+                        "auxiliary_text": {
+                            "conditional": {
+                                "no_match": {
+                                    "file_text": {
+                                        "conditional": {
+                                           "no_match": {
+                                               "text": {
+                                                    "no_match_size": 100,
+                                                    "skip_matching": true
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+Note that adding `no_match_size` to the first `text` entry would short circuit
+the whole thing because no match snippets count as matches for the purposes
+of `conditional`.
+
+This example extracts extracts the first 100 characters from `text` if there is
+a match in `title`, otherwise it highlights `text` as normal.
+[source,js]
+--------------------------------------------------
+{
+    "highlight": {
+        "fields": {
+            "title": {
+                "conditional": {
+                    "match": {
+                        "text": {
+                            "no_match_size": 100,
+                            "skip_matching":  true
+                        }
+                    }
+                    "no_match": {
+                        "text": {
+                            "no_match_size": 100
+                        }
+                    },
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+
+[[skip-matching]]
+==== Conditional Highlighting
+coming[1.2.0]
+
+Setting `skip_matching` setting causes the highlighter to skip its normal match
+finding behavior and just perform its `no_match_size` behavior.  Thus setting
+it without `no_match_size` doesn't make much sense.
+
+The effect should be the same as setting the `highlight_query` to `match_all`
+but more efficient.

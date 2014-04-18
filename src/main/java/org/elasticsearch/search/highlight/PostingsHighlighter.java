@@ -83,9 +83,10 @@ public class PostingsHighlighter implements Highlighter {
         MapperHighlighterEntry mapperHighlighterEntry = highlighterEntry.mappers.get(fieldMapper);
 
         if (mapperHighlighterEntry == null) {
+            SortedSet<Term> queryTerms = field.fieldOptions().skipMatching() ? new TreeSet<Term>() : highlighterEntry.queryTerms;
             Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
             CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
-            BytesRef[] filteredQueryTerms = filterTerms(highlighterEntry.queryTerms, fieldMapper.names().indexName(), field.fieldOptions().requireFieldMatch());
+            BytesRef[] filteredQueryTerms = filterTerms(queryTerms, fieldMapper.names().indexName(), field.fieldOptions().requireFieldMatch());
             mapperHighlighterEntry = new MapperHighlighterEntry(passageFormatter, filteredQueryTerms);
         }
 

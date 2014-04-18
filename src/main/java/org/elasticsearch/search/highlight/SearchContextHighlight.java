@@ -22,7 +22,10 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Maps;
 import org.apache.lucene.search.Query;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -119,6 +122,21 @@ public class SearchContextHighlight {
 
         private int phraseLimit = -1;
 
+        /**
+         * Fields to attempt to highlight if this field didn't have any matches.  Cannot be specified globally.
+         */
+        private Collection<Field> noMatchConditionalFields;
+
+        /**
+         * Fields to attempt to highlight if this field had any matches.  Cannot be specified globally.
+         */
+        private Collection<Field> matchConditionalFields;
+
+        /**
+         * If true the highlighter should skip matching entirely and just perform its noMatchSize behavior.  Cannot be specified globally.
+         */
+        private boolean skipMatching = false;
+
         public int fragmentCharSize() {
             return fragmentCharSize;
         }
@@ -189,6 +207,18 @@ public class SearchContextHighlight {
 
         public Map<String, Object> options() {
             return options;
+        }
+
+        public Collection<Field> noMatchConditionalFields() {
+            return noMatchConditionalFields;
+        }
+
+        public Collection<Field> matchConditionalFields() {
+            return matchConditionalFields;
+        }
+
+        public boolean skipMatching() {
+            return skipMatching;
         }
 
         static class Builder {
@@ -280,6 +310,21 @@ public class SearchContextHighlight {
                 return this;
             }
 
+            Builder noMatchConditionalFields(Collection<Field> noMatchConditionalFields) {
+                fieldOptions.noMatchConditionalFields = noMatchConditionalFields;
+                return this;
+            }
+
+            Builder matchConditionalFields(Collection<Field> matchConditionalFields) {
+                fieldOptions.matchConditionalFields = matchConditionalFields;
+                return this;
+            }
+
+            Builder skipMatching(boolean skipMatching) {
+                fieldOptions.skipMatching = skipMatching;
+                return this;
+            }
+
             Builder matchedFields(Set<String> matchedFields) {
                 fieldOptions.matchedFields = matchedFields;
                 return this;
@@ -345,6 +390,12 @@ public class SearchContextHighlight {
                 }
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;
+                }
+                if (fieldOptions.phraseLimit == -1) {
+                    fieldOptions.phraseLimit = globalOptions.phraseLimit;
+                }
+                if (fieldOptions.noMatchConditionalFields == null) {
+                    fieldOptions.noMatchConditionalFields = globalOptions.noMatchConditionalFields;
                 }
 
                 return this;

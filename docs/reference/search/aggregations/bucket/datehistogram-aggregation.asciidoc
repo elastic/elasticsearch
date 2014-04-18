@@ -82,6 +82,28 @@ factor can be set to 1000.
 Specific offsets can be provided for pre rounding and post rounding. The `pre_offset` for pre rounding, and
 `post_offset` for post rounding. The format is the date time format (`1h`, `1d`, etc...).
 
+=== Hits
+
+The date histogram is a bucket aggregation and therefore returns the bucketed matching documents in the `hits` property
+of the response. This can optionally be suppressed by specifying a `search_type` of `count` in the URI. 
+Here is an example:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/twitter/tweet/_search?search_type=count' -d '{
+    "aggs" : {
+        "tweets_per_minute" : {
+            "date_histogram" : {
+                "field" : "timestamp",
+                "interval" : "1M",
+                "format" : "yyyy-MM-dd" <1>
+            }
+        }
+    }
+}
+'
+--------------------------------------------------
+
 ==== Keys
 
 Since internally, dates are represented as 64bit numbers, these numbers are returned as the bucket keys (each key

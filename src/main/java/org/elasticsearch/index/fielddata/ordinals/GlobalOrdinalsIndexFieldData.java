@@ -128,6 +128,11 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
             BytesValues.WithOrdinals values = afd.getBytesValues(false);
             Ordinals.Docs segmentOrdinals = values.ordinals();
             Ordinals.Docs globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
+            if (segmentOrdinals.getMaxOrd() == globalOrdinals.getMaxOrd()) {
+                // This means that a segment contains all the value and in that case segment ordinals
+                // can be used as global ordinals. This will save an extra lookup per hit.
+                return values;
+            }
 
             final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {

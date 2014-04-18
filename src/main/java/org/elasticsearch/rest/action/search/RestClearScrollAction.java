@@ -25,15 +25,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
@@ -56,14 +57,7 @@ public class RestClearScrollAction extends BaseRestHandler {
 
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-        client.clearScroll(clearRequest, new RestBuilderListener<ClearScrollResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(ClearScrollResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));
     }
 
     public static String[] splitScrollIds(String scrollIds) {

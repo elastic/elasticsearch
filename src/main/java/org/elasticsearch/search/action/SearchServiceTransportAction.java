@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -106,18 +107,18 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     public void sendFreeContext(DiscoveryNode node, long contextId, ClearScrollRequest request, final ActionListener<Boolean> actionListener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
-            searchService.freeContext(contextId);
-            actionListener.onResponse(true);
+            boolean freed = searchService.freeContext(contextId);
+            actionListener.onResponse(freed);
         } else {
-            transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new SearchFreeContextRequest(request, contextId), new TransportResponseHandler<TransportResponse>() {
+            transportService.sendRequest(node, SearchFreeContextTransportHandler.ACTION, new SearchFreeContextRequest(request, contextId), new TransportResponseHandler<SearchFreeContextResponse>() {
                 @Override
-                public TransportResponse newInstance() {
-                    return TransportResponse.Empty.INSTANCE;
+                public SearchFreeContextResponse newInstance() {
+                    return new SearchFreeContextResponse();
                 }
 
                 @Override
-                public void handleResponse(TransportResponse response) {
-                    actionListener.onResponse(true);
+                public void handleResponse(SearchFreeContextResponse response) {
+                    actionListener.onResponse(response.isFreed());
                 }
 
                 @Override
@@ -560,6 +561,40 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
+    class SearchFreeContextResponse extends TransportResponse {
+
+        private boolean freed;
+
+        SearchFreeContextResponse() {
+        }
+
+        SearchFreeContextResponse(boolean freed) {
+            this.freed = freed;
+        }
+
+        public boolean isFreed() {
+            return freed;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+                freed = in.readBoolean();
+            } else {
+                freed = true;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+                out.writeBoolean(freed);
+            }
+        }
+    }
+
     class SearchFreeContextTransportHandler extends BaseTransportRequestHandler<SearchFreeContextRequest> {
 
         static final String ACTION = "search/freeContext";
@@ -571,8 +606,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
         @Override
         public void messageReceived(SearchFreeContextRequest request, TransportChannel channel) throws Exception {
-            searchService.freeContext(request.id());
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            boolean freed = searchService.freeContext(request.id());
+            channel.sendResponse(new SearchFreeContextResponse(freed));
         }
 
         @Override

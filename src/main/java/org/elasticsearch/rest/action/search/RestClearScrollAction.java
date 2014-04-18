@@ -33,6 +33,7 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 import java.util.Arrays;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
@@ -61,7 +62,8 @@ public class RestClearScrollAction extends BaseRestHandler {
             public RestResponse buildResponse(ClearScrollResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                RestStatus restStatus = response.isNoneFreed() ? NOT_FOUND : OK;
+                return new BytesRestResponse(restStatus, builder);
             }
         });
     }

@@ -1,6 +1,8 @@
 [[elasticsearch-reference]]
 = Reference
 
+include::getting-started.asciidoc[]
+
 include::setup.asciidoc[]
 
 include::migration/migrate_1_0.asciidoc[]

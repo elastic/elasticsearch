@@ -779,7 +779,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
         if (!ignoreReplicaException(t)) {
-            logger.warn("Failed to perform " + transportAction + " on replica [" + index + "][" + shardId + "]. failing shard.", t);
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
@@ -790,7 +789,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
                 return;
             }
-            indexShard.failShard(transportAction + " failed", t);
+            indexShard.failShard(transportAction + " failed on replica", t);
         }
     }
 

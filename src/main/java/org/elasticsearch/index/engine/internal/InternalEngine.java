@@ -1144,6 +1144,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         if (failEngineLock.tryLock()) {
             assert !readLock.assertLockIsHeld() : "readLock is held by a thread that tries to fail the engine";
             if (failedEngine != null) {
+                logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
                 return;
             }
             try {
@@ -1163,7 +1164,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
 
         } else {
-            logger.debug("Tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
+            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
         }
     }
 

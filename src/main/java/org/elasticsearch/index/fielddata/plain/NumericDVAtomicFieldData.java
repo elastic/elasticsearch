@@ -53,11 +53,6 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
     }
 
     @Override
-    public int getNumDocs() {
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
         // good upper limit
         return reader.maxDoc();

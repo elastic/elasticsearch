@@ -34,11 +34,6 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
     boolean isMultiValued();
 
     /**
-     * The number of docs in this field data.
-     */
-    int getNumDocs();
-
-    /**
      * An upper limit of the number of unique values in this atomic field data.
      */
     long getNumberUniqueValues();

@@ -28,32 +28,24 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
  */
 public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFieldData {
 
-    public static FloatArrayAtomicFieldData empty(int numDocs) {
-        return new Empty(numDocs);
+    public static FloatArrayAtomicFieldData empty() {
+        return new Empty();
     }
-
-    private final int numDocs;
 
     protected long size = -1;
 
-    public FloatArrayAtomicFieldData(int numDocs) {
+    public FloatArrayAtomicFieldData() {
         super(true);
-        this.numDocs = numDocs;
     }
 
     @Override
     public void close() {
     }
 
-    @Override
-    public int getNumDocs() {
-        return numDocs;
-    }
-
     static class Empty extends FloatArrayAtomicFieldData {
 
-        Empty(int numDocs) {
-            super(numDocs);
+        Empty() {
+            super();
         }
 
         @Override
@@ -97,8 +89,8 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
         private final Ordinals ordinals;
         private final BigFloatArrayList values;
 
-        public WithOrdinals(BigFloatArrayList values, int numDocs, Ordinals ordinals) {
-            super(numDocs);
+        public WithOrdinals(BigFloatArrayList values, Ordinals ordinals) {
+            super();
             this.values = values;
             this.ordinals = ordinals;
         }
@@ -110,13 +102,13 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
 
         @Override
         public long getNumberUniqueValues() {
-            return ordinals.getNumOrds();
+            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
         }
 
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + values.sizeInBytes() + ordinals.getMemorySizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + values.sizeInBytes() + ordinals.getMemorySizeInBytes();
             }
             return size;
         }
@@ -173,8 +165,8 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
         private final FixedBitSet set;
         private final long numOrd;
 
-        public SingleFixedSet(BigFloatArrayList values, int numDocs, FixedBitSet set, long numOrd) {
-            super(numDocs);
+        public SingleFixedSet(BigFloatArrayList values, FixedBitSet set, long numOrd) {
+            super();
             this.values = values;
             this.set = set;
             this.numOrd = numOrd;
@@ -269,8 +261,8 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(BigFloatArrayList values, int numDocs, long numOrd) {
-            super(numDocs);
+        public Single(BigFloatArrayList values, long numOrd) {
+            super();
             this.values = values;
             this.numOrd = numOrd;
         }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -30,23 +29,16 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
 
-    private final AtomicReader reader;
     private final BinaryDocValues values;
 
-    GeoPointBinaryDVAtomicFieldData(AtomicReader reader, BinaryDocValues values) {
+    GeoPointBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.reader = reader;
         this.values = values == null ? BinaryDocValues.EMPTY : values;
     }
 
     @Override
     public boolean isMultiValued() {
         return false;
-    }
-
-    @Override
-    public int getNumDocs() {
-        return reader.maxDoc();
     }
 
     @Override

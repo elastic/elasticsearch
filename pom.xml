@@ -42,6 +42,13 @@
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>Codehaus Snapshots</id>
+            <url>http://repository.codehaus.org/</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -209,7 +216,7 @@
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
-            <version>2.1.9.Final</version>
+            <version>2.2.0.Final</version>
             <scope>compile</scope>
         </dependency>
 

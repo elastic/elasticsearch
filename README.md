@@ -75,32 +75,6 @@ One practical use for tag filtering is when an ec2 cluster contains many nodes t
 
 Though not dependent on actually using `ec2` as discovery (but still requires the cloud aws plugin installed), the plugin can automatically add node attributes relating to ec2 (for example, availability zone, that can be used with the awareness allocation feature). In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings.
 
-## S3 Gateway
-
-*note*: As explained [here](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-gateway-s3.html) S3 Gateway functionality is being deprecated. Please use [local gateway](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-gateway-local.html) instead.
-
-s3 based gateway allows to do long term reliable async persistency of the cluster state and indices directly to Amazon s3. Note, this is a shared gateway where the indices are periodically persisted to s3 while being served from the data location of each node. 
-
-Here is how it can be configured:
-
-    cloud:
-        aws:
-            access_key: AKVAIQBF2RECL7FJWGJQ
-            secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
-    
-    
-    gateway:
-        type: s3
-        s3:
-            bucket: bucket-name
-
-The following are a list of settings (prefixed with `gateway.s3`) that can further control the s3 gateway:
-
-* `chunk_size`: Big files are broken down into chunks (to overcome AWS 5g limit and use concurrent snapshotting). Default set to `100m`.
-
-### concurrent_streams
-
-The `gateway.s3.concurrent_streams` allow to throttle the number of streams (per node) opened against the shared gateway performing the snapshot operation. It defaults to `5`.
 
 ## S3 Repository
 

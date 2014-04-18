@@ -127,8 +127,12 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
             BytesValues.WithOrdinals values = afd.getBytesValues(false);
             Ordinals.Docs segmentOrdinals = values.ordinals();
-            Ordinals.Docs globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
-
+            final Ordinals.Docs globalOrdinals;
+            if (segmentOrdToGlobalOrdLookup != null) {
+                globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
+            } else {
+                globalOrdinals = segmentOrdinals;
+            }
             final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
                 bytesValues[i] = atomicReaders[i].afd.getBytesValues(false);

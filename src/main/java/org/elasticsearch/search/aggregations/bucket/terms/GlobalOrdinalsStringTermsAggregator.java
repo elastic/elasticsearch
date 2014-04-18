@@ -69,6 +69,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public void setNextReader(AtomicReaderContext reader) {
         globalValues = valuesSource.globalBytesValues();
         globalOrdinals = globalValues.ordinals();
+        initializeDocCounts(globalOrdinals.getMaxOrd());
     }
 
     @Override
@@ -76,7 +77,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         final int numOrds = globalOrdinals.setDocument(doc);
         for (int i = 0; i < numOrds; i++) {
             final long globalOrd = globalOrdinals.nextOrd();
-            collectBucket(doc, createBucketOrd(globalOrd));
+            collectExistingBucket(doc, createBucketOrd(globalOrd));
         }
     }
 

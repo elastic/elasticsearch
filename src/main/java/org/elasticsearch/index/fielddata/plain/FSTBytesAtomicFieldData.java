@@ -38,8 +38,8 @@ import java.io.IOException;
  */
 public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
-    public static FSTBytesAtomicFieldData empty(int numDocs) {
-        return new Empty(numDocs);
+    public static FSTBytesAtomicFieldData empty() {
+        return new Empty();
     }
 
     // 0 ordinal in values means no value (its null)
@@ -65,13 +65,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public int getNumDocs() {
-        return ordinals.getNumDocs();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
-        return ordinals.getNumOrds();
+        return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
     }
 
     @Override
@@ -180,18 +175,13 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
     final static class Empty extends FSTBytesAtomicFieldData {
 
-        Empty(int numDocs) {
-            super(null, new EmptyOrdinals(numDocs));
+        Empty() {
+            super(null, EmptyOrdinals.INSTANCE);
         }
 
         @Override
         public boolean isMultiValued() {
             return false;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return ordinals.getNumDocs();
         }
 
         @Override

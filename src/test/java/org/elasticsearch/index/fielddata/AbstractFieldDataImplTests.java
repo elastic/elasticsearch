@@ -67,7 +67,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         BytesValues values = fieldData.getBytesValues(randomBoolean());
-        for (int i = 0; i < fieldData.getNumDocs(); ++i) {
+        for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
             assertThat(values.setDocument(i), greaterThanOrEqualTo(1));
         }
     }
@@ -79,8 +79,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
@@ -177,8 +175,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         BytesValues bytesValues = fieldData
                 .getBytesValues(randomBoolean());
 
@@ -208,8 +204,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
@@ -253,8 +247,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
@@ -285,8 +277,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
         assertThat(fieldData.getMemorySizeInBytes(), greaterThanOrEqualTo(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 

@@ -435,9 +435,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         // First segment
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
         AtomicFieldData.WithOrdinals afd = globalOrdinals.load(topLevelReader.leaves().get(0));
-        assertThat(afd.getNumDocs(), equalTo(3));
         BytesValues.WithOrdinals values = afd.getBytesValues(randomBoolean());
-        Ordinals.Docs ordinals = values.ordinals().ordinals().ordinals();
+        Ordinals.Docs ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(2));
         long ord = ordinals.nextOrd();
         assertThat(ord, equalTo(4l));
@@ -453,9 +452,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
 
         // Second segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(1));
-        assertThat(afd.getNumDocs(), equalTo(4));
         values = afd.getBytesValues(randomBoolean());
-        ordinals = values.ordinals().ordinals().ordinals();
+        ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
         assertThat(ord, equalTo(6l));
@@ -491,8 +489,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         // Third segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(2));
         values = afd.getBytesValues(randomBoolean());
-        ordinals = values.ordinals().ordinals().ordinals();
-        assertThat(afd.getNumDocs(), equalTo(1));
+        ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
         assertThat(ord, equalTo(1l));

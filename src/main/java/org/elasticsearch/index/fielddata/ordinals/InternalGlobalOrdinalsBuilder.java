@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
@@ -141,51 +140,6 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         }
 
         @Override
-        public final Ordinals ordinals() {
-            return new Ordinals() {
-                @Override
-                public long getMemorySizeInBytes() {
-                    return memorySizeInBytes;
-                }
-
-                @Override
-                public boolean isMultiValued() {
-                    return GlobalOrdinalMapping.this.isMultiValued();
-                }
-
-                @Override
-                public int getNumDocs() {
-                    return GlobalOrdinalMapping.this.getNumDocs();
-                }
-
-                @Override
-                public long getNumOrds() {
-                    return GlobalOrdinalMapping.this.getNumOrds();
-                }
-
-                @Override
-                public long getMaxOrd() {
-                    return GlobalOrdinalMapping.this.getMaxOrd();
-                }
-
-                @Override
-                public Docs ordinals() {
-                    return GlobalOrdinalMapping.this;
-                }
-            };
-        }
-
-        @Override
-        public final int getNumDocs() {
-            return segmentOrdinals.getNumDocs();
-        }
-
-        @Override
-        public final long getNumOrds() {
-            return maxOrd - Ordinals.MIN_ORDINAL;
-        }
-
-        @Override
         public final long getMaxOrd() {
             return maxOrd;
         }
@@ -209,15 +163,6 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         public final long getOrd(int docId) {
             long segmentOrd = segmentOrdinals.getOrd(docId);
             return currentGlobalOrd = getGlobalOrd(segmentOrd);
-        }
-
-        @Override
-        public final LongsRef getOrds(int docId) {
-            LongsRef refs = segmentOrdinals.getOrds(docId);
-            for (int i = refs.offset; i < refs.length; i++) {
-                refs.longs[i] = getGlobalOrd(refs.longs[i]);
-            }
-            return refs;
         }
 
         @Override

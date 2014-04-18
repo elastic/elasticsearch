@@ -33,7 +33,6 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     private final ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds;
     private final long numberUniqueValues;
     private final long memorySizeInBytes;
-    private final int numDocs;
 
     public ParentChildAtomicFieldData(ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds) {
         this.typeToIds = typeToIds;
@@ -47,17 +46,11 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
             size += cursor.value.getMemorySizeInBytes();
         }
         this.memorySizeInBytes = size;
-        this.numDocs = typeToIds.isEmpty() ? 0 : typeToIds.values().toArray(PagedBytesAtomicFieldData.class)[0].getNumDocs();
     }
 
     @Override
     public boolean isMultiValued() {
         return true;
-    }
-
-    @Override
-    public int getNumDocs() {
-        return numDocs;
     }
 
     @Override

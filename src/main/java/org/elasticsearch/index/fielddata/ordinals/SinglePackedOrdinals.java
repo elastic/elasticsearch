@@ -29,17 +29,15 @@ public class SinglePackedOrdinals implements Ordinals {
 
     // ordinals with value 0 indicates no value
     private final PackedInts.Reader reader;
-    private final long numOrds;
     private final long maxOrd;
 
     private long size = -1;
 
     public SinglePackedOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         assert builder.getNumMultiValuesDocs() == 0;
-        this.numOrds = builder.getNumOrds();
         this.maxOrd = builder.getNumOrds() + 1;
         // We don't reuse the builder as-is because it might have been built with a higher overhead ratio
-        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(getNumOrds()), acceptableOverheadRatio);
+        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(getMaxOrd() - 1), acceptableOverheadRatio);
         PackedInts.copy(builder.getFirstOrdinals(), 0, reader, 0, builder.maxDoc(), 8 * 1024);
         this.reader = reader;
     }
@@ -58,16 +56,6 @@ public class SinglePackedOrdinals implements Ordinals {
     }
 
     @Override
-    public int getNumDocs() {
-        return reader.size();
-    }
-
-    @Override
-    public long getNumOrds() {
-        return numOrds;
-    }
-
-    @Override
     public long getMaxOrd() {
         return maxOrd;
     }
@@ -77,56 +65,21 @@ public class SinglePackedOrdinals implements Ordinals {
         return new Docs(this, reader);
     }
 
-    public static class Docs implements Ordinals.Docs {
+    public static class Docs extends Ordinals.AbstractDocs {
 
-        private final SinglePackedOrdinals parent;
         private final PackedInts.Reader reader;
 
         private final LongsRef longsScratch = new LongsRef(1);
         private long currentOrdinal;
 
         public Docs(SinglePackedOrdinals parent, PackedInts.Reader reader) {
-            this.parent = parent;
+            super(parent);
             this.reader = reader;
-        }
-
-        @Override
-        public Ordinals ordinals() {
-            return parent;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return parent.getNumDocs();
-        }
-
-        @Override
-        public long getNumOrds() {
-            return parent.getNumOrds();
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return parent.getMaxOrd();
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
         }
 
         @Override
         public long getOrd(int docId) {
             return currentOrdinal = reader.get(docId);
-        }
-
-        @Override
-        public LongsRef getOrds(int docId) {
-            final long ordinal = reader.get(docId);
-            longsScratch.offset = 0;
-            longsScratch.length = (int)Math.min(currentOrdinal, 1);
-            longsScratch.longs[0] = currentOrdinal = ordinal;
-            return longsScratch;
         }
 
         @Override

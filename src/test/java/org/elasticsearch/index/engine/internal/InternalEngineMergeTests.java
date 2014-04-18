@@ -52,10 +52,11 @@ public class InternalEngineMergeTests extends ElasticsearchIntegrationTest {
     @Test
     @LuceneTestCase.Slow
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
-        final int numOfShards = 5;
+        final int numOfShards = randomIntBetween(1,5);
         // some settings to keep num segments low
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numOfShards)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LogDocMergePolicyProvider.MIN_MERGE_DOCS_KEY, 10)
                 .put(LogDocMergePolicyProvider.MERGE_FACTORY_KEY, 5)
                 .put(LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB, 0.5)
@@ -75,6 +76,7 @@ public class InternalEngineMergeTests extends ElasticsearchIntegrationTest {
             IndicesStatsResponse stats = client().admin().indices().prepareStats("test").setSegments(true).setMerge(true).get();
             logger.info("index round [{}] - segments {}, total merges {}, current merge {}", i, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
         }
+        final long upperNumberSegments = 2 * numOfShards * 10;
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object input) {
@@ -82,13 +84,13 @@ public class InternalEngineMergeTests extends ElasticsearchIntegrationTest {
                 logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
                 long current = stats.getPrimaries().getMerge().getCurrent();
                 long count = stats.getPrimaries().getSegments().getCount();
-                return count < 50 && current == 0;
+                return count < upperNumberSegments && current == 0;
             }
         });
         IndicesStatsResponse stats = client().admin().indices().prepareStats().setSegments(true).setMerge(true).get();
         logger.info("numshards {}, segments {}, total merges {}, current merge {}", numOfShards, stats.getPrimaries().getSegments().getCount(), stats.getPrimaries().getMerge().getTotal(), stats.getPrimaries().getMerge().getCurrent());
         long count = stats.getPrimaries().getSegments().getCount();
-        assertThat(count, Matchers.lessThanOrEqualTo(50l));
+        assertThat(count, Matchers.lessThanOrEqualTo(upperNumberSegments));
     }
 
 }

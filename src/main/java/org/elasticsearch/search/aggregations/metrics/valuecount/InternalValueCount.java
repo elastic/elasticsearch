@@ -98,9 +98,11 @@ public class InternalValueCount extends MetricsAggregation implements ValueCount
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(name)
-                .field(CommonFields.VALUE, value)
-                .endObject();
+        builder.startObject(name);
+        writeTypeHint(builder, params);
+        builder.field(CommonFields.VALUE, value);
+        builder.endObject();
+        return builder;
     }
 
     @Override

@@ -137,6 +137,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        writeTypeHint(builder, params);
         builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
         for (InternalSignificantTerms.Bucket bucket : buckets) {

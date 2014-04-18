@@ -276,6 +276,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        writeTypeHint(builder, params);
         builder.startArray(CommonFields.BUCKETS);
         for (Bucket bucket : buckets) {
             builder.startObject();

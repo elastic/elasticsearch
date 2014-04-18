@@ -118,6 +118,7 @@ public class InternalPercentiles extends MetricsAggregation.MultiValue implement
         double[] percents = result.percents;
         if (keyed) {
             builder.startObject(name);
+            writeTypeHint(builder, params);
             for(int i = 0; i < percents.length; ++i) {
                 String key = String.valueOf(percents[i]);
                 double value = result.estimate(i);

@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
@@ -151,10 +152,19 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         out.writeVInt(size);
     }
 
+    protected void writeTypeHint(XContentBuilder builder, Params params) throws IOException
+    {
+        boolean typeHint = params.paramAsBoolean("agg_type_hint", false);
+        if (!typeHint) return;
+
+        builder.field(CommonFields.AGGREGATION_TYPE, type().name());
+    }
+
     /**
      * Common xcontent fields that are shared among addAggregation
      */
     public static final class CommonFields {
+        public static final XContentBuilderString AGGREGATION_TYPE = new XContentBuilderString("_type");
         public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
         public static final XContentBuilderString VALUE = new XContentBuilderString("value");
         public static final XContentBuilderString VALUE_AS_STRING = new XContentBuilderString("value_as_string");

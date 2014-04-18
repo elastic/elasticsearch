@@ -486,6 +486,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        writeTypeHint(builder, params);
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS);
         } else {

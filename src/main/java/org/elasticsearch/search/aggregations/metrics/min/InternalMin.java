@@ -110,6 +110,7 @@ public class InternalMin extends MetricsAggregation.SingleValue implements Min {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        writeTypeHint(builder, params);
         boolean hasValue = !Double.isInfinite(min);
         builder.field(CommonFields.VALUE, hasValue ? min : null);
         if (hasValue && valueFormatter != null) {

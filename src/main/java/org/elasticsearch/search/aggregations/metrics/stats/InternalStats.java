@@ -192,6 +192,7 @@ public class InternalStats extends MetricsAggregation.MultiValue implements Stat
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        writeTypeHint(builder, params);
         builder.field(Fields.COUNT, count);
         builder.field(Fields.MIN, count != 0 ? min : null);
         builder.field(Fields.MAX, count != 0 ? max : null);

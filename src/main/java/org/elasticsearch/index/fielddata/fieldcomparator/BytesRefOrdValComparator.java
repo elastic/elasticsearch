@@ -153,7 +153,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         public PerSegmentComparator(BytesValues.WithOrdinals termsIndex) {
             this.readerOrds = termsIndex.ordinals();
             this.termsIndex = termsIndex;
-            if (readerOrds.getNumOrds() > Long.MAX_VALUE / 4) {
+            if (readerOrds.getMaxOrd() > Long.MAX_VALUE / 4) {
                 throw new IllegalStateException("Current terms index pretends it has more than " + (Long.MAX_VALUE / 4) + " ordinals, which is unsupported by this impl");
             }
         }
@@ -297,7 +297,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         termsIndex = indexFieldData.load(context).getBytesValues(false);
-        assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
+        assert termsIndex.ordinals() != null;
         if (missingValue == null) {
             missingOrd = Ordinals.MISSING_ORDINAL;
         } else {
@@ -305,7 +305,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             assert consistentInsertedOrd(termsIndex, missingOrd, missingValue);
         }
         FieldComparator<BytesRef> perSegComp = null;
-        assert termsIndex.ordinals() != null && termsIndex.ordinals().ordinals() != null;
+        assert termsIndex.ordinals() != null;
         if (termsIndex.isMultiValued()) {
             perSegComp = new PerSegmentComparator(termsIndex) {
                 @Override
@@ -368,7 +368,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     }
 
     final protected static long binarySearch(BytesValues.WithOrdinals a, BytesRef key) {
-        return binarySearch(a, key, 1, a.ordinals().getNumOrds());
+        return binarySearch(a, key, Ordinals.MIN_ORDINAL, a.ordinals().getMaxOrd() - 1);
     }
 
     final protected static long binarySearch(BytesValues.WithOrdinals a, BytesRef key, long low, long high) {

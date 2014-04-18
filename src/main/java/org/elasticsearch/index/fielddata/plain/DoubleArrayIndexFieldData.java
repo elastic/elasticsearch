@@ -81,7 +81,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = DoubleArrayAtomicFieldData.empty(reader.maxDoc());
+            data = DoubleArrayAtomicFieldData.empty();
             estimator.afterLoad(null, data.getMemorySizeInBytes());
             return data;
         }
@@ -99,7 +99,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
-                data = new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                data = new DoubleArrayAtomicFieldData.WithOrdinals(values, build);
             } else {
                 Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
@@ -109,7 +109,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 long uniqueValuesArraySize = values.sizeInBytes();
                 long ordinalsSize = build.getMemorySizeInBytes();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
-                    data = new DoubleArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                    data = new DoubleArrayAtomicFieldData.WithOrdinals(values, build);
                     success = true;
                     return data;
                 }
@@ -121,9 +121,9 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {
-                    data = new DoubleArrayAtomicFieldData.Single(sValues, maxDoc, ordinals.getNumOrds());
+                    data = new DoubleArrayAtomicFieldData.Single(sValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 } else {
-                    data = new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
+                    data = new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 }
             }
             success = true;

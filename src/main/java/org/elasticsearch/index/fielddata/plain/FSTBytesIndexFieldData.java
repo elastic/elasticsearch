@@ -69,7 +69,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = FSTBytesAtomicFieldData.empty(reader.maxDoc());
+            data = FSTBytesAtomicFieldData.empty();
             estimator.afterLoad(null, data.getMemorySizeInBytes());
             return data;
         }

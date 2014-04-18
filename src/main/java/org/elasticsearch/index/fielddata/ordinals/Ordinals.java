@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.LongsRef;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
@@ -38,16 +37,6 @@ public interface Ordinals {
      * Is one of the docs maps to more than one ordinal?
      */
     boolean isMultiValued();
-
-    /**
-     * The number of docs in this ordinals.
-     */
-    int getNumDocs();
-
-    /**
-     * The number of ordinals, excluding the {@link #MISSING_ORDINAL} ordinal indicating a missing value.
-     */
-    long getNumOrds();
 
     /**
      * Returns total unique ord count; this includes +1 for
@@ -79,21 +68,6 @@ public interface Ordinals {
     interface Docs {
 
         /**
-         * Returns the original ordinals used to generate this Docs "itereator".
-         */
-        Ordinals ordinals();
-
-        /**
-         * The number of docs in this ordinals.
-         */
-        int getNumDocs();
-
-        /**
-         * The number of ordinals, excluding the "0" ordinal (indicating a missing value).
-         */
-        long getNumOrds();
-
-        /**
          * Returns total unique ord count; this includes +1 for
          * the null ord (always 0).
          */
@@ -109,12 +83,6 @@ public interface Ordinals {
          * <tt>0</tt>.
          */
         long getOrd(int docId);
-
-        /**
-         * Returns an array of ordinals matching the docIds, with 0 length one
-         * for a doc with no ordinals.
-         */
-        LongsRef getOrds(int docId);
 
 
         /**
@@ -145,6 +113,29 @@ public interface Ordinals {
          * @return the current ordinal in the iteration
          */
         long currentOrd();
+    }
+
+    /**
+     * Base implementation of {@link Docs}.
+     */
+    public static abstract class AbstractDocs implements Docs {
+
+        protected final Ordinals ordinals;
+
+        public AbstractDocs(Ordinals ordinals) {
+            this.ordinals = ordinals;
+        }
+
+        @Override
+        public final long getMaxOrd() {
+            return ordinals.getMaxOrd();
+        }
+
+        @Override
+        public final boolean isMultiValued() {
+            return ordinals.isMultiValued();
+        }
+
     }
 
 }

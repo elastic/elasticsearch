@@ -407,7 +407,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             Docs leftOrds = left.ordinals();
             Docs rightOrds = right.ordinals();
             assertEquals(leftOrds.getMaxOrd(), rightOrds.getMaxOrd());
-            assertEquals(leftOrds.getNumOrds(), rightOrds.getNumOrds());
             for (long ord = Ordinals.MIN_ORDINAL; ord < leftOrds.getMaxOrd(); ++ord) {
                 assertEquals(left.getValueByOrd(ord), right.getValueByOrd(ord));
             }
@@ -503,9 +502,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
     private static void duelFieldDataBytes(Random random, AtomicReaderContext context, IndexFieldData<?> left, IndexFieldData<?> right, Preprocessor pre) throws Exception {
         AtomicFieldData<?> leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicFieldData<?> rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
-        assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
 
-        int numDocs = leftData.getNumDocs();
+        int numDocs = context.reader().maxDoc();
         BytesValues leftBytesValues = leftData.getBytesValues(random.nextBoolean());
         BytesValues rightBytesValues = rightData.getBytesValues(random.nextBoolean());
         BytesRef leftSpare = new BytesRef();
@@ -540,9 +538,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         AtomicNumericFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicNumericFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
-        assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
-
-        int numDocs = leftData.getNumDocs();
+        int numDocs = context.reader().maxDoc();
         DoubleValues leftDoubleValues = leftData.getDoubleValues();
         DoubleValues rightDoubleValues = rightData.getDoubleValues();
         for (int i = 0; i < numDocs; i++) {
@@ -568,9 +564,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         AtomicNumericFieldData leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicNumericFieldData rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
-        assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
-
-        int numDocs = leftData.getNumDocs();
+        int numDocs = context.reader().maxDoc();
         LongValues leftLongValues = leftData.getLongValues();
         LongValues rightLongValues = rightData.getLongValues();
         for (int i = 0; i < numDocs; i++) {
@@ -592,9 +586,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         AtomicGeoPointFieldData<?> leftData = random.nextBoolean() ? left.load(context) : left.loadDirect(context);
         AtomicGeoPointFieldData<?> rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
-        assertThat(leftData.getNumDocs(), equalTo(rightData.getNumDocs()));
-
-        int numDocs = leftData.getNumDocs();
+        int numDocs = context.reader().maxDoc();
         GeoPointValues leftValues = leftData.getGeoPointValues();
         GeoPointValues rightValues = rightData.getGeoPointValues();
         for (int i = 0; i < numDocs; ++i) {

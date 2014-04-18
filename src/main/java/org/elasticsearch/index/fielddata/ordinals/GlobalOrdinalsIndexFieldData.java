@@ -162,11 +162,6 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         }
 
         @Override
-        public int getNumDocs() {
-            return afd.getNumDocs();
-        }
-
-        @Override
         public long getNumberUniqueValues() {
             return afd.getNumberUniqueValues();
         }

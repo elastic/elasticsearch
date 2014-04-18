@@ -207,7 +207,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             if (current != null) {
                 missing += current.counts.get(0);
                 total += current.total - current.counts.get(0);
-                if (current.values.ordinals().getNumOrds() > 0) {
+                if (current.values.ordinals().getMaxOrd() > Ordinals.MIN_ORDINAL) {
                     aggregators.add(current);
                 } else {
                     Releasables.close(current);
@@ -235,7 +235,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 missing += current.counts.get(0);
                 total += current.total - current.counts.get(0);
                 // if we have values for this one, add it
-                if (current.values.ordinals().getNumOrds() > 0) {
+                if (current.values.ordinals().getMaxOrd() > Ordinals.MIN_ORDINAL) {
                     aggregators.add(current);
                 } else {
                     Releasables.close(current);

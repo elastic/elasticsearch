@@ -54,7 +54,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
     @Override
     public AtomicGeoPointFieldData<ScriptDocValues> load(AtomicReaderContext context) {
         try {
-            return new GeoPointBinaryDVAtomicFieldData(context.reader(), context.reader().getBinaryDocValues(fieldNames.indexName()));
+            return new GeoPointBinaryDVAtomicFieldData(context.reader().getBinaryDocValues(fieldNames.indexName()));
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }

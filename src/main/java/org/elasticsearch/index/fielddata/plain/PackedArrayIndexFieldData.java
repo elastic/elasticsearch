@@ -101,7 +101,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         PackedArrayAtomicFieldData data = null;
         PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
-            data = PackedArrayAtomicFieldData.empty(reader.maxDoc());
+            data = PackedArrayAtomicFieldData.empty();
             estimator.adjustForNoTerms(data.getMemorySizeInBytes());
             return data;
         }
@@ -129,7 +129,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
             CommonSettings.MemoryStorageFormat formatHint = CommonSettings.getMemoryStorageHint(fieldDataType);
 
             if (build.isMultiValued() || formatHint == CommonSettings.MemoryStorageFormat.ORDINALS) {
-                data = new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                data = new PackedArrayAtomicFieldData.WithOrdinals(values, build);
             } else {
                 Docs ordinals = build.ordinals();
                 final FixedBitSet docsWithValues = builder.buildDocsWithValuesSet();
@@ -191,9 +191,9 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                             }
                         }
                         if (docsWithValues == null) {
-                            data = new PackedArrayAtomicFieldData.Single(sValues, minValue, reader.maxDoc(), ordinals.getNumOrds());
+                            data = new PackedArrayAtomicFieldData.Single(sValues, minValue, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                         } else {
-                            data = new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, reader.maxDoc(), missingValue, ordinals.getNumOrds());
+                            data = new PackedArrayAtomicFieldData.SingleSparse(sValues, minValue, missingValue, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                         }
                         break;
                     case PAGED:
@@ -210,13 +210,13 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         }
                         dpValues.freeze();
                         if (docsWithValues == null) {
-                            data = new PackedArrayAtomicFieldData.PagedSingle(dpValues, reader.maxDoc(), ordinals.getNumOrds());
+                            data = new PackedArrayAtomicFieldData.PagedSingle(dpValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                         } else {
-                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, reader.maxDoc(), docsWithValues, ordinals.getNumOrds());
+                            data = new PackedArrayAtomicFieldData.PagedSingleSparse(dpValues, docsWithValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                         }
                         break;
                     case ORDINALS:
-                        data = new PackedArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                        data = new PackedArrayAtomicFieldData.WithOrdinals(values, build);
                         break;
                     default:
                         throw new ElasticsearchException("unknown memory format: " + formatHint);

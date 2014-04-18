@@ -44,11 +44,6 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
     }
 
     @Override
-    public int getNumDocs() {
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
         return Long.MAX_VALUE;
     }

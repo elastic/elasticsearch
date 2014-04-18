@@ -145,11 +145,6 @@ final class BinaryDVNumericAtomicFieldData extends AbstractAtomicNumericFieldDat
     }
 
     @Override
-    public int getNumDocs() {
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
         return Long.MAX_VALUE; // no clue
     }

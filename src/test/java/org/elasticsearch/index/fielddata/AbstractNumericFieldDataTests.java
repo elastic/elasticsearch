@@ -54,8 +54,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         LongValues longValues = fieldData.getLongValues();
 
         assertThat(longValues.isMultiValued(), equalTo(false));
@@ -105,8 +103,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         fillSingleValueWithMissing();
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         LongValues longValues = fieldData.getLongValues();
 
@@ -184,8 +180,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         LongValues longValues = fieldData.getLongValues();
 
         assertThat(longValues.isMultiValued(), equalTo(true));
@@ -221,8 +215,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         LongValues longValues = fieldData.getLongValues();
 
         assertThat(longValues.isMultiValued(), equalTo(true));
@@ -257,8 +249,6 @@ public abstract class AbstractNumericFieldDataTests extends AbstractFieldDataImp
         fillAllMissing();
         IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         // long values
 

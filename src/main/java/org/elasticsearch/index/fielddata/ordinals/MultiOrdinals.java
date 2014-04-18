@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
@@ -87,16 +85,6 @@ public class MultiOrdinals implements Ordinals {
     }
 
     @Override
-    public int getNumDocs() {
-        return (int) endOffsets.size();
-    }
-
-    @Override
-    public long getNumOrds() {
-        return numOrds;
-    }
-
-    @Override
     public long getMaxOrd() {
         return numOrds + 1;
     }
@@ -106,9 +94,8 @@ public class MultiOrdinals implements Ordinals {
         return new MultiDocs(this);
     }
 
-    static class MultiDocs implements Ordinals.Docs {
+    static class MultiDocs extends Ordinals.AbstractDocs {
 
-        private final MultiOrdinals ordinals;
         private final MonotonicAppendingLongBuffer endOffsets;
         private final AppendingPackedLongBuffer ords;
         private final LongsRef longsScratch;
@@ -117,35 +104,10 @@ public class MultiOrdinals implements Ordinals {
         private long currentOrd;
 
         MultiDocs(MultiOrdinals ordinals) {
-            this.ordinals = ordinals;
+            super(ordinals);
             this.endOffsets = ordinals.endOffsets;
             this.ords = ordinals.ords;
             this.longsScratch = new LongsRef(16);
-        }
-
-        @Override
-        public Ordinals ordinals() {
-            return this.ordinals;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return ordinals.getNumDocs();
-        }
-
-        @Override
-        public long getNumOrds() {
-            return ordinals.getNumOrds();
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return ordinals.getMaxOrd();
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
         }
 
         @Override
@@ -157,22 +119,6 @@ public class MultiOrdinals implements Ordinals {
             } else {
                 return currentOrd = 1L + ords.get(startOffset);
             }
-        }
-
-        @Override
-        public LongsRef getOrds(int docId) {
-            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
-            final long endOffset = endOffsets.get(docId);
-            final int numValues = (int) (endOffset - startOffset);
-            if (longsScratch.length < numValues) {
-                longsScratch.longs = new long[ArrayUtil.oversize(numValues, RamUsageEstimator.NUM_BYTES_LONG)];
-            }
-            for (int i = 0; i < numValues; ++i) {
-                longsScratch.longs[i] = 1L + ords.get(startOffset + i);
-            }
-            longsScratch.offset = 0;
-            longsScratch.length = numValues;
-            return longsScratch;
         }
 
         @Override

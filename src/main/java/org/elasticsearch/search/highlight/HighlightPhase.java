@@ -76,8 +76,14 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
-        Map<String, HighlightField> highlightFields = newHashMap();
-        for (SearchContextHighlight.Field field : context.highlight().fields()) {
+        Map<String, HighlightField> highlightedFields = newHashMap();
+        highlightFields(context, hitContext, context.highlight().fields(), highlightedFields);
+
+        hitContext.hit().highlightFields(highlightedFields);
+    }
+
+    private void highlightFields(SearchContext context, HitContext hitContext, Iterable<SearchContextHighlight.Field> fields, Map<String, HighlightField> highlightedFields) {
+        for (SearchContextHighlight.Field field : fields) {
             Set<String> fieldNamesToHighlight;
             if (Regex.isSimpleMatchPattern(field.field())) {
                 DocumentMapper documentMapper = context.mapperService().documentMapper(hitContext.hit().type());
@@ -93,6 +99,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
             }
 
+            boolean hadMatches = false;
             for (String fieldName : fieldNamesToHighlight) {
                 FieldMapper<?> fieldMapper = getMapperForField(fieldName, context, hitContext);
                 if (fieldMapper == null) {
@@ -125,12 +132,20 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext, highlightQuery);
                 HighlightField highlightField = highlighter.highlight(highlighterContext);
                 if (highlightField != null) {
-                    highlightFields.put(highlightField.name(), highlightField);
+                    highlightedFields.put(highlightField.name(), highlightField);
+                }
+                hadMatches = hadMatches || (highlightField != null && highlightField.fragments().length > 0);
+            }
+            if (hadMatches) {
+                if (field.fieldOptions().matchConditionalFields() != null) {
+                    highlightFields(context, hitContext, field.fieldOptions().matchConditionalFields(), highlightedFields);
+                }
+            } else {
+                if (field.fieldOptions().noMatchConditionalFields() != null) {
+                    highlightFields(context, hitContext, field.fieldOptions().noMatchConditionalFields(), highlightedFields);
                 }
             }
         }
-
-        hitContext.hit().highlightFields(highlightFields);
     }
 
     private FieldMapper<?> getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {

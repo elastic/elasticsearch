@@ -22,7 +22,10 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.Maps;
 import org.apache.lucene.search.Query;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -119,6 +122,16 @@ public class SearchContextHighlight {
 
         private int phraseLimit = -1;
 
+        /**
+         * Fields to attempt to highlight if this field didn't have any matches.
+         */
+        private Collection<Field> noMatchConditionalFields;
+
+        /**
+         * Fields to attempt to highlight if this field had any matches.
+         */
+        private Collection<Field> matchConditionalFields;
+
         public int fragmentCharSize() {
             return fragmentCharSize;
         }
@@ -189,6 +202,14 @@ public class SearchContextHighlight {
 
         public Map<String, Object> options() {
             return options;
+        }
+
+        public Collection<Field> noMatchConditionalFields() {
+            return noMatchConditionalFields;
+        }
+
+        public Collection<Field> matchConditionalFields() {
+            return matchConditionalFields;
         }
 
         static class Builder {
@@ -280,6 +301,16 @@ public class SearchContextHighlight {
                 return this;
             }
 
+            Builder noMatchConditionalFields(Collection<Field> noMatchConditionalFields) {
+                fieldOptions.noMatchConditionalFields = noMatchConditionalFields;
+                return this;
+            }
+
+            Builder matchConditionalFields(Collection<Field> matchConditionalFields) {
+                fieldOptions.matchConditionalFields = matchConditionalFields;
+                return this;
+            }
+
             Builder matchedFields(Set<String> matchedFields) {
                 fieldOptions.matchedFields = matchedFields;
                 return this;
@@ -345,6 +376,15 @@ public class SearchContextHighlight {
                 }
                 if (fieldOptions.phraseLimit == -1) {
                     fieldOptions.phraseLimit = globalOptions.phraseLimit;
+                }
+                if (fieldOptions.phraseLimit == -1) {
+                    fieldOptions.phraseLimit = globalOptions.phraseLimit;
+                }
+                if (fieldOptions.noMatchConditionalFields == null) {
+                    fieldOptions.noMatchConditionalFields = globalOptions.noMatchConditionalFields;
+                }
+                if (fieldOptions.matchConditionalFields == null) {
+                    fieldOptions.matchConditionalFields = globalOptions.matchConditionalFields;
                 }
 
                 return this;

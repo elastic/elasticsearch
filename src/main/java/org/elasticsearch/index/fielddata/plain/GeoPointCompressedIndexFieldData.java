@@ -85,7 +85,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = new Empty(reader.maxDoc());
+            data = new Empty();
             estimator.afterLoad(null, data.getMemorySizeInBytes());
             return data;
         }
@@ -121,7 +121,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
                     lat = lat.resize(build.getMaxOrd());
                     lon = lon.resize(build.getMaxOrd());
                 }
-                data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, reader.maxDoc(), build);
+                data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, build);
             } else {
                 Docs ordinals = build.ordinals();
                 int maxDoc = reader.maxDoc();
@@ -134,9 +134,9 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    data = new GeoPointCompressedAtomicFieldData.Single(encoding, sLon, sLat, reader.maxDoc(), ordinals.getNumOrds());
+                    data = new GeoPointCompressedAtomicFieldData.Single(encoding, sLon, sLat, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 } else {
-                    data = new GeoPointCompressedAtomicFieldData.SingleFixedSet(encoding, sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
+                    data = new GeoPointCompressedAtomicFieldData.SingleFixedSet(encoding, sLon, sLat, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 }
             }
             success = true;

@@ -31,21 +31,10 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
  */
 public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
 
-    private final int numDocs;
-
     protected long size = -1;
-
-    public GeoPointDoubleArrayAtomicFieldData(int numDocs) {
-        this.numDocs = numDocs;
-    }
 
     @Override
     public void close() {
-    }
-
-    @Override
-    public int getNumDocs() {
-        return numDocs;
     }
 
     @Override
@@ -58,8 +47,8 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         private final BigDoubleArrayList lon, lat;
         private final Ordinals ordinals;
 
-        public WithOrdinals(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, Ordinals ordinals) {
-            super(numDocs);
+        public WithOrdinals(BigDoubleArrayList lon, BigDoubleArrayList lat, Ordinals ordinals) {
+            super();
             this.lon = lon;
             this.lat = lat;
             this.ordinals = ordinals;
@@ -72,13 +61,13 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         @Override
         public long getNumberUniqueValues() {
-            return ordinals.getNumOrds();
+            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
         }
 
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.sizeInBytes() + lat.sizeInBytes();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.sizeInBytes() + lat.sizeInBytes();
             }
             return size;
         }
@@ -126,8 +115,8 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         private final FixedBitSet set;
         private final long numOrds;
 
-        public SingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, FixedBitSet set, long numOrds) {
-            super(numDocs);
+        public SingleFixedSet(BigDoubleArrayList lon, BigDoubleArrayList lat, FixedBitSet set, long numOrds) {
+            super();
             this.lon = lon;
             this.lat = lat;
             this.set = set;
@@ -147,7 +136,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.sizeInBytes() + lat.sizeInBytes() + RamUsageEstimator.sizeOf(set.getBits());
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.sizeInBytes() + lat.sizeInBytes() + RamUsageEstimator.sizeOf(set.getBits());
             }
             return size;
         }
@@ -194,8 +183,8 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         private final BigDoubleArrayList lon, lat;
         private final long numOrds;
 
-        public Single(BigDoubleArrayList lon, BigDoubleArrayList lat, int numDocs, long numOrds) {
-            super(numDocs);
+        public Single(BigDoubleArrayList lon, BigDoubleArrayList lat, long numOrds) {
+            super();
             this.lon = lon;
             this.lat = lat;
             this.numOrds = numOrds;

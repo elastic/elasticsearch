@@ -25,7 +25,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
@@ -197,16 +196,6 @@ abstract class SortedSetDVAtomicFieldData {
         }
 
         @Override
-        public int getNumDocs() {
-            return reader.maxDoc();
-        }
-
-        @Override
-        public long getNumOrds() {
-            return numOrds;
-        }
-
-        @Override
         public long getMaxOrd() {
             return 1 + numOrds;
         }
@@ -220,43 +209,17 @@ abstract class SortedSetDVAtomicFieldData {
 
     }
 
-    static class SortedSetDocs implements Ordinals.Docs {
+    static class SortedSetDocs extends Ordinals.AbstractDocs {
 
-        private final SortedSetOrdinals ordinals;
         private final SortedSetDocValues values;
-        private final LongsRef longScratch;
+        private long[] ords;
         private int ordIndex = Integer.MAX_VALUE;
         private long currentOrdinal = -1;
 
         SortedSetDocs(SortedSetOrdinals ordinals, SortedSetDocValues values) {
-            this.ordinals = ordinals;
+            super(ordinals);
             this.values = values;
-            longScratch = new LongsRef(8);
-        }
-
-        @Override
-        public Ordinals ordinals() {
-            return ordinals;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return ordinals.getNumDocs();
-        }
-
-        @Override
-        public long getNumOrds() {
-            return ordinals.getNumOrds();
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return ordinals.getMaxOrd();
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
+            ords = new long[0];
         }
 
         @Override
@@ -266,30 +229,23 @@ abstract class SortedSetDVAtomicFieldData {
         }
 
         @Override
-        public LongsRef getOrds(int docId) {
-            values.setDocument(docId);
-            longScratch.offset = 0;
-            longScratch.length = 0;
-            for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
-                longScratch.longs = ArrayUtil.grow(longScratch.longs, longScratch.length + 1);
-                longScratch.longs[longScratch.length++] = 1 + ord;
-            }
-            return longScratch;
-        }
-
-        @Override
         public long nextOrd() {
-            assert ordIndex < longScratch.length;
-            return currentOrdinal = longScratch.longs[ordIndex++];
+            assert ordIndex < ords.length;
+            return currentOrdinal = ords[ordIndex++];
         }
 
         @Override
         public int setDocument(int docId) {
             // For now, we consume all ords and pass them to the iter instead of doing it in a streaming way because Lucene's
             // SORTED_SET doc values are cached per thread, you can't have a fully independent instance
-            final LongsRef ords = getOrds(docId);
+            values.setDocument(docId);
+            int i = 0;
+            for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                ords = ArrayUtil.grow(ords, i + 1);
+                ords[i++] = ord + Ordinals.MIN_ORDINAL;
+            }
             ordIndex = 0;
-            return ords.length;
+            return i;
         }
 
         @Override

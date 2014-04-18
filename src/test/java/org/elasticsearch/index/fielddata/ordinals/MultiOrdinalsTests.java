@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -113,11 +112,11 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
             } else {
                 if (!docOrds.isEmpty()) {
                     assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
-                    LongsRef ref = docs.getOrds(docId);
-                    assertThat(ref.offset, equalTo(0));
 
-                    for (int i = ref.offset; i < ref.length; i++) {
-                        assertThat("index: " + i + " offset: " + ref.offset + " len: " + ref.length, ref.longs[i], equalTo(docOrds.get(i)));
+                    final int numOrds = docs.setDocument(docId);
+                    assertThat(numOrds, equalTo(docOrds.size()));
+                    for (int i = 0; i < numOrds; i++) {
+                        assertThat(docs.nextOrd(), equalTo(docOrds.get(i)));
                     }
                     final long[] array = new long[docOrds.size()];
                     for (int i = 0; i < array.length; i++) {
@@ -273,16 +272,15 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                 numOrds = Math.max(numOrds, ordinalPlan[doc][ordinalPlan[doc].length - 1]);
             }
         }
-        assertThat(docs.getNumDocs(), equalTo(ordinalPlan.length));
-        assertThat(docs.getNumOrds(), equalTo(numOrds)); // Includes null ord
+        assertThat(docs.getMaxOrd(), equalTo(numOrds + Ordinals.MIN_ORDINAL)); // Includes null ord
         assertThat(docs.getMaxOrd(), equalTo(numOrds + 1));
         assertThat(docs.isMultiValued(), equalTo(true));
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
-            LongsRef ref = docs.getOrds(doc);
-            assertThat(ref.offset, equalTo(0));
             long[] ords = ordinalPlan[doc];
-            assertThat(ref, equalTo(new LongsRef(ords, 0, ords.length)));
-            assertIter(docs, doc, ords);
+            assertThat(docs.setDocument(doc), equalTo(ords.length));
+            for (int i = 0; i < ords.length; ++i) {
+                assertThat(docs.nextOrd(), equalTo(ords[i]));
+            }
         }
     }
 

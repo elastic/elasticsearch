@@ -105,7 +105,6 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     public void testGetBytesValues() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getNumDocs(), equalTo(8));
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());

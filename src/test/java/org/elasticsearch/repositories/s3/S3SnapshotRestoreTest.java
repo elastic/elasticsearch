@@ -142,7 +142,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
 
         // Test restore after index deletion
         logger.info("--> delete indices");
-        wipeIndices("test-idx-1", "test-idx-2");
+        cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion");
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));

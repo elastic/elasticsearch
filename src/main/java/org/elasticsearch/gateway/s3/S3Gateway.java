@@ -49,7 +49,7 @@ public class S3Gateway extends BlobStoreGateway {
     @Inject
     public S3Gateway(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                      ClusterName clusterName, AwsS3Service s3Service) throws IOException {
-        super(settings, threadPool, clusterService);
+        super(settings, threadPool, clusterService, clusterName);
 
         String bucket = componentSettings.get("bucket");
         if (bucket == null) {

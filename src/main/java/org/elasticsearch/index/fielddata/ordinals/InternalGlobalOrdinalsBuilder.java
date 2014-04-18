@@ -104,7 +104,8 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         breakerService.getBreaker().addWithoutBreaking(memorySizeInBytes);
 
         if (logger.isDebugEnabled()) {
-            String implName = segmentOrdToGlobalOrdLookups[0].getClass().getSimpleName();
+            // this does include the [] from the array in the impl name
+            String implName = segmentOrdToGlobalOrdLookups.getClass().getSimpleName();
             logger.debug(
                     "Global-ordinals[{}][{}][{}] took {} ms",
                     implName,
@@ -225,19 +226,31 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
                 PackedIntOrdinalMappingSource[] sources = new PackedIntOrdinalMappingSource[numSegments];
                 for (int i = 0; i < newSegmentOrdToGlobalOrdDeltas.length; i++) {
                     PackedInts.Reader segmentOrdToGlobalOrdDelta = newSegmentOrdToGlobalOrdDeltas[i];
-                    long ramUsed = segmentOrdToGlobalOrdDelta.ramBytesUsed();
-                    sources[i] = new PackedIntOrdinalMappingSource(segmentOrdToGlobalOrdDelta, ramUsed, maxOrd);
-                    memorySizeInBytesCounter += ramUsed;
+                    if (segmentOrdToGlobalOrdDelta.size() == maxOrd) {
+                        // This means that a segment contains all the value and in that case segment ordinals
+                        // can be used as global ordinals. This will save an extra lookup per hit.
+                        sources[i] = null;
+                    } else {
+                        long ramUsed = segmentOrdToGlobalOrdDelta.ramBytesUsed();
+                        sources[i] = new PackedIntOrdinalMappingSource(segmentOrdToGlobalOrdDelta, ramUsed, maxOrd);
+                        memorySizeInBytesCounter += ramUsed;
+                    }
+
                 }
                 return sources;
             } else {
                 OrdinalMappingSource[] sources = new OrdinalMappingSource[segmentOrdToGlobalOrdDeltas.length];
                 for (int i = 0; i < segmentOrdToGlobalOrdDeltas.length; i++) {
                     MonotonicAppendingLongBuffer segmentOrdToGlobalOrdLookup = segmentOrdToGlobalOrdDeltas[i];
-                    segmentOrdToGlobalOrdLookup.freeze();
-                    long ramUsed = segmentOrdToGlobalOrdLookup.ramBytesUsed();
-                    sources[i] = new CompressedOrdinalMappingSource(segmentOrdToGlobalOrdLookup, ramUsed, maxOrd);
-                    memorySizeInBytesCounter += ramUsed;
+                    if (segmentOrdToGlobalOrdLookup.size() == maxOrd) {
+                        // idem as above
+                        sources[i] = null;
+                    } else {
+                        segmentOrdToGlobalOrdLookup.freeze();
+                        long ramUsed = segmentOrdToGlobalOrdLookup.ramBytesUsed();
+                        sources[i] = new CompressedOrdinalMappingSource(segmentOrdToGlobalOrdLookup, ramUsed, maxOrd);
+                        memorySizeInBytesCounter += ramUsed;
+                    }
                 }
                 return sources;
             }

@@ -13,7 +13,7 @@ measuring their performance relative to one another.
 
 [IMPORTANT]
 =====
-To be eligible to run benchmarks nodes must be started with: *es.node.bench=true*. This is just a way to mark certain nodes as "executors". Searches will still be distributed out to the cluster in the normal manner. This is primarily a defensive measure to prevent production nodes from being flooded with potentially many requests. Typically one would start a single node with this setting and sumbmit benchmark requests to it.
+To be eligible to run benchmarks nodes must be started with: *es.node.bench=true*. This is just a way to mark certain nodes as "executors". Searches will still be distributed out to the cluster in the normal manner. This is primarily a defensive measure to prevent production nodes from being flooded with potentially many requests. Typically one would start a single node with this setting and submit benchmark requests to it.
 =====
 
 [source,bash]

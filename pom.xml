@@ -477,6 +477,7 @@
                                 <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
                                 <tests.rest>${tests.rest}</tests.rest>
                                 <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                                <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
                                 <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                                 <tests.network>${tests.network}</tests.network>
                                 <tests.cluster>${tests.cluster}</tests.cluster>

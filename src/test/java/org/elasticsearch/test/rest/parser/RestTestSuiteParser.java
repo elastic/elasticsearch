@@ -93,7 +93,7 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
 
             TestSection testSection = parseContext.parseTestSection();
             if (!restTestSuite.addTestSection(testSection)) {
-                throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in [" + restTestSuite.getDescription() + "]");
+                throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in [" + restTestSuite.getPath() + "]");
             }
         }
 

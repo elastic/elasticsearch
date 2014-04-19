@@ -40,16 +40,21 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
 
     private final FieldMapper.Names fieldNames;
     private final FieldDataType fieldDataType;
-    private final Atomic[] atomicReaders;
+    private final AtomicFieldData.WithOrdinals[] atomicReaders;
     private final long memorySizeInBytes;
 
     public GlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, LongValues globalOrdToFirstSegment, LongValues globalOrdToFirstSegmentDelta, OrdinalMappingSource[] segmentOrdToGlobalOrds, long memorySizeInBytes) {
         super(index, settings);
         this.fieldNames = fieldNames;
         this.fieldDataType = fieldDataType;
-        this.atomicReaders = new Atomic[segmentAfd.length];
+        this.atomicReaders = new AtomicFieldData.WithOrdinals[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
-            atomicReaders[i] = new Atomic(segmentAfd[i], globalOrdToFirstSegment, globalOrdToFirstSegmentDelta, segmentOrdToGlobalOrds[i]);
+            if (segmentOrdToGlobalOrds[i] == null) {
+                // Directly use segment ordinals as global ordinals
+                atomicReaders[i] = segmentAfd[i];
+            } else {
+                atomicReaders[i] = new Atomic(segmentAfd[i], globalOrdToFirstSegment, globalOrdToFirstSegmentDelta, segmentOrdToGlobalOrds[i]);
+            }
         }
         this.memorySizeInBytes = memorySizeInBytes;
     }
@@ -128,15 +133,13 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
             BytesValues.WithOrdinals values = afd.getBytesValues(false);
             Ordinals.Docs segmentOrdinals = values.ordinals();
             Ordinals.Docs globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
-            if (segmentOrdinals.getMaxOrd() == globalOrdinals.getMaxOrd()) {
-                // This means that a segment contains all the value and in that case segment ordinals
-                // can be used as global ordinals. This will save an extra lookup per hit.
-                return values;
-            }
-
             final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
-                bytesValues[i] = atomicReaders[i].afd.getBytesValues(false);
+                if (atomicReaders[i] instanceof Atomic) {
+                    bytesValues[i] = ((Atomic) atomicReaders[i]).afd.getBytesValues(false);
+                } else {
+                    bytesValues[i] = atomicReaders[i].getBytesValues(false);
+                }
             }
             return new BytesValues.WithOrdinals(globalOrdinals) {
 

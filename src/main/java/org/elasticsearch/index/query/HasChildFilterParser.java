@@ -36,6 +36,8 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.search.child.ChildrenConstantScoreQuery.*;
+
 /**
  *
  */
@@ -60,7 +62,7 @@ public class HasChildFilterParser implements FilterParser {
         boolean queryFound = false;
         String childType = null;
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
-        String executionHint = "global_ordinals";
+        ExecutionMode executionHint = ExecutionMode.GLOBAL_ORDINALS;
 
         String filterName = null;
         String currentFieldName = null;
@@ -106,7 +108,7 @@ public class HasChildFilterParser implements FilterParser {
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
-                    executionHint = parser.text();
+                    executionHint = ExecutionMode.fromString(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }

@@ -65,7 +65,7 @@ public class ChildrenConstantScoreQuery extends Query {
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter, String executionHint) {
+    public ChildrenConstantScoreQuery(ParentChildIndexFieldData parentChildIndexFieldData, Query childQuery, String parentType, String childType, Filter parentFilter, int shortCircuitParentDocSet, Filter nonNestedDocsFilter, ExecutionMode executionMode) {
         this.parentChildIndexFieldData = parentChildIndexFieldData;
         this.parentFilter = parentFilter;
         this.parentType = parentType;
@@ -73,7 +73,7 @@ public class ChildrenConstantScoreQuery extends Query {
         this.originalChildQuery = childQuery;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
-        this.executionMode = ExecutionMode.fromString(executionHint);
+        this.executionMode = executionMode;
     }
 
     @Override
@@ -218,8 +218,7 @@ public class ChildrenConstantScoreQuery extends Query {
         ORDINALS(new ParseField("ordinals")) {
             @Override
             AbstractParentCollector createCollector(String type, ParentChildIndexFieldData ifd, SearchContext searchContext) {
-                BytesRefHash parentIds = new BytesRefHash(512, searchContext.bigArrays());
-                return new ParentIdCollector(searchContext, type, ifd, parentIds);
+                return new ParentIdCollector(searchContext, type, ifd);
             }
 
             @Override
@@ -235,11 +234,10 @@ public class ChildrenConstantScoreQuery extends Query {
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
             @Override
             AbstractParentCollector createCollector(String type, ParentChildIndexFieldData ifd, SearchContext searchContext) {
-                OpenBitSet parentOrds = new OpenBitSet(512);
                 ParentChildIndexFieldData.WithOrdinals global = ifd.getGlobalParentChild(
                         type, searchContext.searcher().getIndexReader()
                 );
-                return new ParentOrdCollector(searchContext, parentOrds, global);
+                return new ParentOrdCollector(searchContext, global);
             }
 
             @Override
@@ -303,9 +301,10 @@ public class ChildrenConstantScoreQuery extends Query {
         private Ordinals.Docs ordinals;
         private BytesRefHash parentIds;
 
-        private ParentOrdCollector(SearchContext searchContext, OpenBitSet parentOrds, ParentChildIndexFieldData.WithOrdinals indexFieldData) {
+        private ParentOrdCollector(SearchContext searchContext, ParentChildIndexFieldData.WithOrdinals indexFieldData) {
             super(searchContext);
-            this.parentOrds = parentOrds;
+            // TODO: look into setting it to macOrd
+            this.parentOrds = new OpenBitSet(512);
             this.indexFieldData = indexFieldData;
         }
 
@@ -398,11 +397,11 @@ public class ChildrenConstantScoreQuery extends Query {
         // and prevents from fetch the actual id from FD and checking if it exists in parentIds
         private FixedBitSet seenOrdinals;
 
-        protected ParentIdCollector(SearchContext searchContext, String parentType, ParentChildIndexFieldData indexFieldData, BytesRefHash parentIds) {
+        protected ParentIdCollector(SearchContext searchContext, String parentType, ParentChildIndexFieldData indexFieldData) {
             super(searchContext);
             this.parentType = parentType;
             this.indexFieldData = indexFieldData;
-            this.parentIds = parentIds;
+            this.parentIds = new BytesRefHash(512, searchContext.bigArrays());
         }
 
         @Override

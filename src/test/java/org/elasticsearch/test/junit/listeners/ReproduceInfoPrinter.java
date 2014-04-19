@@ -35,6 +35,7 @@ import org.junit.runner.notification.RunListener;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
+import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SUITE;
 
@@ -142,7 +143,7 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendRestTestsProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC);
+            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

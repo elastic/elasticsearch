@@ -50,9 +50,7 @@ public class RestTestSuite {
         return name;
     }
 
-    //describes the rest test suite (e.g. index/10_with_id)
-    //useful also to reproduce failures
-    public String getDescription() {
+    public String getPath() {
         return api + "/" + name;
     }
 

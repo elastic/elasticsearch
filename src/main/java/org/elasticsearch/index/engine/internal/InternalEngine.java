@@ -619,17 +619,33 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     @Override
     public final Searcher acquireSearcher(String source) throws EngineException {
-        SearcherManager manager = this.searcherManager;
-        if (manager == null) {
-            throw new EngineClosedException(shardId);
-        }
+        boolean success = false;
         try {
-            IndexSearcher searcher = manager.acquire();
-            return newSearcher(source, searcher, manager);
+            /* Acquire order here is store -> manager since we need
+            * to make sure that the store is not closed before
+            * the searcher is acquired. */
+            store.incRef();
+            final SearcherManager manager = this.searcherManager;
+            /* This might throw NPE but that's fine we will run ensureOpen()
+            *  in the catch block and throw the right exception */
+            final IndexSearcher searcher = manager.acquire();
+            try {
+                final Searcher retVal = newSearcher(source, searcher, manager);
+                success = true;
+                return retVal;
+            } finally {
+                if (!success) {
+                    manager.release(searcher);
+                }
+            }
         } catch (Throwable ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
             logger.error("failed to acquire searcher, source {}", ex, source);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            if (!success) {  // release the ref in the case of an error...
+                store.decRef();
+            }
         }
     }
 
@@ -1328,18 +1344,15 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     class EngineSearcher implements Searcher {
-
         private final String source;
         private final IndexSearcher searcher;
         private final SearcherManager manager;
-        private final AtomicBoolean released;
+        private final AtomicBoolean released = new AtomicBoolean(false);
 
         private EngineSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
             this.source = source;
             this.searcher = searcher;
             this.manager = manager;
-            this.released = new AtomicBoolean(false);
-            store.incRef();
         }
 
         @Override

@@ -8,7 +8,7 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 rem Detect JVM version to figure out appropriate executable to use
 if not exist "%JAVA_HOME%\bin\java.exe" (
-echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Existing...
+echo JAVA_HOME points to an invalid Java installation (no java.exe found in "%JAVA_HOME%"^). Exiting...
 goto:eof
 )
 "%JAVA_HOME%\bin\java" -version 2>&1 | find "64-Bit" >nul:

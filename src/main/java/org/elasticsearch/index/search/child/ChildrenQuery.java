@@ -116,10 +116,8 @@ public class ChildrenQuery extends Query {
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("ChildrenQuery[").append(childType).append("/").append(parentType).append("](").append(originalChildQuery
-                .toString(field)).append(')').append(ToStringUtils.boost(getBoost()));
-        return sb.toString();
+        return "ChildrenQuery[" + childType + "/" + parentType + "](" + originalChildQuery
+                .toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override
@@ -189,19 +187,36 @@ public class ChildrenQuery extends Query {
         }
         searchContext.addReleasable(collector, Lifetime.COLLECTION);
         final Filter parentFilter;
-        if (numFoundParents == 1) {
-            BytesRef id = collector.parentIds().get(0, new BytesRef());
-            if (nonNestedDocsFilter != null) {
-                List<Filter> filters = Arrays.asList(
-                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                        nonNestedDocsFilter
-                );
-                parentFilter = new AndFilter(filters);
+        if (numFoundParents <= shortCircuitParentDocSet) {
+            if (numFoundParents == 1) {
+                collector.values.getValueByOrd(collector.parentOrds.nextSetBit(0));
+                BytesRef id = collector.values.copyShared();
+                if (nonNestedDocsFilter != null) {
+                    List<Filter> filters = Arrays.asList(
+                            new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
+                            nonNestedDocsFilter
+                    );
+                    parentFilter = new AndFilter(filters);
+                } else {
+                    parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+                }
             } else {
-                parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+                BytesRefHash parentIds= null;
+                boolean constructed = false;
+                try {
+                    parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
+                    for (long parentOrd = collector.parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = collector.parentOrds.nextSetBit(parentOrd + 1)) {
+                        parentIds.add(collector.values.getValueByOrd(parentOrd));
+                    }
+                    constructed = true;
+                } finally {
+                    if (!constructed) {
+                        Releasables.close(parentIds);
+                    }
+                }
+                searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
+                parentFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
             }
-        } else if (numFoundParents <= shortCircuitParentDocSet) {
-            parentFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, collector.parentIds());
         } else {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
@@ -321,14 +336,6 @@ public class ChildrenQuery extends Query {
 
         public long foundParents() {
             return parentOrds.cardinality();
-        }
-
-        public BytesRefHash parentIds() {
-            BytesRefHash parentIds = new BytesRefHash(parentOrds.cardinality(), searchContext.bigArrays());
-            for (long parentOrd = parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
-                parentIds.add(values.getValueByOrd(parentOrd));
-            }
-            return parentIds;
         }
 
         @Override

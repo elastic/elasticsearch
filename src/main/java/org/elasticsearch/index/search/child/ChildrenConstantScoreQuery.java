@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.OpenBitSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -42,6 +43,8 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -116,27 +119,77 @@ public class ChildrenConstantScoreQuery extends Query {
         }
 
         Filter shortCircuitFilter = null;
-        if (remaining == 1) {
-            BytesRef id = collector.values.getValueByOrd(collector.parentOrds.nextSetBit(0));
-            shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
-        } else if (remaining <= shortCircuitParentDocSet) {
-            BytesRefHash parentIds= null;
-            boolean constructed = false;
-            try {
-                parentIds = new BytesRefHash(remaining, searchContext.bigArrays());
-                for (long parentOrd = collector.parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = collector.parentOrds.nextSetBit(parentOrd + 1)) {
-                    parentIds.add(collector.values.getValueByOrd(parentOrd));
+        if (remaining <= shortCircuitParentDocSet) {
+            if (remaining == 1) {
+                collector.values.getValueByOrd(collector.parentOrds.nextSetBit(0));
+                BytesRef id = collector.values.copyShared();
+                if (nonNestedDocsFilter != null) {
+                    List<Filter> filters = Arrays.asList(
+                            new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
+                            nonNestedDocsFilter
+                    );
+                    shortCircuitFilter = new AndFilter(filters);
+                } else {
+                    shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
                 }
-                constructed = true;
-            } finally {
-                if (!constructed) {
-                    Releasables.close(parentIds);
+            } else {
+                BytesRefHash parentIds= null;
+                boolean constructed = false;
+                try {
+                    parentIds = new BytesRefHash(remaining, searchContext.bigArrays());
+                    for (long parentOrd = collector.parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = collector.parentOrds.nextSetBit(parentOrd + 1)) {
+                        parentIds.add(collector.values.getValueByOrd(parentOrd));
+                    }
+                    constructed = true;
+                } finally {
+                    if (!constructed) {
+                        Releasables.close(parentIds);
+                    }
                 }
+                searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
+                shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
             }
-            searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
-            shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
         }
         return new ParentWeight(parentFilter, globalIfd, shortCircuitFilter, collector);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        ChildrenConstantScoreQuery that = (ChildrenConstantScoreQuery) obj;
+        if (!originalChildQuery.equals(that.originalChildQuery)) {
+            return false;
+        }
+        if (!childType.equals(that.childType)) {
+            return false;
+        }
+        if (shortCircuitParentDocSet != that.shortCircuitParentDocSet) {
+            return false;
+        }
+        if (getBoost() != that.getBoost()) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = originalChildQuery.hashCode();
+        result = 31 * result + childType.hashCode();
+        result = 31 * result + shortCircuitParentDocSet;
+        result = 31 * result + Float.floatToIntBits(getBoost());
+        return result;
+    }
+
+    @Override
+    public String toString(String field) {
+        return "child_filter[" + childType + "/" + parentType + "](" + originalChildQuery + ')';
     }
 
     private final class ParentWeight extends Weight  {
@@ -292,47 +345,6 @@ public class ChildrenConstantScoreQuery extends Query {
             }
             return false;
         }
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || obj.getClass() != this.getClass()) {
-            return false;
-        }
-
-        ChildrenConstantScoreQuery that = (ChildrenConstantScoreQuery) obj;
-        if (!originalChildQuery.equals(that.originalChildQuery)) {
-            return false;
-        }
-        if (!childType.equals(that.childType)) {
-            return false;
-        }
-        if (shortCircuitParentDocSet != that.shortCircuitParentDocSet) {
-            return false;
-        }
-        if (getBoost() != that.getBoost()) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = originalChildQuery.hashCode();
-        result = 31 * result + childType.hashCode();
-        result = 31 * result + shortCircuitParentDocSet;
-        result = 31 * result + Float.floatToIntBits(getBoost());
-        return result;
-    }
-
-    @Override
-    public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("child_filter[").append(childType).append("/").append(parentType).append("](").append(originalChildQuery).append(')');
-        return sb.toString();
     }
 
 }

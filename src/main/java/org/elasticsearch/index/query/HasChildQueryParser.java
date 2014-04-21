@@ -35,8 +35,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQuery.*;
-
 /**
  *
  */
@@ -64,7 +62,6 @@ public class HasChildQueryParser implements QueryParser {
         ScoreType scoreType = null;
         int shortCircuitParentDocSet = 8192;
         String queryName = null;
-        ExecutionMode executionHint = ExecutionMode.GLOBAL_ORDINALS;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -106,8 +103,6 @@ public class HasChildQueryParser implements QueryParser {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if ("execution_hint".equals(currentFieldName)) {
-                    executionHint = ExecutionMode.fromString(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -158,7 +153,7 @@ public class HasChildQueryParser implements QueryParser {
         if (!deleteByQuery && scoreType != null) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
-            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionHint);
+            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
             if (deleteByQuery) {
                 query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
             }

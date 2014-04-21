@@ -72,7 +72,6 @@ import java.util.NavigableSet;
 import java.util.Random;
 import java.util.TreeSet;
 
-import static org.elasticsearch.index.search.child.ChildrenConstantScoreQuery.*;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase {
@@ -94,7 +93,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE, ExecutionMode.GLOBAL_ORDINALS);
+        Query query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, 12, NonNestedDocsFilter.INSTANCE);
         QueryUtils.check(query);
     }
 
@@ -130,8 +129,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         int shortCircuitParentDocSet = random().nextInt(5);
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
-        ExecutionMode executionMode = random().nextBoolean() ? ExecutionMode.GLOBAL_ORDINALS : ExecutionMode.ORDINALS;
-        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null, executionMode);
+        ChildrenConstantScoreQuery query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, null);
 
         BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
         searcher.search(query, collector);
@@ -274,16 +272,15 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
             TermQuery childQuery = new TermQuery(new Term("field1", childValue));
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
-            ExecutionMode executionMode = random().nextBoolean() ? ExecutionMode.GLOBAL_ORDINALS : ExecutionMode.ORDINALS;
             Query query;
             if (random().nextBoolean()) {
                 // Usage in HasChildQueryParser
-                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionMode);
+                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
             } else {
                 // Usage in HasChildFilterParser
                 query = new XConstantScoreQuery(
                         new CustomQueryWrappingFilter(
-                                new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter, executionMode)
+                                new ChildrenConstantScoreQuery(parentChildIndexFieldData, childQuery, "parent", "child", parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter)
                         )
                 );
             }

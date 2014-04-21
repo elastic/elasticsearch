@@ -303,7 +303,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         private ParentOrdCollector(SearchContext searchContext, ParentChildIndexFieldData.WithOrdinals indexFieldData) {
             super(searchContext);
-            // TODO: look into setting it to macOrd
+            // TODO: look into setting it to maxOrd
             this.parentOrds = new OpenBitSet(512);
             this.indexFieldData = indexFieldData;
         }

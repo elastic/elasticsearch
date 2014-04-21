@@ -286,6 +286,7 @@ public class ChildrenQuery extends Query {
             this.parentType = parentType;
             this.globalIfd = globalIfd;
             this.bigArrays = searchContext.bigArrays();
+            // TODO: look into setting it to maxOrd
             this.parentOrds = new OpenBitSet(512);
             this.scores = bigArrays.newFloatArray(512, false);
             this.searchContext = searchContext;
@@ -374,6 +375,7 @@ public class ChildrenQuery extends Query {
 
         AvgCollector(IndexFieldData.WithOrdinals globalIfd, String childType, SearchContext searchContext) {
             super(globalIfd, childType, searchContext);
+            // TODO: look into setting it to maxOrd
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 

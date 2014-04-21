@@ -168,6 +168,7 @@ public class ParentQuery extends Query {
 
         ParentOrdAndScoreCollector(SearchContext searchContext, IndexFieldData.WithOrdinals globalIfd) {
             this.bigArrays = searchContext.bigArrays();
+            // TODO: look into setting it to maxOrd
             this.parentOrds = new OpenBitSet(512);
             this.scores = bigArrays.newFloatArray(512, false);
             this.globalIfd = globalIfd;

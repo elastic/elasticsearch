@@ -278,7 +278,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
     }
 
-    abstract static class AbstractParentCollector extends NoopCollector implements Releasable {
+    public abstract static class AbstractParentCollector extends NoopCollector implements Releasable {
 
         protected final SearchContext searchContext;
 

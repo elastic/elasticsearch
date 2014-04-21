@@ -210,9 +210,9 @@ public class ParentConstantScoreQuery extends Query {
             int ord = (int) ordinals.getOrd(doc);
             if (ord == Ordinals.MISSING_ORDINAL) {
                 return false;
+            } else {
+                return parentOrds.get(ord);
             }
-
-            return parentOrds.get(ord);
         }
 
     }

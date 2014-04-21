@@ -21,33 +21,28 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.OpenBitSet;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.util.*;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -147,24 +142,24 @@ public class ChildrenQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        SearchContext searchContext = SearchContext.current();
+        SearchContext sc = SearchContext.current();
         assert rewrittenChildQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
         final Query childQuery = rewrittenChildQuery;
 
-        IndexFieldData.WithOrdinals globalIfd = ifd.getGlobalParentChild(parentType, searchContext.searcher().getIndexReader());
+        IndexFieldData.WithOrdinals globalIfd = ifd.getGlobalParentChild(parentType, searcher.getIndexReader());
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
-        final ParentIdAndScoreCollector collector;
+        final ParentOrdAndScoreCollector collector;
         switch (scoreType) {
             case MAX:
-                collector = new MaxCollector(globalIfd, parentType, searchContext);
+                collector = new MaxCollector(globalIfd, sc);
                 break;
             case SUM:
-                collector = new SumCollector(globalIfd, parentType, searchContext);
+                collector = new SumCollector(globalIfd, sc);
                 break;
             case AVG:
-                collector = new AvgCollector(globalIfd, parentType, searchContext);
+                collector = new AvgCollector(globalIfd, sc);
                 break;
             default:
                 throw new RuntimeException("Are we missing a score type here? -- " + scoreType);
@@ -173,10 +168,9 @@ public class ChildrenQuery extends Query {
         boolean abort = true;
         long numFoundParents;
         try {
-            searcher.search(childQuery, collector);
+            indexSearcher.search(childQuery, collector);
             numFoundParents = collector.foundParents();
             if (numFoundParents == 0) {
-                Releasables.close(collector);
                 return Queries.newMatchNoDocsQuery().createWeight(searcher);
             }
             abort = false;
@@ -185,38 +179,12 @@ public class ChildrenQuery extends Query {
                 Releasables.close(collector);
             }
         }
-        searchContext.addReleasable(collector, Lifetime.COLLECTION);
+        sc.addReleasable(collector, Lifetime.COLLECTION);
         final Filter parentFilter;
         if (numFoundParents <= shortCircuitParentDocSet) {
-            if (numFoundParents == 1) {
-                collector.values.getValueByOrd(collector.parentOrds.nextSetBit(0));
-                BytesRef id = collector.values.copyShared();
-                if (nonNestedDocsFilter != null) {
-                    List<Filter> filters = Arrays.asList(
-                            new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                            nonNestedDocsFilter
-                    );
-                    parentFilter = new AndFilter(filters);
-                } else {
-                    parentFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
-                }
-            } else {
-                BytesRefHash parentIds= null;
-                boolean constructed = false;
-                try {
-                    parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
-                    for (long parentOrd = collector.parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = collector.parentOrds.nextSetBit(parentOrd + 1)) {
-                        parentIds.add(collector.values.getValueByOrd(parentOrd));
-                    }
-                    constructed = true;
-                } finally {
-                    if (!constructed) {
-                        Releasables.close(parentIds);
-                    }
-                }
-                searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
-                parentFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
-            }
+            parentFilter = ParentIdsFilter.createShortCircuitFilter(
+                    nonNestedDocsFilter, sc, parentType, collector.values, collector.parentOrds, numFoundParents
+            );
         } else {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
@@ -227,11 +195,11 @@ public class ChildrenQuery extends Query {
 
         private final Weight childWeight;
         private final Filter parentFilter;
-        private final ParentIdAndScoreCollector collector;
+        private final ParentOrdAndScoreCollector collector;
 
         private long remaining;
 
-        private ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentIdAndScoreCollector collector) {
+        private ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentOrdAndScoreCollector collector) {
             this.childWeight = childWeight;
             this.parentFilter = parentFilter;
             this.remaining = remaining;
@@ -283,11 +251,10 @@ public class ChildrenQuery extends Query {
 
     }
 
-    private abstract static class ParentIdAndScoreCollector extends NoopCollector implements Releasable {
+    private abstract static class ParentOrdAndScoreCollector extends NoopCollector implements Releasable {
 
         // Maybe use a LongHash instead, then the scores array will be smaller if not too many docs match
         protected final OpenBitSet parentOrds;
-        protected final String parentType;
         private final IndexFieldData.WithOrdinals globalIfd;
         protected final BigArrays bigArrays;
         protected FloatArray scores;
@@ -297,8 +264,7 @@ public class ChildrenQuery extends Query {
         protected BytesValues.WithOrdinals values;
         protected Scorer scorer;
 
-        private ParentIdAndScoreCollector(IndexFieldData.WithOrdinals globalIfd, String parentType, SearchContext searchContext) {
-            this.parentType = parentType;
+        private ParentOrdAndScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             this.globalIfd = globalIfd;
             this.bigArrays = searchContext.bigArrays();
             // TODO: look into setting it to maxOrd
@@ -349,10 +315,10 @@ public class ChildrenQuery extends Query {
         }
     }
 
-    private final static class SumCollector extends ParentIdAndScoreCollector {
+    private final static class SumCollector extends ParentOrdAndScoreCollector {
 
-        private SumCollector(IndexFieldData.WithOrdinals globalIfd, String parentType, SearchContext searchContext) {
-            super(globalIfd, parentType, searchContext);
+        private SumCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
         }
 
         @Override
@@ -361,10 +327,10 @@ public class ChildrenQuery extends Query {
         }
     }
 
-    private final static class MaxCollector extends ParentIdAndScoreCollector {
+    private final static class MaxCollector extends ParentOrdAndScoreCollector {
 
-        private MaxCollector(IndexFieldData.WithOrdinals globalIfd, String childType, SearchContext searchContext) {
-            super(globalIfd, childType, searchContext);
+        private MaxCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
         }
 
         @Override
@@ -376,12 +342,12 @@ public class ChildrenQuery extends Query {
         }
     }
 
-    private final static class AvgCollector extends ParentIdAndScoreCollector {
+    private final static class AvgCollector extends ParentOrdAndScoreCollector {
 
         private IntArray occurrences;
 
-        AvgCollector(IndexFieldData.WithOrdinals globalIfd, String childType, SearchContext searchContext) {
-            super(globalIfd, childType, searchContext);
+        AvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
             // TODO: look into setting it to maxOrd
             this.occurrences = bigArrays.newIntArray(512, false);
         }
@@ -403,6 +369,10 @@ public class ChildrenQuery extends Query {
             }
         }
 
+        @Override
+        public void close() throws ElasticsearchException {
+            Releasables.close(scores, occurrences);
+        }
     }
 
     private static class ParentScorer extends Scorer {
@@ -417,7 +387,7 @@ public class ChildrenQuery extends Query {
         int currentDocId = -1;
         float currentScore;
 
-        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentIdAndScoreCollector collector, Ordinals.Docs globalOrdinals) {
+        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentOrdAndScoreCollector collector, Ordinals.Docs globalOrdinals) {
             super(parentWeight);
             this.parentWeight = parentWeight;
             this.globalOrdinals = globalOrdinals;
@@ -493,9 +463,9 @@ public class ChildrenQuery extends Query {
 
     private static final class AvgParentScorer extends ParentScorer {
 
-        final IntArray occurrences;
+        private final IntArray occurrences;
 
-        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentIdAndScoreCollector collector, Ordinals.Docs globalOrdinals) {
+        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentOrdAndScoreCollector collector, Ordinals.Docs globalOrdinals) {
             super(weight, parentsIterator, collector, globalOrdinals);
             this.occurrences = ((AvgCollector) collector).occurrences;
         }

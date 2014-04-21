@@ -128,16 +128,16 @@ public class ParentQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        SearchContext searchContext = SearchContext.current();
-        IndexFieldData.WithOrdinals globalIfd = parentChildIndexFieldData.getGlobalParentChild(parentType, searchContext.searcher().getIndexReader());
-        final ParentOrdAndScoreCollector collector = new ParentOrdAndScoreCollector(searchContext, globalIfd);
+        SearchContext sc = SearchContext.current();
+        IndexFieldData.WithOrdinals globalIfd = parentChildIndexFieldData.getGlobalParentChild(parentType, searcher.getIndexReader());
+        final ParentOrdAndScoreCollector collector = new ParentOrdAndScoreCollector(sc, globalIfd);
         ChildWeight childWeight;
         boolean releaseCollectorResource = true;
         try {
             assert rewrittenParentQuery != null;
             assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
             final Query  parentQuery = rewrittenParentQuery;
-            IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
+            IndexSearcher indexSearcher = new IndexSearcher(sc.searcher().getIndexReader());
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
@@ -151,7 +151,7 @@ public class ParentQuery extends Query {
                 Releasables.close(collector);
             }
         }
-        searchContext.addReleasable(collector, Lifetime.COLLECTION);
+        sc.addReleasable(collector, Lifetime.COLLECTION);
         return childWeight;
     }
 

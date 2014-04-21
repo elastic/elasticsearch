@@ -22,29 +22,20 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.OpenBitSet;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
-import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -100,14 +91,14 @@ public class ChildrenConstantScoreQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        final SearchContext searchContext = SearchContext.current();
+        SearchContext sc = SearchContext.current();
         ParentChildIndexFieldData.WithOrdinals globalIfd = parentChildIndexFieldData.getGlobalParentChild(
                 parentType, searcher.getIndexReader()
         );
         assert rewrittenChildQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
-        final Query childQuery = rewrittenChildQuery;
+        Query childQuery = rewrittenChildQuery;
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
         ParentOrdCollector collector = new ParentOrdCollector(globalIfd);
@@ -120,35 +111,9 @@ public class ChildrenConstantScoreQuery extends Query {
 
         Filter shortCircuitFilter = null;
         if (remaining <= shortCircuitParentDocSet) {
-            if (remaining == 1) {
-                collector.values.getValueByOrd(collector.parentOrds.nextSetBit(0));
-                BytesRef id = collector.values.copyShared();
-                if (nonNestedDocsFilter != null) {
-                    List<Filter> filters = Arrays.asList(
-                            new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                            nonNestedDocsFilter
-                    );
-                    shortCircuitFilter = new AndFilter(filters);
-                } else {
-                    shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
-                }
-            } else {
-                BytesRefHash parentIds= null;
-                boolean constructed = false;
-                try {
-                    parentIds = new BytesRefHash(remaining, searchContext.bigArrays());
-                    for (long parentOrd = collector.parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = collector.parentOrds.nextSetBit(parentOrd + 1)) {
-                        parentIds.add(collector.values.getValueByOrd(parentOrd));
-                    }
-                    constructed = true;
-                } finally {
-                    if (!constructed) {
-                        Releasables.close(parentIds);
-                    }
-                }
-                searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
-                shortCircuitFilter = new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
-            }
+            shortCircuitFilter = ParentIdsFilter.createShortCircuitFilter(
+                    nonNestedDocsFilter, sc, parentType, collector.values, collector.parentOrds, remaining
+            );
         }
         return new ParentWeight(parentFilter, globalIfd, shortCircuitFilter, collector);
     }

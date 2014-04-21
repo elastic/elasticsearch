@@ -18,21 +18,26 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
+import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.OpenBitSet;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Advantages over using this filter over Lucene's TermsFilter in the parent child context:
@@ -43,11 +48,45 @@ import java.io.IOException;
  */
 final class ParentIdsFilter extends Filter {
 
+    static Filter createShortCircuitFilter(Filter nonNestedDocsFilter, SearchContext searchContext,
+                                           String parentType, BytesValues.WithOrdinals globalValues,
+                                           OpenBitSet parentOrds, long numFoundParents) {
+        if (numFoundParents == 1) {
+            globalValues.getValueByOrd(parentOrds.nextSetBit(0));
+            BytesRef id = globalValues.copyShared();
+            if (nonNestedDocsFilter != null) {
+                List<Filter> filters = Arrays.asList(
+                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
+                        nonNestedDocsFilter
+                );
+                return new AndFilter(filters);
+            } else {
+                return new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+            }
+        } else {
+            BytesRefHash parentIds= null;
+            boolean constructed = false;
+            try {
+                parentIds = new BytesRefHash(numFoundParents, searchContext.bigArrays());
+                for (long parentOrd = parentOrds.nextSetBit(0l); parentOrd != -1; parentOrd = parentOrds.nextSetBit(parentOrd + 1)) {
+                    parentIds.add(globalValues.getValueByOrd(parentOrd));
+                }
+                constructed = true;
+            } finally {
+                if (!constructed) {
+                    Releasables.close(parentIds);
+                }
+            }
+            searchContext.addReleasable(parentIds, SearchContext.Lifetime.COLLECTION);
+            return new ParentIdsFilter(parentType, nonNestedDocsFilter, parentIds);
+        }
+    }
+
     private final BytesRef parentTypeBr;
     private final Filter nonNestedDocsFilter;
     private final BytesRefHash parentIds;
 
-    ParentIdsFilter(String parentType, Filter nonNestedDocsFilter, BytesRefHash parentIds) {
+    private ParentIdsFilter(String parentType, Filter nonNestedDocsFilter, BytesRefHash parentIds) {
         this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.parentTypeBr = new BytesRef(parentType);
         this.parentIds = parentIds;

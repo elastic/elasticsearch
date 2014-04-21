@@ -378,7 +378,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         writeAllowed(create.origin());
         create = indexingService.preCreate(create);
         if (logger.isTraceEnabled()) {
-            logger.trace("index {}", create.docs());
+            logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
         }
         engine.create(create);
         create.endTime(System.nanoTime());
@@ -400,7 +400,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         index = indexingService.preIndex(index);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("index {}", index.docs());
+                logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
             engine.index(index);
             index.endTime(System.nanoTime());

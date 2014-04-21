@@ -61,7 +61,7 @@ public class DeleteByQueryWrappingFilter extends Filter {
         if (weight == null) {
             assert searcher == null;
             searcher = searchContext.searcher();
-            IndexReader indexReader = SearchContext.current().searcher().getIndexReader();
+            IndexReader indexReader = searcher.getIndexReader();
             IndexReader multiReader = null;
             try {
                 if (!contains(indexReader, context)) {
@@ -91,6 +91,7 @@ public class DeleteByQueryWrappingFilter extends Filter {
         return new DocIdSet() {
             @Override
             public DocIdSetIterator iterator() throws IOException {
+                // TODO: this fails with global ordinals! The context.ord is always 0 which picks the wrong AtomicFD in GlobalOrdinalsFieldData
                 return weight.scorer(context, true, false, acceptDocs);
             }
             @Override

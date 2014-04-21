@@ -178,13 +178,13 @@ public class ParentConstantScoreQuery extends Query {
                 return null;
             }
 
-            BytesValues.WithOrdinals bytesValues = globalIfd.load(context).getBytesValues(false);
-            if (bytesValues != null) {
+            BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues(false);
+            if (globalValues != null) {
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
-                    Ordinals.Docs ordinals = bytesValues.ordinals();
+                    Ordinals.Docs globalOrdinals = globalValues.ordinals();
                     ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(
-                            innerIterator, parentOrds, ordinals
+                            innerIterator, parentOrds, globalOrdinals
                     );
                     return ConstantScorer.create(childrenDocIdIterator, this, queryWeight);
                 }
@@ -197,21 +197,21 @@ public class ParentConstantScoreQuery extends Query {
     private final class ChildrenDocIdIterator extends FilteredDocIdSetIterator {
 
         private final OpenBitSet parentOrds;
-        private final Ordinals.Docs ordinals;
+        private final Ordinals.Docs globalOrdinals;
 
-        ChildrenDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet parentOrds, Ordinals.Docs ordinals) {
+        ChildrenDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet parentOrds, Ordinals.Docs globalOrdinals) {
             super(innerIterator);
             this.parentOrds = parentOrds;
-            this.ordinals = ordinals;
+            this.globalOrdinals = globalOrdinals;
         }
 
         @Override
-        protected boolean match(int doc) {
-            int ord = (int) ordinals.getOrd(doc);
-            if (ord == Ordinals.MISSING_ORDINAL) {
-                return false;
+        protected boolean match(int docId) {
+            int globalOrd = (int) globalOrdinals.getOrd(docId);
+            if (globalOrd != Ordinals.MISSING_ORDINAL) {
+                return parentOrds.get(globalOrd);
             } else {
-                return parentOrds.get(ord);
+                return false;
             }
         }
 

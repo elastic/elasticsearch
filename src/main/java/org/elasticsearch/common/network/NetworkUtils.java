@@ -49,12 +49,11 @@ public abstract class NetworkUtils {
     private final static InetAddress localAddress;
 
     static {
-        InetAddress localAddressX;
+        InetAddress localAddressX = null;
         try {
             localAddressX = InetAddress.getLocalHost();
-        } catch (Throwable e) {
-            logger.warn("failed to resolve local host, fallback to loopback", e);
-            localAddressX = InetAddress.getLoopbackAddress();
+        } catch (UnknownHostException e) {
+            logger.trace("Failed to find local host", e);
         }
         localAddress = localAddressX;
     }

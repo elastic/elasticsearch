@@ -59,7 +59,7 @@ The following settings can be set to manage the recovery policy:
     defaults to `true`.
 
 `indices.recovery.max_bytes_per_sec`::
-    defaults to `20mb`.
+    defaults to `50mb`.
 
 [float]
 [[throttling]]

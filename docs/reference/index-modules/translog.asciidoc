@@ -11,7 +11,7 @@ parameters:
 |=======================================================================
 |Setting |Description
 |index.translog.flush_threshold_ops |After how many operations to flush.
-Defaults to `5000`.
+Defaults to `unlimited`.
 
 |index.translog.flush_threshold_size |Once the translog hits this size,
 a flush will happen. Defaults to `200mb`.

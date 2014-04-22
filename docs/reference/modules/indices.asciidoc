@@ -72,5 +72,5 @@ The following settings can be set to control the store throttling:
     could be `merge` (default), `not` or `all`. See <<index-modules-store>>.
 
 `indices.store.throttle.max_bytes_per_sec`::
-    defaults to `20mb`.
+    defaults to `50mb`.
 

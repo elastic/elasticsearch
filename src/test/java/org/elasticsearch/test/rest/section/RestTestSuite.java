@@ -35,7 +35,7 @@ public class RestTestSuite {
 
     private SetupSection setupSection;
 
-    private Set<TestSection> testSections = Sets.newHashSet();
+    private Set<TestSection> testSections = Sets.newTreeSet();
 
     public RestTestSuite(String api, String name) {
         this.api = api;

@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.store.StoreRateLimiting;
@@ -156,7 +157,7 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
                     ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
-                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<String>();
+                    ObjectArrayList<String> concreteIndices = new ObjectArrayList<>();
                     for (IndexMetaData indexMetaData : clusterStateResponse.getState().metaData()) {
                         concreteIndices.add(indexMetaData.getIndex());
                     }
@@ -234,8 +235,8 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
                     setRandomSettings(random, ImmutableSettings.builder())
                     .put(SETTING_INDEX_SEED, random.nextLong())
                     .put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                    .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, 1));
-
+                    //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
+                    .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, random.nextInt(10) > 0 ? 1 : dataNodes() - 1));
             client().admin().indices().preparePutTemplate("random_index_template")
                     .setTemplate("*")
                     .setOrder(0)

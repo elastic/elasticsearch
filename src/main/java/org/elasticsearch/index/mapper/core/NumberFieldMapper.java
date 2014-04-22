@@ -63,6 +63,11 @@ import java.util.List;
 public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldMapper<T> implements AllFieldMapper.IncludeInAll {
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
+        
+        public static final int PRECISION_STEP_8_BIT  = Integer.MAX_VALUE; // 1tpv: 256 terms at most, not useful
+        public static final int PRECISION_STEP_16_BIT = 8;                 // 2tpv
+        public static final int PRECISION_STEP_32_BIT = 8;                 // 4tpv
+        public static final int PRECISION_STEP_64_BIT = 16;                // 4tpv
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 

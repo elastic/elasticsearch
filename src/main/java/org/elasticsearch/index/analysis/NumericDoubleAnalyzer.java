@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -49,10 +48,6 @@ public class NumericDoubleAnalyzer extends NumericAnalyzer<NumericDoubleTokenize
     }
 
     private final int precisionStep;
-
-    public NumericDoubleAnalyzer() {
-        this(DoubleFieldMapper.DEFAULT_PRECISION_STEP);
-    }
 
     public NumericDoubleAnalyzer(int precisionStep) {
         this.precisionStep = precisionStep;

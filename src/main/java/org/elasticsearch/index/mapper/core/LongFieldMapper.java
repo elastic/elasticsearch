@@ -63,7 +63,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     public static final String CONTENT_TYPE = "long";
-    public static final int DEFAULT_PRECISION_STEP = 16;
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
@@ -80,7 +79,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         protected Long nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
@@ -332,7 +331,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != DEFAULT_PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {

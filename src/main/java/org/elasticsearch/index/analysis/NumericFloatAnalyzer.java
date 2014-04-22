@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -49,10 +48,6 @@ public class NumericFloatAnalyzer extends NumericAnalyzer<NumericFloatTokenizer>
     }
 
     private final int precisionStep;
-
-    public NumericFloatAnalyzer() {
-        this(FloatFieldMapper.DEFAULT_PRECISION_STEP);
-    }
 
     public NumericFloatAnalyzer(int precisionStep) {
         this.precisionStep = precisionStep;

@@ -40,7 +40,7 @@ second. It can be set by setting `indices.store.throttle.type` to
 `merge`, and setting `indices.store.throttle.max_bytes_per_sec` to
 something like `5mb`. The node level settings can be changed dynamically
 using the cluster update settings API. The default is set
-to `20mb` with type `merge`.
+to `50mb` with type `merge`.
 
 If specific index level configuration is needed, regardless of the node
 level settings, it can be set as well using the

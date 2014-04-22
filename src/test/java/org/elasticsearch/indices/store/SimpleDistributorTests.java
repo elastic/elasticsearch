@@ -50,6 +50,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDirectoryToString() throws IOException {
+        cluster().wipeTemplates(); // no random settings please
         createIndexWithStoreType("test", "niofs", "least_used");
         String storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
@@ -58,7 +59,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         if (dataPaths.length > 1) {
             assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
-        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
+        assertThat(storeString, endsWith(", type=MERGE, rate=50.0)])"));
 
         createIndexWithStoreType("test", "niofs", "random");
         storeString = getStoreDirectory("test", 0).toString();
@@ -68,7 +69,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         if (dataPaths.length > 1) {
             assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(niofs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
-        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
+        assertThat(storeString, endsWith(", type=MERGE, rate=50.0)])"));
 
         createIndexWithStoreType("test", "mmapfs", "least_used");
         storeString = getStoreDirectory("test", 0).toString();
@@ -78,7 +79,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         if (dataPaths.length > 1) {
             assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(mmapfs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
-        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
+        assertThat(storeString, endsWith(", type=MERGE, rate=50.0)])"));
 
         createIndexWithStoreType("test", "simplefs", "least_used");
         storeString = getStoreDirectory("test", 0).toString();
@@ -88,7 +89,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
         if (dataPaths.length > 1) {
             assertThat(storeString.toLowerCase(Locale.ROOT), containsString("), rate_limited(simplefs(" + dataPaths[1].getAbsolutePath().toLowerCase(Locale.ROOT)));
         }
-        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
+        assertThat(storeString, endsWith(", type=MERGE, rate=50.0)])"));
 
         createIndexWithStoreType("test", "memory", "least_used");
         storeString = getStoreDirectory("test", 0).toString();

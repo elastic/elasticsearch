@@ -22,6 +22,7 @@ package org.elasticsearch.test;
 import com.carrotsearch.hppc.ObjectArrayList;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.SearchService;
 
@@ -228,10 +230,11 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (size() > 0) {
             ImmutableSettings.Builder builder =
-                    setRandomTranslogSettings(random, setRandomNormsLoading(setRandomMerge(random, ImmutableSettings.builder()))
-                            .put(SETTING_INDEX_SEED, random.nextLong()))
+                    setRandomSettings(random, ImmutableSettings.builder())
+                    .put(SETTING_INDEX_SEED, random.nextLong())
                     .put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
                     .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, 1));
+
             client().admin().indices().preparePutTemplate("random_index_template")
                     .setTemplate("*")
                     .setOrder(0)
@@ -240,7 +243,7 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
         }
     }
 
-    private ImmutableSettings.Builder setRandomNormsLoading(ImmutableSettings.Builder builder) {
+    private static ImmutableSettings.Builder setRandomNormsLoading(Random random, ImmutableSettings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(FieldMapper.Loading.EAGER, FieldMapper.Loading.LAZY)));
         }
@@ -263,6 +266,24 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
         if (random.nextBoolean()) {
             builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
         }
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
+        setRandomMerge(random, builder);
+        setRandomTranslogSettings(random, builder);
+        setRandomNormsLoading(random, builder);
+        if (random.nextBoolean()) {
+            if (random.nextInt(10) == 0) { // do something crazy slow here
+                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
+            } else {
+                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
+            }
+        }
+        if (random.nextBoolean()) {
+            builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
+        }
+
         return builder;
     }
 

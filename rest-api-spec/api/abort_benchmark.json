@@ -1,5 +1,5 @@
 {
-    "benchmark.abort" : {
+    "abort_benchmark" : {
         "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
         "methods": ["POST"],
         "url": {

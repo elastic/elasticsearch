@@ -9,12 +9,12 @@
                /^$/
 
   - do:
-      index:
-        index:  index1
-        type:   type1
-        id:     1
-        body:   { foo: bar }
-        refresh: true
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "5"
+            number_of_replicas: "1"
   - do:
        cluster.health:
          wait_for_status: yellow
@@ -30,6 +30,7 @@
         index: index2
         body:
           settings:
+            number_of_shards: "5"
             number_of_replicas: "0"
   - do:
        cluster.health:

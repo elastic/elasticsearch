@@ -189,7 +189,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                             }
                             schedule();
                         } finally {
-                            keys.release();
+                            keys.close();
                         }
                     }
                 });

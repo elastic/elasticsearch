@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -283,9 +284,12 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob: " + e.getMessage());
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("NodeStatsAction failure", e);
+                    if (e instanceof ClusterBlockException) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                    } else {
+                        logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
                     }
                 }
             });
@@ -311,9 +315,12 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
                 @Override
                 public void onFailure(Throwable e) {
-                    logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob: " + e.getMessage());
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("IndicesStatsAction failure", e);
+                    if (e instanceof ClusterBlockException) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                    } else {
+                        logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
                     }
                 }
             });

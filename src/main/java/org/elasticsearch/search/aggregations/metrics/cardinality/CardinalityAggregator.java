@@ -119,7 +119,7 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
         if (collector != null) {
             try {
                 collector.postCollect();
-                collector.release();
+                collector.close();
             } finally {
                 collector = null;
             }
@@ -154,8 +154,8 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
-    protected void doRelease() {
-        Releasables.release(counts, collector);
+    protected void doClose() {
+        Releasables.close(counts, collector);
     }
 
     private static interface Collector extends Releasable {
@@ -190,8 +190,8 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            return true;
+        public void close() throws ElasticsearchException {
+            // no-op
         }
 
     }
@@ -249,9 +249,7 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
             }
 
             final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
-            final LongArray hashes = bigArrays.newLongArray(maxOrd, false);
-            boolean success = false;
-            try {
+            try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                 for (int ord = allVisitedOrds.nextSetBit(0); ord != -1; ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : -1) {
                     final BytesRef value = values.getValueByOrd(ord);
                     org.elasticsearch.common.hash.MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
@@ -266,16 +264,12 @@ public class CardinalityAggregator extends MetricsAggregator.SingleValue {
                         }
                     }
                 }
-                success = true;
-            } finally {
-                Releasables.release(success, hashes);
             }
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(visitedOrds);
-            return true;
+        public void close() throws ElasticsearchException {
+            Releasables.close(visitedOrds);
         }
 
     }

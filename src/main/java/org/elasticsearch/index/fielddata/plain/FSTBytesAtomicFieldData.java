@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.*;
@@ -74,11 +75,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
@@ -125,7 +121,10 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         return new ScriptDocValues.Strings(getBytesValues(false));
     }
 
-
+    @Override
+    public TermsEnum getTermsEnum() {
+        return new AtomicFieldDataWithOrdinalsTermsEnum(this);
+    }
 
     static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
@@ -193,11 +192,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         @Override
         public int getNumDocs() {
             return ordinals.getNumDocs();
-        }
-
-        @Override
-        public boolean isValuesOrdered() {
-            return true;
         }
 
         @Override

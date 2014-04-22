@@ -201,7 +201,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        aggregated.release();
+        aggregated.close();
 
         return first;
     }

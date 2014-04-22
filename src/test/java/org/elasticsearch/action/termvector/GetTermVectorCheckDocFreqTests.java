@@ -141,9 +141,10 @@ public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest
         }
         assertThat(iterator.next(), Matchers.nullValue());
 
-        XContentBuilder xBuilder = new XContentFactory().jsonBuilder();
-
+        XContentBuilder xBuilder = XContentFactory.jsonBuilder();
+        xBuilder.startObject();
         response.toXContent(xBuilder, null);
+        xBuilder.endObject();
         BytesStream bytesStream = xBuilder.bytesStream();
         String utf8 = bytesStream.bytes().toUtf8();
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
@@ -197,9 +198,10 @@ public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest
         }
         assertThat(iterator.next(), Matchers.nullValue());
 
-        XContentBuilder xBuilder = new XContentFactory().jsonBuilder();
-
+        XContentBuilder xBuilder = XContentFactory.jsonBuilder();
+        xBuilder.startObject();
         response.toXContent(xBuilder, null);
+        xBuilder.endObject();
         BytesStream bytesStream = xBuilder.bytesStream();
         String utf8 = bytesStream.bytes().toUtf8();
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
@@ -257,7 +259,9 @@ public class GetTermVectorCheckDocFreqTests extends ElasticsearchIntegrationTest
         assertThat(iterator.next(), Matchers.nullValue());
 
         XContentBuilder xBuilder = XContentFactory.jsonBuilder();
+        xBuilder.startObject();
         response.toXContent(xBuilder, ToXContent.EMPTY_PARAMS);
+        xBuilder.endObject();
         BytesStream bytesStream = xBuilder.bytesStream();
         String utf8 = bytesStream.bytes().toUtf8();
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""

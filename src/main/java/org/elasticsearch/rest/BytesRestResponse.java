@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 public class BytesRestResponse extends RestResponse {
 
@@ -80,12 +79,21 @@ public class BytesRestResponse extends RestResponse {
         this.contentType = contentType;
     }
 
-    public BytesRestResponse(RestRequest request, Throwable t) throws IOException {
-        this(request, ((t instanceof ElasticsearchException) ? ((ElasticsearchException) t).status() : RestStatus.INTERNAL_SERVER_ERROR), t);
+    public BytesRestResponse(RestChannel channel, Throwable t) throws IOException {
+        this(channel, ((t instanceof ElasticsearchException) ? ((ElasticsearchException) t).status() : RestStatus.INTERNAL_SERVER_ERROR), t);
     }
 
-    public BytesRestResponse(RestRequest request, RestStatus status, Throwable t) throws IOException {
-        this(status, convert(request, status, t));
+    public BytesRestResponse(RestChannel channel, RestStatus status, Throwable t) throws IOException {
+        this.status = status;
+        if (channel.request().method() == RestRequest.Method.HEAD) {
+            this.content = BytesArray.EMPTY;
+            this.contentType = TEXT_CONTENT_TYPE;
+        } else {
+            XContentBuilder builder = convert(channel, status, t);
+            this.content = builder.bytes();
+            this.contentType = builder.contentType().restContentType();
+        }
+        this.contentThreadSafe = true;
     }
 
     @Override
@@ -108,11 +116,11 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
-    private static XContentBuilder convert(RestRequest request, RestStatus status, Throwable t) throws IOException {
-        XContentBuilder builder = restContentBuilder(request).startObject()
+    private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
+        XContentBuilder builder = channel.newBuilder().startObject()
                 .field("error", detailedMessage(t))
                 .field("status", status.getStatus());
-        if (t != null && request.paramAsBoolean("error_trace", false)) {
+        if (t != null && channel.request().paramAsBoolean("error_trace", false)) {
             builder.startObject("error_trace");
             boolean first = true;
             int counter = 0;

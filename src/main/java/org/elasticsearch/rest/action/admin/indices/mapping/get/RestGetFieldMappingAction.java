@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,7 +39,6 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.emptyBuilder;
 
 /**
  *
@@ -66,48 +64,31 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getFieldMappings(getMappingsRequest, new ActionListener<GetFieldMappingsResponse>() {
+        client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
 
             @SuppressWarnings("unchecked")
             @Override
-            public void onResponse(GetFieldMappingsResponse response) {
-                try {
-                    ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
+            public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
+                ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
 
-                    boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
-                    if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
-                        channel.sendResponse(new BytesRestResponse(OK, emptyBuilder(request)));
-                        return;
-                    }
-
-                    RestStatus status = OK;
-                    if (mappingsByIndex.isEmpty() && fields.length > 0) {
-                        status = NOT_FOUND;
-                    }
-
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(status, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
+                if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
+                    return new BytesRestResponse(OK, builder.startObject().endObject());
                 }
-            }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
+                RestStatus status = OK;
+                if (mappingsByIndex.isEmpty() && fields.length > 0) {
+                    status = NOT_FOUND;
                 }
+                builder.startObject();
+                response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                return new BytesRestResponse(status, builder);
             }
         });
     }
 
     /**
-     *
      * Helper method to find out if the only included fieldmapping metadata is typed NULL, which means
      * that type and index exist, but the field did not
      */

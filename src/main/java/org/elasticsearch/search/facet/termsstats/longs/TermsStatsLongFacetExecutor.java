@@ -75,7 +75,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         if (entries.v().isEmpty()) {
-            entries.release();
+            entries.close();
             return new InternalTermsStatsLongFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsLongFacet.LongEntry>of(), missing);
         }
         if (size == 0) { // all terms
@@ -89,7 +89,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
                 }
             }
 
-            entries.release();
+            entries.close();
             return new InternalTermsStatsLongFacet(facetName, comparatorType, 0 /* indicates all terms*/, longEntries, missing);
         }
 
@@ -106,7 +106,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
             }
             ordered.add(value);
         }
-        entries.release();
+        entries.close();
         return new InternalTermsStatsLongFacet(facetName, comparatorType, size, ordered, missing);
     }
 

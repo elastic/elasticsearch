@@ -90,7 +90,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
                     logger.debug(sb.toString());
                 }
             } finally {
-                snapshotIndexCommit.release();
+                snapshotIndexCommit.close();
             }
         } catch (SnapshotFailedEngineException e) {
             throw e;

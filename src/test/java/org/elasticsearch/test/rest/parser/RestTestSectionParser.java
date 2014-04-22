@@ -25,9 +25,6 @@ import java.io.IOException;
 
 /**
  * Parser for a complete test section
- *
- * Depending on the elasticsearch version the tests are going to run against, test sections might need to get skipped
- * In that case the relevant test sections parsing is entirely skipped
  */
 public class RestTestSectionParser implements RestTestFragmentParser<TestSection> {
 
@@ -39,21 +36,9 @@ public class RestTestSectionParser implements RestTestFragmentParser<TestSection
         parser.nextToken();
         testSection.setSkipSection(parseContext.parseSkipSection());
 
-        boolean skip = testSection.getSkipSection().skip(parseContext.getCurrentVersion());
-
         while ( parser.currentToken() != XContentParser.Token.END_ARRAY) {
-            if (skip) {
-                //if there was a skip section, there was a setup section as well, which means that we are sure
-                // the current token is at the beginning of a new object
-                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-                //we need to be at the beginning of an object to be able to skip children
-                parser.skipChildren();
-                //after skipChildren we are at the end of the skipped object, need to move on
-                parser.nextToken();
-            } else {
-                parseContext.advanceToFieldName();
-                testSection.addExecutableSection(parseContext.parseExecutableSection());
-            }
+            parseContext.advanceToFieldName();
+            testSection.addExecutableSection(parseContext.parseExecutableSection());
         }
 
         parser.nextToken();

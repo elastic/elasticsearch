@@ -19,28 +19,25 @@
 
 package org.elasticsearch.rest.action.termvector;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.termvector.TermVectorRequest;
 import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 
 /**
  * This class parses the json request and translates it into a
@@ -56,23 +53,13 @@ public class RestTermVectorAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         TermVectorRequest termVectorRequest = new TermVectorRequest(request.param("index"), request.param("type"), request.param("id"));
         XContentParser parser = null;
         if (request.hasContent()) {
             try {
                 parser = XContentFactory.xContent(request.content()).createParser(request.content());
                 TermVectorRequest.parseRequest(termVectorRequest, parser);
-            } catch (IOException e) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                    return;
-                }
             } finally {
                 if (parser != null) {
                     parser.close();
@@ -81,28 +68,7 @@ public class RestTermVectorAction extends BaseRestHandler {
         }
         readURIParameters(termVectorRequest, request);
 
-        client.termVector(termVectorRequest, new ActionListener<TermVectorResponse>() {
-            @Override
-            public void onResponse(TermVectorResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    response.toXContent(builder, request);
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
-
+        client.termVector(termVectorRequest, new RestToXContentListener<TermVectorResponse>(channel));
     }
 
     static public void readURIParameters(TermVectorRequest termVectorRequest, RestRequest request) {

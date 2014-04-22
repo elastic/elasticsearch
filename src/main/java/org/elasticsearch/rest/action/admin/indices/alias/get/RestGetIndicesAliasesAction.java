@@ -19,7 +19,6 @@
 package org.elasticsearch.rest.action.admin.indices.alias.get;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
@@ -34,9 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.common.Strings.isAllOrWildcard;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -62,49 +59,35 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
         final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                                .routingTable(false)
-                                .nodes(false)
-                                .indices(indices);
+                .routingTable(false)
+                .nodes(false)
+                .indices(indices);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.listenerThreaded(false);
 
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
+        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
-            public void onResponse(ClusterStateResponse response) {
-                try {
-                    MetaData metaData = response.getState().metaData();
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
+            public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
+                MetaData metaData = response.getState().metaData();
+                builder.startObject();
 
-                    final boolean isAllAliasesRequested = isAllOrWildcard(aliases);
-                    for (IndexMetaData indexMetaData : metaData) {
-                        builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-                        builder.startObject("aliases");
+                final boolean isAllAliasesRequested = isAllOrWildcard(aliases);
+                for (IndexMetaData indexMetaData : metaData) {
+                    builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject("aliases");
 
-                        for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
-                            if (isAllAliasesRequested || Regex.simpleMatch(aliases, cursor.value.alias())) {
-                                AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
-                            }
+                    for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                        if (isAllAliasesRequested || Regex.simpleMatch(aliases, cursor.value.alias())) {
+                            AliasMetaData.Builder.toXContent(cursor.value, builder, ToXContent.EMPTY_PARAMS);
                         }
-
-                        builder.endObject();
-                        builder.endObject();
                     }
 
                     builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                    builder.endObject();
                 }
-            }
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

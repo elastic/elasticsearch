@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -51,6 +51,13 @@ public abstract class BucketsAggregator extends Aggregator {
             }
         }
         collectableSugAggregators = collectables.toArray(new Aggregator[collectables.size()]);
+    }
+
+    /**
+     * Return an upper bound of the maximum bucket ordinal seen so far.
+     */
+    protected final long maxBucketOrd() {
+        return docCounts.size();
     }
 
     /**
@@ -110,16 +117,22 @@ public abstract class BucketsAggregator extends Aggregator {
         return new InternalAggregations(Arrays.asList(aggregations));
     }
 
-    @Override
-    public final boolean release() {
-        boolean success = false;
-        try {
-            super.release();
-            success = true;
-        } finally {
-            Releasables.release(success, docCounts);
+    /**
+     * Utility method to build empty aggregations of the sub aggregators.
+     */
+    protected final InternalAggregations bucketEmptyAggregations() {
+        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+        for (int i = 0; i < subAggregators.length; i++) {
+            aggregations[i] = subAggregators[i].buildEmptyAggregation();
         }
-        return true;
+        return new InternalAggregations(Arrays.asList(aggregations));
+    }
+
+    @Override
+    public final void close() {
+        try (Releasable releasable = docCounts) {
+            super.close();
+        }
     }
 
 }

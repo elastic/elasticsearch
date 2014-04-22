@@ -40,18 +40,16 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
 
-    private MockBigArrays bigarrays;
+    private BigArrays bigarrays;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        bigarrays = new MockBigArrays(ImmutableSettings.EMPTY, null);
+        bigarrays = new BigArrays(ImmutableSettings.EMPTY, null);
     }
 
     @After
     public void tearDown() throws Exception {
-        // necessary since we currently never release BigArrays
-        MockBigArrays.reset();
         super.tearDown();
     }
 

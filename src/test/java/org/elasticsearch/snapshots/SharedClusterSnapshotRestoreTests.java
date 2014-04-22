@@ -1036,12 +1036,8 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("--> waiting for block to kick in");
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
-        logger.info("--> execution was blocked on node [{}], checking snapshot status", blockedNode);
+        logger.info("--> execution was blocked on node [{}], checking snapshot status with specified repository and snapshot", blockedNode);
         SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus("test-repo").execute().actionGet();
-
-        logger.info("--> unblocking blocked node");
-        unblockNode(blockedNode);
-
         assertThat(response.getSnapshots().size(), equalTo(1));
         SnapshotStatus snapshotStatus = response.getSnapshots().get(0);
         assertThat(snapshotStatus.getState(), equalTo(SnapshotMetaData.State.STARTED));
@@ -1052,6 +1048,22 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 assertThat(shardStatus.getNodeId(), notNullValue());
             }
         }
+
+        logger.info("--> checking snapshot status for all currently running and snapshot with empty repository", blockedNode);
+        response = client.admin().cluster().prepareSnapshotStatus().execute().actionGet();
+        assertThat(response.getSnapshots().size(), equalTo(1));
+        snapshotStatus = response.getSnapshots().get(0);
+        assertThat(snapshotStatus.getState(), equalTo(SnapshotMetaData.State.STARTED));
+        // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
+        assertThat(snapshotStatus.getShardsStats().getStartedShards(), greaterThan(0));
+        for( SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
+            if (shardStatus.getStage() == SnapshotIndexShardStage.STARTED) {
+                assertThat(shardStatus.getNodeId(), notNullValue());
+            }
+        }
+
+        logger.info("--> unblocking blocked node");
+        unblockNode(blockedNode);
 
         SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
         logger.info("Number of failed shards [{}]", snapshotInfo.shardFailures().size());
@@ -1068,6 +1080,10 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(indexStatus.getShardsStats().getFailedShards(), equalTo(snapshotInfo.failedShards()));
         assertThat(indexStatus.getShardsStats().getDoneShards(), equalTo(snapshotInfo.successfulShards()));
         assertThat(indexStatus.getShards().size(), equalTo(snapshotInfo.totalShards()));
+
+        logger.info("--> checking snapshot status after it is done with empty repository", blockedNode);
+        response = client.admin().cluster().prepareSnapshotStatus().execute().actionGet();
+        assertThat(response.getSnapshots().size(), equalTo(0));
 
         try {
             client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").execute().actionGet();

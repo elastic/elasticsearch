@@ -40,6 +40,7 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.Set;
@@ -133,17 +134,13 @@ public class ParentQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
+        final ParentIdAndScoreCollector collector = new ParentIdAndScoreCollector(searchContext, parentChildIndexFieldData, parentType);
         ChildWeight childWeight;
         boolean releaseCollectorResource = true;
         try {
-            final Query parentQuery;
-            if (rewrittenParentQuery == null) {
-                parentQuery = rewrittenParentQuery = searcher.rewrite(originalParentQuery);
-            } else {
-                assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-                parentQuery = rewrittenParentQuery;
-            }
+            assert rewrittenParentQuery != null;
+            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+            final Query  parentQuery = rewrittenParentQuery;
             IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);
@@ -157,10 +154,10 @@ public class ParentQuery extends Query {
         } finally {
             if (releaseCollectorResource) {
                 // either if we run into an exception or if we return early
-                Releasables.release(collector.parentIds, collector.scores);
+                Releasables.close(collector.parentIds, collector.scores);
             }
         }
-        searchContext.addReleasable(childWeight);
+        searchContext.addReleasable(childWeight, Lifetime.COLLECTION);
         return childWeight;
     }
 
@@ -276,9 +273,8 @@ public class ParentQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(parentIds, scores, parentIdsIndexCache);
-            return true;
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIds, scores, parentIdsIndexCache);
         }
     }
 

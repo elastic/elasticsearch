@@ -109,7 +109,7 @@ public class SumAggregator extends MetricsAggregator.SingleValue {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(sums);
+    public void doClose() {
+        Releasables.close(sums);
     }
 }

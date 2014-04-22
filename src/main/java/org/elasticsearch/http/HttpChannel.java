@@ -20,10 +20,14 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestRequest;
 
 /**
  *
  */
-public interface HttpChannel extends RestChannel {
+public abstract class HttpChannel extends RestChannel {
 
+    protected HttpChannel(RestRequest request) {
+        super(request);
+    }
 }

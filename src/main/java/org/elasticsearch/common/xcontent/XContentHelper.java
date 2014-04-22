@@ -271,16 +271,16 @@ public class XContentHelper {
     }
 
     public static void copyCurrentStructure(XContentGenerator generator, XContentParser parser) throws IOException {
-        XContentParser.Token t = parser.currentToken();
+        XContentParser.Token token = parser.currentToken();
 
         // Let's handle field-name separately first
-        if (t == XContentParser.Token.FIELD_NAME) {
+        if (token == XContentParser.Token.FIELD_NAME) {
             generator.writeFieldName(parser.currentName());
-            t = parser.nextToken();
+            token = parser.nextToken();
             // fall-through to copy the associated value
         }
 
-        switch (t) {
+        switch (token) {
             case START_ARRAY:
                 generator.writeStartArray();
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {

@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.TermsEnum;
+
 /**
  * The thread safe {@link org.apache.lucene.index.AtomicReader} level cache of the data.
  */
-public interface AtomicFieldData<Script extends ScriptDocValues> {
+public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsage {
 
     /**
      * If this method returns false, this means that no document has multiple values. However this method may return true even if all
@@ -30,11 +32,6 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
      * simpler but cannot be used to actually check whether this instance is multi-valued.
      */
     boolean isMultiValued();
-
-    /**
-     * Are the values ordered? (in ascending manner).
-     */
-    boolean isValuesOrdered();
 
     /**
      * The number of docs in this field data.
@@ -45,11 +42,6 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
      * An upper limit of the number of unique values in this atomic field data.
      */
     long getNumberUniqueValues();
-
-    /**
-     * Size (in bytes) of memory used by this field data.
-     */
-    long getMemorySizeInBytes();
 
     /**
      * Use a non thread safe (lightweight) view of the values as bytes.
@@ -78,6 +70,12 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
          * @param needsHashes
          */
         BytesValues.WithOrdinals getBytesValues(boolean needsHashes);
+
+        /**
+         * Returns a terms enum to iterate over all the underlying values.
+         */
+        TermsEnum getTermsEnum();
+
     }
 
     /**

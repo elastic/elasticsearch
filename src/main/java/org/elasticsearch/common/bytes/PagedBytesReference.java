@@ -36,13 +36,17 @@ import java.nio.ByteBuffer;
 import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
 
-public final class PagedBytesReference implements BytesReference {
+/**
+ * A page based bytes reference, internally holding the bytes in a paged
+ * data structure.
+ */
+public class PagedBytesReference implements BytesReference {
 
     private static final int PAGE_SIZE = BigArrays.BYTE_PAGE_SIZE;
     private static final int NIO_GATHERING_LIMIT = 524288;
 
     private final BigArrays bigarrays;
-    private final ByteArray bytearray;
+    protected final ByteArray bytearray;
     private final int offset;
     private final int length;
     private int hash = 0;

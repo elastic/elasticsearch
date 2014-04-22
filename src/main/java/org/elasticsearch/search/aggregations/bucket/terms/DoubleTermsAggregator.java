@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -48,11 +50,11 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
     private DoubleValues values;
 
-    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormatter formatter, long estimatedBucketCount,
+    public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
                                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
         this.valuesSource = valuesSource;
-        this.formatter = formatter;
+        this.formatter = format != null ? format.formatter() : null;
         this.order = InternalOrder.validate(order, this);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -108,19 +110,13 @@ public class DoubleTermsAggregator extends BucketsAggregator {
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         DoubleTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.capacity(); ++i) {
-            final long ord = bucketOrds.id(i);
-            if (ord < 0) {
-                // slot is not allocated
-                continue;
-            }
-
+        for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new DoubleTerms.Bucket(0, 0, null);
             }
-            spare.term = Double.longBitsToDouble(bucketOrds.key(i));
-            spare.docCount = bucketDocCount(ord);
-            spare.bucketOrd = ord;
+            spare.term = Double.longBitsToDouble(bucketOrds.get(i));
+            spare.docCount = bucketDocCount(i);
+            spare.bucketOrd = i;
             spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
@@ -139,8 +135,8 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(bucketOrds);
+    public void doClose() {
+        Releasables.close(bucketOrds);
     }
 
 }

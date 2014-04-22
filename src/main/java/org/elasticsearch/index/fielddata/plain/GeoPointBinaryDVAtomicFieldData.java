@@ -45,11 +45,6 @@ final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<Scri
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return false;
-    }
-
-    @Override
     public int getNumDocs() {
         return reader.maxDoc();
     }

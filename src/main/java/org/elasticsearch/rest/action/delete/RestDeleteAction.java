@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.delete;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -32,9 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -74,35 +71,21 @@ public class RestDeleteAction extends BaseRestHandler {
             deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
 
-        client.delete(deleteRequest, new ActionListener<DeleteResponse>() {
+        client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
-            public void onResponse(DeleteResponse result) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject()
-                            .field(Fields.FOUND, result.isFound())
-                            .field(Fields._INDEX, result.getIndex())
-                            .field(Fields._TYPE, result.getType())
-                            .field(Fields._ID, result.getId())
-                            .field(Fields._VERSION, result.getVersion())
-                            .endObject();
-                    RestStatus status = OK;
-                    if (!result.isFound()) {
-                        status = NOT_FOUND;
-                    }
-                    channel.sendResponse(new BytesRestResponse(status, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+            public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
+                builder.startObject()
+                        .field(Fields.FOUND, result.isFound())
+                        .field(Fields._INDEX, result.getIndex())
+                        .field(Fields._TYPE, result.getType())
+                        .field(Fields._ID, result.getId())
+                        .field(Fields._VERSION, result.getVersion())
+                        .endObject();
+                RestStatus status = OK;
+                if (!result.isFound()) {
+                    status = NOT_FOUND;
                 }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                return new BytesRestResponse(status, builder);
             }
         });
     }

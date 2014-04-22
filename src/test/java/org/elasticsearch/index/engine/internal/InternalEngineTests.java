@@ -108,6 +108,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
+                .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool();
         store = createStore();
@@ -116,9 +117,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         storeReplica.deleteContent();
         engineSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
         engine = createEngine(engineSettingsService, store, createTranslog());
+        if (randomBoolean()) {
+            engine.enableGcDeletes(false);
+        }
         engine.start();
         replicaSettingsService = new IndexSettingsService(shardId.index(), EMPTY_SETTINGS);
         replicaEngine = createEngine(replicaSettingsService, storeReplica, createTranslogReplica());
+        if (randomBoolean()) {
+            replicaEngine.enableGcDeletes(false);
+        }
         replicaEngine.start();
     }
 
@@ -402,7 +409,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
-        searchResult.release();
+        searchResult.close();
 
         // create a document
         Document document = testDocumentWithTextField();
@@ -414,7 +421,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
@@ -434,7 +441,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
-        searchResult.release();
+        searchResult.close();
 
         // also in non realtime
         getResult = engine.get(new Engine.Get(false, newUid("1")));
@@ -454,7 +461,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // but, we can still get it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
@@ -470,7 +477,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
-        searchResult.release();
+        searchResult.close();
 
         // now delete
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
@@ -480,7 +487,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
-        searchResult.release();
+        searchResult.close();
 
         // but, get should not see it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
@@ -494,7 +501,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // add it back
         document = testDocumentWithTextField();
@@ -507,7 +514,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // refresh and it should be there
         engine.refresh(new Engine.Refresh("test").force(false));
@@ -517,7 +524,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // now flush
         engine.flush(new Engine.Flush());
@@ -541,7 +548,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // refresh and it should be updated
         engine.refresh(new Engine.Refresh("test").force(false));
@@ -550,7 +557,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
-        searchResult.release();
+        searchResult.close();
 
         engine.close();
     }
@@ -559,7 +566,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testSearchResultRelease() throws Exception {
         Engine.Searcher searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
-        searchResult.release();
+        searchResult.close();
 
         // create a document
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
@@ -569,7 +576,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         searchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
-        searchResult.release();
+        searchResult.close();
 
         // refresh and it should be there
         engine.refresh(new Engine.Refresh("test").force(false));
@@ -585,12 +592,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         engine.refresh(new Engine.Refresh("test").force(false));
         Engine.Searcher updateSearchResult = engine.acquireSearcher("test");
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
-        updateSearchResult.release();
+        updateSearchResult.close();
 
         // the non release search result should not see the deleted yet...
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
-        searchResult.release();
+        searchResult.close();
     }
 
 

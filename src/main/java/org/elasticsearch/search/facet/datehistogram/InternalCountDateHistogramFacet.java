@@ -156,7 +156,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
                 countEntries[entriesIndex++] = new CountEntry(keys[i], values[i]);
             }
         }
-        counts.release();
+        counts.close();
 
         Arrays.sort(countEntries, comparatorType.comparator());
 

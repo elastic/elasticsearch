@@ -89,7 +89,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         protected final int expectedSuccessfulOps;
         private final int expectedTotalOps;
 
-        protected final AtomicInteger successulOps = new AtomicInteger();
+        protected final AtomicInteger successfulOps = new AtomicInteger();
         private final AtomicInteger totalOps = new AtomicInteger();
 
         protected final AtomicArray<FirstResult> firstResults;
@@ -140,7 +140,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         public void start() {
             if (expectedSuccessfulOps == 0) {
                 // no search shards to search on, bail with empty response (it happens with search across _all with no indices around and consistent with broadcast operations)
-                listener.onResponse(new SearchResponse(InternalSearchResponse.EMPTY, null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
             request.beforeStart();
@@ -246,11 +246,13 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         void onFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result, ShardIterator shardIt) {
             result.shardTarget(new SearchShardTarget(shard.currentNodeId(), shard.index(), shard.id()));
             processFirstPhaseResult(shardIndex, shard, result);
-
+            // we need to increment successful ops first before we compare the exit condition otherwise if we
+            // are fast we could concurrently update totalOps but then preempt one of the threads which can
+            // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
+            successfulOps.incrementAndGet();
             // increment all the "future" shards to update the total ops since we some may work and some may not...
             // and when that happens, we break on total ops, so we must maintain them
-            int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
-            successulOps.incrementAndGet();
+            final int xTotalOps = totalOps.addAndGet(shardIt.remaining() + 1);
             if (xTotalOps == expectedTotalOps) {
                 try {
                     innerMoveToSecondPhase();
@@ -281,7 +283,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                         logger.trace("{}: Failed to execute [{}]", t, shard, request);
                     }
                 }
-                if (successulOps.get() == 0) {
+                if (successfulOps.get() == 0) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("All shards failed for phase: [{}]", firstPhaseName(), t);
                     }

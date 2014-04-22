@@ -197,7 +197,7 @@ The `offset` and `decay` parameters are optional.
 
 [horizontal]
 `offset`::
-    If an `offset` is defined, the decay function will only compute a the
+    If an `offset` is defined, the decay function will only compute the
     decay function for documents with a distance greater that the defined
     `offset`. The default is 0.
 

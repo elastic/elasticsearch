@@ -42,7 +42,7 @@ public class TestSectionParserTests extends AbstractParserTests {
         );
 
         RestTestSectionParser testSectionParser = new RestTestSectionParser();
-        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
@@ -54,34 +54,6 @@ public class TestSectionParserTests extends AbstractParserTests {
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_warmer"));
         assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
-    }
-
-    @Test
-    public void testParseTestSectionWithDoSetAndSkipSectionsSkip() throws Exception {
-        String yaml =
-                "\"First test section\": \n" +
-                "  - skip:\n" +
-                "      version:  \"0.90.0 - 0.90.7\"\n" +
-                "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
-                "  - do :\n" +
-                "      catch: missing\n" +
-                "      indices.get_warmer:\n" +
-                "          index: test_index\n" +
-                "          name: test_warmer\n" +
-                "  - set: {_scroll_id: scroll_id}";
-
-
-        RestTestSectionParser testSectionParser = new RestTestSectionParser();
-        parser = YamlXContent.yamlXContent.createParser(yaml);
-        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
-
-        assertThat(testSection, notNullValue());
-        assertThat(testSection.getName(), equalTo("First test section"));
-        assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getVersion(), equalTo("0.90.0 - 0.90.7"));
-        assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
-        //skip parsing when needed
-        assertThat(testSection.getExecutableSections().size(), equalTo(0));
     }
 
     @Test
@@ -101,7 +73,7 @@ public class TestSectionParserTests extends AbstractParserTests {
 
         RestTestSectionParser testSectionParser = new RestTestSectionParser();
         parser = YamlXContent.yamlXContent.createParser(yaml);
-        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.8"));
+        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
@@ -139,7 +111,7 @@ public class TestSectionParserTests extends AbstractParserTests {
         );
 
         RestTestSectionParser testSectionParser = new RestTestSectionParser();
-        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("Basic"));
@@ -193,7 +165,7 @@ public class TestSectionParserTests extends AbstractParserTests {
         );
 
         RestTestSectionParser testSectionParser = new RestTestSectionParser();
-        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("Basic"));
@@ -265,7 +237,7 @@ public class TestSectionParserTests extends AbstractParserTests {
                 "  - is_true: nodes\n" +
                 "  - is_true: cluster_name\n");
         RestTestSectionParser testSectionParser = new RestTestSectionParser();
-        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.5"));
+        TestSection testSection = testSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("node_info test"));
         assertThat(testSection.getExecutableSections().size(), equalTo(3));

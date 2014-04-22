@@ -47,7 +47,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -66,7 +66,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -87,7 +87,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -120,7 +120,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -147,7 +147,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -172,7 +172,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         String body = "{ \"_source\": [ \"include.field1\", \"include.field2\" ], \"query\": { \"match_all\": {} }}";
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -209,7 +209,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         bodies[3] = "{ \"f1\":\"v2\", \"f2\": 47 }";
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -243,7 +243,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         bodies[1] = "{ \"f1\":\"v1\", \"f2\": 42 }";
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -273,7 +273,7 @@ public class DoSectionParserTests extends AbstractParserTests {
                 "]}";
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -295,7 +295,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection, notNullValue());
@@ -322,7 +322,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         String body = "{ \"size\": 100, \"query\": { \"match_all\": {} } }";
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
         ApiCallSection apiCallSection = doSection.getApiCallSection();
 
         assertThat(apiCallSection.getApi(), equalTo("index"));
@@ -344,7 +344,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(doSection.getCatch(), equalTo("missing"));
         assertThat(doSection.getApiCallSection(), notNullValue());
@@ -360,7 +360,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
     }
 
     @Test
@@ -373,7 +373,7 @@ public class DoSectionParserTests extends AbstractParserTests {
         );
 
         DoSectionParser doSectionParser = new DoSectionParser();
-        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(doSection.getCatch(), nullValue());
         assertThat(doSection.getApiCallSection(), notNullValue());

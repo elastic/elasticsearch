@@ -2,6 +2,12 @@
 "Routing":
 
  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_shards: 5
+ - do:
       index:
           index:   test_1
           type:    test

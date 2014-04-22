@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.fielddata;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -36,6 +38,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -360,6 +364,54 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             perSegment.close();
         }
 
+    }
+
+    public void testDuelGlobalOrdinals() throws Exception {
+        Random random = getRandom();
+        final int numDocs = scaledRandomIntBetween(10, 1000);
+        final int numValues = scaledRandomIntBetween(10, 500);
+        final String[] values = new String[numValues];
+        for (int i = 0; i < numValues; ++i) {
+            values[i] = new String(RandomStrings.randomAsciiOfLength(random, 10));
+        }
+        for (int i = 0; i < numDocs; i++) {
+            Document d = new Document();
+            final int numVals = randomInt(3);
+            for (int j = 0; j < numVals; ++j) {
+                final String value = RandomPicks.randomFrom(random, Arrays.asList(values));
+                d.add(new StringField("string", value, Field.Store.NO));
+                if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
+                    d.add(new SortedSetDocValuesField("bytes", new BytesRef(value)));
+                }
+            }
+            writer.addDocument(d);
+            if (randomInt(10) == 0) {
+                refreshReader();
+            }
+        }
+        refreshReader();
+
+        Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
+        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
+        typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
+        if (LuceneTestCase.defaultCodecSupportsSortedSet()) {
+            typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "doc_values")), Type.Bytes);
+        }
+
+        for (Map.Entry<FieldDataType, Type> entry : typeMap.entrySet()) {
+            ifdService.clear();
+            IndexFieldData.WithOrdinals<?> fieldData = getForField(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
+            BytesValues.WithOrdinals left = fieldData.load(readerContext).getBytesValues(randomBoolean());
+            fieldData.clear();
+            BytesValues.WithOrdinals right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getBytesValues(randomBoolean());
+            Docs leftOrds = left.ordinals();
+            Docs rightOrds = right.ordinals();
+            assertEquals(leftOrds.getMaxOrd(), rightOrds.getMaxOrd());
+            assertEquals(leftOrds.getNumOrds(), rightOrds.getNumOrds());
+            for (long ord = Ordinals.MIN_ORDINAL; ord < leftOrds.getMaxOrd(); ++ord) {
+                assertEquals(left.getValueByOrd(ord), right.getValueByOrd(ord));
+            }
+        }
     }
 
     public void testDuelGeoPoints() throws Exception {

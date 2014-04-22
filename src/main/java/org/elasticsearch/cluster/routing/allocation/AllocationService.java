@@ -303,7 +303,7 @@ public class AllocationService extends AbstractComponent {
         if (routingNodes.hasUnassignedPrimaries()) {
             for (MutableShardRouting shardEntry : routingNodes.unassigned()) {
                 if (shardEntry.primary()) {
-                    for(MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
+                    for (MutableShardRouting routing : routingNodes.assignedShards(shardEntry)) {
                         if (!routing.primary()) {
                             changed = true;
                             if (shardsToFail == null) {
@@ -428,7 +428,7 @@ public class AllocationService extends AbstractComponent {
                 // first, we need to cancel the current node that is being initialized
                 RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
                 if (initializingNode != null) {
-                    while(initializingNode.hasNext()) {
+                    while (initializingNode.hasNext()) {
                         MutableShardRouting shardRouting = initializingNode.next();
                         if (shardRouting.equals(failedShard)) {
                             dirty = true;
@@ -454,6 +454,8 @@ public class AllocationService extends AbstractComponent {
                             }
                         }
                     }
+                } else {
+                    logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
                 }
                 return dirty;
             } else if (failedShard.state() == RELOCATING) {
@@ -464,7 +466,7 @@ public class AllocationService extends AbstractComponent {
                 // and add it to the unassigned shards list...
                 RoutingNodes.RoutingNodeIterator relocatingFromNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
                 if (relocatingFromNode != null) {
-                    while(relocatingFromNode.hasNext()) {
+                    while (relocatingFromNode.hasNext()) {
                         MutableShardRouting shardRouting = relocatingFromNode.next();
                         if (shardRouting.equals(failedShard)) {
                             dirty = true;
@@ -492,6 +494,8 @@ public class AllocationService extends AbstractComponent {
                             }
                         }
                     }
+                } else {
+                    logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
                 }
                 return dirty;
             } else {
@@ -502,7 +506,7 @@ public class AllocationService extends AbstractComponent {
             boolean dirty = false;
             RoutingNodes.RoutingNodeIterator node = routingNodes.routingNodeIter(failedShard.currentNodeId());
             if (node != null) {
-                while(node.hasNext()) {
+                while (node.hasNext()) {
                     MutableShardRouting shardRouting = node.next();
                     if (shardRouting.equals(failedShard)) {
                         dirty = true;
@@ -533,6 +537,9 @@ public class AllocationService extends AbstractComponent {
                         break;
                     }
                 }
+            }
+            if (!dirty) {
+                logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
             }
             return dirty;
         }

@@ -186,22 +186,18 @@ mvn test -Dtests.class=org.elasticsearch.test.rest.ElasticsearchRestTests
 `ElasticsearchRestTests` is the executable test class that runs all the
 yaml suites available within the `rest-api-spec` folder.
 
-The following are the options supported by the REST tests runner:
+The REST tests support all the options provided by the randomized runner, plus the following:
 
-* `tests.rest[true|false|host:port]`: determines whether the REST tests need
-to be run and if so whether to rely on an external cluster (providing host
-and port) or fire a test cluster (default). It's possible to provide a
-comma separated list of addresses to send requests in a round-robin fashion.
+* `tests.rest[true|false]`: determines whether the REST tests need to be run (default) or not.
 * `tests.rest.suite`: comma separated paths of the test suites to be run
 (by default loaded from /rest-api-spec/test). It is possible to run only a subset
 of the tests providing a sub-folder or even a single yaml file (the default
 /rest-api-spec/test prefix is optional when files are loaded from classpath)
 e.g. -Dtests.rest.suite=index,get,create/10_with_id
-* `tests.rest.section`: regex that allows to filter the test sections that
-are going to be run. If provided, only the section names that match (case
-insensitive) against it will be executed
 * `tests.rest.spec`: REST spec path (default /rest-api-spec/api)
-* `tests.iters`: runs multiple iterations
-* `tests.seed`: seed to base the random behaviours on
-* `tests.appendseed[true|false]`: enables adding the seed to each test
-section's description (default false)
+
+Note that the REST tests, like all the integration tests, can be run against an external
+cluster by specifying the `tests.cluster` property, which if present needs to contain a
+comma separated list of nodes to connect to (e.g. localhost:9300). A transport client will
+be created based on that and used for all the before|after test operations, and to extract
+the http addresses of the nodes so that REST requests can be sent to them.

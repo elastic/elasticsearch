@@ -39,6 +39,7 @@ import java.util.Random;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -103,7 +104,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(response.getFailedShards(), equalTo(0));
+            assertSearchResponse(response);
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
@@ -134,8 +135,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(response.getFailedShards(), equalTo(0));
-
+            assertSearchResponse(response);
 
             Filter filter = response.getAggregations().get("filtered");
 
@@ -163,7 +163,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(response.getFailedShards(), equalTo(0));
+            assertSearchResponse(response);
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             assertThat(geoGrid.getBuckets().size(), equalTo(0));
@@ -181,7 +181,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(response.getFailedShards(), equalTo(0));
+            assertSearchResponse(response);
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             for (GeoHashGrid.Bucket cell : geoGrid.getBuckets()) {
@@ -208,7 +208,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(response.getFailedShards(), equalTo(0));
+            assertSearchResponse(response);
 
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             //Check we only have one bucket with the best match for that resolution
@@ -244,7 +244,7 @@ public class GeoHashGridTests extends ElasticsearchIntegrationTest {
                     )
                     .execute().actionGet();
 
-            assertThat(response.getFailedShards(), equalTo(0));
+            assertSearchResponse(response);
             GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
             assertThat(geoGrid.getBuckets().size(), greaterThanOrEqualTo(1));
         }

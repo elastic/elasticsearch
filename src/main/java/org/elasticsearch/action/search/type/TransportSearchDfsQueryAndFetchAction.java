@@ -158,7 +158,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                 logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
             }
             this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
-            successulOps.decrementAndGet();
+            successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
                 finishHim();
             }
@@ -185,7 +185,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             if (request.scroll() != null) {
                 scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
             }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(), buildTookInMillis(), buildShardFailures()));
         }
     }
 }

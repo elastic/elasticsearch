@@ -34,11 +34,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class SnapshotsStatusRequest extends MasterNodeOperationRequest<SnapshotsStatusRequest> {
 
-    private String repository;
+    private String repository = "_all";
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
-    SnapshotsStatusRequest() {
+    public SnapshotsStatusRequest() {
     }
 
     /**

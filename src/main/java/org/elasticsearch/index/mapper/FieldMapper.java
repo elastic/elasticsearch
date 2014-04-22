@@ -162,15 +162,24 @@ public interface FieldMapper<T> extends Mapper {
             public String toString() {
                 return EAGER_VALUE;
             }
+        },
+        EAGER_GLOBAL_ORDINALS {
+            @Override
+            public String toString() {
+                return EAGER_GLOBAL_ORDINALS_VALUE;
+            }
         };
 
         public static final String KEY = "loading";
+        public static final String EAGER_GLOBAL_ORDINALS_VALUE = "eager_global_ordinals";
         public static final String EAGER_VALUE = "eager";
         public static final String LAZY_VALUE = "lazy";
 
         public static Loading parse(String loading, Loading defaultValue) {
             if (Strings.isNullOrEmpty(loading)) {
                 return defaultValue;
+            } else if (EAGER_GLOBAL_ORDINALS_VALUE.equalsIgnoreCase(loading)) {
+                return EAGER_GLOBAL_ORDINALS;
             } else if (EAGER_VALUE.equalsIgnoreCase(loading)) {
                 return EAGER;
             } else if (LAZY_VALUE.equalsIgnoreCase(loading)) {

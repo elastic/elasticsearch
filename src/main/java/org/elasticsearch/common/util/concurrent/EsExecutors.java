@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import jsr166y.LinkedTransferQueue;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.concurrent.*;

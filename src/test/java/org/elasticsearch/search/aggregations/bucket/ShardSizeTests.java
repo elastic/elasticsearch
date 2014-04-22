@@ -19,16 +19,23 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Ignore;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.is;
 
 @Ignore
@@ -77,39 +84,45 @@ public abstract class ShardSizeTests extends ElasticsearchIntegrationTest {
 
         */
 
+        List<IndexRequestBuilder> docs = new ArrayList<>();
 
-        indexDoc("1", "1", 5);
-        indexDoc("1", "2", 4);
-        indexDoc("1", "3", 3);
-        indexDoc("1", "4", 2);
-        indexDoc("1", "5", 1);
+        docs.addAll(indexDoc("1", "1", 5));
+        docs.addAll(indexDoc("1", "2", 4));
+        docs.addAll(indexDoc("1", "3", 3));
+        docs.addAll(indexDoc("1", "4", 2));
+        docs.addAll(indexDoc("1", "5", 1));
 
         // total docs in shard "1" = 15
 
-        indexDoc("2", "1", 3);
-        indexDoc("2", "2", 1);
-        indexDoc("2", "3", 5);
-        indexDoc("2", "4", 2);
-        indexDoc("2", "5", 1);
+        docs.addAll(indexDoc("2", "1", 3));
+        docs.addAll(indexDoc("2", "2", 1));
+        docs.addAll(indexDoc("2", "3", 5));
+        docs.addAll(indexDoc("2", "4", 2));
+        docs.addAll(indexDoc("2", "5", 1));
 
         // total docs in shard "2"  = 12
 
-        client().admin().indices().prepareFlush("idx").execute().actionGet();
-        client().admin().indices().prepareRefresh("idx").execute().actionGet();
+        indexRandom(true, docs);
 
-        long totalOnOne = client().prepareSearch("idx").setTypes("type").setRouting("1").setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits();
+        SearchResponse resp = client().prepareSearch("idx").setTypes("type").setRouting("1").setQuery(matchAllQuery()).execute().actionGet();
+        assertSearchResponse(resp);
+        long totalOnOne = resp.getHits().getTotalHits();
         assertThat(totalOnOne, is(15l));
-        long totalOnTwo = client().prepareSearch("idx").setTypes("type").setRouting("2").setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits();
+        resp = client().prepareSearch("idx").setTypes("type").setRouting("2").setQuery(matchAllQuery()).execute().actionGet();
+        assertSearchResponse(resp);
+        long totalOnTwo = resp.getHits().getTotalHits();
         assertThat(totalOnTwo, is(12l));
     }
 
-    protected void indexDoc(String shard, String key, int times) throws Exception {
+    protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            client().prepareIndex("idx", "type").setRouting(shard).setCreate(true).setSource(jsonBuilder()
+            builders[i] = client().prepareIndex("idx", "type").setRouting(shard).setCreate(true).setSource(jsonBuilder()
                     .startObject()
                     .field("key", key)
                     .field("value", 1)
-                    .endObject()).execute().actionGet();
+                    .endObject());
         }
+        return Arrays.asList(builders);
     }
 }

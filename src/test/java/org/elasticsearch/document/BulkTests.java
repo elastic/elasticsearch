@@ -216,7 +216,11 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         createIndex("test");
         ensureGreen();
 
-        int numDocs = 2000;
+        int numDocs = scaledRandomIntBetween(100, 2000);
+        if (numDocs % 2 == 1) {
+            numDocs++; // this test needs an even num of docs
+        }
+        logger.info("Bulk-Indexing {} docs", numDocs);
         BulkRequestBuilder builder = client().prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             builder.add(
@@ -356,11 +360,11 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                         .put(indexSettings())
                         .put("index.number_of_replicas", replica)));
 
-        int numDocs = 5000;
-        int bulk = 50;
+        int numDocs = scaledRandomIntBetween(100, 5000);
+        int bulk = scaledRandomIntBetween(1, 99);
         for (int i = 0; i < numDocs; ) {
-            BulkRequestBuilder builder = client().prepareBulk();
-            for (int j = 0; j < bulk; j++, i++) {
+            final BulkRequestBuilder builder = client().prepareBulk();
+            for (int j = 0; j < bulk && i < numDocs; j++, i++) {
                 builder.add(client().prepareIndex("test", "type1", Integer.toString(i)).setSource("val", i));
             }
             logger.info("bulk indexing {}-{}", i - bulk, i - 1);
@@ -569,20 +573,26 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testThatBulkProcessorCountIsCorrect() throws InterruptedException {
-        final BlockingQueue<BulkResponse> responseQueue = new SynchronousQueue();
-
+        final AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
+        final AtomicReference<Throwable> failureRef = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                responseQueue.add(response);
+                responseRef.set(response);
+                latch.countDown();
             }
 
             @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                failureRef.set(failure);
+                latch.countDown();
+            }
         };
+
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(5)
                                         .setConcurrentRequests(1).setName("foo").build()) {
@@ -595,8 +605,11 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             processor.add(new IndexRequest("test", "test", "4").source(data));
             processor.add(new IndexRequest("test", "test", "5").source(data));
 
-            BulkResponse response = responseQueue.poll(5, TimeUnit.SECONDS);
-            assertThat("Could not get a bulk response in 5 seconds", response, is(notNullValue()));
+            latch.await();
+            BulkResponse response = responseRef.get();
+            Throwable error = failureRef.get();
+            assertThat(error, nullValue());
+            assertThat("Could not get a bulk response even after an explicit flush.", response, notNullValue());
             assertThat(response.getItems().length, is(5));
         }
     }

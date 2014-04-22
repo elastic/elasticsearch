@@ -23,12 +23,12 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
@@ -207,18 +207,13 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        try {
+    protected void doClose() {
+        try (Releasable releasable = Releasables.wrap(engineSearcher, docSearcher)) {
             if (docSearcher != null) {
                 IndexReader indexReader = docSearcher.reader();
                 fieldDataService.clear(indexReader);
                 indexService.cache().clear(indexReader);
-                return docSearcher.release();
-            } else {
-                return false;
             }
-        } finally {
-            engineSearcher.release();
         }
     }
 
@@ -295,11 +290,6 @@ public class PercolateContext extends SearchContext {
     }
 
     // Unused:
-    @Override
-    public boolean clearAndRelease() {
-        throw new UnsupportedOperationException();
-    }
-
     @Override
     public void preProcess() {
         throw new UnsupportedOperationException();
@@ -676,16 +666,6 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public FetchSearchResult fetchResult() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void addReleasable(Releasable releasable) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void clearReleasables() {
         throw new UnsupportedOperationException();
     }
 

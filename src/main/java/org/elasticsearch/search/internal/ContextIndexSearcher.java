@@ -21,6 +21,8 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
@@ -28,6 +30,7 @@ import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +39,7 @@ import java.util.List;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
-public class ContextIndexSearcher extends IndexSearcher {
+public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     public static enum Stage {
         NA,
@@ -66,10 +69,9 @@ public class ContextIndexSearcher extends IndexSearcher {
         setSimilarity(searcher.searcher().getSimilarity());
     }
 
-    public void release() {
-        if (mainDocIdSetCollector != null) {
-            mainDocIdSetCollector.release();
-        }
+    @Override
+    public void close() {
+        Releasables.close(mainDocIdSetCollector);
     }
 
     public void dfSource(CachedDfSource dfSource) {
@@ -129,7 +131,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             }
             return in.createNormalizedWeight(query);
         } catch (Throwable t) {
-            searchContext.clearReleasables();
+            searchContext.clearReleasables(Lifetime.COLLECTION);
             throw new RuntimeException(t);
         }
     }
@@ -187,7 +189,7 @@ public class ContextIndexSearcher extends IndexSearcher {
                 }
             }
         } finally {
-            searchContext.clearReleasables();
+            searchContext.clearReleasables(Lifetime.COLLECTION);
         }
     }
 
@@ -200,7 +202,7 @@ public class ContextIndexSearcher extends IndexSearcher {
             XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
             return super.explain(filteredQuery, doc);
         } finally {
-            searchContext.clearReleasables();
+            searchContext.clearReleasables(Lifetime.COLLECTION);
         }
     }
 }

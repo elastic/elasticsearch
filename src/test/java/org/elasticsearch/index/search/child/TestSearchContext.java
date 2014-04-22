@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
@@ -92,11 +91,6 @@ public class TestSearchContext extends SearchContext {
         this.indexService = null;
         this.filterCache = null;
         this.indexFieldDataService = null;
-    }
-
-    @Override
-    public boolean clearAndRelease() {
-        return false;
     }
 
     @Override
@@ -557,14 +551,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void addReleasable(Releasable releasable) {
-    }
-
-    @Override
-    public void clearReleasables() {
-    }
-
-    @Override
     public ScanContext scanContext() {
         return null;
     }
@@ -590,8 +576,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
-        return false;
+    public void doClose() throws ElasticsearchException {
+        // no-op
     }
 
     @Override

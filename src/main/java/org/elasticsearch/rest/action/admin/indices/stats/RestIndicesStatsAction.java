@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.stats;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,7 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.Set;
@@ -100,28 +99,14 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
         }
 
-        client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+        client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
             @Override
-            public void onResponse(IndicesStatsResponse response) {
-                try {
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    buildBroadcastShardsHeader(builder, response);
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+            public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                buildBroadcastShardsHeader(builder, response);
+                response.toXContent(builder, request);
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

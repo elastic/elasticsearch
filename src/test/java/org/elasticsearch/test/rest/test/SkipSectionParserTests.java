@@ -38,7 +38,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
 
-        SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.getVersion(), equalTo("0 - 0.90.2"));
@@ -54,7 +54,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
 
-        SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.getVersion(), nullValue());
@@ -71,7 +71,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
 
-        SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        SkipSection skipSection = skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
 
         assertThat(skipSection, notNullValue());
         assertThat(skipSection.getVersion(), nullValue());
@@ -92,7 +92,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
 
-        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
     }
 
     @Test(expected = RestTestParseException.class)
@@ -102,7 +102,7 @@ public class SkipSectionParserTests extends AbstractParserTests {
         );
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
-        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
     }
 
     @Test(expected = RestTestParseException.class)
@@ -112,6 +112,6 @@ public class SkipSectionParserTests extends AbstractParserTests {
         );
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
-        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser, "0.90.7"));
+        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
     }
 }

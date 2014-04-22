@@ -21,7 +21,6 @@ package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -41,13 +39,14 @@ import java.util.concurrent.CopyOnWriteArraySet;
 public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<LogByteSizeMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
-
+    public static final String MAX_MERGE_BYTE_SIZE_KEY = "index.merge.policy.max_merge_sizes";
+    public static final String MIN_MERGE_BYTE_SIZE_KEY = "index.merge.policy.min_merge_size";
+    public static final String MERGE_FACTORY_KEY = "index.merge.policy.merge_factor";
     private volatile ByteSizeValue minMergeSize;
     private volatile ByteSizeValue maxMergeSize;
     private volatile int mergeFactor;
     private volatile int maxMergeDocs;
     private final boolean calibrateSizeByDeletes;
-    private boolean asyncMerge;
 
     private final Set<CustomLogByteSizeMergePolicy> policies = new CopyOnWriteArraySet<>();
 
@@ -63,21 +62,15 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
-        this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
-        logger.debug("using [log_bytes_size] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}], async_merge[{}]",
-                mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, calibrateSizeByDeletes, asyncMerge);
+        logger.debug("using [log_bytes_size] merge policy with merge_factor[{}], min_merge_size[{}], max_merge_size[{}], max_merge_docs[{}], calibrate_size_by_deletes[{}]",
+                mergeFactor, minMergeSize, maxMergeSize, maxMergeDocs, calibrateSizeByDeletes);
 
         indexSettingsService.addListener(applySettings);
     }
 
     @Override
     public LogByteSizeMergePolicy newMergePolicy() {
-        CustomLogByteSizeMergePolicy mergePolicy;
-        if (asyncMerge) {
-            mergePolicy = new EnableMergeLogByteSizeMergePolicy(this);
-        } else {
-            mergePolicy = new CustomLogByteSizeMergePolicy(this);
-        }
+        final CustomLogByteSizeMergePolicy  mergePolicy = new CustomLogByteSizeMergePolicy(this);
         mergePolicy.setMinMergeMB(minMergeSize.mbFrac());
         mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());
         mergePolicy.setMergeFactor(mergeFactor);
@@ -173,19 +166,4 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
         }
     }
 
-    public static class EnableMergeLogByteSizeMergePolicy extends CustomLogByteSizeMergePolicy {
-
-        public EnableMergeLogByteSizeMergePolicy(LogByteSizeMergePolicyProvider provider) {
-            super(provider);
-        }
-
-        @Override
-        public MergeSpecification findMerges(MergeTrigger trigger, SegmentInfos infos) throws IOException {
-            // we don't enable merges while indexing documents, we do them in the background
-            if (trigger == MergeTrigger.SEGMENT_FLUSH) {
-                return null;
-            }
-            return super.findMerges(trigger, infos);
-        }
-    }
 }

@@ -187,11 +187,7 @@ Defaults to unbounded.
 
 The merge schedule controls the execution of merge operations once they
 are needed (according to the merge policy). The following types are
-supported, with the default being the `SerialMergeScheduler`.
-
-Note, the default is the serial merge scheduler since there is a merge
-thread pool that explicitly schedules merges, and it makes sure that
-merges are serial within a shard, yet concurrent across multiple shards.
+supported, with the default being the `ConcurrentMergeScheduler`.
 
 [float]
 ==== ConcurrentMergeScheduler
@@ -213,4 +209,16 @@ The maximum number of threads to perform the merge operation. Defaults to
 
 A merge scheduler that simply does each merge sequentially using the
 calling thread (blocking the operations that triggered the merge or the
-index operation).
+index operation). This merge scheduler has a merge thread pool that
+explicitly schedules merges, and it makes sure that merges are serial
+within a shard, yet concurrent across multiple shards.
+
+The scheduler supports the following settings:
+
+`index.merge.scheduler.max_merge_at_once`::
+
+The maximum number of merges a single merge run performs. This setting prevents
+executing unlimited amount of merges in a loop until another shards has a
+chance to get a merge thread from the pool. If this limit is reached the
+merge thread returns to the pool and continues once the the call to a single
+shards is executed. The default is `5`

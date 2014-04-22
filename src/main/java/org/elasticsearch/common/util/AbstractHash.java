@@ -56,8 +56,7 @@ abstract class AbstractHash extends AbstractPagedHashMap {
     }
 
     @Override
-    public boolean release() {
-        Releasables.release(ids);
-        return true;
+    public void close() {
+        Releasables.close(ids);
     }
 }

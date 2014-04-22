@@ -378,7 +378,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         writeAllowed(create.origin());
         create = indexingService.preCreate(create);
         if (logger.isTraceEnabled()) {
-            logger.trace("index {}", create.docs());
+            logger.trace("index [{}][{}]{}", create.type(), create.id(), create.docs());
         }
         engine.create(create);
         create.endTime(System.nanoTime());
@@ -400,7 +400,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         index = indexingService.preIndex(index);
         try {
             if (logger.isTraceEnabled()) {
-                logger.trace("index {}", index.docs());
+                logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
             engine.index(index);
             index.endTime(System.nanoTime());
@@ -495,7 +495,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
         } finally {
-            searcher.release();
+            searcher.close();
         }
     }
 
@@ -585,7 +585,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
             }
         } finally {
-            currentSearcher.release();
+            currentSearcher.close();
         }
         return completionStats;
     }
@@ -628,6 +628,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
         verifyStarted();
         engine.recover(recoveryHandler);
+    }
+
+    @Override
+    public void failShard(String reason, @Nullable Throwable e) {
+        // fail the engine. This will cause this shard to also be removed from the node's index service.
+        engine.failEngine(reason, e);
     }
 
     @Override

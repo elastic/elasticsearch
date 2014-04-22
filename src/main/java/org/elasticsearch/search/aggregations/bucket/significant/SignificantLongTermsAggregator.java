@@ -19,13 +19,14 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -37,11 +38,11 @@ import java.util.Collections;
  */
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
-    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, ValueFormatter formatter,
+    public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
               long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, formatter, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+        super(name, factories, valuesSource, format, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -65,18 +66,12 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantLongTerms.Bucket spare = null;
-        for (long i = 0; i < bucketOrds.capacity(); i++) {
-            final long ord = bucketOrds.id(i);
-            if (ord < 0) {
-                // slot is not allocated
-                continue;
-            }
-
+        for (long i = 0; i < bucketOrds.size(); i++) {
             if (spare == null) {
                 spare = new SignificantLongTerms.Bucket(0, 0, 0, 0, 0, null);
             }
-            spare.term = bucketOrds.key(i);
-            spare.subsetDf = bucketDocCount(ord);
+            spare.term = bucketOrds.get(i);
+            spare.subsetDf = bucketDocCount(i);
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.term);
             spare.supersetSize = supersetSize;
@@ -85,7 +80,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             // Back at the central reducer these properties will be updated with global stats
             spare.updateScore();
 
-            spare.bucketOrd = ord;
+            spare.bucketOrd = i;
             spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
         }
 
@@ -95,8 +90,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, requiredSize, minDocCount,
-                Arrays.asList(list));
+        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, requiredSize, minDocCount, Arrays.asList(list));
     }
 
     @Override
@@ -109,8 +103,8 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public void doRelease() {
-        Releasables.release(bucketOrds, termsAggFactory);
+    public void doClose() {
+        Releasables.close(bucketOrds, termsAggFactory);
     }
 
 }

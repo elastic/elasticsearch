@@ -24,17 +24,12 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.*;
 
 /**
  *
  */
 public abstract class AbstractXContentParser implements XContentParser {
-
-    // for parsing BigInteger/BigDecimal
-    protected boolean losslessDecimals;
 
     //Currently this is not a setting that can be changed and is a policy 
     // that relates to how parsing of things like "boost" are done across
@@ -192,51 +187,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     protected abstract double doDoubleValue() throws IOException;
 
     @Override
-    public BigInteger bigIntegerValue() throws IOException {
-        return bigIntegerValue(DEFAULT_NUMBER_COEERCE_POLICY);
-    }
-
-    @Override
-    public BigInteger bigIntegerValue(boolean coerce) throws IOException {
-        Token token = currentToken();
-        if (token == Token.VALUE_STRING) {
-            checkCoerceString(coerce, BigInteger.class);
-            return new BigInteger(text());
-        }
-        return doBigIntegerValue();
-    }
-
-    protected abstract BigInteger doBigIntegerValue() throws IOException;
-
-    @Override
-    public BigDecimal bigDecimalValue() throws IOException {
-        return bigDecimalValue(DEFAULT_NUMBER_COEERCE_POLICY);
-    }
-
-    @Override
-    public BigDecimal bigDecimalValue(boolean coerce) throws IOException {
-        Token token = currentToken();
-        if (token == Token.VALUE_STRING) {
-            checkCoerceString(coerce, BigDecimal.class);
-            return new BigDecimal(text());
-        }
-        return doBigDecimalValue();
-    }
-
-    protected abstract BigDecimal doBigDecimalValue() throws IOException;
-
-    @Override
-    public XContentParser losslessDecimals(boolean losslessDecimals) {
-        this.losslessDecimals = losslessDecimals;
-        return this;
-    }
-
-    @Override
-    public boolean isLosslessDecimals() {
-        return losslessDecimals;
-    }
-
-    @Override
     public String textOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
@@ -310,59 +260,55 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Map<String, Object> readMap(XContentParser parser, MapFactory mapFactory) throws IOException {
         Map<String, Object> map = mapFactory.newMap();
-        XContentParser.Token t = parser.currentToken();
-        if (t == null) {
-            t = parser.nextToken();
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) {
+            token = parser.nextToken();
         }
-        if (t == XContentParser.Token.START_OBJECT) {
-            t = parser.nextToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            token = parser.nextToken();
         }
-        for (; t == XContentParser.Token.FIELD_NAME; t = parser.nextToken()) {
+        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
             // Must point to field name
             String fieldName = parser.currentName();
             // And then the value...
-            t = parser.nextToken();
-            Object value = readValue(parser, mapFactory, t);
+            token = parser.nextToken();
+            Object value = readValue(parser, mapFactory, token);
             map.put(fieldName, value);
         }
         return map;
     }
 
-    private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token t) throws IOException {
+    private static List<Object> readList(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
         ArrayList<Object> list = new ArrayList<>();
-        while ((t = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            list.add(readValue(parser, mapFactory, t));
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            list.add(readValue(parser, mapFactory, token));
         }
         return list;
     }
 
-    private static Object readValue(XContentParser parser, MapFactory mapFactory, Token t) throws IOException {
-        if (t == Token.VALUE_NULL) {
+    private static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
+        if (token == XContentParser.Token.VALUE_NULL) {
             return null;
-        } else if (t == Token.VALUE_STRING) {
+        } else if (token == XContentParser.Token.VALUE_STRING) {
             return parser.text();
-        } else if (t == Token.VALUE_NUMBER) {
-            NumberType numberType = parser.numberType();
-            if (numberType == NumberType.INT) {
-                return parser.isLosslessDecimals() ? parser.bigIntegerValue() : parser.intValue();
-            } else if (numberType == NumberType.LONG) {
-                return  parser.isLosslessDecimals() ? parser.bigIntegerValue() : parser.longValue();
-            } else if (numberType == NumberType.FLOAT) {
-                return parser.isLosslessDecimals() ? parser.bigDecimalValue() : parser.floatValue();
-            } else if (numberType == NumberType.DOUBLE) {
-                return parser.isLosslessDecimals() ? parser.bigDecimalValue() : parser.doubleValue();
-            } else if (numberType == NumberType.BIG_INTEGER) {
-                return parser.bigIntegerValue();
-            } else if (numberType == NumberType.BIG_DECIMAL) {
-                return parser.bigDecimalValue();
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            XContentParser.NumberType numberType = parser.numberType();
+            if (numberType == XContentParser.NumberType.INT) {
+                return parser.intValue();
+            } else if (numberType == XContentParser.NumberType.LONG) {
+                return parser.longValue();
+            } else if (numberType == XContentParser.NumberType.FLOAT) {
+                return parser.floatValue();
+            } else if (numberType == XContentParser.NumberType.DOUBLE) {
+                return parser.doubleValue();
             }
-        } else if (t == Token.VALUE_BOOLEAN) {
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
             return parser.booleanValue();
-        } else if (t == Token.START_OBJECT) {
+        } else if (token == XContentParser.Token.START_OBJECT) {
             return readMap(parser, mapFactory);
-        } else if (t == Token.START_ARRAY) {
-            return readList(parser, mapFactory, t);
-        } else if (t == Token.VALUE_EMBEDDED_OBJECT) {
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            return readList(parser, mapFactory, token);
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
             return parser.binaryValue();
         }
         return null;

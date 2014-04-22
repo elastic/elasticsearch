@@ -21,6 +21,7 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.hash.MurmurHash3;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 
 /**
@@ -60,7 +61,7 @@ public final class BytesRefHash extends AbstractHash {
 
     /**
      * Return the key at <code>0 &lte; index &lte; capacity()</code>. The result is undefined if the slot is unused.
-     * <p color="red">Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #release()} is called</p>
+     * <p color="red">Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
         final long startOffset = startOffsets.get(id);
@@ -159,15 +160,10 @@ public final class BytesRefHash extends AbstractHash {
     }
 
     @Override
-    public boolean release() {
-        boolean success = false;
-        try {
-            super.release();
-            success = true;
-        } finally {
-            Releasables.release(success, bytes, hashes, startOffsets);
+    public void close() {
+        try (Releasable releasable = Releasables.wrap(bytes, hashes, startOffsets)) {
+            super.close();
         }
-        return true;
     }
 
 }

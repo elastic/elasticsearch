@@ -19,13 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -43,37 +40,22 @@ public class MissingParser implements Aggregator.Parser {
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
 
-        ValuesSourceConfig<ValuesSource> config = new ValuesSourceConfig<>(ValuesSource.class);
-
-        String field = null;
+        ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, InternalMissing.TYPE, context)
+                .scriptable(false)
+                .build();
 
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("field".equals(currentFieldName)) {
-                    field = parser.text();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
-        if (field == null) {
-            return new MissingAggregator.Factory(aggregationName, config);
-        }
-
-        FieldMapper<?> mapper = context.smartNameFieldMapper(field);
-        if (mapper == null) {
-            config.unmapped(true);
-            return new MissingAggregator.Factory(aggregationName, config);
-        }
-
-        config.fieldContext(new FieldContext(field, context.fieldData().getForField(mapper)));
-        return new MissingAggregator.Factory(aggregationName, config);
+        return new MissingAggregator.Factory(aggregationName, vsParser.config());
     }
 }

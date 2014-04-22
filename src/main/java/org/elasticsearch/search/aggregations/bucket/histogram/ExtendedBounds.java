@@ -47,11 +47,12 @@ public class ExtendedBounds {
     }
 
     void processAndValidate(String aggName, SearchContext context, ValueParser parser) {
+        assert parser != null;
         if (minAsStr != null) {
-            min = parser != null ? parser.parseLong(minAsStr, context) : Long.parseLong(minAsStr);
+            min = parser.parseLong(minAsStr, context);
         }
         if (maxAsStr != null) {
-            max = parser != null ? parser.parseLong(maxAsStr, context) : Long.parseLong(maxAsStr);
+            max = parser.parseLong(maxAsStr, context);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +

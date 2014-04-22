@@ -441,7 +441,6 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @Test
-    @TestLogging("_root:TRACE")
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
         serviceA.registerHandler("sayHelloTimeoutDelayedResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -470,7 +469,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                 }
             }
         });
-
+        final CountDownLatch latch = new CountDownLatch(1);
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
                 new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
             @Override
@@ -485,11 +484,13 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
             @Override
             public void handleResponse(StringMessageResponse response) {
+                latch.countDown();
                 assertThat("got response instead of exception", false, equalTo(true));
             }
 
             @Override
             public void handleException(TransportException exp) {
+                latch.countDown();
                 assertThat(exp, instanceOf(ReceiveTimeoutTransportException.class));
             }
         });
@@ -500,15 +501,13 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
-
-        // sleep for 400 millis to make sure we get back the response
-        Thread.sleep(400);
+        latch.await();
 
         for (int i = 0; i < 10; i++) {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                    new StringMessageRequest(counter + "ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
+                    new StringMessageRequest(counter + "ms"), options().withTimeout(300), new BaseTransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse newInstance() {
                     return new StringMessageResponse();

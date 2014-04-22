@@ -142,20 +142,6 @@ bin/plugin --install mobz/elasticsearch-head --timeout 1m
 bin/plugin --install mobz/elasticsearch-head --timeout 0
 -----------------------------------
 
-added[1.1.0]
-[float]
-==== Plugins isolation
-
-Since Elasticsearch 1.1, by default, each plugin is loaded in _isolation_ (in its dedicated `ClassLoader`) to avoid class clashes between the various plugins and their associated libraries. The default can be changed through the `plugins.isolation` property in `elasticsearch.yml`, by setting it to `false`:
-
-[source,js]
---------------------------------------------------
-plugins.isolation: false
---------------------------------------------------
-
-Do note that each plugin can specify its _mandatory_ isolation through the `isolation` property in its `es-plugin.properties` configuration. In this (rare) case, the plugin setting is used, overwriting whatever default used by Elasticsearch.
-
-
 [float]
 [[known-plugins]]
 === Known Plugins
@@ -261,6 +247,7 @@ Do note that each plugin can specify its _mandatory_ isolation through the `isol
 * https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor Plugin] (by Zachary Tong)
 * https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
+* https://github.com/xyu/elasticsearch-whatson[Whatson Plugin] (by Xiao Yu)
 
 [float]
 [[repository-plugins]]
@@ -294,5 +281,6 @@ Do note that each plugin can specify its _mandatory_ isolation through the `isol
 * http://tlrx.github.com/elasticsearch-view-plugin[Elasticsearch View Plugin] (by Tanguy Leroux)
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 * https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
+* https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
 
 

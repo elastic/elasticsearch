@@ -26,13 +26,12 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -60,7 +59,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
 
     public static String randomExecutionHint() {
-        return randomBoolean() ? null : randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
+        return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
     }
 
     @Override
@@ -141,6 +140,34 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
+    @Test
+    public void singleValueField_withGlobalOrdinals() throws Exception {
+        ExecutionMode[] executionModes = new ExecutionMode[] {
+                ExecutionMode.GLOBAL_ORDINALS,
+                ExecutionMode.GLOBAL_ORDINALS_HASH
+        };
+        for (ExecutionMode executionMode : executionModes) {
+            logger.info("Execution mode:" + executionMode);
+            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                            .executionHint(executionMode.toString())
+                            .field(SINGLE_VALUED_FIELD_NAME))
+                    .execute().actionGet();
+            assertSearchResponse(response);
+
+            Terms terms = response.getAggregations().get("terms");
+            assertThat(terms, notNullValue());
+            assertThat(terms.getName(), equalTo("terms"));
+            assertThat(terms.getBuckets().size(), equalTo(5));
+            for (int i = 0; i < 5; i++) {
+                Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+                assertThat(bucket, notNullValue());
+                assertThat(key(bucket), equalTo("val" + i));
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            }
         }
     }
 
@@ -916,8 +943,6 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -936,8 +961,6 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")
@@ -957,8 +980,6 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
             client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
@@ -978,8 +999,6 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
-
-        MockBigArrays.discardNextCheck();
         try {
 
             client().prepareSearch("idx").setTypes("type")

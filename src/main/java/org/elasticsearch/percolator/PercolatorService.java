@@ -37,6 +37,7 @@ import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -115,6 +116,7 @@ public class PercolatorService extends AbstractComponent {
     private final AggregationPhase aggregationPhase;
     private final SortParseElement sortParseElement;
     private final ScriptService scriptService;
+    private final MappingUpdatedAction mappingUpdatedAction;
 
     private final CloseableThreadLocal<MemoryIndex> cache;
 
@@ -122,7 +124,8 @@ public class PercolatorService extends AbstractComponent {
     public PercolatorService(Settings settings, IndicesService indicesService, CacheRecycler cacheRecycler,
                              PageCacheRecycler pageCacheRecycler, BigArrays bigArrays,
                              HighlightPhase highlightPhase, ClusterService clusterService, FacetPhase facetPhase,
-                             AggregationPhase aggregationPhase, ScriptService scriptService) {
+                             AggregationPhase aggregationPhase, ScriptService scriptService,
+                             MappingUpdatedAction mappingUpdatedAction) {
         super(settings);
         this.indicesService = indicesService;
         this.cacheRecycler = cacheRecycler;
@@ -133,6 +136,7 @@ public class PercolatorService extends AbstractComponent {
         this.facetPhase = facetPhase;
         this.aggregationPhase = aggregationPhase;
         this.scriptService = scriptService;
+        this.mappingUpdatedAction = mappingUpdatedAction;
         this.sortParseElement = new SortParseElement();
 
         final long maxReuseBytes = settings.getAsBytesSize("indices.memory.memory_index.size_per_thread", new ByteSizeValue(1, ByteSizeUnit.MB)).bytes();
@@ -163,6 +167,7 @@ public class PercolatorService extends AbstractComponent {
     public PercolateShardResponse percolate(PercolateShardRequest request) {
         IndexService percolateIndexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = percolateIndexService.shardSafe(request.shardId());
+        indexShard.readAllowed(); // check if we can read the shard...
 
         ShardPercolateService shardPercolateService = indexShard.shardPercolateService();
         shardPercolateService.prePercolate();
@@ -223,11 +228,9 @@ public class PercolatorService extends AbstractComponent {
             context.percolatorTypeId = action.id();
 
             percolatorIndex.prepare(context, parsedDocument);
-
-            indexShard.readAllowed();
             return action.doPercolate(request, context);
         } finally {
-            context.release();
+            context.close();
             shardPercolateService.postPercolate(System.nanoTime() - startTime);
         }
     }
@@ -269,6 +272,11 @@ public class PercolatorService extends AbstractComponent {
                         MapperService mapperService = documentIndexService.mapperService();
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
+                        if (doc.mappingsModified()) {
+                            mappingUpdatedAction.updateMappingOnMaster(
+                                    docMapper, request.index(), request.documentType(), documentIndexService.indexUUID(), true
+                            );
+                        }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
                     }
@@ -475,7 +483,7 @@ public class PercolatorService extends AbstractComponent {
             } catch (Throwable e) {
                 logger.warn("failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
             return new PercolateShardResponse(count, context, request.index(), request.shardId());
         }
@@ -586,7 +594,7 @@ public class PercolatorService extends AbstractComponent {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
         }
     };
@@ -620,7 +628,7 @@ public class PercolatorService extends AbstractComponent {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
         }
     };
@@ -764,7 +772,7 @@ public class PercolatorService extends AbstractComponent {
                 logger.debug("failed to execute", e);
                 throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
             } finally {
-                percolatorSearcher.release();
+                percolatorSearcher.close();
             }
         }
 

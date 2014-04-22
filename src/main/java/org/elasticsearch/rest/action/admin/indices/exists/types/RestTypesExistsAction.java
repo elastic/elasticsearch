@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.rest.action.admin.indices.exists.types;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -52,26 +51,13 @@ public class RestTypesExistsAction extends BaseRestHandler {
         typesExistsRequest.listenerThreaded(false);
         typesExistsRequest.local(request.paramAsBoolean("local", typesExistsRequest.local()));
         typesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, typesExistsRequest.indicesOptions()));
-        client.admin().indices().typesExists(typesExistsRequest, new ActionListener<TypesExistsResponse>() {
+        client.admin().indices().typesExists(typesExistsRequest, new RestResponseListener<TypesExistsResponse>(channel) {
             @Override
-            public void onResponse(TypesExistsResponse response) {
-                try {
-                    if (response.isExists()) {
-                        channel.sendResponse(new BytesRestResponse(OK));
-                    } else {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
-                    }
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
+            public RestResponse buildResponse(TypesExistsResponse response) throws Exception {
+                if (response.isExists()) {
+                    return new BytesRestResponse(OK);
+                } else {
+                    return new BytesRestResponse(NOT_FOUND);
                 }
             }
         });

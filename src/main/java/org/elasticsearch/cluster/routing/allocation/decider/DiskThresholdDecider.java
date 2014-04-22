@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.Map;
@@ -109,8 +110,8 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Inject
     public DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "0.7");
-        String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "0.85");
+        String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "70%");
+        String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "85%");
 
         if (!validWatermarkSetting(lowWatermark)) {
             throw new ElasticsearchParseException("Unable to parse low watermark: [" + lowWatermark + "]");
@@ -185,7 +186,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Less than the required {}% free disk threshold ({}% free) on node [{}], preventing allocation",
                         freeDiskThresholdLow, freeDiskPercentage, node.nodeId());
             }
-            return allocation.decision(Decision.NO, NAME, "less than required [%d%%] free disk on node, free: [%d%%]",
+            return allocation.decision(Decision.NO, NAME, "less than required [%s%%] free disk on node, free: [%s%%]",
                     freeDiskThresholdLow, freeDiskThresholdLow);
         }
 
@@ -203,7 +204,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (freeSpaceAfterShard < freeDiskThresholdHigh) {
             logger.warn("After allocating, node [{}] would have less than the required {}% free disk threshold ({}% free), preventing allocation",
                     node.nodeId(), freeDiskThresholdHigh, freeSpaceAfterShard);
-            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%d%%] free disk on node, free: [%d%%]",
+            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%s%%] free disk on node, free: [%s%%]",
                     freeDiskThresholdLow, freeSpaceAfterShard);
         }
 
@@ -265,7 +266,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 logger.debug("Less than the required {}% free disk threshold ({}% free) on node {}, shard cannot remain",
                         freeDiskThresholdHigh, freeDiskPercentage, node.nodeId());
             }
-            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%d%%] free disk on node, free: [%d%%]",
+            return allocation.decision(Decision.NO, NAME, "after allocation less than required [%s%%] free disk on node, free: [%s%%]",
                     freeDiskThresholdHigh, freeDiskPercentage);
         }
 
@@ -307,8 +308,8 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public double thresholdPercentageFromWatermark(String watermark) {
         try {
-            return 100.0 * Double.parseDouble(watermark);
-        } catch (NumberFormatException ex) {
+            return RatioValue.parseRatioValue(watermark).getAsPercent();
+        } catch (ElasticsearchParseException ex) {
             return 100.0;
         }
     }
@@ -331,12 +332,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public boolean validWatermarkSetting(String watermark) {
         try {
-            double w = Double.parseDouble(watermark);
-            if (w < 0 || w > 1.0) {
-                return false;
-            }
+            RatioValue.parseRatioValue(watermark);
             return true;
-        } catch (NumberFormatException e) {
+        } catch (ElasticsearchParseException e) {
             try {
                 ByteSizeValue.parseBytesSizeValue(watermark);
                 return true;

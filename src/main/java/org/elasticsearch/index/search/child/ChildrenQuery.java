@@ -41,6 +41,7 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -147,13 +148,10 @@ public class ChildrenQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext searchContext = SearchContext.current();
-        final Query childQuery;
-        if (rewrittenChildQuery == null) {
-            childQuery = rewrittenChildQuery = searcher.rewrite(originalChildQuery);
-        } else {
-            assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
-            childQuery = rewrittenChildQuery;
-        }
+        assert rewrittenChildQuery != null;
+        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+        final Query childQuery = rewrittenChildQuery;
+
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
 
@@ -169,7 +167,7 @@ public class ChildrenQuery extends Query {
                     scores = maxCollector.scores;
                     occurrences = null;
                 } finally {
-                    Releasables.release(maxCollector.parentIdsIndex);
+                    Releasables.close(maxCollector.parentIdsIndex);
                 }
                 break;
             case SUM:
@@ -180,7 +178,7 @@ public class ChildrenQuery extends Query {
                     scores = sumCollector.scores;
                     occurrences = null;
                 } finally {
-                    Releasables.release(sumCollector.parentIdsIndex);
+                    Releasables.close(sumCollector.parentIdsIndex);
                 }
                 break;
             case AVG:
@@ -191,7 +189,7 @@ public class ChildrenQuery extends Query {
                     scores = avgCollector.scores;
                     occurrences = avgCollector.occurrences;
                 } finally {
-                    Releasables.release(avgCollector.parentIdsIndex);
+                    Releasables.close(avgCollector.parentIdsIndex);
                 }
                 break;
             default:
@@ -200,7 +198,7 @@ public class ChildrenQuery extends Query {
 
         int size = (int) parentIds.size();
         if (size == 0) {
-            Releasables.release(parentIds, scores, occurrences);
+            Releasables.close(parentIds, scores, occurrences);
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
 
@@ -222,7 +220,7 @@ public class ChildrenQuery extends Query {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
         ParentWeight parentWeight = new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, size, parentIds, scores, occurrences);
-        searchContext.addReleasable(parentWeight);
+        searchContext.addReleasable(parentWeight, Lifetime.COLLECTION);
         return parentWeight;
     }
 
@@ -290,9 +288,8 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public boolean release() throws ElasticsearchException {
-            Releasables.release(parentIds, scores, occurrences);
-            return true;
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIds, scores, occurrences);
         }
 
         private class ParentScorer extends Scorer {

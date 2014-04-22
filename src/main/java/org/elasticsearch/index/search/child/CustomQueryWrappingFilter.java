@@ -27,6 +27,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;
@@ -66,7 +67,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
             IndexSearcher searcher = searchContext.searcher();
             docIdSets = new IdentityHashMap<>();
             this.searcher = searcher;
-            searchContext.addReleasable(this);
+            searchContext.addReleasable(this, Lifetime.COLLECTION);
 
             final Weight weight = searcher.createNormalizedWeight(query);
             for (final AtomicReaderContext leaf : searcher.getTopReaderContext().leaves()) {
@@ -91,12 +92,11 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     }
 
     @Override
-    public boolean release() throws ElasticsearchException {
+    public void close() throws ElasticsearchException {
         // We need to clear the docIdSets, otherwise this is leaved unused
         // DocIdSets around and can potentially become a memory leak.
         docIdSets = null;
         searcher = null;
-        return true;
     }
 
     @Override

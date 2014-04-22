@@ -59,6 +59,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchService;
@@ -78,12 +79,12 @@ import java.io.Closeable;
 import java.io.File;
 import java.net.InetSocketAddress;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
-import static com.google.common.collect.Maps.newTreeMap;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -278,6 +279,7 @@ public final class TestCluster extends ImmutableTestCluster {
             }
         }
         builder.put("plugins.isolation", random.nextBoolean());
+        builder.put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, 1 + random.nextInt(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_DEFAULT));
         return builder.build();
     }
 
@@ -760,10 +762,11 @@ public final class TestCluster extends ImmutableTestCluster {
 
     private void wipeDataDirectories() {
         if (!dataDirToClean.isEmpty()) {
-            logger.info("Wipe data directory for all nodes locations: {}", this.dataDirToClean);
+            boolean deleted = false;
             try {
-                FileSystemUtils.deleteRecursively(dataDirToClean.toArray(new File[dataDirToClean.size()]));
+                deleted = FileSystemUtils.deleteRecursively(dataDirToClean.toArray(new File[dataDirToClean.size()]), false);
             } finally {
+                logger.info("Wipe data directory for all nodes locations: {} success: {}", this.dataDirToClean, deleted);
                 this.dataDirToClean.clear();
             }
         }
@@ -1100,7 +1103,14 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     /**
-     * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
+     * Starts multiple nodes in an async manner and returns future with its name.
+     */
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes) {
+        return startNodesAsync(numNodes, ImmutableSettings.EMPTY, Version.CURRENT);
+    }
+
+    /**
+     * Starts multiple nodes in an async manner with the given settings and returns future with its name.
      */
     public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
         return startNodesAsync(numNodes, settings, Version.CURRENT);
@@ -1113,6 +1123,18 @@ public final class TestCluster extends ImmutableTestCluster {
         List<ListenableFuture<String>> futures = Lists.newArrayList();
         for (int i = 0; i < numNodes; i++) {
             futures.add(startNodeAsync(settings, version));
+        }
+        return Futures.allAsList(futures);
+    }
+
+    /**
+     * Starts multiple nodes (based on the number of settings provided) in an async manner, with explicit settings for each node.
+     * The order of the node names returned matches the order of the settings provided.
+     */
+    public synchronized ListenableFuture<List<String>> startNodesAsync(final Settings... settings) {
+        List<ListenableFuture<String>> futures = Lists.newArrayList();
+        for (Settings setting : settings) {
+            futures.add(startNodeAsync(setting, Version.CURRENT));
         }
         return Futures.allAsList(futures);
     }

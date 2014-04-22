@@ -36,27 +36,15 @@ public class SetupSectionParser implements RestTestFragmentParser<SetupSection> 
         SetupSection setupSection = new SetupSection();
         setupSection.setSkipSection(parseContext.parseSkipSection());
 
-        boolean skip = setupSection.getSkipSection().skip(parseContext.getCurrentVersion());
-
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
-            if (skip) {
-                //if there was a skip section, there was a setup section as well, which means that we are sure
-                // the current token is at the beginning of a new object
-                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-                //we need to be at the beginning of an object to be able to skip children
-                parser.skipChildren();
-                //after skipChildren we are at the end of the skipped object, need to move on
-                parser.nextToken();
-            } else {
-                parseContext.advanceToFieldName();
-                if (!"do".equals(parser.currentName())) {
-                    throw new RestTestParseException("section [" + parser.currentName() + "] not supported within setup section");
-                }
-
-                parser.nextToken();
-                setupSection.addDoSection(parseContext.parseDoSection());
-                parser.nextToken();
+            parseContext.advanceToFieldName();
+            if (!"do".equals(parser.currentName())) {
+                throw new RestTestParseException("section [" + parser.currentName() + "] not supported within setup section");
             }
+
+            parser.nextToken();
+            setupSection.addDoSection(parseContext.parseDoSection());
+            parser.nextToken();
         }
 
         parser.nextToken();

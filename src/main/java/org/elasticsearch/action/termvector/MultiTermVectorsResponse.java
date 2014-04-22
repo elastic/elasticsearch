@@ -124,7 +124,6 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.startArray(Fields.DOCS);
         for (MultiTermVectorsItemResponse response : responses) {
             if (response.isFailed()) {
@@ -137,11 +136,12 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.endObject();
             } else {
                 TermVectorResponse getResponse = response.getResponse();
+                builder.startObject();
                 getResponse.toXContent(builder, params);
+                builder.endObject();
             }
         }
         builder.endArray();
-        builder.endObject();
         return builder;
     }
 

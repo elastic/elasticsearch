@@ -53,11 +53,6 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true; // single-valued
-    }
-
-    @Override
     public int getNumDocs() {
         return reader.maxDoc();
     }

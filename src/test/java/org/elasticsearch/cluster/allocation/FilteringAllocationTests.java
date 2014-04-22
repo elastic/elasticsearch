@@ -31,6 +31,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,8 +44,9 @@ public class FilteringAllocationTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDecommissionNodeNoReplicas() throws Exception {
         logger.info("--> starting 2 nodes");
-        final String node_0 = cluster().startNode();
-        final String node_1 = cluster().startNode();
+        List<String> nodesIds = cluster().startNodesAsync(2).get();
+        final String node_0 = nodesIds.get(0);
+        final String node_1 = nodesIds.get(1);
         assertThat(immutableCluster().size(), equalTo(2));
         
         logger.info("--> creating an index with no replicas");
@@ -81,8 +84,9 @@ public class FilteringAllocationTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDisablingAllocationFiltering() throws Exception {
         logger.info("--> starting 2 nodes");
-        final String node_0 = cluster().startNode();
-        final String node_1 = cluster().startNode();
+        List<String> nodesIds = cluster().startNodesAsync(2).get();
+        final String node_0 = nodesIds.get(0);
+        final String node_1 = nodesIds.get(1);
         assertThat(immutableCluster().size(), equalTo(2));
 
         logger.info("--> creating an index with no replicas");

@@ -33,6 +33,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.http.*;
 import org.elasticsearch.http.HttpRequest;
@@ -64,6 +65,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     private final NetworkService networkService;
+    final BigArrays bigArrays;
 
     final ByteSizeValue maxContentLength;
     final ByteSizeValue maxInitialLineLength;
@@ -110,9 +112,10 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     private volatile HttpServerAdapter httpServerAdapter;
 
     @Inject
-    public NettyHttpServerTransport(Settings settings, NetworkService networkService) {
+    public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
         super(settings);
         this.networkService = networkService;
+        this.bigArrays = bigArrays;
 
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");

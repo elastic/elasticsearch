@@ -44,6 +44,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -74,8 +75,9 @@ public class ClusterRerouteTests extends ElasticsearchIntegrationTest {
     }
 
     private void rerouteWithCommands(Settings commonSettings) throws Exception {
-        String node_1 = cluster().startNode(commonSettings);
-        String node_2 = cluster().startNode(commonSettings);
+        List<String> nodesIds = cluster().startNodesAsync(2, commonSettings).get();
+        final String node_1 = nodesIds.get(0);
+        final String node_2 = nodesIds.get(1);
 
         logger.info("--> create an index with 1 shard, 1 replica, nothing should allocate");
         client().admin().indices().prepareCreate("test")

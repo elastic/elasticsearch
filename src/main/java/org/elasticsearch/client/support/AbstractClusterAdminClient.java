@@ -419,4 +419,9 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
     public SnapshotsStatusRequestBuilder prepareSnapshotStatus(String repository) {
         return new SnapshotsStatusRequestBuilder(this, repository);
     }
+
+    @Override
+    public SnapshotsStatusRequestBuilder prepareSnapshotStatus() {
+        return new SnapshotsStatusRequestBuilder(this);
+    }
 }

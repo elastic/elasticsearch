@@ -31,7 +31,7 @@ public class DoubleFieldDataTests extends AbstractNumericFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("double");
+        return new FieldDataType("double", getFieldDataSettings());
     }
 
     protected String one() {

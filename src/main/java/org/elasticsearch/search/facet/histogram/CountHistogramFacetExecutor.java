@@ -67,7 +67,7 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
                 entries[entryIndex++] = new InternalCountHistogramFacet.CountEntry(keys[i], values[i]);
             }
         }
-        counts.release();
+        counts.close();
         return new InternalCountHistogramFacet(facetName, comparatorType, entries);
     }
 

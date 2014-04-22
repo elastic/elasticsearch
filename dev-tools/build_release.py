@@ -30,6 +30,8 @@ import socket
 import urllib.request
 
 from http.client import HTTPConnection
+from http.client import HTTPSConnection
+
 
 """ 
  This tool builds a release from the a given elasticsearch branch.
@@ -240,7 +242,8 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
     run_mvn('clean',
             'test -Dtests.jvms=%s -Des.node.mode=local' % (cpus),
             'test -Dtests.jvms=%s -Des.node.mode=network' % (cpus))
-  run_mvn('clean %s -DskipTests' %(target))
+  run_mvn('clean test-compile -Dforbidden.test.signatures="org.apache.lucene.util.LuceneTestCase\$AwaitsFix @ Please fix all bugs before release"')
+  run_mvn('clean %s -DskipTests' % (target))
   success = False
   try:
     run_mvn('-DskipTests rpm:rpm')
@@ -254,7 +257,32 @@ def build_release(run_tests=False, dry_run=True, cpus=1):
     $ apt-get install rpm # on Ubuntu et.al
   """)
 
-
+# Uses the github API to fetch open tickets for the given release version
+# if it finds any tickets open for that version it will throw an exception
+def ensure_no_open_tickets(version):
+  version = "v%s" % version
+  conn = HTTPSConnection('api.github.com')
+  try:
+    log('Checking for open tickets on Github for version %s' % version)
+    log('Check if node is available')
+    conn.request('GET', '/repos/elasticsearch/elasticsearch/issues?state=open&labels=%s' % version, headers= {'User-Agent' : 'Elasticsearch version checker'})
+    res = conn.getresponse()
+    if res.status == 200:
+      issues = json.loads(res.read().decode("utf-8"))
+      if issues:
+        urls = []
+        for issue in issues:
+          urls.append(issue['url'])
+        raise RuntimeError('Found open issues  for release version %s see - %s' % (version, urls))
+      else:
+        log("No open issues found for version %s" % version)
+    else:
+      raise RuntimeError('Failed to fetch issue list from Github for release version %s' % version)
+  except socket.error as e:
+    log("Failed to fetch issue list from Github for release version %s' % version - Exception: [%s]" % (version, e))
+    #that is ok it might not be there yet
+  finally:
+    conn.close()
 
 def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
   for _ in range(timeout):
@@ -388,7 +416,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
           if version['build_hash'].strip() !=  expected_hash:
             raise RuntimeError('HEAD hash does not match expected [%s] but got [%s]' % (expected_hash, version['build_hash']))
           print('  Running REST Spec tests against package [%s]' % release_file)
-          run_mvn('test -Dtests.rest=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9200"))
+          run_mvn('test -Dtests.cluster=%s -Dtests.class=*.*RestTests' % ("127.0.0.1:9300"))
           print('  Verify if plugins are listed in _nodes')
           conn.request('GET', '/_nodes?plugin=true&pretty=true')
           res = conn.getresponse()
@@ -516,6 +544,7 @@ if __name__ == '__main__':
 
   if build:
     release_version = find_release_version(src_branch)
+    ensure_no_open_tickets(release_version)
     if not dry_run:
       smoke_test_version = release_version
     head_hash = get_head_hash()

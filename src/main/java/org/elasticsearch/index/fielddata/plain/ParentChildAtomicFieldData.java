@@ -56,11 +56,6 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public boolean isValuesOrdered() {
-        return true;
-    }
-
-    @Override
     public int getNumDocs() {
         return numDocs;
     }

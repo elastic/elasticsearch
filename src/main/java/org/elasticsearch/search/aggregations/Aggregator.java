@@ -19,12 +19,12 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,6 +84,9 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.factories = factories;
         this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
+        // TODO: change it to SEARCH_PHASE, but this would imply allocating the aggregators in the QUERY
+        // phase instead of DFS like it is done today
+        context.searchContext().addReleasable(this, Lifetime.CONTEXT);
     }
 
     /**
@@ -174,19 +177,12 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
 
     /** Called upon release of the aggregator. */
     @Override
-    public boolean release() {
-        boolean success = false;
-        try {
-            doRelease();
-            success = true;
-        } finally {
-            Releasables.release(success, subAggregators);
-        }
-        return true;
+    public void close() {
+        doClose();
     }
 
     /** Release instance-specific data. */
-    protected void doRelease() {}
+    protected void doClose() {}
 
     /**
      * Can be overriden by aggregator implementation to be called back when the collection phase ends.

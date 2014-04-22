@@ -66,19 +66,26 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     @AfterClass
     public static void tearDownSecondCluster() {
         if (cluster2 != null) {
-            cluster2.afterTest();
-            cluster2.close();
-            cluster2 = null;
+            try {
+                cluster2.close();
+            } finally {
+                cluster2 = null;
+            }
         }
     }
 
     @After
     public void tearDownTribeNode() {
         if (cluster2 != null) {
-            cluster2.client().admin().indices().prepareDelete("_all").execute().actionGet();
+            try {
+                cluster2.wipe();
+            } finally {
+                cluster2.afterTest();
+            }
         }
         if (tribeNode != null) {
             tribeNode.close();
+            tribeNode = null;
         }
     }
 

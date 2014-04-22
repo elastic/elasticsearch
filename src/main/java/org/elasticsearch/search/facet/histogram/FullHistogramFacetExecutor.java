@@ -68,7 +68,7 @@ public class FullHistogramFacetExecutor extends FacetExecutor {
                 fullEntries.add((InternalFullHistogramFacet.FullEntry) values[i]);
             }
         }
-        entries.release();
+        entries.close();
         return new InternalFullHistogramFacet(facetName, comparatorType, fullEntries);
     }
 

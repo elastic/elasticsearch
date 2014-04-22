@@ -199,7 +199,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
             }
         } finally {
             // this will also release the index searcher
-            context.release();
+            context.close();
             SearchContext.removeCurrent();
         }
     }

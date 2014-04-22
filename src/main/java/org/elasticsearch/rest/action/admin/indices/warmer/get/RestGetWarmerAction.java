@@ -20,7 +20,6 @@ package org.elasticsearch.rest.action.admin.indices.warmer.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,10 +29,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -64,42 +61,27 @@ public class RestGetWarmerAction extends BaseRestHandler {
         getWarmersRequest.indices(indices).types(types).warmers(names);
         getWarmersRequest.local(request.paramAsBoolean("local", getWarmersRequest.local()));
         getWarmersRequest.indicesOptions(IndicesOptions.fromRequest(request, getWarmersRequest.indicesOptions()));
-        client.admin().indices().getWarmers(getWarmersRequest, new ActionListener<GetWarmersResponse>() {
+        client.admin().indices().getWarmers(getWarmersRequest, new RestBuilderListener<GetWarmersResponse>(channel) {
 
             @Override
-            public void onResponse(GetWarmersResponse response) {
-                try {
-                    if (indices.length > 0 && response.warmers().isEmpty()) {
-                        channel.sendResponse(new BytesRestResponse(OK, RestXContentBuilder.emptyBuilder(request)));
-                        return;
-                    }
+            public RestResponse buildResponse(GetWarmersResponse response, XContentBuilder builder) throws Exception {
+                if (indices.length > 0 && response.warmers().isEmpty()) {
+                    return new BytesRestResponse(OK, builder.startObject().endObject());
+                }
 
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry : response.warmers()) {
-                        builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
-                        builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
-                        for (IndexWarmersMetaData.Entry warmerEntry : entry.value) {
-                            IndexWarmersMetaData.FACTORY.toXContent(warmerEntry, builder, request);
-                        }
-                        builder.endObject();
-                        builder.endObject();
+                builder.startObject();
+                for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry : response.warmers()) {
+                    builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
+                    for (IndexWarmersMetaData.Entry warmerEntry : entry.value) {
+                        IndexWarmersMetaData.FACTORY.toXContent(warmerEntry, builder, request);
                     }
                     builder.endObject();
-
-                    channel.sendResponse(new BytesRestResponse(OK, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                    builder.endObject();
                 }
-            }
+                builder.endObject();
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                return new BytesRestResponse(OK, builder);
             }
         });
     }

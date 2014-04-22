@@ -20,6 +20,8 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.io.UTF8StreamWriter;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
 
@@ -42,12 +44,13 @@ public abstract class AbstractCatAction extends BaseRestHandler {
     abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             Table table = getTableWithHeader(request);
-            int[] width = buildHelpWidths(table, request, false);
-            StringBuilder out = new StringBuilder();
+            int[] width = buildHelpWidths(table, request);
+            BytesStreamOutput bytesOutput = channel.bytesOutput();
+            UTF8StreamWriter out = new UTF8StreamWriter().setOutput(bytesOutput);
             for (Table.Cell cell : table.getHeaders()) {
                 // need to do left-align always, so create new cells
                 pad(new Table.Cell(cell.value), width[0], request, out);
@@ -57,11 +60,10 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                 pad(new Table.Cell(cell.attr.containsKey("desc") ? cell.attr.get("desc") : "not available"), width[2], request, out);
                 out.append("\n");
             }
-            channel.sendResponse(new BytesRestResponse(RestStatus.OK, out.toString()));
+            out.close();
+            channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes(), true));
         } else {
             doRequest(request, channel);
         }
     }
-
-
 }

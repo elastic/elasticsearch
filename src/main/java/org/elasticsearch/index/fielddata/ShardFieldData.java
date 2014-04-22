@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
@@ -72,27 +71,24 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     }
 
     @Override
-    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData) {
-        long sizeInBytes = fieldData.getMemorySizeInBytes();
-
-        totalMetric.inc(sizeInBytes);
-
+    public void onLoad(FieldMapper.Names fieldNames, FieldDataType fieldDataType, RamUsage ramUsage) {
+        totalMetric.inc(ramUsage.getMemorySizeInBytes());
         String keyFieldName = fieldNames.indexName();
         CounterMetric total = perFieldTotals.get(keyFieldName);
         if (total != null) {
-            total.inc(sizeInBytes);
+            total.inc(ramUsage.getMemorySizeInBytes());
         } else {
             total = new CounterMetric();
-            total.inc(sizeInBytes);
+            total.inc(ramUsage.getMemorySizeInBytes());
             CounterMetric prev = perFieldTotals.putIfAbsent(keyFieldName, total);
             if (prev != null) {
-                prev.inc(sizeInBytes);
+                prev.inc(ramUsage.getMemorySizeInBytes());
             }
         }
     }
 
     @Override
-    public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes, @Nullable AtomicFieldData fieldData) {
+    public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
         if (wasEvicted) {
             evictionsMetric.inc();
         }

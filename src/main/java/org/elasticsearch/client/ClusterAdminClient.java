@@ -447,4 +447,9 @@ public interface ClusterAdminClient {
      */
     SnapshotsStatusRequestBuilder prepareSnapshotStatus(String repository);
 
+    /**
+     * Get snapshot status.
+     */
+    SnapshotsStatusRequestBuilder prepareSnapshotStatus();
+
 }

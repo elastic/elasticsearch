@@ -87,7 +87,7 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
         }
 
         @Override
-        public boolean release() {
+        public void close() {
             if (value == null) {
                 throw new ElasticsearchIllegalStateException("recycler entry already released...");
             }
@@ -101,7 +101,6 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
             }
             value = null;
             afterRelease(recycle);
-            return true;
         }
     }
 }

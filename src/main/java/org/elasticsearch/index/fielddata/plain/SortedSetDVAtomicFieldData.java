@@ -20,7 +20,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.FilterAtomicReader;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
@@ -97,6 +99,23 @@ abstract class SortedSetDVAtomicFieldData {
             }
         }
         return new SortedSetHashedValues(reader, field, values, hashes);
+    }
+
+    public TermsEnum getTermsEnum() {
+        final TermsEnum termsEnum = getValuesNoException(reader, field).termsEnum();
+        return new FilterAtomicReader.FilterTermsEnum(termsEnum) {
+
+            @Override
+            public void seekExact(long ord) throws IOException {
+                super.seekExact(ord - 1);
+            }
+
+            @Override
+            public long ord() throws IOException {
+                return super.ord() + 1;
+            }
+
+        };
     }
 
     private static SortedSetDocValues getValuesNoException(AtomicReader reader, String field) {

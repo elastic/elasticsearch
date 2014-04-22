@@ -43,7 +43,7 @@ Individual fields can be boosted with the caret (`^`) notation:
   }
 }
 --------------------------------------------------
-<1> The `subject` field is three times as important than the `message` field.
+<1> The `subject` field is three times as important as the `message` field.
 
 [float]
 === `use_dis_max`

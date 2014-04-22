@@ -449,12 +449,12 @@ public class GeoHashUtils {
      */
     public static String toString(long geohashAsLong)
     {
-        int precision= (int) (geohashAsLong&15);
-        char[] chars=new char[precision];
-        geohashAsLong>>=4;                    
-        for (int i = precision-1; i >=0 ; i--) {
-            chars[i]=  BASE_32[(int) (geohashAsLong&31)];
-            geohashAsLong>>=5;                    
+        int precision = (int) (geohashAsLong&15);
+        char[] chars = new char[precision];
+        geohashAsLong >>= 4;
+        for (int i = precision - 1; i >= 0 ; i--) {
+            chars[i] =  BASE_32[(int) (geohashAsLong & 31)];
+            geohashAsLong >>= 5;
         }
         return new String(chars);        
     }

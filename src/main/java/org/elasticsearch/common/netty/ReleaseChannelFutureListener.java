@@ -37,6 +37,6 @@ public class ReleaseChannelFutureListener implements ChannelFutureListener {
 
     @Override
     public void operationComplete(ChannelFuture future) throws Exception {
-        releasable.release();
+        releasable.close();
     }
 }

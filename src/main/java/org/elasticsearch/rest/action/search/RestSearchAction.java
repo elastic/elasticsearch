@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,22 +28,21 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.io.IOException;
-
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
 import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 
 /**
@@ -55,72 +53,34 @@ public class RestSearchAction extends BaseRestHandler {
     @Inject
     public RestSearchAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(GET,  "/_search", this);
+        controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
-        controller.registerHandler(GET,  "/{index}/_search", this);
+        controller.registerHandler(GET, "/{index}/_search", this);
         controller.registerHandler(POST, "/{index}/_search", this);
-        controller.registerHandler(GET,  "/{index}/{type}/_search", this);
+        controller.registerHandler(GET, "/{index}/{type}/_search", this);
         controller.registerHandler(POST, "/{index}/{type}/_search", this);
-        controller.registerHandler(GET,  "/_search/template", this);
+        controller.registerHandler(GET, "/_search/template", this);
         controller.registerHandler(POST, "/_search/template", this);
-        controller.registerHandler(GET,  "/{index}/_search/template", this);
+        controller.registerHandler(GET, "/{index}/_search/template", this);
         controller.registerHandler(POST, "/{index}/_search/template", this);
-        controller.registerHandler(GET,  "/{index}/{type}/_search/template", this);
+        controller.registerHandler(GET, "/{index}/{type}/_search/template", this);
         controller.registerHandler(POST, "/{index}/{type}/_search/template", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         SearchRequest searchRequest;
-        try {
-            searchRequest = RestSearchAction.parseSearchRequest(request);
-            searchRequest.listenerThreaded(false);
-            SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
-            if (operationThreading != null) {
-                if (operationThreading == SearchOperationThreading.NO_THREADS) {
-                    // since we don't spawn, don't allow no_threads, but change it to a single thread
-                    operationThreading = SearchOperationThreading.SINGLE_THREAD;
-                }
-                searchRequest.operationThreading(operationThreading);
+        searchRequest = RestSearchAction.parseSearchRequest(request);
+        searchRequest.listenerThreaded(false);
+        SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
+        if (operationThreading != null) {
+            if (operationThreading == SearchOperationThreading.NO_THREADS) {
+                // since we don't spawn, don't allow no_threads, but change it to a single thread
+                operationThreading = SearchOperationThreading.SINGLE_THREAD;
             }
-        } catch (Exception e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("failed to parse search request parameters", e);
-            }
-            try {
-                XContentBuilder builder = restContentBuilder(request);
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
+            searchRequest.operationThreading(operationThreading);
         }
-        client.search(searchRequest, new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse response) {
-                try {
-                    XContentBuilder builder = restContentBuilder(request);
-                    builder.startObject();
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                    channel.sendResponse(new BytesRestResponse(response.status(), builder));
-                } catch (Exception e) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("failed to execute search (building response)", e);
-                    }
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (IOException e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
-            }
-        });
+        client.search(searchRequest, new RestToXContentListener<SearchResponse>(channel));
     }
 
     public static SearchRequest parseSearchRequest(RestRequest request) {

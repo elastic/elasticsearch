@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -32,8 +33,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -150,21 +151,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSimple2() throws Exception {
-
-        //TODO this test seems to have problems with more shards and/or 1 replica instead of 0
-        client().admin().indices().prepareCreate("index").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .build()
-        ).execute().actionGet();
-        client().admin().indices().prepareCreate("test").setSettings(
-                ImmutableSettings.settingsBuilder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .build()
-        ).execute().actionGet();
-        ensureGreen();
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=long"));
 
         // introduce the doc
         XContentBuilder doc = XContentFactory.jsonBuilder().startObject().startObject("doc")
@@ -1595,13 +1582,18 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test1", "test2").get();
-                boolean hasPercolatorType = getMappingsResponse.getMappings().get("test1").containsKey(PercolatorService.TYPE_NAME);
-                if (hasPercolatorType) {
-                    return getMappingsResponse.getMappings().get("test2").containsKey(PercolatorService.TYPE_NAME);
-                } else {
-                    return false;
+                for (Client client : cluster()) {
+                    GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("test1", "test2").get();
+                    boolean hasPercolatorType = getMappingsResponse.getMappings().get("test1").containsKey(PercolatorService.TYPE_NAME);
+                    if (!hasPercolatorType) {
+                        return false;
+                    }
+
+                    if (!getMappingsResponse.getMappings().get("test2").containsKey(PercolatorService.TYPE_NAME)) {
+                        return false;
+                    }
                 }
+                return true;
             }
         });
 
@@ -1679,6 +1671,107 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         response = client().preparePercolate().setGetRequest(Requests.getRequest("nestedindex").type("company").id("matching")).setDocumentType("company").setIndices("nestedindex").get();
         assertEquals(response.getMatches().length, 1);
         assertEquals(response.getMatches()[0].getId().string(), "Q");
+    }
+
+    @Test
+    public void testPercolationWithDynamicTemplates() throws Exception {
+        assertAcked(prepareCreate("idx").addMapping("type", jsonBuilder().startObject().startObject("type")
+                .field("dynamic", false)
+                .startObject("properties")
+                .startObject("custom")
+                .field("dynamic", true)
+                .field("type", "object")
+                .field("incude_in_all", false)
+                .endObject()
+                .endObject()
+                .startArray("dynamic_template")
+                .startObject()
+                .startObject("custom_fields")
+                .field("path_match", "custom.*")
+                .startObject("mapping")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endArray()
+                .endObject().endObject()));
+
+        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:red")).endObject())
+                .get();
+        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:blue")).endObject())
+                .get();
+
+        PercolateResponse percolateResponse = client().preparePercolate().setDocumentType("type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(jsonBuilder().startObject().startObject("custom").field("color", "blue").endObject().endObject()))
+                .get();
+
+        assertMatchCount(percolateResponse, 0l);
+        assertThat(percolateResponse.getMatches(), arrayWithSize(0));
+
+        // wait until the mapping change has propagated from the percolate request
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
+                return pendingTasks.pendingTasks().isEmpty();
+            }
+        });
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+
+        // The previous percolate request introduced the custom.color field, so now we register the query again
+        // and the field name `color` will be resolved to `custom.color` field in mapping via smart field mapping resolving.
+        client().prepareIndex("idx", PercolatorService.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryString("color:blue")).endObject())
+                .get();
+
+        // The second request will yield a match, since the query during the proper field during parsing.
+        percolateResponse = client().preparePercolate().setDocumentType("type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(jsonBuilder().startObject().startObject("custom").field("color", "blue").endObject().endObject()))
+                .get();
+
+        assertMatchCount(percolateResponse, 1l);
+        assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("2"));
+    }
+
+    @Test
+    public void testUpdateMappingDynamicallyWhilePercolating() throws Exception {
+        createIndex("test");
+        ensureSearchable();
+
+        // percolation source
+        XContentBuilder percolateDocumentSource = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject();
+
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type1")
+                .setSource(percolateDocumentSource).execute().actionGet();
+        assertAllSuccessful(response);
+        assertMatchCount(response, 0l);
+        assertThat(response.getMatches(), arrayWithSize(0));
+
+        // wait until the mapping change has propagated
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
+                return pendingTasks.pendingTasks().isEmpty();
+            }
+        });
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+
+        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
+        assertThat(mappingsResponse.getMappings().get("test"), notNullValue());
+        assertThat(mappingsResponse.getMappings().get("test").get("type1"), notNullValue());
+        assertThat(mappingsResponse.getMappings().get("test").get("type1").getSourceAsMap().isEmpty(), is(false));
+        Map<String, Object> properties = (Map<String, Object>) mappingsResponse.getMappings().get("test").get("type1").getSourceAsMap().get("properties");
+        assertThat(((Map<String, String>) properties.get("field1")).get("type"), equalTo("long"));
+        assertThat(((Map<String, String>) properties.get("field2")).get("type"), equalTo("string"));
     }
 
     void initNestedIndexAndPercolation() throws IOException {

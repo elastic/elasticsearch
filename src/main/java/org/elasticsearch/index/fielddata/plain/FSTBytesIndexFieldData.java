@@ -30,6 +30,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -47,14 +48,15 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
 
         @Override
         public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper,
-                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService);
+                                                             IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService,
+                                                             GlobalOrdinalsBuilder globalOrdinalBuilder) {
+            return new FSTBytesIndexFieldData(index, indexSettings, mapper.names(), mapper.fieldDataType(), cache, breakerService, globalOrdinalBuilder);
         }
     }
 
     FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType,
-                           IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+                           IndexFieldDataCache cache, CircuitBreakerService breakerService, GlobalOrdinalsBuilder globalOrdinalsBuilder) {
+        super(index, indexSettings, fieldNames, fieldDataType, cache, globalOrdinalsBuilder, breakerService);
         this.breakerService = breakerService;
     }
 

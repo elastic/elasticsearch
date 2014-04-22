@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.7.1</lucene.version>
+        <lucene.version>4.7.2</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -41,6 +41,13 @@
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>Codehaus Snapshots</id>
+            <url>http://repository.codehaus.org/</url>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -52,7 +59,7 @@
         <dependency>
             <groupId>com.carrotsearch.randomizedtesting</groupId>
             <artifactId>randomizedtesting-runner</artifactId>
-            <version>2.1.1</version>
+            <version>2.1.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -209,7 +216,7 @@
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
-            <version>2.1.9.Final</version>
+            <version>2.2.0.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -387,7 +394,7 @@
             <plugin>
                 <groupId>com.carrotsearch.randomizedtesting</groupId>
                 <artifactId>junit4-maven-plugin</artifactId>
-                <version>2.1.1</version>
+                <version>2.1.2</version>
                 <executions>
                     <execution>
                         <id>tests</id>
@@ -445,6 +452,7 @@
                             <sysouts>${tests.verbose}</sysouts>
                             <seed>${tests.seed}</seed>
                             <haltOnFailure>${tests.failfast}</haltOnFailure>
+                            <uniqueSuiteNames>false</uniqueSuiteNames>
                             <systemProperties>
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
@@ -581,10 +589,6 @@
                         <relocation>
                             <pattern>com.carrotsearch.hppc</pattern>
                             <shadedPattern>org.elasticsearch.common.hppc</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>jsr166y</pattern>
-                            <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166y</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>jsr166e</pattern>
@@ -1035,7 +1039,7 @@
             <plugin>
                 <groupId>de.thetaphi</groupId>
                 <artifactId>forbiddenapis</artifactId>
-                <version>1.4.1</version>
+                <version>1.5.1</version>
 
                 <executions>
                     <execution>
@@ -1048,14 +1052,13 @@
                             <failOnUnsupportedJava>false</failOnUnsupportedJava>
                             <excludes>
                                 <exclude>jsr166e/**</exclude>
-                                <exclude>jsr166y/**</exclude>
                                 <!-- start excludes for valid system-out -->
                                 <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
-				<exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
+                                <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
                                 <!-- start excludes for Unsafe -->
                                 <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
@@ -1066,14 +1069,15 @@
                                 <!-- end excludes for Math.abs -->
                             </excludes>
                             <bundledSignatures>
-                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
-                                <bundledSignaure>jdk-system-out</bundledSignaure>
+                                <bundledSignature>jdk-system-out</bundledSignature>
                             </bundledSignatures>
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>
                             </signaturesFiles>
+                            <signatures>${forbidden.signatures}</signatures>
                         </configuration>
                         <phase>compile</phase>
                         <goals>
@@ -1089,10 +1093,11 @@
                             <!-- if the used Java version is too new, don't fail, just do nothing: -->
                             <failOnUnsupportedJava>false</failOnUnsupportedJava>
                             <bundledSignatures>
-                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
+                            <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
                         <phase>test-compile</phase>
                         <goals>
@@ -1138,12 +1143,8 @@
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest.class</include>
                                 <include>org/apache/lucene/util/AbstractRandomizedTest$*.class</include>
-                                <!-- inner classes -->
-                                <include>com/carrotsearch/randomizedtesting/StandaloneRandomizedContext.class</include>
                             </includes>
                             <excludes>
-                                <!-- we only distribute the REST tests runner, not the executable test  -->
-                                <exclude>org/elasticsearch/test/rest/ElasticsearchRestTests.class</exclude>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
                                 <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
                             </excludes>
@@ -1348,7 +1349,6 @@
               <configuration>
                 <excludes>
                   <exclude>jsr166e/**</exclude>
-                  <exclude>jsr166y/**</exclude>
                   <exclude>org/apache/lucene/**</exclude>
                 </excludes>
               </configuration>
@@ -1391,7 +1391,6 @@
                 <targetJdk>1.7</targetJdk>
                 <excludes>
                   <exclude>**/jsr166e/**</exclude>
-                  <exclude>**/jsr166y/**</exclude>
                   <exclude>**/org/apache/lucene/**</exclude>
                   <exclude>**/org/apache/elasticsearch/common/Base64.java</exclude>
                 </excludes>
@@ -1417,7 +1416,7 @@
               <reportSets>
                 <reportSet>
                   <reports>
-                    <report>dependencies</report>
+                    <report>index</report>
                   </reports>
                 </reportSet>
               </reportSets>

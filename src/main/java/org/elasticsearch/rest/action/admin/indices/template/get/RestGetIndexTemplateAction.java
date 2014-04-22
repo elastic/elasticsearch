@@ -19,7 +19,6 @@
 package org.elasticsearch.rest.action.admin.indices.template.get;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.Map;
 
@@ -61,38 +60,24 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
 
-        client.admin().indices().getTemplates(getIndexTemplatesRequest, new ActionListener<GetIndexTemplatesResponse>() {
+        client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestBuilderListener<GetIndexTemplatesResponse>(channel) {
             @Override
-            public void onResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
-                try {
-                    boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
+            public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse, XContentBuilder builder) throws Exception {
+                boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
 
-                    Map<String, String> paramsMap = Maps.newHashMap();
-                    paramsMap.put("reduce_mappings", "true");
-                    ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
+                Map<String, String> paramsMap = Maps.newHashMap();
+                paramsMap.put("reduce_mappings", "true");
+                ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
 
-                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject();
-                    for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplatesResponse.getIndexTemplates()) {
-                        IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
-                    }
-                    builder.endObject();
-
-                    RestStatus restStatus = (templateExists || implicitAll) ? OK : NOT_FOUND;
-
-                    channel.sendResponse(new BytesRestResponse(restStatus, builder));
-                } catch (Throwable e) {
-                    onFailure(e);
+                builder.startObject();
+                for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplatesResponse.getIndexTemplates()) {
+                    IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
                 }
-            }
+                builder.endObject();
 
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(request, e));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
-                }
+                RestStatus restStatus = (templateExists || implicitAll) ? OK : NOT_FOUND;
+
+                return new BytesRestResponse(restStatus, builder);
             }
         });
     }

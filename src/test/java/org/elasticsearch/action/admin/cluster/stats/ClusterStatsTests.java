@@ -20,7 +20,10 @@
 package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -28,7 +31,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+import static org.hamcrest.Matchers.is;
+
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
 public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
@@ -39,22 +44,30 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         assertThat(counts.getClient(), Matchers.equalTo(client));
     }
 
+    private void waitForNodes(int numNodes) {
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes))).actionGet();
+        assertThat(actionGet.isTimedOut(), is(false));
+    }
+
     @Test
     public void testNodeCounts() {
-        cluster().startNode();
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        waitForNodes(2);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.master", false));
         response = client().admin().cluster().prepareClusterStats().get();
+        waitForNodes(3);
         assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
         cluster().startNode(ImmutableSettings.builder().put("node.client", true));
         response = client().admin().cluster().prepareClusterStats().get();
+        waitForNodes(4);
         assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
     }
 
@@ -68,8 +81,6 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndicesShardStats() {
-        cluster().startNode();
-
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
@@ -119,29 +130,35 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         cluster().ensureAtLeastNumNodes(1);
         SigarService sigarService = cluster().getInstance(SigarService.class);
         index("test1", "type", "1", "f", "f");
-
+        /*
+         * Ensure at least one shard is allocated otherwise the FS stats might
+         * return 0. This happens if the File#getTotalSpace() and friends is called
+         * on a directory that doesn't exist or has not yet been created.
+         */
+        ensureYellow("test1");
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
-        assertThat(response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
+        String msg = response.toString();
+        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000l)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0l));
 
-        assertThat(response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
-        assertThat(response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getFs().getTotal().bytes(), Matchers.greaterThan(0l));
+        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
         if (sigarService.sigarAvailable()) {
             // We only get those if we have sigar
-            assertThat(response.nodesStats.getOs().getAvailableProcessors(), Matchers.greaterThan(0));
-            assertThat(response.nodesStats.getOs().getAvailableMemory().bytes(), Matchers.greaterThan(0l));
-            assertThat(response.nodesStats.getOs().getCpus().size(), Matchers.greaterThan(0));
+            assertThat(msg, response.nodesStats.getOs().getAvailableProcessors(), Matchers.greaterThan(0));
+            assertThat(msg, response.nodesStats.getOs().getAvailableMemory().bytes(), Matchers.greaterThan(0l));
+            assertThat(msg, response.nodesStats.getOs().getCpus().size(), Matchers.greaterThan(0));
         }
-        assertThat(response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
-        assertThat(response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
-        assertThat(response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
+        assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
+        assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
 
-        assertThat(response.nodesStats.getProcess().count, Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getProcess().count, Matchers.greaterThan(0));
         // 0 happens when not supported on platform
-        assertThat(response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
         // these can be -1 if not supported on platform
-        assertThat(response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
-        assertThat(response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
     }
 }

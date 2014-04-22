@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -52,7 +53,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
 
         @Override
         public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper<?> mapper, IndexFieldDataCache cache,
-                                       CircuitBreakerService breakerService, MapperService mapperService) {
+                                       CircuitBreakerService breakerService, MapperService mapperService, GlobalOrdinalsBuilder globalOrdinalBuilder) {
             FieldDataType type = mapper.fieldDataType();
             final String precisionAsString = type.getSettings().get(PRECISION_KEY);
             final Distance precision;
@@ -115,7 +116,13 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
+            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                if (lat.size() != build.getMaxOrd()) {
+                    lat = lat.resize(build.getMaxOrd());
+                    lon = lon.resize(build.getMaxOrd());
+                }
+                data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, reader.maxDoc(), build);
+            } else {
                 Docs ordinals = build.ordinals();
                 int maxDoc = reader.maxDoc();
                 PagedMutable sLat = new PagedMutable(reader.maxDoc(), pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
@@ -131,12 +138,6 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
                 } else {
                     data = new GeoPointCompressedAtomicFieldData.SingleFixedSet(encoding, sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
                 }
-            } else {
-                if (lat.size() != build.getMaxOrd()) {
-                    lat = lat.resize(build.getMaxOrd());
-                    lon = lon.resize(build.getMaxOrd());
-                }
-                data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, reader.maxDoc(), build);
             }
             success = true;
             return data;

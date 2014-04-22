@@ -22,10 +22,12 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
+import com.carrotsearch.hppc.ObjectArrayList;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Preconditions;
 
 import java.util.AbstractList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.RandomAccess;
 
@@ -221,6 +223,61 @@ public enum CollectionUtils {
         }
 
         return new RotatedList<>(list, d);
+    }
+
+    public static void sortAndDedup(final ObjectArrayList<byte[]> array) {
+        int len = array.size();
+        if (len > 1) {
+            sort(array);
+            int uniqueCount = 1;
+            for (int i = 1; i < len; ++i) {
+                if (!Arrays.equals(array.get(i), array.get(i - 1))) {
+                    array.set(uniqueCount++, array.get(i));
+                }
+            }
+            array.elementsCount = uniqueCount;
+        }
+    }
+
+    public static void sort(final ObjectArrayList<byte[]> array) {
+        new IntroSorter() {
+
+            byte[] pivot;
+
+            @Override
+            protected void swap(int i, int j) {
+                final byte[] tmp = array.get(i);
+                array.set(i, array.get(j));
+                array.set(j, tmp);
+            }
+
+            @Override
+            protected int compare(int i, int j) {
+                return compare(array.get(i), array.get(j));
+            }
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = array.get(i);
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                return compare(pivot, array.get(j));
+            }
+
+            private int compare(byte[] left, byte[] right) {
+                for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
+                    int a = left[i] & 0xFF;
+                    int b = right[j] & 0xFF;
+                    if (a != b) {
+                        return a - b;
+                    }
+                }
+                return left.length - right.length;
+            }
+
+        }.sort(0, array.size());
     }
 
     private static class RotatedList<T> extends AbstractList<T> implements RandomAccess {

@@ -20,10 +20,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -32,30 +28,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.merge.policy.*;
-import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
-import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
-import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.search.SearchService;
+
 
 import java.net.InetSocketAddress;
-import java.util.Arrays;
 import java.util.Random;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -67,16 +47,6 @@ import static org.junit.Assert.assertThat;
 public abstract class ImmutableTestCluster implements Iterable<Client> {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
-
-    /**
-     * Key used to retrieve the index random seed from the index settings on a running node.
-     * The value of this seed can be used to initialize a random context for a specific index.
-     * It's set once per test via a generic index template.
-     */
-    public static final String SETTING_INDEX_SEED = "index.tests.seed";
-
-    public static final int DEFAULT_MIN_NUM_SHARDS = 1;
-    public static final int DEFAULT_MAX_NUM_SHARDS = 10;
 
     protected Random random;
 
@@ -222,113 +192,5 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
                         stats.getBreaker().getEstimated(), equalTo(0L));
             }
         }
-    }
-
-    /**
-     * Creates a randomized index template. This template is used to pass in randomized settings on a
-     * per index basis.
-     */
-    public void randomIndexTemplate() {
-        // TODO move settings for random directory etc here into the index based randomized settings.
-        if (size() > 0) {
-            ImmutableSettings.Builder builder =
-                    setRandomSettings(random, ImmutableSettings.builder())
-                    .put(SETTING_INDEX_SEED, random.nextLong())
-                    .put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                    //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
-                    .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, random.nextInt(10) > 0 ? 1 : dataNodes() - 1));
-            client().admin().indices().preparePutTemplate("random_index_template")
-                    .setTemplate("*")
-                    .setOrder(0)
-                    .setSettings(builder)
-                    .execute().actionGet();
-        }
-    }
-
-    private static ImmutableSettings.Builder setRandomNormsLoading(Random random, ImmutableSettings.Builder builder) {
-        if (random.nextBoolean()) {
-            builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(FieldMapper.Loading.EAGER, FieldMapper.Loading.LAZY)));
-        }
-        return builder;
-    }
-
-    private static ImmutableSettings.Builder setRandomTranslogSettings(Random random, ImmutableSettings.Builder builder) {
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
-        }
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
-        }
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TimeValue.timeValueMinutes(RandomInts.randomIntBetween(random, 1, 60)));
-        }
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_INTERVAL, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 1, 10000)));
-        }
-        if (random.nextBoolean()) {
-            builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
-        }
-        return builder;
-    }
-
-    private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
-        setRandomMerge(random, builder);
-        setRandomTranslogSettings(random, builder);
-        setRandomNormsLoading(random, builder);
-        if (random.nextBoolean()) {
-            if (random.nextInt(10) == 0) { // do something crazy slow here
-                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
-            } else {
-                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
-            }
-        }
-        if (random.nextBoolean()) {
-            builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
-        }
-
-        if (random.nextBoolean()) {
-            if (random.nextInt(10) == 0) { // do something crazy slow here
-                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
-            } else {
-                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
-            }
-        }
-
-        return builder;
-    }
-
-    private static ImmutableSettings.Builder setRandomMerge(Random random, ImmutableSettings.Builder builder) {
-        if (random.nextBoolean()) {
-            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
-                    random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
-        }
-        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
-        switch (random.nextInt(5)) {
-            case 4:
-                mergePolicy = LogByteSizeMergePolicyProvider.class;
-                break;
-            case 3:
-                mergePolicy = LogDocMergePolicyProvider.class;
-                break;
-            case 0:
-                mergePolicy = null;
-        }
-        if (mergePolicy != null) {
-            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
-        }
-
-        if (random.nextBoolean()) {
-            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
-        }
-        switch (random.nextInt(5)) {
-            case 4:
-                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, SerialMergeSchedulerProvider.class.getName());
-                break;
-            case 3:
-                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class.getName());
-                break;
-        }
-
-        return builder;
     }
 }

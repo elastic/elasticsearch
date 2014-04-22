@@ -32,7 +32,10 @@ Below is the list of settings that can be changed using the update
 settings API:
 
 `index.number_of_replicas`::
-    The number of replicas each shard has.
+    The number of replicas each shard has. Default to `1`.
+
+`index.number_of_shards`::
+    The number of shards each index has. Default to `5`.
 
 `index.auto_expand_replicas`::
     Set to an actual value (like `0-all`) or `false` to disable it.

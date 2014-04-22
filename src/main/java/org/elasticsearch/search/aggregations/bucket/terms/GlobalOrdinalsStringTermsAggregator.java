@@ -23,7 +23,9 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -37,6 +39,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.GlobalOrdinalMapping;
+
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
  */
@@ -47,8 +51,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected Ordinals.Docs globalOrdinals;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-            InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
+            long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
+        super(name, factories, maxOrd, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
         this.valuesSource = valuesSource;
     }
 
@@ -65,7 +69,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public void setNextReader(AtomicReaderContext reader) {
         globalValues = valuesSource.globalBytesValues();
         globalOrdinals = globalValues.ordinals();
-        initializeDocCounts(globalOrdinals.getMaxOrd());
     }
 
     @Override
@@ -135,9 +138,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongHash bucketOrds;
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
+                long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
                 Aggregator parent) {
-            super(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            // Set maxOrd to estimatedBucketCount! To be conservative with memory.
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -170,6 +174,80 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             Releasables.close(bucketOrds);
         }
 
+    }
+
+    /**
+     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that resolves global ordinals post segment collection
+     * instead of on the fly for each match.This is beneficial for low cardinality fields, because it can reduce
+     * the amount of look-ups significantly.
+     */
+    public static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
+
+        private final LongArray segmentDocCounts;
+
+        private Ordinals.Docs segmentOrdinals;
+        private LongArray current;
+
+        public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
+                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            this.segmentDocCounts = bigArrays.newLongArray(maxOrd, true);
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrdinal) throws IOException {
+            final int numOrds = segmentOrdinals.setDocument(doc);
+            for (int i = 0; i < numOrds; i++) {
+                final long segmentOrd = segmentOrdinals.nextOrd();
+                current.increment(segmentOrd, 1);
+            }
+        }
+
+        @Override
+        public void setNextReader(AtomicReaderContext reader) {
+            if (segmentOrdinals != null && segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+                mapSegmentCountsToGlobalCounts();
+            }
+
+            super.setNextReader(reader);
+            BytesValues.WithOrdinals bytesValues = valuesSource.bytesValues();
+            segmentOrdinals = bytesValues.ordinals();
+            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+                current = segmentDocCounts;
+            } else {
+                current = getDocCounts();
+            }
+        }
+
+        @Override
+        protected void doPostCollection() {
+            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+                mapSegmentCountsToGlobalCounts();
+            }
+        }
+
+        @Override
+        protected void doClose() {
+            Releasables.close(segmentDocCounts);
+        }
+
+        private void mapSegmentCountsToGlobalCounts() {
+            // There is no public method in Ordinals.Docs that allows for this mapping...
+            // This is the cleanest way I can think of so far
+            GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalOrdinals;
+            for (int i = 0; i < segmentDocCounts.size(); i++) {
+                final long inc = segmentDocCounts.set(i, 0);
+                if (inc == 0) {
+                    continue;
+                }
+                final long globalOrd = mapping.getGlobalOrd(i);
+                try {
+                    incrementBucketDocCount(inc, globalOrd);
+                } catch (IOException e) {
+                    throw ExceptionsHelper.convertToElastic(e);
+                }
+            }
+        }
     }
 
 }

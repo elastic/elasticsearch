@@ -2,7 +2,7 @@
 "Test benchmark abort":
 
   - do:
-        benchmark.abort:
+        abort_benchmark:
             name: my_benchmark
         catch: request
 

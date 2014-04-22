@@ -1,5 +1,5 @@
 {
-    "benchmark.list" : {
+    "list_benchmarks" : {
         "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-benchmark.html",
         "methods": ["GET"],
         "url": {
@@ -16,7 +16,6 @@
                 },
                 "type": {
                     "type" : "string",
-                    "required" : true,
                     "description" : "The name of the document type"
                 }
             },

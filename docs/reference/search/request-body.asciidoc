@@ -103,6 +103,8 @@ include::request/preference.asciidoc[]
 
 include::request/explain.asciidoc[]
 
+include::request/search-shards.asciidoc[]
+
 include::request/version.asciidoc[]
 
 include::request/index-boost.asciidoc[]

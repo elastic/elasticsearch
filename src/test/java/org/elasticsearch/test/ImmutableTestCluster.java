@@ -44,6 +44,7 @@ import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.SearchService;
@@ -282,6 +283,14 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
         }
         if (random.nextBoolean()) {
             builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
+        }
+
+        if (random.nextBoolean()) {
+            if (random.nextInt(10) == 0) { // do something crazy slow here
+                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
+            } else {
+                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
+            }
         }
 
         return builder;

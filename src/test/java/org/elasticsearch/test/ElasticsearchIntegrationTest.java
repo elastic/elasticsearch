@@ -20,11 +20,15 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
+import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -56,10 +60,23 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.merge.policy.*;
+import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
+import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
+import org.elasticsearch.index.translog.TranslogService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.junit.*;
 
@@ -134,7 +151,7 @@ import static org.hamcrest.Matchers.equalTo;
  * <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node and transport clients used</li>
  * <li>-D{@value TestCluster#TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
  * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
- * <li>-D{@value org.elasticsearch.test.TestCluster#SETTING_INDEX_SEED} - a random seed used to initialize the index random context.
+ * <li> - a random seed used to initialize the index random context.
  * </ul>
  * </p>
  */
@@ -154,6 +171,20 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static final String TESTS_CLUSTER = "tests.cluster";
 
     /**
+     * Key used to retrieve the index random seed from the index settings on a running node.
+     * The value of this seed can be used to initialize a random context for a specific index.
+     * It's set once per test via a generic index template.
+     */
+    public static final String SETTING_INDEX_SEED = "index.tests.seed";
+
+    /**
+     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
+     */
+    public static final String TESTS_COMPATIBILITY = "tests.compatibility";
+
+    protected static final Version COMPATIBILITY_VERSION = Version.fromString(System.getProperty(TESTS_COMPATIBILITY));
+
+    /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
     private static final int FREQUENT_BULK_THRESHOLD = 300;
@@ -171,6 +202,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Maximum number of documents in a single bulk index request.
      */
     private static final int MAX_BULK_INDEX_REQUEST_SIZE = 1000;
+
+    /**
+     * Default minimum number of shards for an index
+     */
+    protected static final int DEFAULT_MIN_NUM_SHARDS = 1;
+
+    /**
+     * Default maximum number of shards for an index
+     */
+    protected static final int DEFAULT_MAX_NUM_SHARDS = 10;
 
     /**
      * The current cluster depending on the configured {@link Scope}.
@@ -239,7 +280,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             immutableCluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
             immutableCluster().wipe();
-            immutableCluster().randomIndexTemplate();
+            randomIndexTemplate();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
         } catch (OutOfMemoryError e) {
             if (e.getMessage().contains("unable to create new native thread")) {
@@ -247,6 +288,121 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
             throw e;
         }
+    }
+
+    /**
+     * Creates a randomized index template. This template is used to pass in randomized settings on a
+     * per index basis. Allows to enable/disable the randomization for number of shards and replicas
+     */
+    private void randomIndexTemplate() {
+        // TODO move settings for random directory etc here into the index based randomized settings.
+        if (immutableCluster().size() > 0) {
+            ImmutableSettings.Builder randomSettingsBuilder =
+                    setRandomSettings(getRandom(), ImmutableSettings.builder())
+                            .put(SETTING_INDEX_SEED, getRandom().nextLong());
+
+            if (randomizeNumberOfShardsAndReplicas()) {
+                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
+                    //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
+                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : immutableCluster().dataNodes() - 1));
+            }
+            client().admin().indices().preparePutTemplate("random_index_template")
+                    .setTemplate("*")
+                    .setOrder(0)
+                    .setSettings(randomSettingsBuilder)
+                    .execute().actionGet();
+        }
+    }
+
+    protected boolean randomizeNumberOfShardsAndReplicas() {
+        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_1_0);
+    }
+
+    private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {
+        setRandomMerge(random, builder);
+        setRandomTranslogSettings(random, builder);
+        setRandomNormsLoading(random, builder);
+        if (random.nextBoolean()) {
+            if (random.nextInt(10) == 0) { // do something crazy slow here
+                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
+            } else {
+                builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
+            }
+        }
+        if (random.nextBoolean()) {
+            builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
+        }
+
+        if (random.nextBoolean()) {
+            if (random.nextInt(10) == 0) { // do something crazy slow here
+                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
+            } else {
+                builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
+            }
+        }
+
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomMerge(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(AbstractMergePolicyProvider.INDEX_COMPOUND_FORMAT,
+                    random.nextBoolean() ? random.nextDouble() : random.nextBoolean());
+        }
+        Class<? extends MergePolicyProvider<?>> mergePolicy = TieredMergePolicyProvider.class;
+        switch (random.nextInt(5)) {
+            case 4:
+                mergePolicy = LogByteSizeMergePolicyProvider.class;
+                break;
+            case 3:
+                mergePolicy = LogDocMergePolicyProvider.class;
+                break;
+            case 0:
+                mergePolicy = null;
+        }
+        if (mergePolicy != null) {
+            builder.put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, mergePolicy.getName());
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(MergeSchedulerProvider.FORCE_ASYNC_MERGE, random.nextBoolean());
+        }
+        switch (random.nextInt(5)) {
+            case 4:
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, SerialMergeSchedulerProvider.class.getName());
+                break;
+            case 3:
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class.getName());
+                break;
+        }
+
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomNormsLoading(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(FieldMapper.Loading.EAGER, FieldMapper.Loading.LAZY)));
+        }
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomTranslogSettings(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TimeValue.timeValueMinutes(RandomInts.randomIntBetween(random, 1, 60)));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_INTERVAL, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 1, 10000)));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
+        }
+        return builder;
     }
 
     public ImmutableTestCluster buildAndPutCluster(Scope currentClusterScope, boolean createIfExists) throws IOException {
@@ -343,11 +499,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected int minimumNumberOfShards() {
-        return ImmutableTestCluster.DEFAULT_MIN_NUM_SHARDS;
+        return DEFAULT_MIN_NUM_SHARDS;
     }
 
     protected int maximumNumberOfShards() {
-        return ImmutableTestCluster.DEFAULT_MAX_NUM_SHARDS;
+        return DEFAULT_MAX_NUM_SHARDS;
     }
 
     protected int numberOfShards() {
@@ -374,13 +530,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public Settings indexSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        int numberOfShards = numberOfShards();
-        if (numberOfShards > 0) {
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-        }
-        int numberOfReplicas = numberOfReplicas();
-        if (numberOfReplicas >= 0) {
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        if (randomizeNumberOfShardsAndReplicas()) {
+            int numberOfShards = numberOfShards();
+            if (numberOfShards > 0) {
+                builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            }
+            int numberOfReplicas = numberOfReplicas();
+            if (numberOfReplicas >= 0) {
+                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            }
         }
         return builder.build();
     }

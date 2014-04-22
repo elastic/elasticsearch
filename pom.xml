@@ -486,6 +486,7 @@
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <tests.security.manager>${tests.security.manager}</tests.security.manager>
+                                <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
                                 <!-- everything below is for security manager / test.policy -->
                                 <junit4.tempDir>${project.build.directory}</junit4.tempDir>

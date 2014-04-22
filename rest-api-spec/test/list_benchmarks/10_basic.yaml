@@ -1,0 +1,6 @@
+---
+"Test benchmark list":
+
+  - do:
+        list_benchmarks: {}
+

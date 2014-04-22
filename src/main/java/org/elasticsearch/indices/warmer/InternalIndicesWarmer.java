@@ -93,7 +93,8 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         if (logger.isTraceEnabled()) {
             if (topReader) {
-                logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
+                // nocommit is it OK that context.newSearcher() is sometimes null here???
+                logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher());
             } else {
                 logger.trace("[{}][{}] top warming [{}]", context.shardId().index().name(), context.shardId().id(), context.indexReader());
             }

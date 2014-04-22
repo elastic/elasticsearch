@@ -126,7 +126,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
 
     }
 
-    private static abstract class GlobalOrdinalMapping implements Ordinals.Docs {
+    public static abstract class GlobalOrdinalMapping implements Ordinals.Docs {
 
         protected final Ordinals.Docs segmentOrdinals;
         private final long memorySizeInBytes;
@@ -226,7 +226,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             return currentGlobalOrd = getGlobalOrd(segmentOrd);
         }
 
-        protected abstract long getGlobalOrd(long segmentOrd);
+        public abstract long getGlobalOrd(long segmentOrd);
 
     }
 
@@ -330,7 +330,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             }
 
             @Override
-            protected long getGlobalOrd(long segmentOrd) {
+            public long getGlobalOrd(long segmentOrd) {
                 return segmentOrd + segmentOrdToGlobalOrdLookup.get(segmentOrd);
             }
         }
@@ -364,7 +364,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             }
 
             @Override
-            protected long getGlobalOrd(long segmentOrd) {
+            public long getGlobalOrd(long segmentOrd) {
                 return segmentOrd + segmentOrdToGlobalOrdLookup.get((int) segmentOrd);
             }
         }

@@ -83,4 +83,9 @@ public class EnableMergeScheduler extends MergeScheduler {
         // the clone will just be the identity.
         return this;
     }
+
+    @Override
+    public String toString() {
+        return "EnableMergeScheduler(" + mergeScheduler + ")";
+    }
 }

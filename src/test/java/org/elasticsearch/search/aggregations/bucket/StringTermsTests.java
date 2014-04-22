@@ -147,7 +147,8 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     public void singleValueField_withGlobalOrdinals() throws Exception {
         ExecutionMode[] executionModes = new ExecutionMode[] {
                 ExecutionMode.GLOBAL_ORDINALS,
-                ExecutionMode.GLOBAL_ORDINALS_HASH
+                ExecutionMode.GLOBAL_ORDINALS_HASH,
+                ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY
         };
         for (ExecutionMode executionMode : executionModes) {
             logger.info("Execution mode:" + executionMode);

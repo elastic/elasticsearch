@@ -186,7 +186,7 @@ public class GlobalOrdinalsBenchmark {
                     fieldName = fieldName + ".doc_values";
                     name = name + "_doc_values"; // can't have . in agg name
                 }
-                stats.add(terms(name, fieldName, "global_ordinals"));
+                stats.add(terms(name, fieldName, "global_ordinals_low_cardinality"));
             }
         }
 

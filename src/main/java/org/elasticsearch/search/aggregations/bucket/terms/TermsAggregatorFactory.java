@@ -102,6 +102,23 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             boolean needsGlobalOrdinals() {
                 return true;
             }
+        },
+        GLOBAL_ORDINALS_LOW_CARDINALITY(new ParseField("global_ordinals_low_cardinality")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
+            }
         };
 
         public static ExecutionMode fromString(String value) {

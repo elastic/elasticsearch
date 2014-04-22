@@ -97,7 +97,7 @@ public abstract class BucketsAggregator extends Aggregator {
     /**
      * Utility method to increment the doc counts of the given bucket (identified by the bucket ordinal)
      */
-    protected final void incrementBucketDocCount(int inc, long bucketOrd) throws IOException {
+    protected final void incrementBucketDocCount(long inc, long bucketOrd) throws IOException {
         docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, inc);
     }

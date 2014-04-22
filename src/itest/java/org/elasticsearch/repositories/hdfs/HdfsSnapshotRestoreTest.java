@@ -148,6 +148,10 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
     }
 
+    private void wipeIndices(String... indices) {
+        cluster().wipeIndices(indices);
+    }
+
     @Test
     public void testWrongPath() {
         Client client = client();

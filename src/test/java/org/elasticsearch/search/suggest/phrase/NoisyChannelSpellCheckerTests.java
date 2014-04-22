@@ -269,9 +269,7 @@ public class NoisyChannelSpellCheckerTests extends ElasticsearchTestCase{
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
         assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("zorr the god jewel"));
         assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("gorr the god jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("varr the god jewel"));
-        
-        
+
 
         corrections = suggester.getCorrections(wrapper, new BytesRef("Zorr the Got-Jewel"), generator, 0.5f, 1, ir, "body", wordScorer, 1.5f, 2).corrections;
         assertThat(corrections.length, equalTo(1));

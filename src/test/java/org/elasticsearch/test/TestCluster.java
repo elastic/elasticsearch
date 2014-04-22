@@ -681,8 +681,8 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) {
-        super.beforeTest(random, transportClientRatio);
+    public synchronized void beforeTest(Random random, double transportClientRatio, TestVersion testCompatibility) {
+        super.beforeTest(random, transportClientRatio, testCompatibility);
         reset(true);
     }
 

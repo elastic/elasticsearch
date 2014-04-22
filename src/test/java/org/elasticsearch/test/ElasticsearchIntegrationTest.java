@@ -154,6 +154,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static final String TESTS_CLUSTER = "tests.cluster";
 
     /**
+     * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
+     */
+    public static final String TESTS_COMPATIBILITY = "tests.compatibility";
+
+    protected static final TestVersion CURRENT_VERSION = TestVersion.RANDOM_NUM_SHARDS_REPLICAS;
+
+    private static final TestVersion COMPATIBILITY_VERSION = TestVersion.parse(System.getProperty(TESTS_COMPATIBILITY), CURRENT_VERSION);
+
+    /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
     private static final int FREQUENT_BULK_THRESHOLD = 300;
@@ -237,7 +246,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 default:
                     fail("Unknown Scope: [" + currentClusterScope + "]");
             }
-            immutableCluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
+            immutableCluster().beforeTest(getRandom(), getPerTestTransportClientRatio(), COMPATIBILITY_VERSION);
             immutableCluster().wipe();
             immutableCluster().randomIndexTemplate();
             logger.info("[{}#{}]: before test", getTestClass().getSimpleName(), getTestName());
@@ -374,13 +383,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public Settings indexSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        int numberOfShards = numberOfShards();
-        if (numberOfShards > 0) {
-            builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
-        }
-        int numberOfReplicas = numberOfReplicas();
-        if (numberOfReplicas >= 0) {
-            builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        if (COMPATIBILITY_VERSION.onOrAfter(TestVersion.RANDOM_NUM_SHARDS_REPLICAS)) {
+            int numberOfShards = numberOfShards();
+            if (numberOfShards > 0) {
+                builder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            }
+            int numberOfReplicas = numberOfReplicas();
+            if (numberOfReplicas >= 0) {
+                builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+            }
         }
         return builder.build();
     }

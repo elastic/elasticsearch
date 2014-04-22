@@ -74,14 +74,17 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
 
     protected double transportClientRatio = 0.0;
 
+    protected TestVersion testCompatibility;
+
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random, double transportClientRatio) {
+    public void beforeTest(Random random, double transportClientRatio, TestVersion testCompatibility) {
         assert transportClientRatio >= 0.0 && transportClientRatio <= 1.0;
         logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
         this.transportClientRatio = transportClientRatio;
         this.random = new Random(random.nextLong());
+        this.testCompatibility = testCompatibility;
     }
 
     /**
@@ -218,19 +221,21 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
 
     /**
      * Creates a randomized index template. This template is used to pass in randomized settings on a
-     * per index basis.
+     * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
     public void randomIndexTemplate() {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (size() > 0) {
-            ImmutableSettings.Builder builder = setRandomNormsLoading(setRandomMerge(random, ImmutableSettings.builder())
-                    .put(SETTING_INDEX_SEED, random.nextLong()))
-                    .put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                    .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, 1));
+            ImmutableSettings.Builder randomSettingsBuilder = setRandomNormsLoading(setRandomMerge(random, ImmutableSettings.builder())
+                    .put(SETTING_INDEX_SEED, random.nextLong()));
+            if (testCompatibility.onOrAfter(TestVersion.RANDOM_NUM_SHARDS_REPLICAS)) {
+                randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, 1));
+            }
             client().admin().indices().preparePutTemplate("random_index_template")
                     .setTemplate("*")
                     .setOrder(0)
-                    .setSettings(builder)
+                    .setSettings(randomSettingsBuilder)
                     .execute().actionGet();
         }
     }

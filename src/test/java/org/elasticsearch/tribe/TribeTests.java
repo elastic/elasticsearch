@@ -59,7 +59,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
         cluster2 = new TestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()));
-        cluster2.beforeTest(getRandom(), 0.1);
+        cluster2.beforeTest(getRandom(), 0.1, ElasticsearchIntegrationTest.CURRENT_VERSION);
         cluster2.ensureAtLeastNumNodes(2);
     }
 

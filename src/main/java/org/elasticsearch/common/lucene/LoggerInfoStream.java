@@ -32,11 +32,11 @@ public final class LoggerInfoStream extends InfoStream {
     private final ESLogger logger;
 
     public LoggerInfoStream(Settings settings, ShardId shardId) {
-        logger = Loggers.getLogger(LoggerInfoStream.class, settings, shardId);
+        logger = Loggers.getLogger("lucene.iw", settings, shardId);
     }
 
     public void message(String component, String message) {
-        logger.trace(component + ": " + message);
+        logger.trace("{}: {}",  component, message);
     }
   
     public boolean isEnabled(String component) {

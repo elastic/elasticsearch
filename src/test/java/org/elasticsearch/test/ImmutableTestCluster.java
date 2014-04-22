@@ -31,12 +31,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
+import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -223,8 +227,9 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     public void randomIndexTemplate() {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (size() > 0) {
-            ImmutableSettings.Builder builder = setRandomNormsLoading(setRandomMerge(random, ImmutableSettings.builder())
-                    .put(SETTING_INDEX_SEED, random.nextLong()))
+            ImmutableSettings.Builder builder =
+                    setRandomTranslogSettings(random, setRandomNormsLoading(setRandomMerge(random, ImmutableSettings.builder()))
+                            .put(SETTING_INDEX_SEED, random.nextLong()))
                     .put(SETTING_NUMBER_OF_SHARDS, RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
                     .put(SETTING_NUMBER_OF_REPLICAS, RandomInts.randomIntBetween(random, 0, 1));
             client().admin().indices().preparePutTemplate("random_index_template")
@@ -238,6 +243,25 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     private ImmutableSettings.Builder setRandomNormsLoading(ImmutableSettings.Builder builder) {
         if (random.nextBoolean()) {
             builder.put(SearchService.NORMS_LOADING_KEY, RandomPicks.randomFrom(random, Arrays.asList(FieldMapper.Loading.EAGER, FieldMapper.Loading.LAZY)));
+        }
+        return builder;
+    }
+
+    private static ImmutableSettings.Builder setRandomTranslogSettings(Random random, ImmutableSettings.Builder builder) {
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, RandomInts.randomIntBetween(random, 1, 10000));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 300), ByteSizeUnit.MB));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TimeValue.timeValueMinutes(RandomInts.randomIntBetween(random, 1, 60)));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_FLUSH_INTERVAL, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 1, 10000)));
+        }
+        if (random.nextBoolean()) {
+            builder.put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, random.nextBoolean());
         }
         return builder;
     }

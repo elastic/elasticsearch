@@ -53,8 +53,8 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(shardId, indexSettings, threadPool);
 
-        this.maxThreadCount = ConcurrentMergeScheduler.DEFAULT_MAX_THREAD_COUNT;
-        this.maxMergeCount = ConcurrentMergeScheduler.DEFAULT_MAX_MERGE_COUNT;
+        this.maxThreadCount = componentSettings.getAsInt("max_thread_count", ConcurrentMergeScheduler.DEFAULT_MAX_THREAD_COUNT);
+        this.maxMergeCount = componentSettings.getAsInt("max_merge_count", ConcurrentMergeScheduler.DEFAULT_MAX_MERGE_COUNT);
         logger.debug("using [concurrent] merge scheduler with max_thread_count[{}]", maxThreadCount);
     }
 

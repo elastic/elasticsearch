@@ -19,7 +19,9 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -159,6 +162,8 @@ public abstract class ValuesSource {
 
             public abstract BytesValues.WithOrdinals globalBytesValues();
 
+            public abstract long globalMaxOrd(IndexSearcher indexSearcher);
+
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
                 protected boolean needsHashes;
@@ -228,6 +233,21 @@ public abstract class ValuesSource {
                         globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
                     }
                     return globalBytesValues;
+                }
+
+                @Override
+                public long globalMaxOrd(IndexSearcher indexSearcher) {
+                    IndexReader indexReader = indexSearcher.getIndexReader();
+                    if (indexReader.leaves().isEmpty()) {
+                        return 0;
+                    } else {
+                        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+                        IndexFieldData.WithOrdinals<?> globalFieldData = indexFieldData.loadGlobal(indexReader);
+                        AtomicFieldData.WithOrdinals afd = globalFieldData.load(atomicReaderContext);
+                        BytesValues.WithOrdinals values = afd.getBytesValues(false);
+                        Ordinals.Docs ordinals = values.ordinals();
+                        return ordinals.getMaxOrd();
+                    }
                 }
             }
 

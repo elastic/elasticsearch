@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.shards;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -28,11 +27,11 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;

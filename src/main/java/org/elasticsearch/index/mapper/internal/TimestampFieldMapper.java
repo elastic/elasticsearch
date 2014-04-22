@@ -79,7 +79,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         private FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
         }
 
         public Builder enabled(EnabledAttributeMapper enabledState) {
@@ -146,7 +146,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                                    DocValuesFormatProvider docValuesProvider, Loading normsLoading,
                                    @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
-                Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, docValues,
+                DEFAULT_PRECISION_STEP, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
                 roundCeil, ignoreMalformed, coerce, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);

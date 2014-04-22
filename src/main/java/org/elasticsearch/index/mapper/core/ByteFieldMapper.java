@@ -62,6 +62,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     public static final String CONTENT_TYPE = "byte";
+    public static final int DEFAULT_PRECISION_STEP = Integer.MAX_VALUE; // 256 terms max!
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
@@ -78,7 +79,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         protected Byte nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
         }
 
@@ -346,7 +347,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != DEFAULT_PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {

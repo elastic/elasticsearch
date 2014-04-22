@@ -46,6 +46,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -67,6 +68,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     public static final String CONTENT_TYPE = "ip";
+    public static final int DEFAULT_PRECISION_STEP = LongFieldMapper.DEFAULT_PRECISION_STEP;
 
     public static String longToIp(long longIp) {
         int octet3 = (int) ((longIp >> 24) % 256);
@@ -109,7 +111,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
         }
 
@@ -323,7 +325,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != DEFAULT_PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {
@@ -342,7 +344,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         private final int precisionStep;
 
         public NumericIpAnalyzer() {
-            this(NumericUtils.PRECISION_STEP_DEFAULT);
+            this(IpFieldMapper.DEFAULT_PRECISION_STEP);
         }
 
         public NumericIpAnalyzer(int precisionStep) {

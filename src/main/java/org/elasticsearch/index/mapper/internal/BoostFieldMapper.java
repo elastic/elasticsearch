@@ -61,6 +61,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     public static final String CONTENT_TYPE = "_boost";
     public static final String NAME = "_boost";
+    public static final int DEFAULT_PRECISION_STEP = FloatFieldMapper.DEFAULT_PRECISION_STEP;
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NAME = "_boost";
@@ -79,7 +80,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
         }
 
@@ -119,7 +120,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
+        this(name, indexName, DEFAULT_PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
     }
 

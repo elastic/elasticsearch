@@ -57,7 +57,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         private NamedAnalyzer analyzer;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
         }
 

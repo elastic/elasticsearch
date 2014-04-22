@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class NumericDateAnalyzer extends NumericAnalyzer<NumericDateTokenizer> {
     private final DateTimeFormatter dateTimeFormatter;
 
     public NumericDateAnalyzer(DateTimeFormatter dateTimeFormatter) {
-        this(NumericUtils.PRECISION_STEP_DEFAULT, dateTimeFormatter);
+        this(DateFieldMapper.DEFAULT_PRECISION_STEP, dateTimeFormatter);
     }
 
     public NumericDateAnalyzer(int precisionStep, DateTimeFormatter dateTimeFormatter) {

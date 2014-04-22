@@ -70,6 +70,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     public static final String CONTENT_TYPE = "date";
+    public static final int DEFAULT_PRECISION_STEP = LongFieldMapper.DEFAULT_PRECISION_STEP;
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime", Locale.ROOT);
@@ -97,7 +98,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         private Locale locale;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
             // do *NOT* rely on the default locale
             locale = Locale.ROOT;
@@ -523,7 +524,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != DEFAULT_PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         builder.field("format", dateTimeFormatter.format());

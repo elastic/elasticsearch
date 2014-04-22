@@ -50,7 +50,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
     public static class Builder extends NumberFieldMapper.Builder<Builder, Murmur3FieldMapper> {
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
             builder.precisionStep(Integer.MAX_VALUE);
         }

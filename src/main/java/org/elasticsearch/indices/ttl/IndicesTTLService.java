@@ -27,7 +27,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.*;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -199,7 +201,9 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
         for (IndexShard shardToPurge : shardsToPurge) {
-            Query query = NumericRangeQuery.newLongRange(TTLFieldMapper.NAME, null, System.currentTimeMillis(), false, true);
+            // nocommit: this is a pre-existing bug? if you change the precisionStep for a TTL field, it wont work.
+            // we should be getting this from the mappings, or just don't allow changing it...
+            Query query = NumericRangeQuery.newLongRange(TTLFieldMapper.NAME, TTLFieldMapper.DEFAULT_PRECISION_STEP, null, System.currentTimeMillis(), false, true);
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());

@@ -21,8 +21,8 @@ and it can be retrieved from it).
 `store` should be set to `true`, since if it's not indexed and not
 stored, there is nothing to do with it.
 
-|`precision_step` |The precision step (number of terms generated for
-each number value). Defaults to `4`.
+|`precision_step` |The precision step (influences the number of terms 
+generated for each number value). Defaults to `16`.
 
 |`boost` |The boost value. Defaults to `1.0`.
 

@@ -27,6 +27,8 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
 
 import java.io.IOException;
@@ -190,6 +192,29 @@ public class BloomFilter {
         }
         out.writeInt(filter.numHashFunctions);
         out.writeInt(filter.hashing.type()); // hashType
+    }
+
+    public static BloomFilter readFrom(StreamInput in) throws IOException {
+        int version = in.readVInt(); // we do nothing with this now..., defaults to 0
+        int numLongs = in.readVInt();
+        long[] data = new long[numLongs];
+        for (int i = 0; i < numLongs; i++) {
+            data[i] = in.readLong();
+        }
+        int numberOfHashFunctions = in.readVInt();
+        int hashType = in.readVInt(); // again, nothing to do now...
+        return new BloomFilter(new BitArray(data), numberOfHashFunctions, Hashing.fromType(hashType));
+    }
+
+    public static void writeTo(BloomFilter filter, StreamOutput out) throws IOException {
+        out.writeVInt(0); // version
+        BitArray bits = filter.bits;
+        out.writeVInt(bits.data.length);
+        for (long l : bits.data) {
+            out.writeLong(l);
+        }
+        out.writeVInt(filter.numHashFunctions);
+        out.writeVInt(filter.hashing.type()); // hashType
     }
 
     /**

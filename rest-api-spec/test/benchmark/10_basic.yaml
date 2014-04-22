@@ -1,6 +1,10 @@
 ---
 "Test benchmark submit":
 
+  - skip:
+        version:     "0 - 9999"
+        reason:      Disabled until nodes run with node.bench set to true
+
   - do:
       indices.create:
         index: test_1

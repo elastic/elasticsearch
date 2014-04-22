@@ -1461,7 +1461,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                                 new SimpleSearcher("warmer", newSearcher));
                         warmer.warm(context);
                     }
-                    warmer.warmTop(new IndicesWarmer.WarmerContext(shardId, searcher.getIndexReader()));
+                    warmer.warmTop(new IndicesWarmer.WarmerContext(shardId, new SimpleSearcher("warmer", searcher)));
                 } catch (Throwable e) {
                     if (!closed) {
                         logger.warn("failed to prepare/warm", e);

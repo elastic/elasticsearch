@@ -93,10 +93,9 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         }
         if (logger.isTraceEnabled()) {
             if (topReader) {
-                // nocommit is it OK that context.newSearcher() is sometimes null here???
-                logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher());
+                logger.trace("[{}][{}] top warming [{}]", context.shardId().index().name(), context.shardId().id(), context.newSearcher().reader());
             } else {
-                logger.trace("[{}][{}] top warming [{}]", context.shardId().index().name(), context.shardId().id(), context.indexReader());
+                logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context.indexReader());
             }
         }
         indexShard.warmerService().onPreWarm();
@@ -117,9 +116,9 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 if (topReader) {
-                    logger.warn("warming has been interrupted", e);
-                } else {
                     logger.warn("top warming has been interrupted", e);
+                } else {
+                    logger.warn("warming has been interrupted", e);
                 }
                 break;
             }

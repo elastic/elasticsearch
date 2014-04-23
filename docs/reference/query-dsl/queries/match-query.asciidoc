@@ -41,7 +41,7 @@ The `prefix_length` and
 `max_expansions` can be set in this case to control the fuzzy process.
 If the fuzzy option is set the query will use `constant_score_rewrite`
 as its <<query-dsl-multi-term-rewrite,rewrite
-method>> the `rewrite` parameter allows to control how the query will get
+method>> the `fuzzy_rewrite` parameter allows to control how the query will get
 rewritten.
 
 Here is an example when providing additional parameters (note the slight

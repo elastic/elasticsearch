@@ -28,11 +28,11 @@ import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
-import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *
@@ -52,6 +52,7 @@ public class HasChildFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -145,12 +146,7 @@ public class HasChildFilterParser implements FilterParser {
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));
         }
-
-        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
-        if (deleteByQuery) {
-            return new DeleteByQueryWrappingFilter(childrenConstantScoreQuery);
-        } else {
-            return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
-        }
+        return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
     }
+
 }

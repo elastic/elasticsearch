@@ -32,6 +32,8 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
+import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
+
 /**
  *
  */
@@ -50,6 +52,7 @@ public class TopChildrenQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -110,10 +113,6 @@ public class TopChildrenQueryParser implements QueryParser {
 
         if (innerQuery == null) {
             return null;
-        }
-
-        if ("delete_by_query".equals(SearchContext.current().source())) {
-            throw new QueryParsingException(parseContext.index(), "[top_children] unsupported in delete_by_query api");
         }
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);

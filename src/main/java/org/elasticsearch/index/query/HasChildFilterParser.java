@@ -24,13 +24,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
-import org.elasticsearch.index.search.child.DeleteByQueryWrappingFilter;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -54,6 +53,9 @@ public class HasChildFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        if ("delete_by_query".equals(SearchContext.current().source())) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] unsupported in delete_by_query api");
+        }
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -149,12 +151,6 @@ public class HasChildFilterParser implements FilterParser {
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));
         }
-
-        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
-        if (deleteByQuery) {
-            return new DeleteByQueryWrappingFilter(childrenConstantScoreQuery);
-        } else {
-            return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
-        }
+        return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
     }
 }

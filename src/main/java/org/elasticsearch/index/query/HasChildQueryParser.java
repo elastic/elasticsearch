@@ -23,14 +23,16 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.search.child.*;
+import org.elasticsearch.index.query.support.XContentStructure;
+import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
+import org.elasticsearch.index.search.child.ChildrenQuery;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -54,6 +56,9 @@ public class HasChildQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        if ("delete_by_query".equals(SearchContext.current().source())) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] unsupported in delete_by_query api");
+        }
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -147,17 +152,13 @@ public class HasChildQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
-        boolean deleteByQuery = "delete_by_query".equals(SearchContext.current().source());
         Query query;
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
-        if (!deleteByQuery && scoreType != null) {
+        if (scoreType != null) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
             query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
-            if (deleteByQuery) {
-                query = new XConstantScoreQuery(new DeleteByQueryWrappingFilter(query));
-            }
         }
         if (queryName != null) {
             parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));

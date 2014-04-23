@@ -109,7 +109,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
@@ -122,7 +122,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context),
                     postingsProvider, docValuesProvider, similarity,
                     normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -323,7 +323,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {
@@ -340,10 +340,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     public static class NumericIpAnalyzer extends NumericAnalyzer<NumericIpTokenizer> {
 
         private final int precisionStep;
-
-        public NumericIpAnalyzer() {
-            this(NumericUtils.PRECISION_STEP_DEFAULT);
-        }
 
         public NumericIpAnalyzer(int precisionStep) {
             this.precisionStep = precisionStep;

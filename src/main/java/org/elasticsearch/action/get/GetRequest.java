@@ -95,6 +95,10 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         if (id == null) {
             validationException = ValidateActions.addValidationError("id is missing", validationException);
         }
+        if (!versionType.validateVersionForReads(version)) {
+            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                    validationException);
+        }
         return validationException;
     }
 

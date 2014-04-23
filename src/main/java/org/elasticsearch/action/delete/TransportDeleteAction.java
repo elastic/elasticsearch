@@ -191,7 +191,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 
-        assert request.versionType().validateVersion(request.version());
+        assert request.versionType().validateVersionForWrites(request.version());
 
         if (request.refresh()) {
             try {

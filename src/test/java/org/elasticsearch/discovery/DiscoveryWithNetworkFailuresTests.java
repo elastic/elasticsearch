@@ -55,7 +55,6 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
-                .put("discovery.zen.rejoin_on_master_gone", true)
                 .build();
 
         List<String> nodes = internalCluster().startNodesAsync(3, settings).get();

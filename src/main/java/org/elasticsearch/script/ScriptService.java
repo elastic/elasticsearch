@@ -29,6 +29,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -111,6 +113,7 @@ public class ScriptService extends AbstractComponent {
             }
         }
     }
+    private Client client = null;
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
@@ -158,6 +161,11 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
+    @Inject(optional=true)
+    public void setClient(Client client) {
+        this.client= client;
+    }
+
     public void close() {
         for (ScriptEngineService engineService : scriptEngines.values()) {
             engineService.close();
@@ -169,50 +177,14 @@ public class ScriptService extends AbstractComponent {
     }
 
 
-    private class ScriptResponse implements ActionListener<GetResponse>{
-        public String localScript = null;
-        final Lock lock = new ReentrantLock();
-        public final Condition gotResponseCondition = lock.newCondition();
-
-        @Override
-        public void onResponse(GetResponse getFields) {
-            lock.lock();
-            try {
-                logger.warn("Got script response " + getFields.toString());
-                if (getFields.isExists()) {
-                    localScript = getFields.getSourceAsString();
-                    logger.warn("Localscript set to " + localScript);
-                }
-                else {
-                    logger.warn("Got response but does not exist");
-                }
-            } finally {
-                gotResponseCondition.signalAll();
-                lock.unlock();
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable e) {
-            lock.lock();
-            try {
-                logger.warn("Failed to get script response", e);
-                localScript = null;
-            } finally {
-                gotResponseCondition.signalAll();
-                lock.unlock();
-            }
-        }
-    }
-
     public CompiledScript compile(String lang, String script) {
         CacheKey cacheKey = new CacheKey(lang, script);
 
         String scriptContent = null;
 
         if(script.startsWith("/")){ //This is how we determine if we need to search the index for the script
-            if( getAction == null ){
-                throw new ElasticsearchIllegalArgumentException("Got an indexed script with no TransportGetAction registered.");
+            if( client == null ){
+                throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
             }
             String[] parts = script.split("/");
             if (parts.length != 4) {
@@ -268,42 +240,12 @@ public class ScriptService extends AbstractComponent {
     }
 
     private String getScriptFromIndex(String script, String index, String scriptLang, String id) {
-        GetRequest getScriptRequest = getRequest(index)
-                .fields(TEMPLATE_GET_FIELDS)
-                .type(scriptLang)
-                .id(id)
-                .listenerThreaded(true)
-                .operationThreaded(true);
-
-        ScriptResponse scriptResponse = new ScriptResponse();
-
-        getAction.execute(getScriptRequest, scriptResponse);
-
-        String timeout = settings.get("template.index.lookup.timeout", "10000");
-
-        Date deadline = new Date(System.currentTimeMillis() + Long.parseLong(timeout));
-
-        scriptResponse.lock.lock();
-        try {
-            while (true) {
-                try {
-                    if (!scriptResponse.gotResponseCondition.awaitUntil(deadline)) {
-                        throw new ElasticsearchTimeoutException("Timed out attempting to read template " + script);
-                    }
-                    if (scriptResponse.localScript != null) {
-                        script = scriptResponse.localScript; //Get the script from the response
-                    } else {
-                        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + script + "]");
-                    }
-                    break;
-                } catch (InterruptedException ie) {
-                    continue;
-                }
-            }
-        } finally {
-            scriptResponse.lock.unlock();
+        GetResponse responseFields = client.prepareGet(index, scriptLang, id).get();
+        if (responseFields.isExists() ){
+            return responseFields.getSourceAsString();
+        } else {
+            throw new ElasticsearchIllegalArgumentException("Unable to find script [" + script + "]");
         }
-        return script;
     }
 
 

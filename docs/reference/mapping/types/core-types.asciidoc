@@ -238,8 +238,9 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
 Automatically set to `true` when the fielddata format is `doc_values`.
 
-|`precision_step` |The precision step (number of terms generated for
-each number value). Defaults to `4`.
+|`precision_step` |The precision step (influences the number of terms 
+generated for each number value). Defaults to `16` for `long`, `double`,
+`8` for `short`, `integer`, `float`, and `2147483647` for `byte`.
 
 |`boost` |The boost value. Defaults to `1.0`.
 
@@ -347,8 +348,8 @@ in `_source`, have `include_in_all` enabled, or `store` be set to
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
 Automatically set to `true` when the fielddata format is `doc_values`.
 
-|`precision_step` |The precision step (number of terms generated for
-each number value). Defaults to `4`.
+|`precision_step` |The precision step (influences the number of terms 
+generated for each number value). Defaults to `16`.
 
 |`boost` |The boost value. Defaults to `1.0`.
 

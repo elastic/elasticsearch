@@ -50,7 +50,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
     public static class Builder extends NumberFieldMapper.Builder<Builder, Murmur3FieldMapper> {
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Integer.MAX_VALUE);
             builder = this;
             builder.precisionStep(Integer.MAX_VALUE);
         }
@@ -58,7 +58,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, ~0L,
+            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, ~0L,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);

@@ -61,7 +61,6 @@ public class SegmentReaderUtils {
             return (SegmentReader) reader;
         } else if (reader instanceof FilterAtomicReader) {
             final FilterAtomicReader fReader = (FilterAtomicReader) reader;
-            // nocommit: does unwrap recurse, or must we?
             return segmentReader(FilterAtomicReader.unwrap(fReader));
         }
         if (fail) {

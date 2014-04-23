@@ -724,8 +724,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final boolean realtime;
         private final Term uid;
         private boolean loadSource = true;
-        private long version;
-        private VersionType versionType;
+        private long version = Versions.MATCH_ANY;
+        private VersionType versionType = VersionType.INTERNAL;
 
         public Get(boolean realtime, Term uid) {
             this.realtime = realtime;

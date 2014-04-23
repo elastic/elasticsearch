@@ -18,15 +18,11 @@
  */
 package org.elasticsearch.index.engine.internal;
 
-import com.carrotsearch.randomizedtesting.annotations.Nightly;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.base.Predicate;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,21 +32,22 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.apache.lucene.util.LuceneTestCase.Slow;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(numNodes = 1, scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@ClusterScope(numDataNodes = 1, scope = Scope.SUITE)
 public class InternalEngineMergeTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @LuceneTestCase.Slow
+    @Slow
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
         final int numOfShards = randomIntBetween(1,5);
         // some settings to keep num segments low

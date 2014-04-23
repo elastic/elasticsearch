@@ -46,7 +46,7 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
 
     private final InetSocketAddress[] httpAddresses;
 
-    private final int dataNodes;
+    private final int numDataNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
         this.client = new TransportClient(ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true))
@@ -62,7 +62,7 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
                 dataNodes++;
             }
         }
-        this.dataNodes = dataNodes;
+        this.numDataNodes = dataNodes;
         logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
 
@@ -82,8 +82,8 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public int dataNodes() {
-        return dataNodes;
+    public int numDataNodes() {
+        return numDataNodes;
     }
 
     @Override

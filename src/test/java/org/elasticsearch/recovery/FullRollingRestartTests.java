@@ -30,12 +30,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
  *
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
@@ -89,14 +90,14 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         }
 
         // now start shutting nodes down
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4"));
 
         // going down to 3 nodes. note that the min_master_node may not be in effect when we shutdown the 4th
         // node, but that's OK as it is set to 3 before.
         setMinimumMasterNodes(2);
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
 
@@ -106,13 +107,13 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
         }
 
         // closing the 3rd node
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2"));
 
         // closing the 2nd node
         setMinimumMasterNodes(1);
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));

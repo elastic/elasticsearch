@@ -32,10 +32,11 @@ import org.junit.Test;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
+@ClusterScope(scope= Scope.SUITE, numDataNodes = 1)
 public class SimpleTTLTests extends ElasticsearchIntegrationTest {
 
     static private final long PURGE_INTERVAL = 200;

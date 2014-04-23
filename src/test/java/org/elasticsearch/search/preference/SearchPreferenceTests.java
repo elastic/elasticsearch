@@ -38,15 +38,15 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2896
     public void testStopOneNodePreferenceWithRedState() throws InterruptedException {
-        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", immutableCluster().dataNodes()+2).put("index.number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", immutableCluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", ""+i).setSource("field1", "value1").execute().actionGet();
         }
         refresh();
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
-        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_only_local", "_prefer_node:somenode", "_prefer_node:server2"};
+        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_prefer_node:somenode", "_prefer_node:server2"};
         for (String pref : preferences) {
             SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT).setPreference(pref).execute().actionGet();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
@@ -55,6 +55,14 @@ public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
         }
+
+        //_only_local is a stricter preference, we need to send the request to a data node
+        SearchResponse searchResponse = dataNodeClient().prepareSearch().setSearchType(SearchType.COUNT).setPreference("_only_local").execute().actionGet();
+        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
+        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+        searchResponse = dataNodeClient().prepareSearch().setPreference("_only_local").execute().actionGet();
+        assertThat(RestStatus.OK, equalTo(searchResponse.status()));
+        assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
     }
 
     @Test

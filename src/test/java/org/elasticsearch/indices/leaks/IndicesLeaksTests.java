@@ -34,11 +34,12 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=1)
+@ClusterScope(scope= Scope.TEST, numDataNodes =1)
 public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
 

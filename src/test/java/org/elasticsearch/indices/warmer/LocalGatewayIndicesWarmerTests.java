@@ -33,12 +33,13 @@ import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(numNodes=0, scope= ElasticsearchIntegrationTest.Scope.TEST)
+@ClusterScope(numDataNodes =0, scope= Scope.TEST)
 public class LocalGatewayIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(LocalGatewayIndicesWarmerTests.class);

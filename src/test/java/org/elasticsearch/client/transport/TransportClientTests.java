@@ -25,7 +25,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 1.0)
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test

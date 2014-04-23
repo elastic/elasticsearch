@@ -35,12 +35,13 @@ import org.junit.Test;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -61,7 +62,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settings);
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();

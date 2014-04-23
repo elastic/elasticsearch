@@ -38,11 +38,12 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=2)
+@ClusterScope(scope= Scope.TEST, numDataNodes =2)
 public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -52,7 +53,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Test(timeout = 20000)
     public void testUpdatingThreadPoolSettings() throws Exception {
-        ThreadPool threadPool = cluster().getInstance(ThreadPool.class);
+        ThreadPool threadPool = cluster().getDataNodeInstance(ThreadPool.class);
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(5L));
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.keep_alive", "10m").build()).execute().actionGet();

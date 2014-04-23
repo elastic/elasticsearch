@@ -57,7 +57,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     public void testSimpleStats() throws Exception {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();
-        final int numNodes = immutableCluster().dataNodes();
+        final int numNodes = immutableCluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));

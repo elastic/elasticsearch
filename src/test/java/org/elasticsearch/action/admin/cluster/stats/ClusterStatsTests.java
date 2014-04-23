@@ -31,9 +31,10 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
@@ -126,8 +127,8 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testValuesSmokeScreen() {
-        cluster().ensureAtMostNumNodes(5);
-        cluster().ensureAtLeastNumNodes(1);
+        cluster().ensureAtMostNumDataNodes(5);
+        cluster().ensureAtLeastNumDataNodes(1);
         SigarService sigarService = cluster().getInstance(SigarService.class);
         index("test1", "type", "1", "f", "f");
         /*

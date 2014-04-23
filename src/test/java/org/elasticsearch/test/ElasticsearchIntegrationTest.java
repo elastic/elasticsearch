@@ -134,7 +134,7 @@ import static org.hamcrest.Matchers.equalTo;
  * the tests start.
  * <p/>
  *  <pre>
- * @ClusterScope(scope=Scope.SUITE, numNodes=3)
+ * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
  * @Test public void testMethod() {}
  * }
@@ -304,7 +304,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             if (randomizeNumberOfShardsAndReplicas()) {
                 randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
                     //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
-                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : immutableCluster().dataNodes() - 1));
+                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : immutableCluster().numDataNodes() - 1));
             }
             client().admin().indices().preparePutTemplate("random_index_template")
                     .setTemplate("*")
@@ -493,6 +493,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return client;
     }
 
+    public static Client dataNodeClient() {
+        Client client = cluster().dataNodeClient();
+        if (frequently()) {
+            client = new RandomizingClient((InternalClient) client, getRandom());
+        }
+        return client;
+    }
 
     public static Iterable<Client> clients() {
         return immutableCluster();
@@ -515,7 +522,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected int maximumNumberOfReplicas() {
-        return immutableCluster().dataNodes() - 1;
+        return immutableCluster().numDataNodes() - 1;
     }
 
     protected int numberOfReplicas() {
@@ -594,7 +601,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * </p>
      */
     public CreateIndexRequestBuilder prepareCreate(String index, int numNodes, ImmutableSettings.Builder settingsBuilder) {
-        cluster().ensureAtLeastNumNodes(numNodes);
+        cluster().ensureAtLeastNumDataNodes(numNodes);
 
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(indexSettings()).put(settingsBuilder.build());
 
@@ -605,7 +612,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private ImmutableSettings.Builder getExcludeSettings(String index, int num, ImmutableSettings.Builder builder) {
-        String exclude = Joiner.on(',').join(cluster().allButN(num));
+        String exclude = Joiner.on(',').join(cluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
     }
@@ -617,7 +624,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void allowNodes(String index, int n) {
         assert index != null;
-        cluster().ensureAtLeastNumNodes(n);
+        cluster().ensureAtLeastNumDataNodes(n);
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         if (n > 0) {
             getExcludeSettings(index, n, builder);
@@ -1025,19 +1032,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          * a random number of nodes is used, where the minimum and maximum number of nodes
          * are either the specified ones or the default ones if not specified.
          */
-        int numNodes() default -1;
+        int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MIN_NUM_NODES}.
-         * Ignored when {@link ClusterScope#numNodes()} is set.
+         * Returns the minimum number of nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MIN_NUM_DATA_NODES}.
+         * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
-        int minNumNodes() default TestCluster.DEFAULT_MIN_NUM_NODES;
+        int minNumDataNodes() default TestCluster.DEFAULT_MIN_NUM_DATA_NODES;
 
         /**
-         * Returns the maximum number of nodes in the cluster.  Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MAX_NUM_NODES}.
-         * Ignored when {@link ClusterScope#numNodes()} is set.
+         * Returns the maximum number of nodes in the cluster.  Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MAX_NUM_DATA_NODES}.
+         * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
-        int maxNumNodes() default TestCluster.DEFAULT_MAX_NUM_NODES;
+        int maxNumDataNodes() default TestCluster.DEFAULT_MAX_NUM_DATA_NODES;
+
+        /**
+         * Returns the number of client nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_NUM_CLIENT_NODES}, a
+         * negative value means that the number of client nodes will be randomized.
+         */
+        int numClientNodes() default TestCluster.DEFAULT_NUM_CLIENT_NODES;
 
         /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
@@ -1115,19 +1128,24 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? Scope.GLOBAL : annotation.scope();
     }
 
-    private int getNumNodes() {
+    private int getNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? -1 : annotation.numNodes();
+        return annotation == null ? -1 : annotation.numDataNodes();
     }
 
-    private int getMinNumNodes() {
+    private int getMinNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? TestCluster.DEFAULT_MIN_NUM_NODES : annotation.minNumNodes();
+        return annotation == null ? TestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
-    private int getMaxNumNodes() {
+    private int getMaxNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? TestCluster.DEFAULT_MAX_NUM_NODES : annotation.maxNumNodes();
+        return annotation == null ? TestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
+    }
+
+    private int getNumClientNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? TestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
     /**
@@ -1143,7 +1161,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private TestCluster buildTestCluster(Scope scope) {
         long currentClusterSeed = randomLong();
-        int numNodes = getNumNodes();
+        int numNodes = getNumDataNodes();
         NodeSettingsSource nodeSettingsSource;
         if (numNodes > 0) {
             NodeSettingsSource.Immutable.Builder nodesSettings = NodeSettingsSource.Immutable.builder();
@@ -1164,11 +1182,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (numNodes >= 0) {
             minNumNodes = maxNumNodes = numNodes;
         } else {
-            minNumNodes = getMinNumNodes();
-            maxNumNodes = getMaxNumNodes();
+            minNumNodes = getMinNumDataNodes();
+            maxNumNodes = getMaxNumDataNodes();
         }
 
-        return new TestCluster(currentClusterSeed, minNumNodes, maxNumNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource);
+        int numClientNodes = getNumClientNodes();
+        return new TestCluster(currentClusterSeed, minNumNodes, maxNumNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes);
     }
 
     /**

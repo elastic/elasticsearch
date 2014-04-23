@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
@@ -56,7 +55,6 @@ import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
-import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -144,7 +142,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean("discovery.zen.master_election.filter_data", false);
-        this.rejoinOnMasterGone = settings.getAsBoolean("discovery.zen.rejoin_on_master_gone", false);
+        this.rejoinOnMasterGone = settings.getAsBoolean("discovery.zen.rejoin_on_master_gone", true);
 
         logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 

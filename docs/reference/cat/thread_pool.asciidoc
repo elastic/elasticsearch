@@ -86,11 +86,13 @@ done to use the aliased field names (e.g., `sa` is equivalent to
 |* `.active` |* `a` |The number of active threads in the current (*) thread pool
 |* `.size` |* `s` |The number of threads in the current (*) thread pool
 |* `.queue` |* `q` |The number of queued threads in the current (*) thread pool
+|* `.maxQueue` |* `m` |The configured maximum number of queued threads in the current (*) thread pool (blank if none)
 |* `.rejected` |* `r` |The number of rejected threads in the current (*) thread pool
 |* `.largest` |* `l` |The highest number of active threads in the current (*) thread pool
 |* `.completed` |* `c` |The number of completed threads in the current (*) thread pool
-|* `.min` |* `mi` |The configured minimum number of active threads allowed in the current (*) thread pool (`-1` if none)
-|* `.max` |* `ma` |The configured maximum number of active threads allowed in the current (*) thread pool (`-1` if none)
+|* `.min` |* `mi` |The configured minimum number of active threads allowed in the current (*) thread pool (blank if none)
+|* `.max` |* `ma` |The configured maximum number of active threads allowed in the current (*) thread pool (blank if none)
+|* `.keepAlive` |* `k` |The configured keep alive time for threads (blank if none)
 |=======================================================================
 
 [float]

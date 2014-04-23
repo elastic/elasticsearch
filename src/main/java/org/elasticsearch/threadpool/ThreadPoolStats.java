@@ -19,7 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -45,17 +44,12 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         private long rejected;
         private int largest;
         private long completed;
-        private int min;
-        private int max;
 
         Stats() {
 
         }
 
-        public Stats(String name, int threads, int queue,
-                     int active, long rejected,
-                     int largest, long completed,
-                     int min, int max) {
+        public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed) {
             this.name = name;
             this.threads = threads;
             this.queue = queue;
@@ -63,8 +57,6 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             this.rejected = rejected;
             this.largest = largest;
             this.completed = completed;
-            this.min = min;
-            this.max = max;
         }
 
         public String getName() {
@@ -95,22 +87,6 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             return this.completed;
         }
 
-        /**
-         * Get the minimum number of threads in the pool.
-         * @return {@code -1} if unset.
-         */
-        public int getMin() {
-            return min;
-        }
-
-        /**
-         * Get the maximum number of threads in the pool.
-         * @return {@code -1} if unset.
-         */
-        public int getMax() {
-            return max;
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             name = in.readString();
@@ -120,10 +96,6 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             rejected = in.readLong();
             largest = in.readInt();
             completed = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-                min = in.readInt();
-                max = in.readInt();
-            }
         }
 
         @Override
@@ -135,10 +107,6 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             out.writeLong(rejected);
             out.writeInt(largest);
             out.writeLong(completed);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-                out.writeInt(min);
-                out.writeInt(max);
-            }
         }
 
         @Override
@@ -161,12 +129,6 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             }
             if (completed != -1) {
                 builder.field(Fields.COMPLETED, completed);
-            }
-            if (min != -1) {
-                builder.field(Fields.MIN, min);
-            }
-            if (max != -1) {
-                builder.field(Fields.MAX, max);
             }
             builder.endObject();
             return builder;
@@ -221,8 +183,6 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         static final XContentBuilderString REJECTED = new XContentBuilderString("rejected");
         static final XContentBuilderString LARGEST = new XContentBuilderString("largest");
         static final XContentBuilderString COMPLETED = new XContentBuilderString("completed");
-        static final XContentBuilderString MIN = new XContentBuilderString("min");
-        static final XContentBuilderString MAX = new XContentBuilderString("max");
     }
 
     @Override

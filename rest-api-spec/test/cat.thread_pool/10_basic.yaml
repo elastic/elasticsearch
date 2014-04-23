@@ -45,140 +45,140 @@ setup:
 
   - do:
       cat.thread_pool:
-          h: id,bulk.active,bulk.size,bulk.queue,bulk.rejected,bulk.largest,bulk.completed,bulk.min,bulk.max
+          h: id,bulk.active,bulk.size,bulk.queue,bulk.maxQueue,bulk.rejected,bulk.largest,bulk.completed,bulk.min,bulk.max,bulk.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  bulk.active  \s+  bulk.size  \s+  bulk.queue  \s+  bulk.rejected  \s+  bulk.largest  \s+  bulk.completed  \s+  bulk.min  \s+  bulk.max  \s+  \n
-                  (\S+   \s+          \d+  \s+        \d+  \s+         \d+  \s+            \d+  \s+           \d+  \s+             \d+  \s+     -?\d+  \s+     -?\d+  \s+  \n)+  $/
+               /^  id    \s+  bulk.active  \s+  bulk.size  \s+  bulk.queue  \s+  bulk.maxQueue  \s+  bulk.rejected  \s+  bulk.largest  \s+  bulk.completed  \s+  bulk.min  \s+  bulk.max  \s+  bulk.keepAlive  \s+  \n
+                  (\S+   \s+          \d+  \s+        \d+  \s+         \d+  \s+            \d*  \s+            \d+  \s+           \d+  \s+             \d+  \s+     -?\d+  \s+     -?\d+  \s+             \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,flush.active,flush.size,flush.queue,flush.rejected,flush.largest,flush.completed,flush.min,flush.max
+          h: id,flush.active,flush.size,flush.queue,flush.maxQueue,flush.rejected,flush.largest,flush.completed,flush.min,flush.max,flush.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  flush.active  \s+  flush.size  \s+  flush.queue  \s+  flush.rejected  \s+  flush.largest  \s+  flush.completed  \s+  flush.min  \s+  flush.max  \s+  \n
-                  (\S+   \s+           \d+  \s+         \d+  \s+          \d+  \s+             \d+  \s+            \d+  \s+              \d+  \s+      -?\d+  \s+      -?\d+  \s+  \n)+  $/
+               /^  id    \s+  flush.active  \s+  flush.size  \s+  flush.queue  \s+  flush.maxQueue  \s+  flush.rejected  \s+  flush.largest  \s+  flush.completed  \s+  flush.min  \s+  flush.max  \s+  flush.keepAlive  \s+  \n
+                  (\S+   \s+           \d+  \s+         \d+  \s+          \d+  \s+             \d*  \s+             \d+  \s+            \d+  \s+              \d+  \s+      -?\d+  \s+      -?\d+  \s+              \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,generic.active,generic.size,generic.queue,generic.rejected,generic.largest,generic.completed,generic.min,generic.max
+          h: id,generic.active,generic.size,generic.queue,generic.maxQueue,generic.rejected,generic.largest,generic.completed,generic.min,generic.max,generic.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  generic.active  \s+  generic.size  \s+  generic.queue  \s+  generic.rejected  \s+  generic.largest  \s+  generic.completed  \s+  generic.min  \s+  generic.max  \s+  \n
-                  (\S+   \s+             \d+  \s+           \d+  \s+            \d+  \s+               \d+  \s+              \d+  \s+                \d+  \s+        -?\d+  \s+        -?\d+  \s+  \n)+  $/
+               /^  id    \s+  generic.active  \s+  generic.size  \s+  generic.queue  \s+  generic.maxQueue  \s+  generic.rejected  \s+  generic.largest  \s+  generic.completed  \s+  generic.min  \s+  generic.max  \s+  generic.keepAlive  \s+  \n
+                  (\S+   \s+             \d+  \s+           \d+  \s+            \d+  \s+               \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+        -?\d+  \s+        -?\d+  \s+                \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,get.active,get.size,get.queue,get.rejected,get.largest,get.completed,get.min,get.max
+          h: id,get.active,get.size,get.queue,get.maxQueue,get.rejected,get.largest,get.completed,get.min,get.max,get.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  get.active  \s+  get.size  \s+  get.queue  \s+  get.rejected  \s+  get.largest  \s+  get.completed  \s+  get.min  \s+  get.max  \s+  \n
-                  (\S+   \s+         \d+  \s+       \d+  \s+        \d+  \s+           \d+  \s+          \d+  \s+            \d+  \s+    -?\d+  \s+    -?\d+  \s+  \n)+  $/
+               /^  id    \s+  get.active  \s+  get.size  \s+  get.queue  \s+  get.maxQueue  \s+  get.rejected  \s+  get.largest  \s+  get.completed  \s+  get.min  \s+  get.max  \s+  get.keepAlive  \s+  \n
+                  (\S+   \s+         \d+  \s+       \d+  \s+        \d+  \s+           \d*  \s+           \d+  \s+          \d+  \s+            \d+  \s+    -?\d+  \s+    -?\d+  \s+            \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,index.active,index.size,index.queue,index.rejected,index.largest,index.completed,index.min,index.max
+          h: id,index.active,index.size,index.queue,index.maxQueue,index.rejected,index.largest,index.completed,index.min,index.max,index.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  index.active  \s+  index.size  \s+  index.queue  \s+  index.rejected  \s+  index.largest  \s+  index.completed  \s+  index.min  \s+  index.max  \s+  \n
-                  (\S+   \s+           \d+  \s+         \d+  \s+          \d+  \s+             \d+  \s+            \d+  \s+              \d+  \s+      -?\d+  \s+      -?\d+  \s+  \n)+  $/
+               /^  id    \s+  index.active  \s+  index.size  \s+  index.queue  \s+  index.maxQueue  \s+  index.rejected  \s+  index.largest  \s+  index.completed  \s+  index.min  \s+  index.max  \s+  index.keepAlive  \s+  \n
+                  (\S+   \s+           \d+  \s+         \d+  \s+          \d+  \s+             \d*  \s+             \d+  \s+            \d+  \s+              \d+  \s+      -?\d+  \s+      -?\d+  \s+              \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,management.active,management.size,management.queue,management.rejected,management.largest,management.completed,management.min,management.max
+          h: id,management.active,management.size,management.queue,management.maxQueue,management.rejected,management.largest,management.completed,management.min,management.max,management.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  management.active  \s+  management.size  \s+  management.queue  \s+  management.rejected  \s+  management.largest  \s+  management.completed  \s+  management.min  \s+  management.max  \s+  \n
-                  (\S+   \s+                \d+  \s+              \d+  \s+               \d+  \s+                  \d+  \s+                 \d+  \s+                   \d+  \s+           -?\d+  \s+           -?\d+  \s+  \n)+  $/
+               /^  id    \s+  management.active  \s+  management.size  \s+  management.queue  \s+  management.maxQueue  \s+  management.rejected  \s+  management.largest  \s+  management.completed  \s+  management.min  \s+  management.max  \s+  management.keepAlive  \s+  \n
+                  (\S+   \s+                \d+  \s+              \d+  \s+               \d+  \s+                  \d*  \s+                  \d+  \s+                 \d+  \s+                   \d+  \s+           -?\d+  \s+           -?\d+  \s+                   \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,merge.active,merge.size,merge.queue,merge.rejected,merge.largest,merge.completed,merge.min,merge.max
+          h: id,merge.active,merge.size,merge.queue,merge.maxQueue,merge.rejected,merge.largest,merge.completed,merge.min,merge.max,merge.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  merge.active  \s+  merge.size  \s+  merge.queue  \s+  merge.rejected  \s+  merge.largest  \s+  merge.completed  \s+  merge.min  \s+  merge.max  \s+  \n
-                  (\S+   \s+           \d+  \s+         \d+  \s+          \d+  \s+             \d+  \s+            \d+  \s+              \d+  \s+      -?\d+  \s+      -?\d+  \s+  \n)+  $/
+               /^  id    \s+  merge.active  \s+  merge.size  \s+  merge.queue  \s+  merge.maxQueue  \s+  merge.rejected  \s+  merge.largest  \s+  merge.completed  \s+  merge.min  \s+  merge.max  \s+  merge.keepAlive  \s+  \n
+                  (\S+   \s+           \d+  \s+         \d+  \s+          \d+  \s+             \d*  \s+             \d+  \s+            \d+  \s+              \d+  \s+      -?\d+  \s+      -?\d+  \s+              \S+  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,optimize.active,optimize.size,optimize.queue,optimize.rejected,optimize.largest,optimize.completed,optimize.min,optimize.max
+          h: id,optimize.active,optimize.size,optimize.queue,optimize.maxQueue,optimize.rejected,optimize.largest,optimize.completed,optimize.min,optimize.max,optimize.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  optimize.active  \s+  optimize.size  \s+  optimize.queue  \s+  optimize.rejected  \s+  optimize.largest  \s+  optimize.completed  \s+  optimize.min  \s+  optimize.max  \s+  \n
-                  (\S+   \s+              \d+  \s+            \d+  \s+             \d+  \s+                \d+  \s+               \d+  \s+                 \d+  \s+         -?\d+  \s+         -?\d+  \s+  \n)+  $/
+               /^  id    \s+  optimize.active  \s+  optimize.size  \s+  optimize.queue  \s+  optimize.maxQueue  \s+  optimize.rejected  \s+  optimize.largest  \s+  optimize.completed  \s+  optimize.min  \s+  optimize.max  \s+  optimize.keepAlive  \s+  \n
+                  (\S+   \s+              \d+  \s+            \d+  \s+             \d+  \s+                \d*  \s+                \d+  \s+               \d+  \s+                 \d+  \s+         -?\d+  \s+         -?\d+  \s+                 \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,percolate.active,percolate.size,percolate.queue,percolate.rejected,percolate.largest,percolate.completed,percolate.min,percolate.max
+          h: id,percolate.active,percolate.size,percolate.queue,percolate.maxQueue,percolate.rejected,percolate.largest,percolate.completed,percolate.min,percolate.max,percolate.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  percolate.active  \s+  percolate.size  \s+  percolate.queue  \s+  percolate.rejected  \s+  percolate.largest  \s+  percolate.completed  \s+  percolate.min  \s+  percolate.max  \s+  \n
-                  (\S+   \s+               \d+  \s+             \d+  \s+              \d+  \s+                 \d+  \s+                \d+  \s+                  \d+  \s+          -?\d+  \s+          -?\d+  \s+  \n)+  $/
+               /^  id    \s+  percolate.active  \s+  percolate.size  \s+  percolate.queue  \s+  percolate.maxQueue  \s+  percolate.rejected  \s+  percolate.largest  \s+  percolate.completed  \s+  percolate.min  \s+  percolate.max  \s+  percolate.keepAlive  \s+  \n
+                  (\S+   \s+               \d+  \s+             \d+  \s+              \d+  \s+                 \d*  \s+                 \d+  \s+                \d+  \s+                  \d+  \s+          -?\d+  \s+          -?\d+  \s+                  \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,refresh.active,refresh.size,refresh.queue,refresh.rejected,refresh.largest,refresh.completed,refresh.min,refresh.max
+          h: id,refresh.active,refresh.size,refresh.queue,refresh.maxQueue,refresh.rejected,refresh.largest,refresh.completed,refresh.min,refresh.max,refresh.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  refresh.active  \s+  refresh.size  \s+  refresh.queue  \s+  refresh.rejected  \s+  refresh.largest  \s+  refresh.completed  \s+  refresh.min  \s+  refresh.max  \s+  \n
-                  (\S+   \s+  \d+             \s+  \d+           \s+  \d+            \s+  \d+               \s+  \d+              \s+  \d+                \s+  -?\d+        \s+  -?\d+  \s+  \n)+  $/
+               /^  id    \s+  refresh.active  \s+  refresh.size  \s+  refresh.queue  \s+  refresh.maxQueue  \s+  refresh.rejected  \s+  refresh.largest  \s+  refresh.completed  \s+  refresh.min  \s+  refresh.max  \s+  refresh.keepAlive  \s+  \n
+                  (\S+   \s+             \d+  \s+           \d+  \s+            \d+  \s+               \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+        -?\d+  \s+        -?\d+  \s+                \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,search.active,search.size,search.queue,search.rejected,search.largest,search.completed,search.min,search.max
+          h: id,search.active,search.size,search.queue,search.maxQueue,search.rejected,search.largest,search.completed,search.min,search.max,search.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  search.active  \s+  search.size  \s+  search.queue  \s+  search.rejected  \s+  search.largest  \s+  search.completed  \s+  search.min  \s+  search.max  \s+  \n
-                  (\S+   \s+            \d+  \s+          \d+  \s+           \d+  \s+              \d+  \s+             \d+  \s+               \d+  \s+       -?\d+  \s+       -?\d+  \s+  \n)+  $/
+               /^  id    \s+  search.active  \s+  search.size  \s+  search.queue  \s+  search.maxQueue  \s+  search.rejected  \s+  search.largest  \s+  search.completed  \s+  search.min  \s+  search.max  \s+  search.keepAlive  \s+  \n
+                  (\S+   \s+            \d+  \s+          \d+  \s+           \d+  \s+              \d*  \s+              \d+  \s+             \d+  \s+               \d+  \s+       -?\d+  \s+       -?\d+  \s+               \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,snapshot.active,snapshot.size,snapshot.queue,snapshot.rejected,snapshot.largest,snapshot.completed,snapshot.min,snapshot.max
+          h: id,snapshot.active,snapshot.size,snapshot.queue,snapshot.maxQueue,snapshot.rejected,snapshot.largest,snapshot.completed,snapshot.min,snapshot.max,snapshot.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  snapshot.active  \s+  snapshot.size  \s+  snapshot.queue  \s+  snapshot.rejected  \s+  snapshot.largest  \s+  snapshot.completed  \s+  snapshot.min  \s+  snapshot.max  \s+  \n
-                  (\S+   \s+              \d+  \s+            \d+  \s+             \d+  \s+                \d+  \s+               \d+  \s+                 \d+  \s+         -?\d+  \s+         -?\d+  \s+  \n)+  $/
+               /^  id    \s+  snapshot.active  \s+  snapshot.size  \s+  snapshot.queue  \s+  snapshot.maxQueue  \s+  snapshot.rejected  \s+  snapshot.largest  \s+  snapshot.completed  \s+  snapshot.min  \s+  snapshot.max  \s+  snapshot.keepAlive  \s+  \n
+                  (\S+   \s+              \d+  \s+            \d+  \s+             \d+  \s+                \d*  \s+                \d+  \s+               \d+  \s+                 \d+  \s+         -?\d+  \s+         -?\d+  \s+                 \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,suggest.active,suggest.size,suggest.queue,suggest.rejected,suggest.largest,suggest.completed,suggest.min,suggest.max
+          h: id,suggest.active,suggest.size,suggest.queue,suggest.maxQueue,suggest.rejected,suggest.largest,suggest.completed,suggest.min,suggest.max,suggest.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  suggest.active  \s+  suggest.size  \s+  suggest.queue  \s+  suggest.rejected  \s+  suggest.largest  \s+  suggest.completed  \s+  suggest.min  \s+  suggest.max  \s+  \n
-                  (\S+   \s+             \d+  \s+           \d+  \s+            \d+  \s+               \d+  \s+              \d+  \s+                \d+  \s+        -?\d+  \s+        -?\d+  \s+  \n)+  $/
+               /^  id    \s+  suggest.active  \s+  suggest.size  \s+  suggest.queue  \s+  suggest.maxQueue  \s+  suggest.rejected  \s+  suggest.largest  \s+  suggest.completed  \s+  suggest.min  \s+  suggest.max  \s+  suggest.keepAlive  \s+  \n
+                  (\S+   \s+             \d+  \s+           \d+  \s+            \d+  \s+               \d*  \s+               \d+  \s+              \d+  \s+                \d+  \s+        -?\d+  \s+        -?\d+  \s+                \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
-          h: id,warmer.active,warmer.size,warmer.queue,warmer.rejected,warmer.largest,warmer.completed,warmer.min,warmer.max
+          h: id,warmer.active,warmer.size,warmer.queue,warmer.maxQueue,warmer.rejected,warmer.largest,warmer.completed,warmer.min,warmer.max,warmer.keepAlive
           v: true
 
   - match:
       $body: >
-               /^  id    \s+  warmer.active  \s+  warmer.size  \s+  warmer.queue  \s+  warmer.rejected  \s+  warmer.largest  \s+  warmer.completed  \s+  warmer.min  \s+  warmer.max  \s+  \n
-                  (\S+   \s+            \d+  \s+          \d+  \s+           \d+  \s+              \d+  \s+             \d+  \s+               \d+  \s+       -?\d+  \s+       -?\d+  \s+  \n)+  $/
+               /^  id    \s+  warmer.active  \s+  warmer.size  \s+  warmer.queue  \s+  warmer.maxQueue  \s+  warmer.rejected  \s+  warmer.largest  \s+  warmer.completed  \s+  warmer.min  \s+  warmer.max  \s+  warmer.keepAlive  \s+  \n
+                  (\S+   \s+            \d+  \s+          \d+  \s+           \d+  \s+              \d*  \s+              \d+  \s+             \d+  \s+               \d+  \s+       -?\d+  \s+       -?\d+  \s+               \S*  \s+  \n)+  $/

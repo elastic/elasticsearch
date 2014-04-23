@@ -19,6 +19,8 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,11 +31,15 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -213,4 +219,62 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template").setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 1);
     }
+
+    @Test
+    public void testIndexedTemplate() throws Exception {
+        createIndex("template_index");
+        ensureGreen("template_index");
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
+        builders.add(client().prepareIndex("template_index","mustache","1").setSource("{" +
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}"));
+        indexRandom(true, builders);
+
+        builders.clear();
+
+        builders.add(client().prepareIndex("test", "type", "1").setSource("{\"theField\":\"foo\"}"));
+        builders.add(client().prepareIndex("test", "type", "2").setSource("{\"theField\":\"foo 2\"}"));
+        builders.add(client().prepareIndex("test", "type", "3").setSource("{\"theField\":\"foo 3\"}"));
+        builders.add(client().prepareIndex("test", "type", "4").setSource("{\"theField\":\"foo 4\"}"));
+        builders.add(client().prepareIndex("test", "type", "5").setSource("{\"theField\":\"bar\"}"));
+
+        indexRandom(true,builders);
+
+        Map<String, String> templateParams = Maps.newHashMap();
+        templateParams.put("fieldParam", "foo");
+
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("/template_index/mustache/1").setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 4);
+
+        Exception e = null;
+        try {
+            searchResponse = client().prepareSearch("test").setTypes("type").
+                    setTemplateName("/template_index/mustache/1000").setTemplateParams(templateParams).get();
+        } catch (SearchPhaseExecutionException spee) {
+            e = spee;
+        }
+        assert e != null;
+        e = null;
+        try {
+            searchResponse = client().prepareSearch("test").setTypes("type").
+                    setTemplateName("/template_indexmustache/1").setTemplateParams(templateParams).get();
+            assertFailures(searchResponse);
+        } catch (SearchPhaseExecutionException spee){
+            e = spee;
+        }
+        assert e != null;
+
+
+
+        templateParams.put("fieldParam", "bar");
+        searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateName("/template_index/mustache/1").setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+
 }

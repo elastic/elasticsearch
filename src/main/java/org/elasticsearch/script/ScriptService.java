@@ -24,6 +24,11 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -35,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -49,6 +55,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+import static org.elasticsearch.client.Requests.getRequest;
 
 /**
  *
@@ -157,7 +168,76 @@ public class ScriptService extends AbstractComponent {
         return compile(defaultLang, script);
     }
 
+
+    private class ScriptResponse implements ActionListener<GetResponse>{
+        public String localScript = null;
+        final Lock lock = new ReentrantLock();
+        public final Condition gotResponseCondition = lock.newCondition();
+
+        @Override
+        public void onResponse(GetResponse getFields) {
+            lock.lock();
+            try {
+                logger.warn("Got script response " + getFields.toString());
+                if (getFields.isExists()) {
+                    localScript = getFields.getSourceAsString();
+                    logger.warn("Localscript set to " + localScript);
+                }
+                else {
+                    logger.warn("Got response but does not exist");
+                }
+            } finally {
+                gotResponseCondition.signalAll();
+                lock.unlock();
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            lock.lock();
+            try {
+                logger.warn("Failed to get script response", e);
+                localScript = null;
+            } finally {
+                gotResponseCondition.signalAll();
+                lock.unlock();
+            }
+        }
+    }
+
     public CompiledScript compile(String lang, String script) {
+        CacheKey cacheKey = new CacheKey(lang, script);
+
+        String scriptContent = null;
+
+        if(script.startsWith("/")){ //This is how we determine if we need to search the index for the script
+            if( getAction == null ){
+                throw new ElasticsearchIllegalArgumentException("Got an indexed script with no TransportGetAction registered.");
+            }
+            String[] parts = script.split("/");
+            if (parts.length != 4) {
+                throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
+                        " should be /index/lang/id"  );
+            } else {
+                final String index = parts[1];
+                final String scriptLang = parts[2];
+                final String id = parts[3];
+                if (lang != null && !lang.equals(scriptLang)){
+                    logger.trace("Overriding lang to " + scriptLang);
+                    lang = scriptLang;
+                    //cacheKey = new CacheKey(lang,script);
+                }
+                /*
+                compiled = cache.getIfPresent(cacheKey);
+
+                if (compiled != null) {
+                    return compiled;
+                }
+                */
+                scriptContent = getScriptFromIndex(script, index, scriptLang, id);
+            }
+        }
+
         CompiledScript compiled = staticCache.get(script);
         if (compiled != null) {
             return compiled;
@@ -168,7 +248,7 @@ public class ScriptService extends AbstractComponent {
         if (!dynamicScriptEnabled(lang)) {
             throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
         }
-        CacheKey cacheKey = new CacheKey(lang, script);
+
         compiled = cache.getIfPresent(cacheKey);
         if (compiled != null) {
             return compiled;
@@ -178,10 +258,54 @@ public class ScriptService extends AbstractComponent {
         if (service == null) {
             throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
         }
-        compiled = new CompiledScript(lang, service.compile(script));
-        cache.put(cacheKey, compiled);
+        if (scriptContent != null) {
+            compiled = new CompiledScript(lang, service.compile(scriptContent)); //We have loaded the script from the index
+        } else {
+            compiled = new CompiledScript(lang, service.compile(script));
+            cache.put(cacheKey, compiled); //only cache non indexed templates for now
+        }
         return compiled;
     }
+
+    private String getScriptFromIndex(String script, String index, String scriptLang, String id) {
+        GetRequest getScriptRequest = getRequest(index)
+                .fields(TEMPLATE_GET_FIELDS)
+                .type(scriptLang)
+                .id(id)
+                .listenerThreaded(true)
+                .operationThreaded(true);
+
+        ScriptResponse scriptResponse = new ScriptResponse();
+
+        getAction.execute(getScriptRequest, scriptResponse);
+
+        String timeout = settings.get("template.index.lookup.timeout", "10000");
+
+        Date deadline = new Date(System.currentTimeMillis() + Long.parseLong(timeout));
+
+        scriptResponse.lock.lock();
+        try {
+            while (true) {
+                try {
+                    if (!scriptResponse.gotResponseCondition.awaitUntil(deadline)) {
+                        throw new ElasticsearchTimeoutException("Timed out attempting to read template " + script);
+                    }
+                    if (scriptResponse.localScript != null) {
+                        script = scriptResponse.localScript; //Get the script from the response
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + script + "]");
+                    }
+                    break;
+                } catch (InterruptedException ie) {
+                    continue;
+                }
+            }
+        } finally {
+            scriptResponse.lock.unlock();
+        }
+        return script;
+    }
+
 
     public ExecutableScript executable(String lang, String script, Map vars) {
         return executable(compile(lang, script), vars);

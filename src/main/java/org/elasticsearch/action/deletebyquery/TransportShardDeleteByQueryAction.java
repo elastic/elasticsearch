@@ -52,6 +52,8 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportShardDeleteByQueryAction extends TransportShardReplicationOperationAction<ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
+    public final static String DELETE_BY_QUERY_API = "delete_by_query";
+
     private final ScriptService scriptService;
     private final CacheRecycler cacheRecycler;
     private final PageCacheRecycler pageCacheRecycler;
@@ -116,7 +118,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()), null,
-                indexShard.acquireSearcher("delete_by_query"), indexService, indexShard, scriptService, cacheRecycler,
+                indexShard.acquireSearcher(DELETE_BY_QUERY_API), indexService, indexShard, scriptService, cacheRecycler,
                 pageCacheRecycler, bigArrays));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.PRIMARY, request.types());
@@ -138,7 +140,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId);
 
         SearchContext.setCurrent(new DefaultSearchContext(0, new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()), null,
-                indexShard.acquireSearcher("delete_by_query", IndexShard.Mode.WRITE), indexService, indexShard, scriptService,
+                indexShard.acquireSearcher(DELETE_BY_QUERY_API, IndexShard.Mode.WRITE), indexService, indexShard, scriptService,
                 cacheRecycler, pageCacheRecycler, bigArrays));
         try {
             Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.REPLICA, request.types());

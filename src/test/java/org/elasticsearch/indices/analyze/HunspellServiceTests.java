@@ -19,14 +19,14 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.HunspellService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
+
+import java.lang.reflect.Field;
 
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -47,10 +47,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settings);
         Dictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        Version expectedVersion = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
-
-        // nocommit: does not hurt to open this up in Lucene?
-        // assertThat(dictionary.isIgnoreCase(), equalTo(true));
+        assertIgnoreCase(true, dictionary);
     }
 
     @Test
@@ -66,14 +63,14 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settings);
         Dictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        Version expectedVersion = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
-        //assertThat(dictionary.isIgnoreCase(), equalTo(false));
+        assertIgnoreCase(false, dictionary);
+
 
 
         // testing that dictionary specific settings override node level settings
         dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US_custom");
         assertThat(dictionary, notNullValue());
-        //assertThat(dictionary.isIgnoreCase(), equalTo(true));
+        assertIgnoreCase(true, dictionary);
     }
 
     @Test
@@ -86,5 +83,11 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
         Dictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
     }
-
+    
+    // TODO: open up a getter on Dictionary
+    private void assertIgnoreCase(boolean expected, Dictionary dictionary) throws Exception {
+        Field f = Dictionary.class.getDeclaredField("ignoreCase");
+        f.setAccessible(true);
+        assertEquals(expected, f.getBoolean(dictionary));
+    }
 }

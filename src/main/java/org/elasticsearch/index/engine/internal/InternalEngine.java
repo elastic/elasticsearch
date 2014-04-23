@@ -316,11 +316,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     if (versionValue.delete()) {
                         return GetResult.NOT_EXISTS;
                     }
-                    if (get.version() != Versions.MATCH_ANY) {
-                        if (get.versionType().isVersionConflict(versionValue.version(), get.version())) {
-                            Uid uid = Uid.createUid(get.uid().text());
-                            throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), versionValue.version(), get.version());
-                        }
+                    if (get.versionType().isVersionConflictForReads(versionValue.version(), get.version())) {
+                        Uid uid = Uid.createUid(get.uid().text());
+                        throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), versionValue.version(), get.version());
                     }
                     if (!get.loadSource()) {
                         return new GetResult(true, versionValue.version(), null);
@@ -348,8 +346,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 throw new EngineException(shardId(), "Couldn't resolve version", e);
             }
 
-            if (get.version() != Versions.MATCH_ANY && docIdAndVersion != null) {
-                if (get.versionType().isVersionConflict(docIdAndVersion.version, get.version())) {
+            if (docIdAndVersion != null) {
+                if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
                     Releasables.close(searcher);
                     Uid uid = Uid.createUid(get.uid().text());
                     throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
@@ -407,7 +405,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             // same logic as index
             long updatedVersion;
             long expectedVersion = create.version();
-            if (create.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+            if (create.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
                 if (create.origin() == Operation.Origin.RECOVERY) {
                     return;
                 } else {
@@ -484,7 +482,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             long updatedVersion;
             long expectedVersion = index.version();
-            if (index.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
                 if (index.origin() == Operation.Origin.RECOVERY) {
                     return;
                 } else {
@@ -555,7 +553,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             long updatedVersion;
             long expectedVersion = delete.version();
-            if (delete.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+            if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion)) {
                 if (delete.origin() == Operation.Origin.RECOVERY) {
                     return;
                 } else {

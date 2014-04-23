@@ -65,7 +65,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest> {
-    
+
     /**
      * Operation type controls if the type of the index operation.
      */
@@ -177,8 +177,8 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
-        if (!versionType.validateVersion(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type ["+ versionType.name() + "]", validationException);
+        if (!versionType.validateVersionForWrites(version)) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
         return validationException;
     }

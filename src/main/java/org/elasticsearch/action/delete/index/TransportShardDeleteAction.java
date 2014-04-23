@@ -122,7 +122,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
         // IndexDeleteAction doesn't support version type at the moment. Hard coded for the INTERNAL version
         delete.versionType(VersionType.INTERNAL.versionTypeForReplicationAndRecovery());
 
-        assert delete.versionType().validateVersion(delete.version());
+        assert delete.versionType().validateVersionForWrites(delete.version());
 
         indexShard.delete(delete);
 

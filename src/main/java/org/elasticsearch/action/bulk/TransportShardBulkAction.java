@@ -165,7 +165,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             }
                             ops[requestIndex] = result.op;
                         }
-                    } catch (WriteFailure e){
+                    } catch (WriteFailure e) {
                         Tuple<String, String> mappingsToUpdateOnFailure = e.mappingsToUpdate;
                         if (mappingsToUpdateOnFailure != null) {
                             mappingsToUpdate.add(mappingsToUpdateOnFailure);
@@ -435,7 +435,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             throw new WriteFailure(t, mappingsToUpdate);
         }
 
-        assert indexRequest.versionType().validateVersion(indexRequest.version());
+        assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
 
 
         IndexResponse indexResponse = new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version, created);
@@ -449,7 +449,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         deleteRequest.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         deleteRequest.version(delete.version());
 
-        assert deleteRequest.versionType().validateVersion(deleteRequest.version());
+        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
 
         DeleteResponse deleteResponse = new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.found());
         return new WriteResult(deleteResponse, null, null);

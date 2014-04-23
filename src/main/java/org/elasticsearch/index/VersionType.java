@@ -27,7 +27,16 @@ import org.elasticsearch.common.lucene.uid.Versions;
 public enum VersionType {
     INTERNAL((byte) 0) {
         @Override
-        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+        public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion) {
+            return isVersionConflict(currentVersion, expectedVersion);
+        }
+
+        @Override
+        public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
+            return isVersionConflict(currentVersion, expectedVersion);
+        }
+
+        private boolean isVersionConflict(long currentVersion, long expectedVersion) {
             if (currentVersion == Versions.NOT_SET) {
                 return false;
             }
@@ -49,7 +58,13 @@ public enum VersionType {
         }
 
         @Override
-        public boolean validateVersion(long version) {
+        public boolean validateVersionForWrites(long version) {
+            // not allowing Versions.NOT_FOUND as it is not a valid input value.
+            return version > 0L || version == Versions.MATCH_ANY;
+        }
+
+        @Override
+        public boolean validateVersionForReads(long version) {
             // not allowing Versions.NOT_FOUND as it is not a valid input value.
             return version > 0L || version == Versions.MATCH_ANY;
         }
@@ -63,7 +78,7 @@ public enum VersionType {
     },
     EXTERNAL((byte) 1) {
         @Override
-        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+        public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion) {
             if (currentVersion == Versions.NOT_SET) {
                 return false;
             }
@@ -80,23 +95,41 @@ public enum VersionType {
         }
 
         @Override
+        public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
+            if (currentVersion == Versions.NOT_SET) {
+                return false;
+            }
+            if (expectedVersion == Versions.MATCH_ANY) {
+                return false;
+            }
+            if (currentVersion == Versions.NOT_FOUND) {
+                return true;
+            }
+            if (currentVersion != expectedVersion) {
+                return true;
+            }
+            return false;
+        }
+
+        @Override
         public long updateVersion(long currentVersion, long expectedVersion) {
             return expectedVersion;
         }
 
         @Override
-        public boolean validateVersion(long version) {
+        public boolean validateVersionForWrites(long version) {
             return version > 0L;
         }
+
+        @Override
+        public boolean validateVersionForReads(long version) {
+            return version > 0L || version == Versions.MATCH_ANY;
+        }
+
     },
     EXTERNAL_GTE((byte) 2) {
-        /**
-         * - always returns false if currentVersion == {@link Versions#NOT_SET}
-         * - always conflict if expectedVersion == {@link Versions#MATCH_ANY} (we need something to set)
-         * - accepts currentVersion == {@link Versions#NOT_FOUND}
-         */
         @Override
-        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+        public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion) {
             if (currentVersion == Versions.NOT_SET) {
                 return false;
             }
@@ -113,26 +146,44 @@ public enum VersionType {
         }
 
         @Override
+        public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
+            if (currentVersion == Versions.NOT_SET) {
+                return false;
+            }
+            if (expectedVersion == Versions.MATCH_ANY) {
+                return false;
+            }
+            if (currentVersion == Versions.NOT_FOUND) {
+                return true;
+            }
+            if (currentVersion != expectedVersion) {
+                return true;
+            }
+            return false;
+        }
+
+        @Override
         public long updateVersion(long currentVersion, long expectedVersion) {
             return expectedVersion;
         }
 
         @Override
-        public boolean validateVersion(long version) {
+        public boolean validateVersionForWrites(long version) {
             return version > 0L;
         }
+
+        @Override
+        public boolean validateVersionForReads(long version) {
+            return version > 0L || version == Versions.MATCH_ANY;
+        }
+
     },
     /**
      * Warning: this version type should be used with care. Concurrent indexing may result in loss of data on replicas
      */
     FORCE((byte) 3) {
-        /**
-         * - always returns false if currentVersion == {@link Versions#NOT_SET}
-         * - always conflict if expectedVersion == {@link Versions#MATCH_ANY} (we need something to set)
-         * - accepts currentVersion == {@link Versions#NOT_FOUND}
-         */
         @Override
-        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+        public boolean isVersionConflictForWrites(long currentVersion, long expectedVersion) {
             if (currentVersion == Versions.NOT_SET) {
                 return false;
             }
@@ -146,14 +197,25 @@ public enum VersionType {
         }
 
         @Override
+        public boolean isVersionConflictForReads(long currentVersion, long expectedVersion) {
+            return false;
+        }
+
+        @Override
         public long updateVersion(long currentVersion, long expectedVersion) {
             return expectedVersion;
         }
 
         @Override
-        public boolean validateVersion(long version) {
+        public boolean validateVersionForWrites(long version) {
             return version > 0L;
         }
+
+        @Override
+        public boolean validateVersionForReads(long version) {
+            return version > 0L || version == Versions.MATCH_ANY;
+        }
+
     };
 
     private final byte value;
@@ -171,7 +233,14 @@ public enum VersionType {
      *
      * @return true if versions conflict false o.w.
      */
-    public abstract boolean isVersionConflict(long currentVersion, long expectedVersion);
+    public abstract boolean isVersionConflictForWrites(long currentVersion, long expectedVersion);
+
+    /**
+     * Checks whether the current version conflicts with the expected version, based on the current version type.
+     *
+     * @return true if versions conflict false o.w.
+     */
+    public abstract boolean isVersionConflictForReads(long currentVersion, long expectedVersion);
 
     /**
      * Returns the new version for a document, based on its current one and the specified in the request
@@ -180,12 +249,22 @@ public enum VersionType {
      */
     public abstract long updateVersion(long currentVersion, long expectedVersion);
 
-    /** validate the version is a valid value for this type.
+    /**
+     * validate the version is a valid value for this type when writing.
+     *
      * @return true if valid, false o.w
      */
-    public abstract boolean validateVersion(long version);
+    public abstract boolean validateVersionForWrites(long version);
 
-    /** Some version types require different semantics for primary and replicas. This version allows
+    /**
+     * validate the version is a valid value for this type when reading.
+     *
+     * @return true if valid, false o.w
+     */
+    public abstract boolean validateVersionForReads(long version);
+
+    /**
+     * Some version types require different semantics for primary and replicas. This version allows
      * the type to override the default behavior.
      */
     public VersionType versionTypeForReplicationAndRecovery() {

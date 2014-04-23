@@ -303,7 +303,7 @@ public class RecoveryTarget extends AbstractComponent {
                 return;
             }
 
-            logger.trace("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
+            logger.warn("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
             listener.onRecoveryFailure(new RecoveryFailedException(request, e), true);
         }
     }

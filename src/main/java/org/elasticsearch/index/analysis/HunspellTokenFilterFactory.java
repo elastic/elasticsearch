@@ -52,13 +52,6 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         dedup = settings.getAsBoolean("dedup", true);
-
-        // nocommit: This setting is obselete. its ignored. the algorithm was wrong (recursing when it should not, sometimes not recursing when it should)
-        int recursionLevel = settings.getAsInt("recursion_level", 2);
-        if (recursionLevel < 0) {
-            throw new ElasticsearchIllegalArgumentException(String.format(Locale.ROOT, "Negative recursion level not allowed for hunspell [%d]", recursionLevel));
-        }
-        
         // nocommit: there is a new useful setting for this thing (longestOnly)
     }
 
@@ -69,10 +62,6 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public boolean dedup() {
         return dedup;
-    }
-
-    public int recursionLevel() {
-        return 0; // nocommit
     }
 
 }

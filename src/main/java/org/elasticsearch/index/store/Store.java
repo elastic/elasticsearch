@@ -46,6 +46,7 @@ import org.elasticsearch.index.store.support.ForceSyncDirectory;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -145,7 +146,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             } else {
                 try {
                     directory.deleteFile(file);
-                } catch (FileNotFoundException e) {
+                } catch (NoSuchFileException | FileNotFoundException e) {
                     // ignore
                 } catch (IOException e) {
                     lastException = e;

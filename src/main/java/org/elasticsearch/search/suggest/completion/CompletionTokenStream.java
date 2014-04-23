@@ -132,8 +132,7 @@ public final class CompletionTokenStream extends TokenStream {
 
         @Override
         public void fillBytesRef() {
-            // nocommit ??? does nothing?
-            // return bytes.hashCode();
+            // does nothing - we change in place
         }
 
         @Override

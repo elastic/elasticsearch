@@ -23,6 +23,7 @@ import org.apache.lucene.store.Directory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 
 /**
  * A set of utilities for Lucene {@link Directory}.
@@ -40,7 +41,7 @@ public class Directories {
         for (String file : files) {
             try {
                 estimatedSize += directory.fileLength(file);
-            } catch (FileNotFoundException e) {
+            } catch (NoSuchFileException | FileNotFoundException e) {
                 // ignore, the file is not there no more
             }
         }

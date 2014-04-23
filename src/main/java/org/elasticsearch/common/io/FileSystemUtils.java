@@ -23,6 +23,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.File;
+import java.io.FileFilter;
 import java.io.IOException;
 
 /**
@@ -76,9 +77,31 @@ public class FileSystemUtils {
      * the given root files will be deleted as well. Otherwise only their content is deleted.
      */
     public static boolean deleteRecursively(File[] roots, boolean deleteRoots) {
+
         boolean deleted = true;
         for (File root : roots) {
             deleted &= deleteRecursively(root, deleteRoots);
+        }
+        return deleted;
+    }
+
+    /**
+     * Deletes all subdirectories of the given roots recursively.
+     */
+    public static boolean deleteSubDirectories(File[] roots) {
+
+        boolean deleted = true;
+        for (File root : roots) {
+            if (root.isDirectory()) {
+                File[] files = root.listFiles(new FileFilter() {
+                    @Override
+                    public boolean accept(File pathname) {
+                        return pathname.isDirectory();
+                    }
+                });
+                deleted &= deleteRecursively(files, true);
+            }
+
         }
         return deleted;
     }

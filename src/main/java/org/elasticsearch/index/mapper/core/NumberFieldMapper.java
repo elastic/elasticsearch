@@ -85,19 +85,17 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
 
-        protected int precisionStep;
-
         private Boolean ignoreMalformed;
 
         private Boolean coerce;
         
         public Builder(String name, FieldType fieldType, int defaultPrecisionStep) {
             super(name, fieldType);
-            this.precisionStep = defaultPrecisionStep;
+            fieldType.setNumericPrecisionStep(defaultPrecisionStep);
         }
 
         public T precisionStep(int precisionStep) {
-            this.precisionStep = precisionStep;
+            fieldType.setNumericPrecisionStep(precisionStep);
             return builder;
         }
 

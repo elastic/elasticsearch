@@ -58,7 +58,7 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, ~0L,
+            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, ~0L,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);

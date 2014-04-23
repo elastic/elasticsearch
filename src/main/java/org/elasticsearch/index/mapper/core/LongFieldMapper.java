@@ -91,7 +91,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public LongFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
+            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);

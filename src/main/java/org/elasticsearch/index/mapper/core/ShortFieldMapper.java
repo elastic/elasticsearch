@@ -93,7 +93,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         @Override
         public ShortFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
+            ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context),postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);

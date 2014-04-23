@@ -91,7 +91,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues,
+            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues,
                     nullValue, ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);

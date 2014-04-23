@@ -22,11 +22,9 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -73,7 +71,6 @@ public class HunspellService extends AbstractComponent {
     private final Map<String, Dictionary> knownDictionaries;
 
     private final boolean defaultIgnoreCase;
-    private final boolean defaultStrictAffixParsing;
     private final File hunspellDir;
 
     public HunspellService(final Settings settings, final Environment env) {
@@ -86,15 +83,12 @@ public class HunspellService extends AbstractComponent {
         this.knownDictionaries = knownDictionaries;
         this.hunspellDir = resolveHunspellDirectory(settings, env);
         this.defaultIgnoreCase = settings.getAsBoolean("indices.analysis.hunspell.dictionary.ignore_case", false);
-        // nocommit: ignore this too. it isnt that you need to be lenient, its that it wasnt handling escaping correctly!
-        this.defaultStrictAffixParsing = settings.getAsBoolean("indices.analysis.hunspell.dictionary.strict_affix_parsing", false);
-        final Version version = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
         dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, Dictionary>() {
             @Override
             public Dictionary load(String locale) throws Exception {
                 Dictionary dictionary = knownDictionaries.get(locale);
                 if (dictionary == null) {
-                    dictionary = loadDictionary(locale, settings, env, version);
+                    dictionary = loadDictionary(locale, settings, env);
                 }
                 return dictionary;
             }
@@ -144,7 +138,7 @@ public class HunspellService extends AbstractComponent {
      * @return The loaded Hunspell dictionary
      * @throws Exception when loading fails (due to IO errors or malformed dictionary files)
      */
-    private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env, Version version) throws Exception {
+    private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env) throws Exception {
         if (logger.isDebugEnabled()) {
             logger.debug("Loading huspell dictionary [{}]...", locale);
         }
@@ -157,7 +151,6 @@ public class HunspellService extends AbstractComponent {
         nodeSettings = loadDictionarySettings(dicDir, nodeSettings.getByPrefix("indices.analysis.hunspell.dictionary." + locale + "."));
 
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
-        boolean strictAffixParsing = nodeSettings.getAsBoolean("strict_affix_parsing", defaultStrictAffixParsing);
 
         File[] affixFiles = dicDir.listFiles(AFFIX_FILE_FILTER);
         if (affixFiles.length != 1) {

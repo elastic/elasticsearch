@@ -36,6 +36,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Dictionary dictionary;
     private final boolean dedup;
+    private final boolean longestOnly;
 
     @Inject
     public HunspellTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService) {
@@ -52,16 +53,20 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         dedup = settings.getAsBoolean("dedup", true);
-        // nocommit: there is a new useful setting for this thing (longestOnly)
+        longestOnly = settings.getAsBoolean("longest_only", false);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new HunspellStemFilter(tokenStream, dictionary, dedup);
+        return new HunspellStemFilter(tokenStream, dictionary, dedup, longestOnly);
     }
 
     public boolean dedup() {
         return dedup;
+    }
+    
+    public boolean longestOnly() {
+        return longestOnly;
     }
 
 }

@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util._TestUtil;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -100,7 +100,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = _TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -133,7 +133,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = _TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -173,7 +173,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = _TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -209,7 +209,7 @@ public class BytesRefHashTests extends ElasticsearchTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = _TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();

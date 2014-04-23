@@ -630,6 +630,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
+    // nocommit
     class StoreIndexOutput extends IndexOutput {
 
         private final StoreFileMetaData metaData;
@@ -704,6 +705,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         @Override
         public String toString() {
             return out.toString();
+        }
+
+        @Override
+        public long getChecksum() throws IOException {
+            return out.getChecksum();
         }
     }
 }

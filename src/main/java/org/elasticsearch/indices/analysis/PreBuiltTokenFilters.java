@@ -57,10 +57,11 @@ import java.util.Locale;
  */
 public enum PreBuiltTokenFilters {
 
+    // nocommit
     WORD_DELIMITER(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new WordDelimiterFilter(tokenStream,
+            return new WordDelimiterFilter(org.apache.lucene.util.Version.LUCENE_48, tokenStream,
                        WordDelimiterFilter.GENERATE_WORD_PARTS |
                        WordDelimiterFilter.GENERATE_NUMBER_PARTS |
                        WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |

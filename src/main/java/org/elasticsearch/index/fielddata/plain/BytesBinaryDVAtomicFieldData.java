@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -35,7 +36,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
     BytesBinaryDVAtomicFieldData(AtomicReader reader, BinaryDocValues values) {
         super();
         this.reader = reader;
-        this.values = values == null ? BinaryDocValues.EMPTY : values;
+        this.values = values == null ? DocValues.EMPTY_BINARY : values;
     }
 
     @Override

@@ -158,7 +158,8 @@ public class HashedAggregator {
 
         @Override
         public boolean add(BytesRef value, int hashCode, BytesValues values) {
-            int key = hash.add(value, hashCode);
+            // nocommit: probably hashing twice
+            int key = hash.add(value);
             if (key < 0) {
                 key = ((-key) - 1);
             } else if (key >= counts.length) {
@@ -168,7 +169,8 @@ public class HashedAggregator {
         }
 
         public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
-            int key = hash.add(value, hashCode);
+            // nocommit: probably hashing twice
+            int key = hash.add(value);
             final boolean added = key >= 0;
             if (key < 0) {
                 key = ((-key) - 1);

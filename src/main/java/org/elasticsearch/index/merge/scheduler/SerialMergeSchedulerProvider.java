@@ -84,9 +84,9 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
         }
 
         @Override
-        public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
+        public void merge(IndexWriter writer, MergeTrigger trigger, boolean newMergesFound) throws CorruptIndexException, IOException {
             try {
-                super.merge(writer);
+                super.merge(writer, trigger, newMergesFound);
             } catch (Throwable e) {
                 logger.warn("failed to merge", e);
                 provider.failedMerge(new MergePolicy.MergeException(e, writer.getDirectory()));

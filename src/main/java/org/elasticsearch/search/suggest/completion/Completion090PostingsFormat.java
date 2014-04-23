@@ -273,6 +273,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
         public long ramBytesUsed() {
             return (lookupFactory == null ? 0 : lookupFactory.ramBytesUsed()) + delegateProducer.ramBytesUsed();
         }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            // nocommit: ensure anything written here is checksummed, the usual
+            delegateProducer.checkIntegrity();
+        }
     }
 
     public static final class CompletionTerms extends FilterTerms {

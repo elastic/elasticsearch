@@ -94,4 +94,11 @@ public class ChecksumIndexOutput extends IndexOutput {
     public long length() throws IOException {
         return out.length();
     }
+
+    // nocommit: nuke this class
+    @Override
+    public long getChecksum() throws IOException {
+        flush();
+        return digest.getValue();
+    }
 }

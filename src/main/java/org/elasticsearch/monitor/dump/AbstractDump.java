@@ -22,7 +22,6 @@ package org.elasticsearch.monitor.dump;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.io.Streams;
 
 import java.io.*;
 import java.util.ArrayList;

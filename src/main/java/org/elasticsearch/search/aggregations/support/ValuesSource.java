@@ -350,9 +350,10 @@ public abstract class ValuesSource {
                     bytes.reinit();
                     for (int i = 0; i < numValues; ++i) {
                         final BytesRef next = delegate.nextValue();
-                        final int hash = delegate.currentValueHash();
-                        assert hash == next.hashCode();
-                        bytes.add(next, hash);
+                        // nocommit: what is going on here? we may be hashing twice now...
+                        //final int hash = delegate.currentValueHash();
+                        //assert hash == next.hashCode();
+                        bytes.add(next);
                     }
                     numUniqueValues = bytes.size();
                     sortedIds = bytes.sort(BytesRef.getUTF8SortedAsUnicodeComparator());

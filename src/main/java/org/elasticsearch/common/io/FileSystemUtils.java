@@ -19,14 +19,11 @@
 
 package org.elasticsearch.common.io;
 
-import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.ThreadInterruptedException;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.ESLogger;
 
-import java.io.*;
-import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
+import java.io.File;
+import java.io.IOException;
 
 /**
  *
@@ -122,10 +119,6 @@ public class FileSystemUtils {
         return false;
     }
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47 : "Use IOUtils#fsync instead of syncFile in Lucene 4.8";
-    }
-
     /**
      * Ensure that any writes to the given file is written to the storage device that contains it.
      * @param fileToSync the file to fsync
@@ -133,45 +126,7 @@ public class FileSystemUtils {
      *  because not all file systems and operating systems allow to fsync on a directory)
      */
     public static void syncFile(File fileToSync, boolean isDir) throws IOException {
-        IOException exc = null;
-
-        // If the file is a directory we have to open read-only, for regular files we must open r/w for the fsync to have an effect.
-        // See http://blog.httrack.com/blog/2013/11/15/everything-you-always-wanted-to-know-about-fsync/
-        try (final FileChannel file = FileChannel.open(fileToSync.toPath(), isDir ? StandardOpenOption.READ : StandardOpenOption.WRITE)) {
-            for (int retry = 0; retry < 5; retry++) {
-                try {
-                    file.force(true);
-                    return;
-                } catch (IOException ioe) {
-                    if (exc == null) {
-                        exc = ioe;
-                    }
-                    try {
-                        // Pause 5 msec
-                        Thread.sleep(5L);
-                    } catch (InterruptedException ie) {
-                        ThreadInterruptedException ex = new ThreadInterruptedException(ie);
-                        ex.addSuppressed(exc);
-                        throw ex;
-                    }
-                }
-            }
-        } catch (IOException ioe) {
-            if (exc == null) {
-                exc = ioe;
-            }
-        }
-
-        if (isDir) {
-            assert (Constants.LINUX || Constants.MAC_OS_X) == false :
-                    "On Linux and MacOSX fsyncing a directory should not throw IOException, "+
-                            "we just don't want to rely on that in production (undocumented). Got: " + exc;
-            // Ignore exception if it is a directory
-            return;
-        }
-
-        // Throw original exception
-        throw exc;
+        IOUtils.fsync(fileToSync, isDir);
     }
 
     /**

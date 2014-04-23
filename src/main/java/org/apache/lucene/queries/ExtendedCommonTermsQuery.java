@@ -22,13 +22,8 @@ package org.apache.lucene.queries;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -154,9 +149,7 @@ public class ExtendedCommonTermsQuery extends CommonTermsQuery {
         }
     }
 
-    static {
-        assert Version.LUCENE_47.onOrAfter(Lucene.VERSION) : "Remove obsolete code after upgrade to lucene 4.8";
-    }
+    // nocommit: take care of this "Remove obsolete code after upgrade to lucene 4.8";
 
     //@Override
     // LUCENE-UPGRADE: remove this method if on 4.8

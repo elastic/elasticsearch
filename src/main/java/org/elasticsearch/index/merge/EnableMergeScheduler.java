@@ -21,6 +21,7 @@ package org.elasticsearch.index.merge;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.MergeTrigger;
 
 import java.io.IOException;
 
@@ -66,9 +67,9 @@ public class EnableMergeScheduler extends MergeScheduler {
     }
 
     @Override
-    public void merge(IndexWriter writer) throws IOException {
+    public void merge(IndexWriter writer, MergeTrigger trigger, boolean newMergesFound) throws IOException {
         if (enabled.get()) {
-            mergeScheduler.merge(writer);
+            mergeScheduler.merge(writer, trigger, newMergesFound);
         }
     }
 

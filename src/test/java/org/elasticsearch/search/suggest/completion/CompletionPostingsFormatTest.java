@@ -53,6 +53,7 @@ import java.lang.reflect.Field;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -172,6 +173,16 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 return false;
             }
 
+            @Override
+            public Set<BytesRef> contexts() {
+                return null;
+            }
+
+            @Override
+            public boolean hasContexts() {
+                return false;
+            }
+
         };
         InputIterator iter;
         if (usePayloads) {
@@ -199,6 +210,16 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 @Override
                 public boolean hasPayloads() {
                     return true;
+                }
+                
+                @Override
+                public Set<BytesRef> contexts() {
+                    return null;
+                }
+
+                @Override
+                public boolean hasContexts() {
+                    return false;
                 }
             };
         } else {

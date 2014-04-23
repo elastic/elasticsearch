@@ -44,7 +44,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     @Test
-    @BadApple
+    @BadApple(bugUrl = "nocommit: ???? why is this disabled ????")
     public void testIndexShardLifecycleLeak() throws Exception {
 
         client().admin().indices().prepareCreate("test")

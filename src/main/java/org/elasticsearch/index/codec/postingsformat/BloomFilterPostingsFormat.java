@@ -197,6 +197,13 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             }
             return size;
         }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            // nocommit: add checksums to any files we write with this thing,
+            // and do the check when reading in blooms
+            delegateFieldsProducer.checkIntegrity();
+        }
     }
 
     public static final class BloomFilteredTerms extends FilterAtomicReader.FilterTerms {

@@ -103,8 +103,8 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
-            final Scorer parentScorer = parentWeight.scorer(context, true, false, acceptDocs);
+        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+            final Scorer parentScorer = parentWeight.scorer(context, acceptDocs);
 
             // no matches
             if (parentScorer == null) {

@@ -155,9 +155,10 @@ is `true`).
 
 |`normalize_lon` |Set to `true` to normalize longitude.
 
-|`precision_step` |The precision step (number of terms generated for
-each number value) for `.lat` and `.lon` fields if `lat_lon` is set to `true`.
-Defaults to `4`.
+|`precision_step` |The precision step (influences the number of terms 
+generated for each number value) for `.lat` and `.lon` fields 
+if `lat_lon` is set to `true`.
+Defaults to `16`.
 |=======================================================================
 
 [float]

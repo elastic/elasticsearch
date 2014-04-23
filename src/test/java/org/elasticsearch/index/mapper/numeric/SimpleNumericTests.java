@@ -19,17 +19,24 @@
 
 package org.elasticsearch.index.mapper.numeric;
 
+import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.string.SimpleStringMappingTests;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
@@ -321,5 +328,178 @@ public class SimpleNumericTests extends ElasticsearchTestCase {
             assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "nested.int"));
             assertEquals(DocValuesType.BINARY, SimpleStringMappingTests.docValuesType(doc, "nested.double"));
         }
+    }
+    
+    /** Test default precision step for autodetected numeric types */
+    @Test
+    public void testPrecisionStepDefaultsDetected() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .field("numeric_detection", true)
+                .field("date_detection", true)
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("long",   "100")
+                .field("double", "100.0")
+                .field("date",   "2010-01-01")
+                .endObject()
+                .bytes());
+        
+        assertEquals(1, doc.docs().size());
+        Document luceneDoc = doc.docs().get(0);
+        
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("double"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
+    }
+    
+    /** Test default precision step for numeric types */
+    @Test
+    public void testPrecisionStepDefaultsMapped() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int")
+                    .field("type", "integer")
+                .endObject()
+                .startObject("float")
+                    .field("type", "float")
+                .endObject()
+                .startObject("long")
+                    .field("type", "long")
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                .endObject()
+                .startObject("short")
+                    .field("type", "short")
+                .endObject()
+                .startObject("byte")
+                    .field("type", "byte")
+                .endObject()
+                .startObject("date")
+                    .field("type", "date")
+                .endObject()
+                .startObject("ip")
+                    .field("type", "ip")
+                .endObject()
+                
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        
+        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("int",    "100")
+                .field("float",  "100.0")
+                .field("long",   "5000")
+                .field("double", "34.545")
+                .field("short",  "1645")
+                .field("byte",   "50")
+                .field("date",   "2010-01-01")
+                .field("ip",     "255.255.255.255")
+                .endObject()
+                .bytes());
+        
+        assertEquals(1, doc.docs().size());
+        Document luceneDoc = doc.docs().get(0);
+        
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("long"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("double"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("date"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_64_BIT, luceneDoc.getField("ip"));
+        
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("int"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_32_BIT, luceneDoc.getField("float"));
+        
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_16_BIT, luceneDoc.getField("short"));
+        assertPrecisionStepEquals(NumberFieldMapper.Defaults.PRECISION_STEP_8_BIT,  luceneDoc.getField("byte"));
+    }
+    
+    /** Test precision step set to silly explicit values */
+    @Test
+    public void testPrecisionStepExplicit() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("int")
+                    .field("type", "integer")
+                    .field("precision_step", "1")
+                .endObject()
+                .startObject("float")
+                    .field("type", "float")
+                    .field("precision_step", "2")
+                .endObject()
+                .startObject("long")
+                    .field("type", "long")
+                    .field("precision_step", "1")
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                    .field("precision_step", "2")
+                .endObject()
+                .startObject("short")
+                    .field("type", "short")
+                    .field("precision_step", "1")
+                .endObject()
+                .startObject("byte")
+                    .field("type", "byte")
+                    .field("precision_step", "2")
+                .endObject()
+                .startObject("date")
+                    .field("type", "date")
+                    .field("precision_step", "1")
+                .endObject()
+                .startObject("ip")
+                    .field("type", "ip")
+                    .field("precision_step", "2")
+                .endObject()
+                
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = MapperTestUtils.newParser().parse(mapping);
+        
+        ParsedDocument doc = mapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("int",    "100")
+                .field("float",  "100.0")
+                .field("long",   "5000")
+                .field("double", "34.545")
+                .field("short",  "1645")
+                .field("byte",   "50")
+                .field("date",   "2010-01-01")
+                .field("ip",     "255.255.255.255")
+                .endObject()
+                .bytes());
+        
+        assertEquals(1, doc.docs().size());
+        Document luceneDoc = doc.docs().get(0);
+        
+        assertPrecisionStepEquals(1, luceneDoc.getField("int"));
+        assertPrecisionStepEquals(2, luceneDoc.getField("float"));
+        assertPrecisionStepEquals(1, luceneDoc.getField("long"));
+        assertPrecisionStepEquals(2, luceneDoc.getField("double"));
+        assertPrecisionStepEquals(1, luceneDoc.getField("short"));
+        assertPrecisionStepEquals(2, luceneDoc.getField("byte"));
+        assertPrecisionStepEquals(1, luceneDoc.getField("date"));
+        assertPrecisionStepEquals(2, luceneDoc.getField("ip"));
+
+    }
+    
+    /** checks precisionstep on both the fieldtype and the tokenstream */
+    private static void assertPrecisionStepEquals(int expected, IndexableField field) throws IOException {
+        assertNotNull(field);
+        assertThat(field, instanceOf(Field.class));
+        
+        // check fieldtype's precisionstep
+        assertEquals(expected, ((Field)field).fieldType().numericPrecisionStep());
+        
+        // check the tokenstream actually used by the indexer
+        TokenStream ts = field.tokenStream(null);
+        assertThat(ts, instanceOf(NumericTokenStream.class)); 
+        assertEquals(expected, ((NumericTokenStream)ts).getPrecisionStep());
     }
 }

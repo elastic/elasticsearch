@@ -57,16 +57,24 @@ import java.util.Locale;
  */
 public enum PreBuiltTokenFilters {
 
-    // nocommit
     WORD_DELIMITER(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            return new WordDelimiterFilter(org.apache.lucene.util.Version.LUCENE_48, tokenStream,
-                       WordDelimiterFilter.GENERATE_WORD_PARTS |
-                       WordDelimiterFilter.GENERATE_NUMBER_PARTS |
-                       WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
-                       WordDelimiterFilter.SPLIT_ON_NUMERICS |
-                       WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
+            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_48)) {
+                return new WordDelimiterFilter(version.luceneVersion, tokenStream,
+                           WordDelimiterFilter.GENERATE_WORD_PARTS |
+                           WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+                           WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
+                           WordDelimiterFilter.SPLIT_ON_NUMERICS |
+                           WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
+            } else {
+                return new Lucene47WordDelimiterFilter(tokenStream,
+                           WordDelimiterFilter.GENERATE_WORD_PARTS |
+                           WordDelimiterFilter.GENERATE_NUMBER_PARTS |
+                           WordDelimiterFilter.SPLIT_ON_CASE_CHANGE |
+                           WordDelimiterFilter.SPLIT_ON_NUMERICS |
+                           WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE, null);
+            }
         }
     },
 

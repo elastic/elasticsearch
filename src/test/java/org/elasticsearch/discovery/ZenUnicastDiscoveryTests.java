@@ -19,7 +19,9 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -27,7 +29,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope=Scope.TEST, numNodes=2)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
@@ -43,10 +45,16 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testUnicastDiscovery() {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
-
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
+        for (Client client : clients()) {
+            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
+            int clientNodes = 0;
+            for (DiscoveryNode discoveryNode : state.nodes()) {
+                if (discoveryNode.isClientNode()) {
+                    clientNodes++;
+                }
+            }
+            //client nodes might be added randomly
+            assertThat(state.nodes().size(), greaterThanOrEqualTo(2 + clientNodes));
+        }
     }
 }

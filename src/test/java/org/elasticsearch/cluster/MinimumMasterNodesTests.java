@@ -276,7 +276,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> stopping a node");
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         logger.info("--> verifying min master node has effect");
         assertNoMasterBlockOnAllNodes();
 

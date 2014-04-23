@@ -58,9 +58,9 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public static void setupSecondCluster() throws Exception {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new TestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()));
+        cluster2 = new TestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0);
         cluster2.beforeTest(getRandom(), 0.1);
-        cluster2.ensureAtLeastNumNodes(2);
+        cluster2.ensureAtLeastNumDataNodes(2);
     }
 
     @AfterClass
@@ -301,7 +301,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         });
 
         logger.info("stop a node, make sure its reflected");
-        cluster2.stopRandomNode();
+        cluster2.stopRandomDataNode();
         awaitSameNodeCounts();
     }
 

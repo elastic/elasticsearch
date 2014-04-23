@@ -982,7 +982,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
         long snapshotPause = 0L;
         long restorePause = 0L;
-        for (RepositoriesService repositoriesService : cluster().getInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService : cluster().getDataNodeInstances(RepositoriesService.class)) {
             snapshotPause += repositoriesService.repository("test-repo").snapshotThrottleTimeInNanos();
             restorePause += repositoriesService.repository("test-repo").restoreThrottleTimeInNanos();
         }

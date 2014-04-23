@@ -61,7 +61,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         cluster().startNode(settings);
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();

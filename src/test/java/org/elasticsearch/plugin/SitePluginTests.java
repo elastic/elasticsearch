@@ -55,20 +55,20 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    public HttpClient httpClient(String id) {
-        HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
+    public HttpClient httpClient() {
+        HttpServerTransport httpServerTransport = cluster().getDataNodeInstance(HttpServerTransport.class);
         return new HttpClient(httpServerTransport.boundAddress().publishAddress());
     }
 
     @Test
     public void testRedirectSitePlugin() throws Exception {
         // We use an HTTP Client to test redirection
-        HttpClientResponse response = httpClient("test").request("/_plugin/dummy");
+        HttpClientResponse response = httpClient().request("/_plugin/dummy");
         assertThat(response.errorCode(), equalTo(RestStatus.MOVED_PERMANENTLY.getStatus()));
         assertThat(response.response(), containsString("/_plugin/dummy/"));
 
         // We test the real URL
-        response = httpClient("test").request("/_plugin/dummy/");
+        response = httpClient().request("/_plugin/dummy/");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
     }
@@ -78,7 +78,7 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testAnyPage() throws Exception {
-        HttpClientResponse response = httpClient("test").request("/_plugin/dummy/index.html");
+        HttpClientResponse response = httpClient().request("/_plugin/dummy/index.html");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
     }
@@ -89,14 +89,14 @@ public class SitePluginTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testWelcomePageInSubDirs() throws Exception {
-        HttpClientResponse response = httpClient("test").request("/_plugin/subdir/dir/");
+        HttpClientResponse response = httpClient().request("/_plugin/subdir/dir/");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin (subdir)</title>"));
 
-        response = httpClient("test").request("/_plugin/subdir/dir_without_index/");
+        response = httpClient().request("/_plugin/subdir/dir_without_index/");
         assertThat(response.errorCode(), equalTo(RestStatus.FORBIDDEN.getStatus()));
 
-        response = httpClient("test").request("/_plugin/subdir/dir_without_index/page.html");
+        response = httpClient().request("/_plugin/subdir/dir_without_index/page.html");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin (page)</title>"));
     }

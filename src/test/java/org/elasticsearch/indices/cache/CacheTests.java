@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1)
+@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1, numClientNodes = 0)
 public class CacheTests extends ElasticsearchIntegrationTest {
 
     @Override

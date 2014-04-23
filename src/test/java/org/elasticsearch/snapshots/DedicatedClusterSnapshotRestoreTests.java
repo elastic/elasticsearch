@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -153,7 +152,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client().prepareCount("test-idx-1").get().getCount(), equalTo(100L));
 
         logger.info("--> shutdown one of the nodes");
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForNodes("<2").execute().actionGet().isTimedOut(), equalTo(false));
 
         assertAcked(prepareCreate("test-idx-2", 1, settingsBuilder().put("number_of_shards", 6)

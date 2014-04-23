@@ -41,7 +41,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService : cluster().getInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService : cluster().getDataNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }

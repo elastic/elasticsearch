@@ -630,7 +630,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         }
     }
 
-    // nocommit
     class StoreIndexOutput extends IndexOutput {
 
         private final StoreFileMetaData metaData;
@@ -647,12 +646,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         @Override
         public void close() throws IOException {
+            String checksum = Long.toString(out.getChecksum(), Character.MAX_RADIX);
             out.close();
-            String checksum = null;
-            IndexOutput underlying = out;
-            if (underlying instanceof BufferedChecksumIndexOutput) {
-                checksum = Long.toString(((BufferedChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
-            }
             synchronized (mutex) {
                 StoreFileMetaData md = new StoreFileMetaData(name, metaData.directory().fileLength(name), checksum, metaData.directory());
                 filesMetadata = ImmutableOpenMap.builder(filesMetadata).fPut(name, md).build();

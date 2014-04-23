@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.SUITE, numNodes=0)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =0)
 public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
 
     @Test

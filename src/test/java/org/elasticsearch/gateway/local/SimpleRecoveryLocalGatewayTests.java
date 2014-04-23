@@ -43,6 +43,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
@@ -50,7 +51,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(numNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST)
+@ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 @Slow
 public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTest {
 

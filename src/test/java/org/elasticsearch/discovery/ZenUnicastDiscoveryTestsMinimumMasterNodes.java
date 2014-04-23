@@ -34,7 +34,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope=Scope.TEST, numNodes=0)
+@ClusterScope(scope=Scope.TEST, numDataNodes =0)
 public class ZenUnicastDiscoveryTestsMinimumMasterNodes extends ElasticsearchIntegrationTest {
 
     @Test

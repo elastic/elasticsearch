@@ -19,19 +19,19 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 
+import static org.apache.lucene.util.LuceneTestCase.Slow;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 
 /**
  */
-@LuceneTestCase.Slow
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@Slow
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedMasterGetFieldMappingTests extends SimpleGetFieldMappingsTests {
 
     @Before

@@ -34,9 +34,10 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class FilteringAllocationTests extends ElasticsearchIntegrationTest {
 
     private final ESLogger logger = Loggers.getLogger(FilteringAllocationTests.class);

@@ -31,13 +31,14 @@ import org.junit.Test;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class UpdateByNativeScriptTests extends ElasticsearchIntegrationTest {
 
     @Override

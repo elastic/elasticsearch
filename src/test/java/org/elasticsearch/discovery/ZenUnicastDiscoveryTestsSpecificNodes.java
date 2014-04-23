@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,13 +30,16 @@ import org.junit.Test;
 
 import java.util.List;
 
+import static org.apache.lucene.util.LuceneTestCase.Slow;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@LuceneTestCase.Slow
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@Slow
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ZenUnicastDiscoveryTestsSpecificNodes extends ElasticsearchIntegrationTest {
 
     @Test

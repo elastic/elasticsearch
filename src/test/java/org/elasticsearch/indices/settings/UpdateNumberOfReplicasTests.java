@@ -119,7 +119,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testAutoExpandNumberOfReplicas0ToData() {
-        cluster().ensureAtMostNumNodes(2);
+        cluster().ensureAtMostNumDataNodes(2);
         logger.info("--> creating index test with auto expand replicas");
         assertAcked(prepareCreate("test", 2, settingsBuilder().put("auto_expand_replicas", "0-all")));
 
@@ -147,7 +147,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
         logger.info("--> closing one node");
-        cluster().ensureAtMostNumNodes(2);
+        cluster().ensureAtMostNumDataNodes(2);
         allowNodes("test", 2);
 
         logger.info("--> running cluster health");
@@ -160,7 +160,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
         logger.info("--> closing another node");
-        cluster().ensureAtMostNumNodes(1);
+        cluster().ensureAtMostNumDataNodes(1);
         allowNodes("test", 1);
 
         logger.info("--> running cluster health");
@@ -176,7 +176,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
     @Test
     public void testAutoExpandNumberReplicas1ToData() {
         logger.info("--> creating index test with auto expand replicas");
-        cluster().ensureAtMostNumNodes(2);
+        cluster().ensureAtMostNumDataNodes(2);
         assertAcked(prepareCreate("test", 2, settingsBuilder().put("auto_expand_replicas", "1-all")));
 
         NumShards numShards = getNumShards("test");
@@ -203,7 +203,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
         logger.info("--> closing one node");
-        cluster().ensureAtMostNumNodes(2);
+        cluster().ensureAtMostNumDataNodes(2);
         allowNodes("test", 2);
 
         logger.info("--> running cluster health");
@@ -216,7 +216,7 @@ public class UpdateNumberOfReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 2));
 
         logger.info("--> closing another node");
-        cluster().ensureAtMostNumNodes(1);
+        cluster().ensureAtMostNumDataNodes(1);
         allowNodes("test", 1);
 
         logger.info("--> running cluster health");

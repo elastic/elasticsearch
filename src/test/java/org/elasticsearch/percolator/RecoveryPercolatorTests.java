@@ -55,7 +55,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 1)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -185,8 +185,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-        cluster().ensureAtMostNumNodes(2);
+        cluster().ensureAtLeastNumDataNodes(2);
+        cluster().ensureAtMostNumDataNodes(2);
 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
@@ -249,8 +249,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     // We only start and stop nodes 2 and 3, so all requests should succeed and never be partial.
     private void percolatorRecovery(final boolean multiPercolate) throws Exception {
         logger.info("--> ensuring exactly 2 nodes");
-        cluster().ensureAtLeastNumNodes(2);
-        cluster().ensureAtMostNumNodes(2);
+        cluster().ensureAtLeastNumDataNodes(2);
+        cluster().ensureAtMostNumDataNodes(2);
         logger.info("--> Adding 3th node");
         cluster().startNode(settingsBuilder().put("node.stay", true));
         ensureGreen();

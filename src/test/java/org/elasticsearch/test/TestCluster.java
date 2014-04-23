@@ -19,13 +19,11 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -121,8 +119,12 @@ public final class TestCluster extends ImmutableTestCluster {
 
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
-    static final int DEFAULT_MIN_NUM_NODES = 2;
-    static final int DEFAULT_MAX_NUM_NODES = 6;
+    static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
+    static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
+
+    static final int DEFAULT_NUM_CLIENT_NODES = -1;
+    static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
+    static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
@@ -142,39 +144,50 @@ public final class TestCluster extends ImmutableTestCluster {
      * fully shared cluster to be more reproducible */
     private final long[] sharedNodesSeeds;
 
+    private final int numSharedDataNodes;
+
+    private final int numSharedClientNodes;
+
     private final NodeSettingsSource nodeSettingsSource;
 
     private final ExecutorService executor;
 
     public TestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, DEFAULT_MIN_NUM_NODES, DEFAULT_MAX_NUM_NODES, clusterName, NodeSettingsSource.EMPTY);
+        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES);
     }
 
-    public TestCluster(long clusterSeed, int minNumNodes, int maxNumNodes, String clusterName) {
-        this(clusterSeed, minNumNodes, maxNumNodes, clusterName, NodeSettingsSource.EMPTY);
+    public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, NodeSettingsSource.EMPTY, numClientNodes);
     }
 
-    public TestCluster(long clusterSeed, int minNumNodes, int maxNumNodes, String clusterName, NodeSettingsSource nodeSettingsSource) {
+    public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeSettingsSource nodeSettingsSource, int numClientNodes) {
         this.clusterName = clusterName;
 
-        if (minNumNodes < 0 || maxNumNodes < 0) {
-            throw new IllegalArgumentException("minimum and maximum number of nodes must be >= 0");
+        if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
+            throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
 
-        if (maxNumNodes < minNumNodes) {
-            throw new IllegalArgumentException("maximum number of nodes must be >= minimum number of nodes");
+        if (maxNumDataNodes < minNumDataNodes) {
+            throw new IllegalArgumentException("maximum number of data nodes must be >= minimum number of  data nodes");
         }
 
         Random random = new Random(clusterSeed);
 
-        int numSharedNodes;
-        if (minNumNodes == maxNumNodes) {
-            numSharedNodes = minNumNodes;
-        } else {
-            numSharedNodes = minNumNodes + random.nextInt(maxNumNodes - minNumNodes);
-        }
+        this.numSharedDataNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
+        assert this.numSharedDataNodes >= 0;
 
-        assert numSharedNodes >= 0;
+        //for now all shared data nodes are also master eligible
+        if (numSharedDataNodes == 0) {
+            this.numSharedClientNodes = 0;
+        } else {
+            if (numClientNodes < 0) {
+                this.numSharedClientNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
+            } else {
+                this.numSharedClientNodes = numClientNodes;
+            }
+        }
+        assert this.numSharedClientNodes >=0;
+
         /*
          *  TODO
          *  - we might want start some master only nodes?
@@ -182,11 +195,12 @@ public final class TestCluster extends ImmutableTestCluster {
          *  - we could add a flag that never returns a client to the master
          *  - along those lines use a dedicated node that is master eligible and let all other nodes be only data nodes
          */
-        sharedNodesSeeds = new long[numSharedNodes];
+        sharedNodesSeeds = new long[numSharedDataNodes + numSharedClientNodes];
         for (int i = 0; i < sharedNodesSeeds.length; i++) {
             sharedNodesSeeds[i] = random.nextLong();
         }
-        logger.info("Setup TestCluster [{}] with seed [{}] using [{}] nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedNodes);
+
+        logger.info("Setup TestCluster [{}] with seed [{}] using [{}] data nodes and [{}] client nodes", clusterName, SeedUtils.formatSeed(clusterSeed), numSharedDataNodes, numSharedClientNodes);
         this.nodeSettingsSource = nodeSettingsSource;
         Builder builder = ImmutableSettings.settingsBuilder();
         if (random.nextInt(5) == 0) { // sometimes set this
@@ -333,14 +347,14 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     /**
-     * Ensures that at least <code>n</code> nodes are present in the cluster.
+     * Ensures that at least <code>n</code> data nodes are present in the cluster.
      * if more nodes than <code>n</code> are present this method will not
      * stop any of the running nodes.
      */
-    public void ensureAtLeastNumNodes(int n) {
+    public void ensureAtLeastNumDataNodes(int n) {
         List<ListenableFuture<String>> futures = Lists.newArrayList();
         synchronized (this) {
-            int size = nodes.size();
+            int size = numDataNodes();
             for (int i = size; i < n; i++) {
                 logger.info("increasing cluster size from {} to {}", size, n);
                 futures.add(startNodeAsync());
@@ -358,14 +372,17 @@ public final class TestCluster extends ImmutableTestCluster {
      * If less nodes that <code>n</code> are running this method
      * will not start any additional nodes.
      */
-    public synchronized void ensureAtMostNumNodes(int n) {
-        if (nodes.size() <= n) {
+    public synchronized void ensureAtMostNumDataNodes(int n) {
+        int size = numDataNodes();
+        if (size <= n) {
             return;
         }
-        // prevent killing the master if possible
-        final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(), Predicates.not(new MasterNodePredicate(getMasterName())));
-        final Iterator<NodeAndClient> limit = Iterators.limit(values, nodes.size() - n);
-        logger.info("changing cluster size from {} to {}", nodes.size() - n, n);
+        // prevent killing the master if possible and client nodes
+        final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(),
+                Predicates.and(new DataNodePredicate(), Predicates.not(new MasterNodePredicate(getMasterName()))));
+
+        final Iterator<NodeAndClient> limit = Iterators.limit(values, size - n);
+        logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedClientNodes, n);
         Set<NodeAndClient> nodesToRemove = new HashSet<>();
         while (limit.hasNext()) {
             NodeAndClient next = limit.next();
@@ -412,6 +429,16 @@ public final class TestCluster extends ImmutableTestCluster {
         ensureOpen();
         /* Randomly return a client to one of the nodes in the cluster */
         return getOrBuildRandomNode().client(random);
+    }
+
+    /**
+     * Returns a node client to a data node in the cluster.
+     * Note: use this with care tests should not rely on a certain nodes client.
+     */
+    public synchronized Client dataNodeClient() {
+        ensureOpen();
+        /* Randomly return a client to one of the nodes in the cluster */
+        return getRandomNodeAndClient(new DataNodePredicate()).client(random);
     }
 
     /**
@@ -707,13 +734,26 @@ public final class TestCluster extends ImmutableTestCluster {
 
 
         Set<NodeAndClient> sharedNodes = new HashSet<>();
+        assert sharedNodesSeeds.length == numSharedDataNodes + numSharedClientNodes;
         boolean changed = false;
-        for (int i = 0; i < sharedNodesSeeds.length; i++) {
+        for (int i = 0; i < numSharedDataNodes; i++) {
             String buildNodeName = buildNodeName(i);
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], null, Version.CURRENT);
+                nodeAndClient.node.start();
+                logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
+            }
+            sharedNodes.add(nodeAndClient);
+        }
+        for (int i = numSharedDataNodes; i < numSharedDataNodes + numSharedClientNodes; i++) {
+            String buildNodeName = buildNodeName(i);
+            NodeAndClient nodeAndClient = nodes.get(buildNodeName);
+            if (nodeAndClient == null) {
+                changed = true;
+                Settings clientSettings = ImmutableSettings.builder().put("node.data", "false").put("node.master", "false").build();
+                nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettings, Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
             }
@@ -792,6 +832,22 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     /**
+     * Returns an Iterable to all instances for the given class &gt;T&lt; across all data nodes in the cluster.
+     */
+    public synchronized <T> Iterable<T> getDataNodeInstances(Class<T> clazz) {
+        return getInstances(clazz, new DataNodePredicate());
+    }
+
+    private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
+        Iterable<NodeAndClient> filteredNodes = Iterables.filter(nodes.values(), predicate);
+        List<T> instances = new ArrayList<>();
+        for (NodeAndClient nodeAndClient : filteredNodes) {
+            instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
+        }
+        return instances;
+    }
+
+    /**
      * Returns a reference to the given nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz, final String node) {
@@ -805,6 +861,14 @@ public final class TestCluster extends ImmutableTestCluster {
         } else {
             predicate = Predicates.alwaysTrue();
         }
+        return getInstance(clazz, predicate);
+    }
+
+    public synchronized <T> T getDataNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new DataNodePredicate());
+    }
+
+    private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
         assert randomNodeAndClient != null;
         return getInstanceFromNode(clazz, randomNodeAndClient.node);
@@ -814,7 +878,7 @@ public final class TestCluster extends ImmutableTestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, null);
+        return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
     }
 
     private synchronized <T> T getInstanceFromNode(Class<T> clazz, InternalNode node) {
@@ -836,11 +900,11 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     /**
-     * Stops a random node in the cluster.
+     * Stops a random data node in the cluster.
      */
-    public synchronized void stopRandomNode() {
+    public synchronized void stopRandomDataNode() {
         ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient();
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
             logger.info("Closing random node [{}] ", nodeAndClient.name);
             nodes.remove(nodeAndClient.name);
@@ -899,13 +963,33 @@ public final class TestCluster extends ImmutableTestCluster {
         restartRandomNode(EMPTY_CALLBACK);
     }
 
-
     /**
      * Restarts a random node in the cluster and calls the callback during restart.
      */
     public void restartRandomNode(RestartCallback callback) throws Exception {
+        restartRandomNode(Predicates.<NodeAndClient>alwaysTrue(), callback);
+    }
+
+    /**
+     * Restarts a random data node in the cluster
+     */
+    public void restartRandomDataNode() throws Exception {
+        restartRandomNode(EMPTY_CALLBACK);
+    }
+
+    /**
+     * Restarts a random data node in the cluster and calls the callback during restart.
+     */
+    public void restartRandomDataNode(RestartCallback callback) throws Exception {
+        restartRandomNode(new DataNodePredicate(), callback);
+    }
+
+    /**
+     * Restarts a random node in the cluster and calls the callback during restart.
+     */
+    private void restartRandomNode(Predicate<NodeAndClient> predicate, RestartCallback callback) throws Exception {
         ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient();
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(predicate);
         if (nodeAndClient != null) {
             logger.info("Restarting random node [{}] ", nodeAndClient.name);
             nodeAndClient.restart(callback);
@@ -996,13 +1080,14 @@ public final class TestCluster extends ImmutableTestCluster {
         }
     }
 
-    synchronized Set<String> allButN(int numNodes) {
-        return nRandomNodes(size() - numNodes);
+    synchronized Set<String> allDataNodesButN(int numNodes) {
+        return nRandomDataNodes(numDataNodes() - numNodes);
     }
 
-    private synchronized Set<String> nRandomNodes(int numNodes) {
+    private synchronized Set<String> nRandomDataNodes(int numNodes) {
         assert size() >= numNodes;
-        return Sets.newHashSet(Iterators.limit(this.nodes.keySet().iterator(), numNodes));
+        NavigableMap<String, NodeAndClient> dataNodes = Maps.filterEntries(nodes, new EntryNodePredicate(new DataNodePredicate()));
+        return Sets.newHashSet(Iterators.limit(dataNodes.keySet().iterator(), numNodes));
     }
 
     public synchronized void startNodeClient(Settings settings) {
@@ -1154,11 +1239,11 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public int dataNodes() {
+    public int numDataNodes() {
         return dataNodeAndClients().size();
     }
 
-    private Collection<NodeAndClient> dataNodeAndClients() {
+    private synchronized Collection<NodeAndClient> dataNodeAndClients() {
         return Collections2.filter(nodes.values(), new DataNodePredicate());
     }
 
@@ -1183,10 +1268,22 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
-
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
             return nodeAndClient.node.settings().getAsBoolean("node.client", false);
+        }
+    }
+
+    private static final class EntryNodePredicate implements Predicate<Map.Entry<String, NodeAndClient>> {
+        private final Predicate<NodeAndClient> delegateNodePredicate;
+
+        EntryNodePredicate(Predicate<NodeAndClient> delegateNodePredicate) {
+            this.delegateNodePredicate = delegateNodePredicate;
+        }
+
+        @Override
+        public boolean apply(Map.Entry<String, NodeAndClient> entry) {
+            return delegateNodePredicate.apply(entry.getValue());
         }
     }
 

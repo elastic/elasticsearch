@@ -32,7 +32,6 @@ import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Directories;
-import org.elasticsearch.common.lucene.store.ChecksumIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.CloseableIndexComponent;
@@ -653,8 +652,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             IndexOutput underlying = out;
             if (underlying instanceof BufferedChecksumIndexOutput) {
                 checksum = Long.toString(((BufferedChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
-            } else if (underlying instanceof ChecksumIndexOutput) {
-                checksum = Long.toString(((ChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
             }
             synchronized (mutex) {
                 StoreFileMetaData md = new StoreFileMetaData(name, metaData.directory().fileLength(name), checksum, metaData.directory());

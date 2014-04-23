@@ -565,8 +565,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
     }
 
-    // nocommit: what comments? org.apache.lucene.util.Version.LUCENE_47 : "See comments in testDfsSearchType";
-
     @Test
     public void testDfsSearchType() throws Exception {
         assertAcked(prepareCreate("test")

@@ -41,7 +41,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -165,13 +166,13 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(12l));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate("test", "type", "e1").setVersion(4l).setDoc("field", "2").setVersion(10).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareUpdate("test", "type", "e2").setDoc("field", "2").setVersion(15).setVersionType(VersionType.EXTERNAL))
-                .add(client().prepareUpdate("test", "type", "e1").setVersion(2l).setDoc("field", "3").setVersion(15).setVersionType(VersionType.EXTERNAL)).get();
+                .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "2").setVersion(10)) // INTERNAL
+                .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.FORCE))
+                .add(client().prepareUpdate("test", "type", "e1").setDoc("field", "3").setVersion(20).setVersionType(VersionType.INTERNAL)).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(15l));
-        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(15l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(20l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(21l));
     }
 
     @Test
@@ -358,7 +359,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(
                 ImmutableSettings.builder()
                         .put(indexSettings())
-                        .put("index.number_of_replicas", replica)));
+                        .put("index.number_of_replicas", replica)
+        ));
 
         int numDocs = scaledRandomIntBetween(100, 5000);
         int bulk = scaledRandomIntBetween(1, 99);
@@ -456,13 +458,13 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFailingVersionedUpdatedOnBulk() throws Exception {
         createIndex("test");
-        index("test","type","1","field","1");
+        index("test", "type", "1", "field", "1");
         final BulkResponse[] responses = new BulkResponse[30];
         final CyclicBarrier cyclicBarrier = new CyclicBarrier(responses.length);
         Thread[] threads = new Thread[responses.length];
 
 
-        for (int i=0;i<responses.length;i++) {
+        for (int i = 0; i < responses.length; i++) {
             final int threadID = i;
             threads[threadID] = new Thread(new Runnable() {
                 @Override
@@ -474,7 +476,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                     }
                     BulkRequestBuilder requestBuilder = client().prepareBulk();
                     requestBuilder.add(client().prepareUpdate("test", "type", "1").setVersion(1).setDoc("field", threadID));
-                    responses[threadID]=requestBuilder.get();
+                    responses[threadID] = requestBuilder.get();
 
                 }
             });
@@ -482,13 +484,15 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
         }
 
-        for (int i=0;i < threads.length; i++) {
+        for (int i = 0; i < threads.length; i++) {
             threads[i].join();
         }
 
         int successes = 0;
         for (BulkResponse response : responses) {
-            if (!response.hasFailures()) successes ++;
+            if (!response.hasFailures()) {
+                successes++;
+            }
         }
 
         assertThat(successes, equalTo(1));
@@ -497,13 +501,13 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test // issue 4745
     public void preParsingSourceDueToMappingShouldNotBreakCompleteBulkRequest() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("_timestamp")
-                        .field("enabled", true)
-                        .field("path", "last_modified")
+                    .startObject("type")
+                        .startObject("_timestamp")
+                            .field("enabled", true)
+                            .field("path", "last_modified")
+                        .endObject()
                     .endObject()
-                .endObject()
-            .endObject();
+                .endObject();
         assertAcked(prepareCreate("test").addMapping("type", builder));
 
         String brokenBuildRequestData = "{\"index\": {\"_id\": \"1\"}}\n" +
@@ -522,13 +526,13 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test // issue 4745
     public void preParsingSourceDueToRoutingShouldNotBreakCompleteBulkRequest() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("_routing")
-                        .field("required", true)
-                        .field("path", "my_routing")
+                    .startObject("type")
+                        .startObject("_routing")
+                            .field("required", true)
+                            .field("path", "my_routing")
+                        .endObject()
                     .endObject()
-                .endObject()
-            .endObject();
+                .endObject();
         assertAcked(prepareCreate("test").addMapping("type", builder));
         ensureYellow("test");
 
@@ -549,12 +553,12 @@ public class BulkTests extends ElasticsearchIntegrationTest {
     @Test // issue 4745
     public void preParsingSourceDueToIdShouldNotBreakCompleteBulkRequest() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("type")
-                    .startObject("_id")
-                        .field("path", "my_id")
+                    .startObject("type")
+                        .startObject("_id")
+                            .field("path", "my_id")
+                        .endObject()
                     .endObject()
-                .endObject()
-            .endObject();
+                .endObject();
         assertAcked(prepareCreate("test").addMapping("type", builder));
         ensureYellow("test");
 
@@ -578,7 +582,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -595,7 +600,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(5)
-                                        .setConcurrentRequests(1).setName("foo").build()) {
+                .setConcurrentRequests(1).setName("foo").build()) {
             Map<String, Object> data = Maps.newHashMap();
             data.put("foo", "bar");
 
@@ -639,7 +644,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessor.Listener listener = new BulkProcessor.Listener() {
             @Override
-            public void beforeBulk(long executionId, BulkRequest request) {}
+            public void beforeBulk(long executionId, BulkRequest request) {
+            }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -655,7 +661,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         };
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(6)
-                                        .setConcurrentRequests(1).setName("foo").build()) {
+                .setConcurrentRequests(1).setName("foo").build()) {
             Map<String, Object> data = Maps.newHashMap();
             data.put("foo", "bar");
 

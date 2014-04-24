@@ -102,7 +102,11 @@ public class ProfileQuery extends Query implements ProfileComponent {
         if (rewrittenQuery == subQuery) {
             return this;
         }
-        this.subQuery = new ProfileQuery(rewrittenQuery);
+
+        ProfileQueryVisitor walker = new ProfileQueryVisitor();
+        rewrittenQuery = (ProfileQuery) walker.apply(rewrittenQuery);
+
+        this.subQuery = rewrittenQuery;
         return this;
     }
 

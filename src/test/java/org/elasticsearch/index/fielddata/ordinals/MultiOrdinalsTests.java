@@ -51,7 +51,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         OrdinalsBuilder builder = new OrdinalsBuilder(numDocs);
         Set<OrdAndId> ordsAndIdSet = new HashSet<>();
         for (int i = 0; i < numValues; i++) {
-            ordsAndIdSet.add(new OrdAndId(1 + random.nextInt(numOrdinals), random.nextInt(numDocs)));
+            ordsAndIdSet.add(new OrdAndId(random.nextInt(numOrdinals), random.nextInt(numDocs)));
         }
         List<OrdAndId> ordsAndIds = new ArrayList<>(ordsAndIdSet);
         Collections.sort(ordsAndIds, new Comparator<OrdAndId>() {
@@ -181,31 +181,31 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         int maxDoc = 7;
         long maxOrds = 32;
         OrdinalsBuilder builder = new OrdinalsBuilder(maxDoc);
-        builder.nextOrdinal(); // 1
+        builder.nextOrdinal(); // 0
         builder.addDoc(1).addDoc(4).addDoc(5).addDoc(6);
-        builder.nextOrdinal(); // 2
+        builder.nextOrdinal(); // 1
         builder.addDoc(0).addDoc(5).addDoc(6);
         builder.nextOrdinal(); // 3
         builder.addDoc(2).addDoc(4).addDoc(5).addDoc(6);
-        builder.nextOrdinal(); // 4
+        builder.nextOrdinal(); // 3
         builder.addDoc(0).addDoc(4).addDoc(5).addDoc(6);
+        builder.nextOrdinal(); // 4
+        builder.addDoc(4).addDoc(5).addDoc(6);
         builder.nextOrdinal(); // 5
         builder.addDoc(4).addDoc(5).addDoc(6);
-        long ord = builder.nextOrdinal(); // 6
-        builder.addDoc(4).addDoc(5).addDoc(6);
-        for (long i = ord; i < maxOrds; i++) {
+        while (builder.getMaxOrd() < maxOrds) {
             builder.nextOrdinal();
             builder.addDoc(5).addDoc(6);
         }
 
         long[][] ordinalPlan = new long[][]{
-                {2, 4},
-                {1},
-                {3},
+                {1, 3},
+                {0},
+                {2},
                 {},
-                {1, 3, 4, 5, 6},
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
+                {0, 2, 3, 4, 5},
+                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
+                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}
         };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
@@ -251,13 +251,13 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
         }
 
         long[][] ordinalPlan = new long[][]{
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+                {0,1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14},
+                {0},
+                {0, 1, 2, 3, 4},
+                {0, 1, 2, 3, 4, 5},
                 {1},
-                {1, 2, 3, 4, 5},
-                {1, 2, 3, 4, 5, 6},
-                {2},
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
         };
 
         Ordinals ordinals = new MultiOrdinals(builder, PackedInts.FASTEST);
@@ -266,14 +266,13 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
     }
 
     private void assertEquals(Ordinals.Docs docs, long[][] ordinalPlan) {
-        long numOrds = 0;
+        long maxOrd = 0;
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             if (ordinalPlan[doc].length > 0) {
-                numOrds = Math.max(numOrds, ordinalPlan[doc][ordinalPlan[doc].length - 1]);
+                maxOrd = Math.max(maxOrd, 1 + ordinalPlan[doc][ordinalPlan[doc].length - 1]);
             }
         }
-        assertThat(docs.getMaxOrd(), equalTo(numOrds + Ordinals.MIN_ORDINAL)); // Includes null ord
-        assertThat(docs.getMaxOrd(), equalTo(numOrds + 1));
+        assertThat(docs.getMaxOrd(), equalTo(maxOrd));
         assertThat(docs.isMultiValued(), equalTo(true));
         for (int doc = 0; doc < ordinalPlan.length; ++doc) {
             long[] ords = ordinalPlan[doc];

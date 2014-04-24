@@ -186,7 +186,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         for (int i = 0; i < reader.maxDoc(); i++) {
                             final long ord = ordinals.getOrd(i);
                             if (ord != Ordinals.MISSING_ORDINAL) {
-                                long value = values.get(ord - 1);
+                                long value = values.get(ord);
                                 sValues.set(i, value - minValue);
                             }
                         }
@@ -204,7 +204,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                         for (int i = 0; i < reader.maxDoc(); i++) {
                             final long ord = ordinals.getOrd(i);
                             if (ord != Ordinals.MISSING_ORDINAL) {
-                                lastValue = values.get(ord - 1);
+                                lastValue = values.get(ord);
                             }
                             dpValues.add(lastValue);
                         }
@@ -305,8 +305,8 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
             pageMemorySize += RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_INT);
 
         } else {
-            long pageMinValue = values.get(pageMinOrdinal - 1);
-            long pageMaxValue = values.get(pageMaxOrdinal - 1);
+            long pageMinValue = values.get(pageMinOrdinal);
+            long pageMaxValue = values.get(pageMaxOrdinal);
             long pageDelta = pageMaxValue - pageMinValue;
             if (pageDelta != 0) {
                 bitsRequired = pageDelta < 0 ? 64 : PackedInts.bitsRequired(pageDelta);

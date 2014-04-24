@@ -76,7 +76,6 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         final PagedBytes bytes = new PagedBytes(15);
 
         final MonotonicAppendingLongBuffer termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
-        termOrdToBytesOffset.add(0); // first ord is reserved for missing values
         final long numTerms;
         if (regex == null && frequency == null) {
             numTerms = terms.size();

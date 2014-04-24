@@ -135,7 +135,7 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
             @Override
             public long getValueByOrd(long ord) {
                 assert ord != Ordinals.MISSING_ORDINAL;
-                return values.get(ord - 1);
+                return values.get(ord);
             }
         }
 
@@ -151,7 +151,7 @@ public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFi
             @Override
             public double getValueByOrd(long ord) {
                 assert ord != Ordinals.MISSING_ORDINAL;
-                return values.get(ord - 1);
+                return values.get(ord);
             }
 
 

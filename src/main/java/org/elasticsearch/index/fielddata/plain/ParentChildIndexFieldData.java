@@ -188,9 +188,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         TypeBuilder(float acceptableTransientOverheadRatio, AtomicReader reader) throws IOException {
             bytes = new PagedBytes(15);
             termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
-            termOrdToBytesOffset.add(0); // first ord is reserved for missing values
-            // 0 is reserved for "unset"
-            bytes.copyUsingLengthPrefix(new BytesRef());
             builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         }
     }

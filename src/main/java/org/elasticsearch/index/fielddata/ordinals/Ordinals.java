@@ -19,14 +19,16 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.SortedSetDocValues;
+
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
  */
 public interface Ordinals {
 
-    static final long MISSING_ORDINAL = 0;
-    static final long MIN_ORDINAL = 1;
+    static final long MISSING_ORDINAL = SortedSetDocValues.NO_MORE_ORDS;
+    static final long MIN_ORDINAL = 0;
 
     /**
      * The memory size this ordinals take.

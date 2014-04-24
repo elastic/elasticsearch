@@ -439,15 +439,15 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         Ordinals.Docs ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(2));
         long ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(4l));
+        assertThat(ord, equalTo(3l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("02"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(6l));
+        assertThat(ord, equalTo(5l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
         assertThat(ordinals.setDocument(1), equalTo(0));
         assertThat(ordinals.setDocument(2), equalTo(1));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(5l));
+        assertThat(ord, equalTo(4l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("03"));
 
         // Second segment
@@ -456,34 +456,34 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(6l));
+        assertThat(ord, equalTo(5l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(7l));
+        assertThat(ord, equalTo(6l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("05"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(8l));
+        assertThat(ord, equalTo(7l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
         assertThat(ordinals.setDocument(1), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(8l));
+        assertThat(ord, equalTo(7l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(9l));
+        assertThat(ord, equalTo(8l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("07"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(10l));
+        assertThat(ord, equalTo(9l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
         assertThat(ordinals.setDocument(2), equalTo(0));
         assertThat(ordinals.setDocument(3), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(10l));
+        assertThat(ord, equalTo(9l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(11l));
+        assertThat(ord, equalTo(10l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("09"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(12l));
+        assertThat(ord, equalTo(11l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("10"));
 
         // Third segment
@@ -492,13 +492,13 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(1l));
+        assertThat(ord, equalTo(0l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!08"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(2l));
+        assertThat(ord, equalTo(1l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!09"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(3l));
+        assertThat(ord, equalTo(2l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
@@ -529,7 +529,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         assertThat(size, equalTo(2));
 
-        termsEnum.seekExact(9);
+        termsEnum.seekExact(8);
         assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
         size = 0;
         while (termsEnum.next() != null) {

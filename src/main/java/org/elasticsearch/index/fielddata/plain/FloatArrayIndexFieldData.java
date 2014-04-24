@@ -86,8 +86,6 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigFloatArrayList values = new BigFloatArrayList();
 
-        values.add(0); // first "t" indicates null value
-
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
@@ -116,7 +114,12 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 int maxDoc = reader.maxDoc();
                 BigFloatArrayList sValues = new BigFloatArrayList(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    sValues.add(values.get(ordinals.getOrd(i)));
+                    final long ordinal = ordinals.getOrd(i);
+                    if (ordinal == Ordinals.MISSING_ORDINAL) {
+                        sValues.add(0);
+                    } else {
+                        sValues.add(values.get(ordinal));
+                    }
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {

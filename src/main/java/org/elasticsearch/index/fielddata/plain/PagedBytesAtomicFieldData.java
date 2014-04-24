@@ -39,7 +39,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         return new Empty();
     }
 
-    // 0 ordinal in values means no value (its null)
     private final PagedBytes.Reader bytes;
     private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
     protected final Ordinals ordinals;

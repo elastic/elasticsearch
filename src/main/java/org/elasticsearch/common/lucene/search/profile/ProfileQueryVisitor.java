@@ -3,10 +3,7 @@ package org.elasticsearch.common.lucene.search.profile;
 
 import org.apache.lucene.queries.BooleanFilter;
 import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.*;
@@ -49,6 +46,33 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
         return new ProfileQuery(new XConstantScoreQuery(pFilter));
     }
+
+
+    public ProfileQuery visit(ConstantScoreQuery query) {
+
+        Query q = query.getQuery();
+
+        if (q != null) {
+            ProfileQuery pQuery = (ProfileQuery) apply(q);
+            return new ProfileQuery(new ConstantScoreQuery(pQuery));
+        } else {
+            ProfileFilter pFilter = (ProfileFilter) apply(query.getFilter());
+            return new ProfileQuery(new ConstantScoreQuery(pFilter));
+        }
+
+    }
+
+    public ProfileQuery visit(DisjunctionMaxQuery query) {
+        DisjunctionMaxQuery newDis = new DisjunctionMaxQuery(query.getTieBreakerMultiplier());
+
+        for (Query disjunct : query.getDisjuncts()) {
+            ProfileQuery pQuery = (ProfileQuery) apply(disjunct);
+            newDis.add(pQuery);
+        }
+
+        return new ProfileQuery(newDis);
+    }
+
 
     public ProfileFilter visit(XBooleanFilter boolFilter) {
         XBooleanFilter newFilter = new XBooleanFilter();

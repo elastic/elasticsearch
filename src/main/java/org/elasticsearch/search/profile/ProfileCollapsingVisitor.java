@@ -1,10 +1,7 @@
 package org.elasticsearch.search.profile;
 
 import org.apache.lucene.queries.FilterClause;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.profile.ProfileFilter;
@@ -32,6 +29,20 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
 
         for (BooleanClause clause : booleanQuery.clauses()) {
             ArrayList<Profile> tProfiles = apply(clause.getQuery());
+            if (tProfiles != null && tProfiles.size() > 0) {
+                profiles.addAll(tProfiles);
+            }
+        }
+
+        return profiles;
+    }
+
+    public ArrayList<Profile> visit(DisjunctionMaxQuery disMaxQuery) {
+
+        ArrayList<Profile> profiles = new ArrayList<Profile>();
+
+        for (Query disjunct : disMaxQuery.getDisjuncts()) {
+            ArrayList<Profile> tProfiles = apply(disjunct);
             if (tProfiles != null && tProfiles.size() > 0) {
                 profiles.addAll(tProfiles);
             }
@@ -68,7 +79,25 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
     }
 
     public ArrayList<Profile> visit(XConstantScoreQuery query) {
-        ArrayList<Profile> profiles = apply(query.getFilter());
+        ArrayList<Profile> profiles = apply(query.getQuery());
+        ArrayList<Profile> pFilters = apply(query.getFilter());
+
+        if (pFilters != null) {
+            profiles.addAll(pFilters);
+        }
+
+        return profiles;
+    }
+
+    public ArrayList<Profile> visit(ConstantScoreQuery query) {
+        Query q = query.getQuery();
+        ArrayList<Profile> profiles;
+
+        if (q != null) {
+           profiles = apply(query.getQuery());
+        } else {
+           profiles = apply(query.getFilter());
+        }
 
         return profiles;
     }

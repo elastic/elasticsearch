@@ -51,7 +51,7 @@ public class LinearDecayFunctionParser extends DecayFunctionParser {
         public Explanation explainFunction(String valueExpl, double value, double scale) {
             ComplexExplanation ce = new ComplexExplanation();
             ce.setValue((float) evaluate(value, scale));
-            ce.setDescription("max(0.0, ((" + scale + " - abs(" + valueExpl + "))/" + scale + ")");
+            ce.setDescription("max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
             return ce;
         }
 

@@ -782,11 +782,16 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().field(FIELD, "Feed trolls").endObject()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Feed trolls").endArray()
+                .field("weight", 5).endObject().endObject()
         ).get();
 
-        client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder()
-                .startObject().field(FIELD, "Feed the trolls").endObject()
+        // Higher weight so it's ranked first:
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Feed the trolls").endArray()
+                .field("weight", 10).endObject().endObject()
         ).get();
 
         refresh();

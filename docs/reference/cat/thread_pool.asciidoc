@@ -83,10 +83,11 @@ done to use the aliased field names (e.g., `sa` is equivalent to
 [cols="<,<,<",options="header"]
 |=======================================================================
 |Field Name |Alias |Description
+|* `.type` |* `t` |The current (*) type of thread pool (cached, fixed or scaling)
 |* `.active` |* `a` |The number of active threads in the current (*) thread pool
 |* `.size` |* `s` |The number of threads in the current (*) thread pool
 |* `.queue` |* `q` |The number of queued threads in the current (*) thread pool
-|* `.maxQueue` |* `m` |The configured maximum number of queued threads in the current (*) thread pool (blank if none)
+|* `.queueSize` |* `qs` |The configured maximum number of queued threads in the current (*) thread pool (blank if none)
 |* `.rejected` |* `r` |The number of rejected threads in the current (*) thread pool
 |* `.largest` |* `l` |The highest number of active threads in the current (*) thread pool
 |* `.completed` |* `c` |The number of completed threads in the current (*) thread pool

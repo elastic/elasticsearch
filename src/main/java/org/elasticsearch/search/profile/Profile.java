@@ -95,7 +95,10 @@ public class Profile implements Streamable, ToXContent {
     public Profile merge(Profile other) {
         if (components != null && components.size() > 0) {
             for (int i = 0; i < this.components.size(); ++i) {
-                components.set(i, components.get(i).merge(other.components.get(i)));
+
+                if (other.components != null && i < other.components.size()) {
+                    components.set(i, components.get(i).merge(other.components.get(i)));
+                }
             }
         }
         this.time += other.time();

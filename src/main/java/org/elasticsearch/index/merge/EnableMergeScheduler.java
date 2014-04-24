@@ -39,13 +39,6 @@ public class EnableMergeScheduler extends MergeScheduler {
 
     private final MergeScheduler mergeScheduler;
 
-    private final ThreadLocal<Boolean> enabled = new ThreadLocal<Boolean>() {
-        @Override
-        protected Boolean initialValue() {
-            return Boolean.FALSE;
-        }
-    };
-
     public EnableMergeScheduler(MergeScheduler mergeScheduler) {
         this.mergeScheduler = mergeScheduler;
     }

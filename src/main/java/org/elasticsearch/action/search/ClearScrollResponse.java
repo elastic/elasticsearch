@@ -31,11 +31,11 @@ import java.io.IOException;
 public class ClearScrollResponse extends ActionResponse {
 
     private boolean succeeded;
-    private boolean noneFreed;
+    private int numFreed;
 
-    public ClearScrollResponse(boolean succeeded, boolean noneFreed) {
+    public ClearScrollResponse(boolean succeeded, int numFreed) {
         this.succeeded = succeeded;
-        this.noneFreed = noneFreed;
+        this.numFreed = numFreed;
     }
 
     ClearScrollResponse() {
@@ -49,11 +49,11 @@ public class ClearScrollResponse extends ActionResponse {
     }
 
     /**
-     * @return Whether no search contexts where freed. If this is <code>true</code> the assumption can be made,
+     * @return The number of seach contexts that were freed. If this is <code>0</code> the assumption can be made,
      * that the scroll id specified in the request did not exist. (never existed, was expired, or completely consumed)
      */
-    public boolean isNoneFreed() {
-        return noneFreed;
+    public int isNumFreed() {
+        return numFreed;
     }
 
     @Override
@@ -61,9 +61,11 @@ public class ClearScrollResponse extends ActionResponse {
         super.readFrom(in);
         succeeded = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            noneFreed = in.readBoolean();
+            numFreed = in.readVInt();
         } else {
-            noneFreed = true;
+            // On older nodes we can't tell how many search contexts where freed, so we assume at least one,
+            // so that the rest api doesn't return 404 where SC were indeed freed.
+            numFreed = 1;
         }
     }
 
@@ -72,7 +74,7 @@ public class ClearScrollResponse extends ActionResponse {
         super.writeTo(out);
         out.writeBoolean(succeeded);
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(noneFreed);
+            out.writeVInt(numFreed);
         }
     }
 }

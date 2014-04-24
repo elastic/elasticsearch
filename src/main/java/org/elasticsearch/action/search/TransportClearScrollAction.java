@@ -37,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.search.type.TransportSearchHelper.parseScrollId;
@@ -70,7 +70,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
         final List<Tuple<String, Long>[]> contexts = new ArrayList<>();
         final ActionListener<ClearScrollResponse> listener;
         final AtomicReference<Throwable> expHolder;
-        final AtomicBoolean noneFreed = new AtomicBoolean(true);
+        final AtomicInteger numberOfFreedSearchContexts = new AtomicInteger(0);
 
         private Async(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener, ClusterState clusterState) {
             int expectedOps = 0;
@@ -93,7 +93,7 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
         public void run() {
             if (expectedOps.isCountedDown()) {
-                listener.onResponse(new ClearScrollResponse(true, false));
+                listener.onResponse(new ClearScrollResponse(true, 0));
                 return;
             }
 
@@ -138,18 +138,18 @@ public class TransportClearScrollAction extends TransportAction<ClearScrollReque
 
         void onFreedContext(boolean freed) {
             if (freed) {
-                noneFreed.compareAndSet(true, false);
+                numberOfFreedSearchContexts.incrementAndGet();
             }
             if (expectedOps.countDown()) {
                 boolean succeeded = expHolder.get() == null;
-                listener.onResponse(new ClearScrollResponse(succeeded, noneFreed.get()));
+                listener.onResponse(new ClearScrollResponse(succeeded, numberOfFreedSearchContexts.get()));
             }
         }
 
         void onFailedFreedContext(Throwable e, DiscoveryNode node) {
             logger.warn("Clear SC failed on node[{}]", e, node);
             if (expectedOps.countDown()) {
-                listener.onResponse(new ClearScrollResponse(false, noneFreed.get()));
+                listener.onResponse(new ClearScrollResponse(false, numberOfFreedSearchContexts.get()));
             } else {
                 expHolder.set(e);
             }

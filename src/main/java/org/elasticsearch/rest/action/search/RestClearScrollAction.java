@@ -62,7 +62,7 @@ public class RestClearScrollAction extends BaseRestHandler {
             public RestResponse buildResponse(ClearScrollResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.endObject();
-                RestStatus restStatus = response.isNoneFreed() ? NOT_FOUND : OK;
+                RestStatus restStatus = response.isNumFreed() == 0 ? NOT_FOUND : OK;
                 return new BytesRestResponse(restStatus, builder);
             }
         });

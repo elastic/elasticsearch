@@ -62,7 +62,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
 public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
@@ -841,7 +841,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertSuggestions(SuggestResponse suggestResponse, boolean suggestionOrderStrict, String name, String... suggestions) {
-        assertNoFailures(suggestResponse);
+        assertAllSuccessful(suggestResponse);
 
         List<String> suggestionNames = Lists.newArrayList();
         for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion : Lists.newArrayList(suggestResponse.getSuggest().iterator())) {
@@ -957,7 +957,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
         ).get(); // we have 2 docs in a segment...
         OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
-        assertNoFailures(actionGet);
+        assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -966,7 +966,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
         ).get();
         actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
-        assertNoFailures(actionGet);
+        assertAllSuccessful(actionGet);
         refresh();
 
         assertSuggestions("b");

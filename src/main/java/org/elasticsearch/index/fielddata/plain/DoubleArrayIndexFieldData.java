@@ -88,7 +88,6 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigDoubleArrayList values = new BigDoubleArrayList();
 
-        values.add(0); // first "t" indicates null value
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
@@ -117,7 +116,12 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 int maxDoc = reader.maxDoc();
                 BigDoubleArrayList sValues = new BigDoubleArrayList(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    sValues.add(values.get(ordinals.getOrd(i)));
+                    final long ordinal = ordinals.getOrd(i);
+                    if (ordinal == Ordinals.MISSING_ORDINAL) {
+                        sValues.add(0);
+                    } else {
+                        sValues.add(values.get(ordinal));
+                    }
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {

@@ -80,7 +80,7 @@ public class FieldSortBuilder extends SortBuilder {
      * to <tt>false</tt> (not ignoring).
      */
     public FieldSortBuilder ignoreUnmapped(boolean ignoreUnmapped) {
-        this.ignoreUnampped = ignoreUnmapped;
+        this.ignoreUnmapped = ignoreUnmapped;
         return this;
     }
 

@@ -29,11 +29,16 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.State;
 import org.apache.lucene.util.automaton.Transition;
 import org.apache.lucene.util.fst.Util;
+import org.elasticsearch.Version;
 
 // TODO Lucene 4.9: remove this once we upgrade; see
 // LUCENE-5628
 
 class XSpecialOperations {
+
+  static {
+    assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47: "Remove this code once we upgrade to a Lucene version where LUCENE-5628 is fixed (likely 4.9)";
+  }
 
   private static class PathNode {
 

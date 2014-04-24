@@ -189,6 +189,8 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("type",                      Void.class);
         // puts the type into the payload
         put("typeaspayload",             Void.class);
+        // opposite of lowercase...
+        put("uppercase",                 Void.class);
     }};
     
     public void testTokenFilters() {

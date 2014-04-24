@@ -62,8 +62,7 @@ public class AllTermQuery extends SpanTermQuery {
         }
 
         @Override
-        public AllTermSpanScorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder,
-                boolean topScorer, Bits acceptDocs) throws IOException {
+        public AllTermSpanScorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             if (this.stats == null) {
                 return null;
             }
@@ -147,7 +146,7 @@ public class AllTermQuery extends SpanTermQuery {
         
         @Override
         public Explanation explain(AtomicReaderContext context, int doc) throws IOException{
-            AllTermSpanScorer scorer = scorer(context, true, false, context.reader().getLiveDocs());
+            AllTermSpanScorer scorer = scorer(context, context.reader().getLiveDocs());
             if (scorer != null) {
               int newDoc = scorer.advance(doc);
               if (newDoc == doc) {

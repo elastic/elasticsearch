@@ -22,8 +22,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
-import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -326,43 +326,39 @@ public abstract class ValuesSource {
             }
 
             static class SortedUniqueBytesValues extends BytesValues {
-
                 final BytesValues delegate;
-                int[] sortedIds;
-                final BytesRefHash bytes;
+                int[] indices = new int[1]; // at least one
+                final BytesRefArray bytes;
                 int numUniqueValues;
                 int pos = Integer.MAX_VALUE;
 
                 public SortedUniqueBytesValues(BytesValues delegate) {
                     super(delegate.isMultiValued());
                     this.delegate = delegate;
-                    bytes = new BytesRefHash();
+                    bytes = new BytesRefArray(Counter.newCounter(false));
                 }
 
                 @Override
                 public int setDocument(int docId) {
                     final int numValues = delegate.setDocument(docId);
-                    if (numValues == 0) {
-                        sortedIds = null;
-                        return 0;
-                    }
-                    bytes.clear();
-                    bytes.reinit();
-                    for (int i = 0; i < numValues; ++i) {
-                        final BytesRef next = delegate.nextValue();
-                        final int hash = delegate.currentValueHash();
-                        assert hash == next.hashCode();
-                        bytes.add(next, hash);
-                    }
-                    numUniqueValues = bytes.size();
-                    sortedIds = bytes.sort(BytesRef.getUTF8SortedAsUnicodeComparator());
+                    numUniqueValues = 0;
                     pos = 0;
+                    if (numValues > 0) {
+                        bytes.clear();
+                        indices = ArrayUtil.grow(this.indices, numValues);
+                        for (int i = 0; i < numValues; ++i) {
+                            final BytesRef next = delegate.nextValue();
+                            indices[i] = i;
+                            bytes.append(next);
+                        }
+                        numUniqueValues = CollectionUtils.sortAndDedup(bytes, indices);
+                    }
                     return numUniqueValues;
                 }
 
                 @Override
                 public BytesRef nextValue() {
-                    bytes.get(sortedIds[pos++], scratch);
+                    bytes.get(scratch, indices[pos++]);
                     return scratch;
                 }
 
@@ -657,21 +653,6 @@ public abstract class ValuesSource {
                 long[] array = new long[2];
                 int pos = Integer.MAX_VALUE;
 
-                final InPlaceMergeSorter sorter = new InPlaceMergeSorter() {
-                    @Override
-                    protected void swap(int i, int j) {
-                        final long tmp = array[i];
-                        array[i] = array[j];
-                        array[j] = tmp;
-                    }
-                    @Override
-                    protected int compare(int i, int j) {
-                        final long l1 = array[i];
-                        final long l2 = array[j];
-                        return Long.compare(l1, l2);
-                    }
-                };
-
                 protected SortedUniqueLongValues(LongValues delegate) {
                     super(delegate);
                 }
@@ -702,22 +683,9 @@ public abstract class ValuesSource {
 
             private static class SortedUniqueDoubleValues extends FilterDoubleValues {
 
-                int numUniqueValues;
-                double[] array = new double[2];
-                int pos = Integer.MAX_VALUE;
-
-                final InPlaceMergeSorter sorter = new InPlaceMergeSorter() {
-                    @Override
-                    protected void swap(int i, int j) {
-                        final double tmp = array[i];
-                        array[i] = array[j];
-                        array[j] = tmp;
-                    }
-                    @Override
-                    protected int compare(int i, int j) {
-                        return Double.compare(array[i], array[j]);
-                    }
-                };
+                private int numUniqueValues;
+                private double[] array = new double[2];
+                private int pos = Integer.MAX_VALUE;
 
                 SortedUniqueDoubleValues(DoubleValues delegate) {
                     super(delegate);

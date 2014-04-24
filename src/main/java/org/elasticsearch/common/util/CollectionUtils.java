@@ -23,13 +23,10 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
-import org.apache.lucene.util.IntroSorter;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.Preconditions;
 
-import java.util.AbstractList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.RandomAccess;
+import java.util.*;
 
 /** Collections-related utility methods. */
 public enum CollectionUtils {
@@ -307,5 +304,58 @@ public enum CollectionUtils {
         }
 
     };
+    public static void sort(final BytesRefArray bytes, final int[] indices) {
+        sort(new BytesRef(), new BytesRef(), bytes, indices);
+    }
+
+    private static void sort(final BytesRef scratch, final BytesRef scratch1, final BytesRefArray bytes, final int[] indices) {
+
+        final int numValues = bytes.size();
+        assert indices.length >= numValues;
+        if (numValues > 1) {
+            new InPlaceMergeSorter() {
+                final Comparator<BytesRef> comparator = BytesRef.getUTF8SortedAsUnicodeComparator();
+                @Override
+                protected int compare(int i, int j) {
+                    return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
+                }
+
+                @Override
+                protected void swap(int i, int j) {
+                    int value_i = indices[i];
+                    indices[i] = indices[j];
+                    indices[j] = value_i;
+                }
+            }.sort(0, numValues);
+        }
+
+    }
+
+    public static int sortAndDedup(final BytesRefArray bytes, final int[] indices) {
+        final BytesRef scratch = new BytesRef();
+        final BytesRef scratch1 = new BytesRef();
+        final int numValues = bytes.size();
+        assert indices.length >= numValues;
+        if (numValues <= 1) {
+            return numValues;
+        }
+        sort(scratch, scratch1, bytes, indices);
+        int uniqueCount = 1;
+        BytesRef previous = scratch;
+        BytesRef current = scratch1;
+        bytes.get(previous, indices[0]);
+        for (int i = 1; i < numValues; ++i) {
+            bytes.get(current, indices[i]);
+            if (!previous.equals(current)) {
+                indices[uniqueCount++] = indices[i];
+            }
+            BytesRef tmp = previous;
+            previous = current;
+            current = tmp;
+        }
+        return uniqueCount;
+
+    }
+
 
 }

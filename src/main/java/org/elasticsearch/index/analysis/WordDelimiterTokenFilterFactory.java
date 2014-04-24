@@ -20,9 +20,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.miscellaneous.Lucene47WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -86,10 +88,17 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new WordDelimiterFilter(tokenStream,
-                charTypeTable,
-                flags,
-                protoWords);
+         if (version.onOrAfter(Version.LUCENE_48)) {
+             return new WordDelimiterFilter(version, tokenStream,
+                     charTypeTable,
+                     flags,
+                     protoWords);
+         } else {
+             return new Lucene47WordDelimiterFilter(tokenStream,
+                     charTypeTable,
+                     flags,
+                     protoWords);
+         }
     }
 
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {

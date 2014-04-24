@@ -53,9 +53,7 @@ public class HasChildFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        if ("delete_by_query".equals(SearchContext.current().source())) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] unsupported in delete_by_query api");
-        }
+        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;
@@ -152,5 +150,11 @@ public class HasChildFilterParser implements FilterParser {
             parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));
         }
         return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
+    }
+
+    public static void ensureNotDeleteByQuery(String name, QueryParseContext parseContext) {
+        if ("delete_by_query".equals(SearchContext.current().source())) {
+            throw new QueryParsingException(parseContext.index(), "[" + name + "] unsupported in delete_by_query api");
+        }
     }
 }

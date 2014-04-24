@@ -33,11 +33,12 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.elasticsearch.index.query.HasChildFilterParser.ensureNotDeleteByQuery;
 
 /**
  *
@@ -57,9 +58,7 @@ public class HasParentFilterParser implements FilterParser {
 
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        if ("delete_by_query".equals(SearchContext.current().source())) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] unsupported in delete_by_query api");
-        }
+        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;

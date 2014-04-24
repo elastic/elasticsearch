@@ -34,9 +34,10 @@ import org.elasticsearch.index.search.child.ChildrenQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.query.HasChildFilterParser.ensureNotDeleteByQuery;
 
 /**
  *
@@ -56,9 +57,7 @@ public class HasChildQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        if ("delete_by_query".equals(SearchContext.current().source())) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] unsupported in delete_by_query api");
-        }
+        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;

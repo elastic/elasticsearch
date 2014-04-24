@@ -702,40 +702,5 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                                         "multiply"))));
         response.actionGet();
     }
-    
-    @Test
-    public void testMultiValuedFieldException() throws Throwable {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("num").field("type", "double").endObject().startObject("geo").field("type", "geo_point")
-                        .endObject().endObject().endObject().endObject()));
-        ensureYellow();
-        double[] numVals = { 1.0, 2.0, 3.0 };
-
-        client().index(
-                indexRequest("test").type("type").source(
-                        jsonBuilder().startObject().field("test", "value").field("num", numVals).field("geo").startArray().startObject()
-                                .field("lat", 1).field("lon", 1).endObject().startObject().field("lat", 1).field("lon", 2).endObject().endArray()
-                                .endObject())).actionGet();
-        refresh();
-        SearchResponse response = client().prepareSearch("test")
-                .setQuery(functionScoreQuery().add(new MatchAllFilterBuilder(), linearDecayFunction("num", 1, 0.5)).scoreMode("multiply"))
-                .execute().actionGet();
-
-        assertThat(response.getShardFailures().length, equalTo(1));
-        assertThat(response.getHits().getHits().length, equalTo(0));
-        
-        List<Float> lonlat = new ArrayList<Float>();
-        lonlat.add(new Float(1));
-        lonlat.add(new Float(1));
-        
-        response = client().prepareSearch("test")
-                .setQuery(functionScoreQuery().add(new MatchAllFilterBuilder(), linearDecayFunction("geo", lonlat, "1000km")).scoreMode("multiply"))
-                .execute().actionGet();
-
-        assertThat(response.getShardFailures().length, equalTo(1));
-        assertThat(response.getHits().getHits().length, equalTo(0));
-    }
 
 }

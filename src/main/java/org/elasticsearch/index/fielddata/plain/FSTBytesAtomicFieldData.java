@@ -96,10 +96,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                     }
                     assert fstEnum.next() == null;
                 } catch (IOException e) {
-                    // Don't use new "AssertionError("Cannot happen", e)" directly as this is a Java 1.7-only API
-                    final AssertionError error = new AssertionError("Cannot happen");
-                    error.initCause(e);
-                    throw error;
+                    throw new AssertionError("Cannot happen", e);
                 }
                 this.hashes = hashes;
             }

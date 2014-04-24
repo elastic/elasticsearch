@@ -25,6 +25,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Before;
@@ -37,6 +39,8 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -71,6 +75,42 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
+    }
+
+    @Test
+    public void testTemplateInBodyWithSize() throws IOException {
+        String request = "{\n" +
+                "    \"size\":0,"+
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
+        SearchResponse sr = client().prepareSearch().setSource(request)
+                .execute().actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
+        request = "{\n" +
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"size\":0"+
+                "}";
+
+        sr = client().prepareSearch().setSource(request)
+                .execute().actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
+
     }
 
     @Test

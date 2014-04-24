@@ -1134,7 +1134,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         if (frequently()) {
             boundsMinKey = baseKey.minusDays(addedBucketsLeft * interval);
         } else {
-            boundsMinKey = baseKey.plus(addedBucketsLeft * interval);
+            boundsMinKey = baseKey.plusDays(addedBucketsLeft * interval);
             addedBucketsLeft = 0;
         }
         DateTime boundsMin = boundsMinKey.plusDays(randomIntBetween(0, interval - 1));

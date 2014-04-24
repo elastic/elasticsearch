@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import org.apache.log4j.Appender;
+import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.apache.log4j.spi.LoggingEvent;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -1131,6 +1136,60 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
         assertTrue(index.created());
+    }
+
+    private static class MockAppender extends AppenderSkeleton {
+      public boolean sawIndexWriterMessage;
+
+      @Override
+      protected void append(LoggingEvent event) {
+        if (event.getLevel() == Level.TRACE &&
+            event.getLoggerName().equals("lucene.iw") &&
+            event.getMessage().toString().contains("IW: apply all deletes during flush") &&
+            event.getMessage().toString().contains("[index][1] ")) {
+          sawIndexWriterMessage = true;
+        }
+      }
+
+      @Override
+      public boolean requiresLayout() {
+        return false;
+      }
+
+      @Override
+      public void close() {
+      }
+    }
+
+    // #5891: make sure IndexWriter's infoStream output is
+    // sent to lucene.iw with log level TRACE:
+
+    @Test
+    public void testIndexWriterInfoStream() {
+        MockAppender mockAppender = new MockAppender();
+
+        Logger rootLogger = Logger.getRootLogger();
+        Level savedLevel = rootLogger.getLevel();
+        rootLogger.addAppender(mockAppender);
+        rootLogger.setLevel(Level.DEBUG);
+
+        try {
+            // First, with DEBUG, which should NOT log IndexWriter output:
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+            engine.create(new Engine.Create(null, newUid("1"), doc));
+            engine.flush(new Engine.Flush());        
+            assertFalse(mockAppender.sawIndexWriterMessage);
+
+            // Again, with TRACE, which should log IndexWriter output:
+            rootLogger.setLevel(Level.TRACE);
+            engine.create(new Engine.Create(null, newUid("2"), doc));
+            engine.flush(new Engine.Flush());        
+            assertTrue(mockAppender.sawIndexWriterMessage);
+
+        } finally {
+            rootLogger.removeAppender(mockAppender);
+            rootLogger.setLevel(savedLevel);
+        }
     }
 
     protected Term newUid(String id) {

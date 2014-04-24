@@ -28,6 +28,10 @@ org.apache.lucene.index.IndexReader#tryIncRef()
 @defaultMessage QueryWrapperFilter is cachable by default - use Queries#wrap instead
 org.apache.lucene.search.QueryWrapperFilter#<init>(org.apache.lucene.search.Query)
 
+@defaultMessage Because the filtercache doesn't take deletes into account FilteredQuery can't be used - use XFilteredQuery instead
+org.apache.lucene.search.FilteredQuery#<init>(org.apache.lucene.search.Query,org.apache.lucene.search.Filter)
+org.apache.lucene.search.FilteredQuery#<init>(org.apache.lucene.search.Query,org.apache.lucene.search.Filter,org.apache.lucene.search.FilteredQuery$FilterStrategy)
+
 @defaultMessage Pass the precision step from the mappings explicitly instead
 org.apache.lucene.search.NumericRangeQuery#newDoubleRange(java.lang.String,java.lang.Double,java.lang.Double,boolean,boolean)
 org.apache.lucene.search.NumericRangeQuery#newFloatRange(java.lang.String,java.lang.Float,java.lang.Float,boolean,boolean)

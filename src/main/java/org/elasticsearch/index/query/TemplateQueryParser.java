@@ -74,7 +74,6 @@ public class TemplateQueryParser implements QueryParser {
             final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
             context.reset(qSourceParser);
             Query result = context.parseInnerQuery();
-            parser.nextToken();
             return result;
         }
     }

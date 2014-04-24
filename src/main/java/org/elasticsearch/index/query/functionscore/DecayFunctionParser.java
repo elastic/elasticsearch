@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -285,28 +286,27 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             geoPointValues = fieldData.load(context).getGeoPointValues();
         }
 
-        private final GeoPoint getValue(int doc, GeoPoint missing) {
-            final int num = geoPointValues.setDocument(doc);
-            for (int i = 0; i < num; i++) {
-                return geoPointValues.nextValue();
-            }
-            return missing;
-        }
 
         @Override
         protected double distance(int docId) {
-            GeoPoint other = getValue(docId, origin);
-            double distance = Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
-                    DistanceUnit.METERS)) - offset;
-            return Math.max(0.0d, distance);
+            final int num = geoPointValues.setDocument(docId);
+            double value = mode.startDouble();
+            for (int i = 0; i < num; i++) {
+                GeoPoint other = geoPointValues.nextValue();
+                value = mode.apply(Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
+                        DistanceUnit.METERS)) - offset, value);
+            }
+            return Math.max(0.0d, mode.reduce(value, num));
         }
 
         @Override
         protected String getDistanceString(int docId) {
-            final GeoPoint other = getValue(docId, origin);
-            return "arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
-                    + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
-                    + "(=offset)";
+            //nocommit fix this for min / max etc
+//            final GeoPoint other = getValue(docId, origin);
+//            return "arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
+//                    + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
+//                    + "(=offset)";
+            return "";
         }
 
         @Override
@@ -332,25 +332,24 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
         }
 
-        private final double getValue(int doc, double missing) {
-            final int num = doubleValues.setDocument(doc);
-            for (int i = 0; i < num; i++) {
-                return doubleValues.nextValue();
-            }
-            return missing;
-        }
-
         @Override
         protected double distance(int docId) {
-            double distance = Math.abs(getValue(docId, origin) - origin) - offset;
-            return Math.max(0.0d, distance);
+            final int num = doubleValues.setDocument(docId);
+            double value = mode.startDouble();
+            for (int i = 0; i < num; i++) {
+                final double other = doubleValues.nextValue();
+                value = mode.apply(Math.abs(other - origin) - offset, value);
+            }
+            return Math.max(0.0d, mode.reduce(value, num));
         }
 
         @Override
         protected String getDistanceString(int docId) {
-            return "Math.abs(" + getValue(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
-                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + getValue(docId, origin) + "(=doc value) - "
-                    + origin + ") - " + offset + "(=offset)";
+              // nocommit fix this
+//            return "Math.abs(" + getValue(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
+//                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + getValue(docId, origin) + "(=doc value) - "
+//                    + origin + ") - " + offset + "(=offset)";
+            return "";
         }
 
         @Override
@@ -368,6 +367,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private final double scale;
         protected final double offset;
         private final DecayFunction func;
+        protected final MultiValueMode mode = MultiValueMode.MIN;    // nocommit - this should be selectable
 
         public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func) {
             super(CombineFunction.MULT);

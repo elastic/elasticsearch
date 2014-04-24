@@ -64,9 +64,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         // it makes sense to force COMPACT for them
         final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FAST);
         final AppendingPackedLongBuffer globalOrdToFirstSegment = new AppendingPackedLongBuffer(PackedInts.COMPACT);
-        globalOrdToFirstSegment.add(0);
         final MonotonicAppendingLongBuffer globalOrdToFirstSegmentDelta = new MonotonicAppendingLongBuffer(PackedInts.COMPACT);
-        globalOrdToFirstSegmentDelta.add(0);
 
         FieldDataType fieldDataType = indexFieldData.getFieldDataType();
         int defaultThreshold = settings.getAsInt(ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, ORDINAL_MAPPING_THRESHOLD_DEFAULT);
@@ -79,13 +77,13 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         final AtomicFieldData.WithOrdinals[] withOrdinals = new AtomicFieldData.WithOrdinals[indexReader.leaves().size()];
         TermIterator termIterator = new TermIterator(indexFieldData, indexReader.leaves(), withOrdinals);
         for (BytesRef term = termIterator.next(); term != null; term = termIterator.next()) {
-            currentGlobalOrdinal++;
             globalOrdToFirstSegment.add(termIterator.firstReaderIndex());
             long globalOrdinalDelta = currentGlobalOrdinal - termIterator.firstLocalOrdinal();
             globalOrdToFirstSegmentDelta.add(globalOrdinalDelta);
             for (TermIterator.LeafSource leafSource : termIterator.competitiveLeafs()) {
                 ordinalMappingBuilder.onOrdinal(leafSource.context.ord, leafSource.tenum.ord(), currentGlobalOrdinal);
             }
+            currentGlobalOrdinal++;
         }
 
         // ram used for the globalOrd to segmentOrd and segmentOrd to firstReaderIndex lookups
@@ -95,7 +93,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         globalOrdToFirstSegmentDelta.freeze();
         memorySizeInBytesCounter += globalOrdToFirstSegmentDelta.ramBytesUsed();
 
-        final long maxOrd = currentGlobalOrdinal + 1;
+        final long maxOrd = currentGlobalOrdinal;
         OrdinalMappingSource[] segmentOrdToGlobalOrdLookups = ordinalMappingBuilder.build(maxOrd);
         // add ram used for the main segmentOrd to globalOrd lookups
         memorySizeInBytesCounter += ordinalMappingBuilder.getMemorySizeInBytes();
@@ -163,7 +161,11 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         @Override
         public final long getOrd(int docId) {
             long segmentOrd = segmentOrdinals.getOrd(docId);
-            return currentGlobalOrd = getGlobalOrd(segmentOrd);
+            if (segmentOrd == Ordinals.MISSING_ORDINAL) {
+                return currentGlobalOrd = Ordinals.MISSING_ORDINAL;
+            } else {
+                return currentGlobalOrd = getGlobalOrd(segmentOrd);
+            }
         }
 
         @Override
@@ -189,7 +191,6 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
             segmentOrdToGlobalOrdDeltas = new MonotonicAppendingLongBuffer[numSegments];
             for (int i = 0; i < segmentOrdToGlobalOrdDeltas.length; i++) {
                 segmentOrdToGlobalOrdDeltas[i] = new MonotonicAppendingLongBuffer(acceptableOverheadRatio);
-                segmentOrdToGlobalOrdDeltas[i].add(0);
             }
             this.numSegments = numSegments;
             this.acceptableOverheadRatio = acceptableOverheadRatio;

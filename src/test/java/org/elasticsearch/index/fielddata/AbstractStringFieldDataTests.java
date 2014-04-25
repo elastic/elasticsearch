@@ -42,7 +42,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
@@ -244,7 +244,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, SortMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -300,7 +300,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         final IndexFieldData indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", SortMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -325,14 +325,14 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     }
 
     public void testNestedSortingMin() throws IOException {
-        testNestedSorting(SortMode.MIN);
+        testNestedSorting(MultiValueMode.MIN);
     }
 
     public void testNestedSortingMax() throws IOException {
-        testNestedSorting(SortMode.MAX);
+        testNestedSorting(MultiValueMode.MAX);
     }
 
-    public void testNestedSorting(SortMode sortMode) throws IOException {
+    public void testNestedSorting(MultiValueMode sortMode) throws IOException {
         final String[] values = new String[randomIntBetween(2, 20)];
         for (int i = 0; i < values.length; ++i) {
             values[i] = _TestUtil.randomSimpleString(getRandom());
@@ -404,9 +404,9 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
                     final BytesRef bytesValue = new BytesRef(value);
                     if (cmpValue == null) {
                         cmpValue = bytesValue;
-                    } else if (sortMode == SortMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
+                    } else if (sortMode == MultiValueMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
                         cmpValue = bytesValue;
-                    } else if (sortMode == SortMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
+                    } else if (sortMode == MultiValueMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
                         cmpValue = bytesValue;
                     }
                 }

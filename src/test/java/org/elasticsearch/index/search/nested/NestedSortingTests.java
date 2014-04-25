@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.junit.Test;
 
@@ -211,7 +211,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         document.add(new StringField("fieldXXX", "x", Field.Store.NO));
         writer.addDocument(document);
 
-        SortMode sortMode = SortMode.MIN;
+        MultiValueMode sortMode = MultiValueMode.MIN;
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode);
@@ -235,7 +235,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         assertThat(topDocs.scoreDocs[4].doc, equalTo(19));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("i"));
 
-        sortMode = SortMode.MAX;
+        sortMode = MultiValueMode.MAX;
         nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(query, 5, sort);

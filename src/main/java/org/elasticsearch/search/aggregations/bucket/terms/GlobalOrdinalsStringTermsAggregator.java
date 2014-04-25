@@ -42,18 +42,14 @@ import java.util.Arrays;
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
 
-    private final ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
-    private BytesValues.WithOrdinals globalValues;
-    private Ordinals.Docs globalOrdinals;
+    protected final ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
+    protected BytesValues.WithOrdinals globalValues;
+    protected Ordinals.Docs globalOrdinals;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
             InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
         super(name, factories, estimatedBucketCount, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
         this.valuesSource = valuesSource;
-    }
-
-    protected long createBucketOrd(long termOrd) {
-        return termOrd;
     }
 
     protected long getBucketOrd(long termOrd) {
@@ -77,7 +73,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         final int numOrds = globalOrdinals.setDocument(doc);
         for (int i = 0; i < numOrds; i++) {
             final long globalOrd = globalOrdinals.nextOrd();
-            collectExistingBucket(doc, createBucketOrd(globalOrd));
+            collectExistingBucket(doc, globalOrd);
         }
     }
 
@@ -146,12 +142,22 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        protected long createBucketOrd(long termOrd) {
-            long bucketOrd = bucketOrds.add(termOrd);
-            if (bucketOrd < 0) {
-                bucketOrd = -1 - bucketOrd;
+        public void setNextReader(AtomicReaderContext reader) {
+            globalValues = valuesSource.globalBytesValues();
+            globalOrdinals = globalValues.ordinals();
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrdinal) throws IOException {
+            final int numOrds = globalOrdinals.setDocument(doc);
+            for (int i = 0; i < numOrds; i++) {
+                final long globalOrd = globalOrdinals.nextOrd();
+                long bucketOrd = bucketOrds.add(globalOrd);
+                if (bucketOrd < 0) {
+                    bucketOrd = -1 - bucketOrd;
+                }
+                collectBucket(doc, bucketOrd);
             }
-            return bucketOrd;
         }
 
         @Override

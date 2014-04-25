@@ -313,23 +313,23 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected String getDistanceString(int docId) {
-            String modeName = mode.name();
-            String values = modeName + " of: [";
+            StringBuilder values = new StringBuilder(mode.name());
+            values.append(" of: [");
             final int num = geoPointValues.setDocument(docId);
             if (num > 0) {
                 for (int i = 0; i < num; i++) {
                     GeoPoint value = geoPointValues.nextValue();
-                    values += "Math.max(arcDistance(" + value + "(=doc value),"
-                            + origin + "(=origin)) - " + offset + "(=offset), 0)";
+                    values.append("Math.max(arcDistance(");
+                    values.append(value).append("(=doc value),").append(origin).append("(=origin)) - ").append(offset).append("(=offset), 0)");
                     if (i != num - 1) {
-                        values += ", ";
+                        values.append(", ");
                     }
                 }
             } else {
-                values += "0.0";
+                values.append("0.0");
             }
-            values += "]";
-            return values;
+            values.append("]");
+            return values.toString();
         }
 
         @Override
@@ -372,23 +372,25 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         @Override
         protected String getDistanceString(int docId) {
-            String modeName = mode.name();
-            String values = modeName + " of: [";
+
+            StringBuilder values = new StringBuilder(mode.name());
+            values.append(" of: [");
             final int num = doubleValues.setDocument(docId);
             if (num > 0) {
                 for (int i = 0; i < num; i++) {
                     double value = doubleValues.nextValue();
-                    values += "Math.max(Math.abs(" + value + "(=doc value) - "
-                            + origin + "(=origin)) - " + offset + "(=offset), 0)";
+                    values.append("Math.max(Math.abs(");
+                    values.append(value).append("(=doc value) - ").append(origin).append("(=origin))) - ").append(offset).append("(=offset), 0)");
                     if (i != num - 1) {
-                        values += ", ";
+                        values.append(", ");
                     }
                 }
             } else {
-                values += "0.0";
+                values.append("0.0");
             }
-            values += "]";
-            return values;
+            values.append("]");
+            return values.toString();
+
         }
 
         @Override

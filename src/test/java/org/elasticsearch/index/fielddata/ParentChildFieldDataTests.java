@@ -28,7 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
@@ -140,7 +140,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", SortMode.MIN);
+        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN);
 
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, false)));
         assertThat(topDocs.totalHits, equalTo(8));

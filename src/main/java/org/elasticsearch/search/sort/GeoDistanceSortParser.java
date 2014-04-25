@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.GeoDistanceComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -56,7 +56,7 @@ public class GeoDistanceSortParser implements SortParser {
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         boolean reverse = false;
-        SortMode sortMode = null;
+        MultiValueMode sortMode = null;
         String nestedPath = null;
         Filter nestedFilter = null;
 
@@ -93,7 +93,7 @@ public class GeoDistanceSortParser implements SortParser {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
-                    sortMode = SortMode.fromString(parser.text());
+                    sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     nestedPath = parser.text();
                 } else {
@@ -108,10 +108,10 @@ public class GeoDistanceSortParser implements SortParser {
         }
 
         if (sortMode == null) {
-            sortMode = reverse ? SortMode.MAX : SortMode.MIN;
+            sortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
-        if (sortMode == SortMode.SUM) {
+        if (sortMode == MultiValueMode.SUM) {
             throw new ElasticsearchIllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
         }
 

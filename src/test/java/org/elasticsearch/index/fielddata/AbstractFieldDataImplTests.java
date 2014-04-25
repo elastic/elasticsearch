@@ -26,7 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -108,7 +108,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         TopFieldDocs topDocs;
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN))));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
@@ -118,7 +118,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat(toString(((FieldDoc) topDocs.scoreDocs[2]).fields[0]), equalTo(three()));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX), true)));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -223,14 +223,14 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertHashedValues(hashedBytesValues, 0, two(), four());
         
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN))));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
         assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
 
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX), true)));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -301,7 +301,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN))));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
@@ -322,7 +322,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(BytesRefFieldComparatorSource.MAX_TERM));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX), true)));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));

@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
        @lucene.internal */
     final long[] ords;
 
-    final SortMode sortMode;
+    final MultiValueMode sortMode;
 
     /* Values for each slot.
        @lucene.internal */
@@ -88,7 +89,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     BytesRef top;
     long topOrd;
 
-    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, MultiValueMode sortMode, BytesRef missingValue) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
         this.missingValue = missingValue;
@@ -392,11 +393,11 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         return -(low + 1);
     }
 
-    static long getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
+    static long getRelevantOrd(Ordinals.Docs readerOrds, int docId, MultiValueMode sortMode) {
         int length = readerOrds.setDocument(docId);
         long relevantVal = sortMode.startLong();
         long result = Ordinals.MISSING_ORDINAL;
-        assert sortMode == SortMode.MAX || sortMode == SortMode.MIN;
+        assert sortMode == MultiValueMode.MAX || sortMode == MultiValueMode.MIN;
         for (int i = 0; i < length; i++) {
             result = relevantVal = sortMode.apply(readerOrds.nextOrd(), relevantVal);
         }

@@ -25,6 +25,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -37,9 +38,9 @@ public class GeoDistanceComparatorSource extends IndexFieldData.XFieldComparator
     private final double lon;
     private final DistanceUnit unit;
     private final GeoDistance geoDistance;
-    private final SortMode sortMode;
+    private final MultiValueMode sortMode;
 
-    public GeoDistanceComparatorSource(IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance, SortMode sortMode) {
+    public GeoDistanceComparatorSource(IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.lat = lat;
         this.lon = lon;

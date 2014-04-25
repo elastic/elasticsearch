@@ -726,9 +726,8 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 22).endObject()
                                 .endObject());
-        IndexRequestBuilder[] builders = {doc1, doc2};
 
-        indexRandom(true, builders);
+        indexRandom(true, doc1, doc2);
 
         ActionFuture<SearchResponse> response = client().search(
                 searchRequest().source(
@@ -775,9 +774,8 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                 .setSource(
                         jsonBuilder().startObject().field("test", "value").field("num", 1.0)
                                 .endObject());
-        IndexRequestBuilder[] builders2 = {doc1, doc2};
 
-        indexRandom(true, builders2);
+        indexRandom(true, doc1, doc2);
         response = client().search(
                 searchRequest().source(
                         searchSource().query(

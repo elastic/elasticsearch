@@ -191,10 +191,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         boolean created;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(sourceToParse)
-                    .version(request.version())
-                    .versionType(request.versionType())
-                    .origin(Engine.Operation.Origin.PRIMARY);
+            Engine.Index index = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
             if (index.parsedDoc().mappingsModified()) {
                 mappingUpdatedAction.updateMappingOnMaster(request.index(), request.type(), indexMetaData.getUUID(), false);
             }
@@ -203,10 +200,8 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             op = index;
             created = index.created();
         } else {
-            Engine.Create create = indexShard.prepareCreate(sourceToParse)
-                    .version(request.version())
-                    .versionType(request.versionType())
-                    .origin(Engine.Operation.Origin.PRIMARY);
+            Engine.Create create = indexShard.prepareCreate(sourceToParse,
+                    request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
             if (create.parsedDoc().mappingsModified()) {
                 mappingUpdatedAction.updateMappingOnMaster(request.index(), request.type(), indexMetaData.getUUID(), false);
             }
@@ -240,14 +235,11 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         if (request.opType() == IndexRequest.OpType.INDEX) {
-            Engine.Index index = indexShard.prepareIndex(sourceToParse)
-                    .version(request.version()).versionType(request.versionType())
-                    .origin(Engine.Operation.Origin.REPLICA);
+            Engine.Index index = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
             indexShard.index(index);
         } else {
-            Engine.Create create = indexShard.prepareCreate(sourceToParse)
-                    .version(request.version()).versionType(request.versionType())
-                    .origin(Engine.Operation.Origin.REPLICA);
+            Engine.Create create = indexShard.prepareCreate(sourceToParse,
+                    request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
             indexShard.create(create);
         }
         if (request.refresh()) {

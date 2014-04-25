@@ -119,8 +119,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                 indexShard.acquireSearcher("delete_by_query"), indexService, indexShard, scriptService, cacheRecycler,
                 pageCacheRecycler, bigArrays));
         try {
-            Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), request.types())
-                    .origin(Engine.Operation.Origin.PRIMARY);
+            Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.PRIMARY, request.types());
             SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {
@@ -142,8 +141,7 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
                 indexShard.acquireSearcher("delete_by_query", IndexShard.Mode.WRITE), indexService, indexShard, scriptService,
                 cacheRecycler, pageCacheRecycler, bigArrays));
         try {
-            Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), request.types())
-                    .origin(Engine.Operation.Origin.REPLICA);
+            Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.source(), request.filteringAliases(), Engine.Operation.Origin.REPLICA, request.types());
             SearchContext.current().parsedQuery(new ParsedQuery(deleteByQuery.query(), ImmutableMap.<String, Filter>of()));
             indexShard.deleteByQuery(deleteByQuery);
         } finally {

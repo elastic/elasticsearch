@@ -733,6 +733,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(
                         searchSource().query(constantScoreQuery(termQuery("test", "value")))));
         SearchResponse sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (2)));
 
@@ -744,6 +745,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode("min")))));
         sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
 
         assertThat(sh.getAt(0).getId(), equalTo("1"));
@@ -753,6 +755,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode("max")))));
         sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
 
         assertThat(sh.getAt(0).getId(), equalTo("2"));
@@ -781,6 +784,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("num", "0", "10").setMultiValueMode("sum")))));
         sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
 
         assertThat(sh.getAt(0).getId(), equalTo("2"));
@@ -791,6 +795,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("num", "0", "10").setMultiValueMode("avg")))));
         sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
         sh = sr.getHits();
         assertThat((double) (sh.getAt(0).getScore()), closeTo((double) (sh.getAt(1).getScore()), 1.e-6d));
     }

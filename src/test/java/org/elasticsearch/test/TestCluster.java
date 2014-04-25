@@ -200,6 +200,7 @@ public final class TestCluster extends ImmutableTestCluster {
                 builder.put("path.data", dataPath.toString());
             }
         }
+        builder.put("script.disable_dynamic", false);
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
     }

@@ -75,7 +75,7 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
         }
         builder.endObject();
         if (multiValueMode != null) {
-            builder.field(DecayFunctionParser.MULTI_VALUE_MODE, multiValueMode.name());
+            builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
         }
         builder.endObject();
         return builder;

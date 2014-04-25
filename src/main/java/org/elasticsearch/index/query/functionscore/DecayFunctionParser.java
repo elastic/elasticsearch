@@ -24,6 +24,7 @@ import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -94,7 +95,7 @@ import java.util.Locale;
 
 public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
-    public static final String MULTI_VALUE_MODE = "multi_value_mode";
+    public static final ParseField MULTI_VALUE_MODE = new ParseField("multi_value_mode");
 
     /**
      * Override this function if you want to produce your own scorer.
@@ -128,7 +129,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             if (token == XContentParser.Token.START_OBJECT) {
                 // parse per field the origin and scale value
                 scoreFunction = parseVariable(currentFieldName, parser, parseContext);
-            } else if (currentFieldName.equals(MULTI_VALUE_MODE)) {
+            } else if (MULTI_VALUE_MODE.match(currentFieldName)) {
                 multiValueMode = parser.text();
             } else {
                 throw new ElasticsearchParseException("Malformed score function score parameters.");

@@ -28,7 +28,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -119,7 +119,7 @@ public class SortParseElement implements SearchParseElement {
                 String missing = null;
                 String innerJsonName = null;
                 boolean ignoreUnmapped = false;
-                SortMode sortMode = null;
+                MultiValueMode sortMode = null;
                 Filter nestedFilter = null;
                 String nestedPath = null;
                 token = parser.nextToken();
@@ -154,7 +154,7 @@ public class SortParseElement implements SearchParseElement {
                                 } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
                                     ignoreUnmapped = parser.booleanValue();
                                 } else if ("mode".equals(innerJsonName)) {
-                                    sortMode = SortMode.fromString(parser.text());
+                                    sortMode = MultiValueMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     nestedPath = parser.text();
                                 } else {
@@ -176,7 +176,7 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode, String nestedPath, Filter nestedFilter) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, MultiValueMode sortMode, String nestedPath, Filter nestedFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -212,7 +212,7 @@ public class SortParseElement implements SearchParseElement {
             }*/
 
             // We only support AVG and SUM on number based fields
-            if (!(fieldMapper instanceof NumberFieldMapper) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
+            if (!(fieldMapper instanceof NumberFieldMapper) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
                 sortMode = null;
             }
             if (sortMode == null) {
@@ -248,8 +248,8 @@ public class SortParseElement implements SearchParseElement {
         }
     }
 
-    private static SortMode resolveDefaultSortMode(boolean reverse) {
-        return reverse ? SortMode.MAX : SortMode.MIN;
+    private static MultiValueMode resolveDefaultSortMode(boolean reverse) {
+        return reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
     }
 
 }

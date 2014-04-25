@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.index.fielddata.fieldcomparator;
+package org.elasticsearch.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -32,7 +32,7 @@ import java.util.Locale;
 /**
  * Defines what values to pick in the case a document contains multiple values for a particular field.
  */
-public enum SortMode {
+public enum MultiValueMode {
 
     /**
      * Sum of all the values.
@@ -256,7 +256,7 @@ public enum SortMode {
      * Applies the sort mode and returns the result. This method is meant to be
      * a binary function that is commonly used in a loop to find the relevant
      * value for the sort mode in a list of values. For instance if the sort mode
-     * is {@link SortMode#MAX} this method is equivalent to {@link Math#max(double, double)}.
+     * is {@link MultiValueMode#MAX} this method is equivalent to {@link Math#max(double, double)}.
      *
      * Note: all implementations are idempotent.
      *
@@ -270,7 +270,7 @@ public enum SortMode {
      * Applies the sort mode and returns the result. This method is meant to be
      * a binary function that is commonly used in a loop to find the relevant
      * value for the sort mode in a list of values. For instance if the sort mode
-     * is {@link SortMode#MAX} this method is equivalent to {@link Math#max(long, long)}.
+     * is {@link MultiValueMode#MAX} this method is equivalent to {@link Math#max(long, long)}.
      *
      * Note: all implementations are idempotent.
      *
@@ -318,7 +318,7 @@ public enum SortMode {
     }
 
     /**
-     * Returns the aggregated value based on the sort mode. For instance if {@link SortMode#AVG} is used
+     * Returns the aggregated value based on the sort mode. For instance if {@link MultiValueMode#AVG} is used
      * this method divides the given value by the number of values. The default implementation returns
      * the first argument.
      *
@@ -329,7 +329,7 @@ public enum SortMode {
     }
 
     /**
-     * Returns the aggregated value based on the sort mode. For instance if {@link SortMode#AVG} is used
+     * Returns the aggregated value based on the sort mode. For instance if {@link MultiValueMode#AVG} is used
      * this method divides the given value by the number of values. The default implementation returns
      * the first argument.
      *
@@ -344,7 +344,7 @@ public enum SortMode {
      *
      * @throws org.elasticsearch.ElasticsearchIllegalArgumentException if the given string doesn't match a sort mode or is <code>null</code>.
      */
-    public static SortMode fromString(String sortMode) {
+    public static MultiValueMode fromString(String sortMode) {
         try {
             return valueOf(sortMode.toUpperCase(Locale.ROOT));
         } catch (Throwable t) {
@@ -353,7 +353,7 @@ public enum SortMode {
     }
 
     /**
-     * Returns the relevant value for the given document based on the {@link SortMode}. This
+     * Returns the relevant value for the given document based on the {@link MultiValueMode}. This
      * method will apply each value for the given document to {@link #apply(double, double)} and returns
      * the reduced value from {@link #reduce(double, int)} if the document has at least one value. Otherwise it will
      * return the given default value.
@@ -373,7 +373,7 @@ public enum SortMode {
     }
 
     /**
-     * Returns the relevant value for the given document based on the {@link SortMode}. This
+     * Returns the relevant value for the given document based on the {@link MultiValueMode}. This
      * method will apply each value for the given document to {@link #apply(long, long)} and returns
      * the reduced value from {@link #reduce(long, int)} if the document has at least one value. Otherwise it will
      * return the given default value.
@@ -394,7 +394,7 @@ public enum SortMode {
 
 
     /**
-     * Returns the relevant value for the given document based on the {@link SortMode}
+     * Returns the relevant value for the given document based on the {@link MultiValueMode}
      * if the document has at least one value. Otherwise it will return same object given as the default value.
      * Note: This method is optional and will throw {@link UnsupportedOperationException} if the sort mode doesn't
      * allow a relevant value.

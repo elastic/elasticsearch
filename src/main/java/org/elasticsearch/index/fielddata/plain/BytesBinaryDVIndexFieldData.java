@@ -28,7 +28,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
@@ -49,7 +49,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     }
 
     @Override
-    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         throw new ElasticsearchIllegalArgumentException("can't sort on binary field");
     }
 

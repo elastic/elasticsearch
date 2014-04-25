@@ -788,7 +788,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ).get();
 
         // Higher weight so it's ranked first:
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+        client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder()
                 .startObject().startObject(FIELD)
                 .startArray("input").value("Feed the trolls").endArray()
                 .field("weight", 10).endObject().endObject()

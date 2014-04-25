@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import com.sun.swing.internal.plaf.metal.resources.metal;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
@@ -32,6 +33,8 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -122,30 +126,31 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         String currentFieldName;
         XContentParser.Token token;
         AbstractDistanceScoreFunction scoreFunction = null;
-        String multiValueMode = null;
+        String multiValueMode = "MIN";
+        XContentBuilder variableContent = XContentFactory.jsonBuilder();
+        String fieldName = null;
         while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
             currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
-                // parse per field the origin and scale value
-                scoreFunction = parseVariable(currentFieldName, parser, parseContext);
+                variableContent.copyCurrentStructure(parser);
+                fieldName = currentFieldName;
             } else if (MULTI_VALUE_MODE.match(currentFieldName)) {
                 multiValueMode = parser.text();
             } else {
                 throw new ElasticsearchParseException("Malformed score function score parameters.");
             }
         }
-        if (scoreFunction == null) {
+        if (fieldName == null) {
             throw new ElasticsearchParseException("Malformed score function score parameters.");
         }
-        if (multiValueMode != null) {
-            scoreFunction.setMultiValueMode(MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
-        }
+        XContentParser variableParser = XContentFactory.xContent(variableContent.string()).createParser(variableContent.string());
+        scoreFunction = parseVariable(fieldName, variableParser, parseContext, MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
         return scoreFunction;
     }
 
     // parses origin and scale parameter for field "fieldName"
-    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext) throws IOException {
+    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext, MultiValueMode mode) throws IOException {
 
         // now, the field must exist, else we cannot read the value for
         // the doc later
@@ -156,12 +161,13 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         FieldMapper<?> mapper = smartMappers.fieldMappers().mapper();
         // dates and time need special handling
+        parser.nextToken();
         if (mapper instanceof DateFieldMapper) {
-            return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper);
+            return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper, mode);
         } else if (mapper instanceof GeoPointFieldMapper) {
-            return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper) mapper);
+            return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper) mapper, mode);
         } else if (mapper instanceof NumberFieldMapper<?>) {
-            return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper);
+            return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper, mode);
         } else {
             throw new QueryParsingException(parseContext.index(), "Field " + fieldName + " is of type " + mapper.fieldType()
                     + ", but only numeric types are supported.");
@@ -169,7 +175,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
     }
 
     private AbstractDistanceScoreFunction parseNumberVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            NumberFieldMapper<?> mapper) throws IOException {
+            NumberFieldMapper<?> mapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         double scale = 0;
@@ -200,11 +206,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                     + " must be set for numeric fields.");
         }
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
+        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
     private AbstractDistanceScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            GeoPointFieldMapper mapper) throws IOException {
+            GeoPointFieldMapper mapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();
@@ -232,12 +238,12 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
         IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
-        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData);
+        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
 
     }
 
     private AbstractDistanceScoreFunction parseDateVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            DateFieldMapper dateFieldMapper) throws IOException {
+            DateFieldMapper dateFieldMapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         String scaleString = null;
@@ -272,7 +278,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24));
         double offset = val.getMillis();
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(dateFieldMapper);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
+        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
@@ -284,8 +290,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private static final GeoDistance distFunction = GeoDistance.DEFAULT;
 
         public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
-                IndexGeoPointFieldData<?> fieldData) {
-            super(scale, decay, offset, func);
+                IndexGeoPointFieldData<?> fieldData, MultiValueMode mode) {
+            super(scale, decay, offset, func, mode);
             this.origin = origin;
             this.fieldData = fieldData;
         }
@@ -345,8 +351,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private DoubleValues doubleValues;
 
         public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
-                IndexNumericFieldData<?> fieldData) {
-            super(scale, decay, offset, func);
+                IndexNumericFieldData<?> fieldData, MultiValueMode mode) {
+            super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;
             this.origin = origin;
         }
@@ -408,10 +414,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private final double scale;
         protected final double offset;
         private final DecayFunction func;
-        protected MultiValueMode mode = MultiValueMode.MIN;
+        protected final MultiValueMode mode;
 
-        public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func) {
+        public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func, MultiValueMode mode) {
             super(CombineFunction.MULT);
+            this.mode = mode;
             if (userSuppiedScale <= 0.0) {
                 throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
             }
@@ -453,10 +460,6 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             ce.setDescription("Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
-        }
-
-        public void setMultiValueMode(MultiValueMode multiValueMode) {
-            this.mode = multiValueMode;
         }
     }
 

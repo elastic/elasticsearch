@@ -36,7 +36,7 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
     private Object scale;
     private double decay = -1;
     private Object offset;
-    private String multiValueMode = "MIN";
+    private String multiValueMode = null;
 
     public DecayFunctionBuilder(String fieldName, Object origin, Object scale) {
         this.fieldName = fieldName;
@@ -72,7 +72,9 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
             builder.field(OFFSET, offset);
         }
         builder.endObject();
-        builder.field(DecayFunctionParser.MULTI_VALUE_MODE, multiValueMode);
+        if (multiValueMode != null) {
+            builder.field(DecayFunctionParser.MULTI_VALUE_MODE, multiValueMode);
+        }
         builder.endObject();
         return builder;
     }

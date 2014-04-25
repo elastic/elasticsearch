@@ -410,7 +410,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         Engine.IndexingOperation op;
         try {
             if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                Engine.Index index = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.PRIMARY);
                 if (index.parsedDoc().mappingsModified()) {
                     mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
                 }
@@ -419,7 +419,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 op = index;
                 created = index.created();
             } else {
-                Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                Engine.Create create = indexShard.prepareCreate(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.PRIMARY);
                 if (create.parsedDoc().mappingsModified()) {
                     mappingsToUpdate = Tuple.tuple(indexRequest.index(), indexRequest.type());
                 }
@@ -443,7 +443,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     private WriteResult shardDeleteOperation(DeleteRequest deleteRequest, IndexShard indexShard) {
-        Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+        Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
         deleteRequest.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
@@ -561,14 +561,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
                     if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        Engine.Index index = indexShard.prepareIndex(sourceToParse)
-                                .version(indexRequest.version()).versionType(indexRequest.versionType())
-                                .origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Index index = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
                         indexShard.index(index);
                     } else {
-                        Engine.Create create = indexShard.prepareCreate(sourceToParse)
-                                .version(indexRequest.version()).versionType(indexRequest.versionType())
-                                .origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Create create = indexShard.prepareCreate(sourceToParse,
+                                indexRequest.version(), indexRequest.versionType(),
+                                Engine.Operation.Origin.REPLICA);
                         indexShard.create(create);
                     }
                 } catch (Throwable e) {
@@ -577,8 +575,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version())
-                            .versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
                 } catch (Throwable e) {
                     // ignore, we are on backup

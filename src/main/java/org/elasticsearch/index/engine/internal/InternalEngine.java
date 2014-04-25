@@ -435,7 +435,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
             }
 
-            create.version(updatedVersion);
+            create.updateVersion(updatedVersion);
 
             if (create.docs().size() > 1) {
                 writer.addDocuments(create.docs(), create.analyzer());
@@ -495,7 +495,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
 
 
-            index.version(updatedVersion);
+            index.updateVersion(updatedVersion);
             if (currentVersion == Versions.NOT_FOUND) {
                 // document does not exists, we can optimize for create
                 index.created(true);
@@ -567,16 +567,16 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             if (currentVersion == Versions.NOT_FOUND) {
                 // doc does not exists and no prior deletes
-                delete.version(updatedVersion).found(false);
+                delete.updateVersion(updatedVersion, false);
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             } else if (versionValue != null && versionValue.delete()) {
                 // a "delete on delete", in this case, we still increment the version, log it, and return that version
-                delete.version(updatedVersion).found(false);
+                delete.updateVersion(updatedVersion, false);
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             } else {
-                delete.version(updatedVersion).found(true);
+                delete.updateVersion(updatedVersion, true);
                 writer.deleteDocuments(delete.uid());
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
                 versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));

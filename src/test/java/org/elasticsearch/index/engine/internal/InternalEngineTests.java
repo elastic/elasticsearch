@@ -1140,9 +1140,10 @@ public class InternalEngineTests extends ElasticsearchTestCase {
       @Override
       protected void append(LoggingEvent event) {
         if (event.getLevel() == Level.TRACE &&
-            event.getLoggerName().equals("lucene.iw") &&
+            event.getLoggerName().endsWith("lucene.iw") &&
             event.getMessage().toString().contains("IW: apply all deletes during flush") &&
             event.getMessage().toString().contains("[index][1] ")) {
+
           sawIndexWriterMessage = true;
         }
       }

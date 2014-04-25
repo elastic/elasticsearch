@@ -121,7 +121,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         String currentFieldName;
         XContentParser.Token token;
         AbstractDistanceScoreFunction scoreFunction = null;
-        String multiValueMode = "MIN";
+        String multiValueMode = null;
         while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
             currentFieldName = parser.currentName();
             token = parser.nextToken();
@@ -137,7 +137,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         if (scoreFunction == null) {
             throw new ElasticsearchParseException("Malformed score function score parameters.");
         }
-        scoreFunction.setMultiValueMode(MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
+        if (multiValueMode != null) {
+            scoreFunction.setMultiValueMode(MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
+        }
         return scoreFunction;
     }
 

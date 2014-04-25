@@ -23,7 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.junit.Test;
 
@@ -68,7 +68,7 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public XFieldComparatorSource comparatorSource(Object missingValue, SortMode sortMode) {
+            public XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
                 return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
             }
 

@@ -413,7 +413,6 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
         }
-
     }
 
 }

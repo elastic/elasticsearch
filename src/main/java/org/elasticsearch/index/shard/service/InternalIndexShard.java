@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
@@ -366,11 +367,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Create prepareCreate(SourceToParse source) throws ElasticsearchException {
+    public Engine.Create prepareCreate(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) throws ElasticsearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc).startTime(startTime);
+        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime);
     }
 
     @Override
@@ -387,11 +388,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Index prepareIndex(SourceToParse source) throws ElasticsearchException {
+    public Engine.Index prepareIndex(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) throws ElasticsearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc).startTime(startTime);
+        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime);
     }
 
     @Override
@@ -413,10 +414,10 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.Delete prepareDelete(String type, String id, long version) throws ElasticsearchException {
+    public Engine.Delete prepareDelete(String type, String id, long version, VersionType versionType, Engine.Operation.Origin origin) throws ElasticsearchException {
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(type);
-        return new Engine.Delete(type, id, docMapper.uidMapper().term(type, id)).version(version).startTime(startTime);
+        return new Engine.Delete(type, id, docMapper.uidMapper().term(type, id), version, versionType, origin, startTime, false);
     }
 
     @Override
@@ -437,7 +438,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, String... types) throws ElasticsearchException {
+    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) throws ElasticsearchException {
         long startTime = System.nanoTime();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
@@ -447,7 +448,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
         Filter parentFilter = mapperService.hasNested() ? indexCache.filter().cache(NonNestedDocsFilter.INSTANCE) : null;
-        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, types).startTime(startTime);
+        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
     }
 
     @Override
@@ -743,28 +744,26 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             switch (operation.opType()) {
                 case CREATE:
                     Translog.Create create = (Translog.Create) operation;
-                    engine.create(prepareCreate(source(create.source()).type(create.type()).id(create.id())
-                            .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()))
-                            .version(create.version()).versionType(create.versionType().versionTypeForReplicationAndRecovery())
-                            .origin(Engine.Operation.Origin.RECOVERY));
+                    engine.create(prepareCreate(
+                            source(create.source()).type(create.type()).id(create.id())
+                            .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
+                            create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY));
                     break;
                 case SAVE:
                     Translog.Index index = (Translog.Index) operation;
                     engine.index(prepareIndex(source(index.source()).type(index.type()).id(index.id())
-                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()))
-                            .version(index.version()).versionType(index.versionType().versionTypeForReplicationAndRecovery())
-                            .origin(Engine.Operation.Origin.RECOVERY));
+                            .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
+                            index.version(),index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY));
                     break;
                 case DELETE:
                     Translog.Delete delete = (Translog.Delete) operation;
                     Uid uid = Uid.createUid(delete.uid().text());
-                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid())
-                            .version(delete.version()).versionType(delete.versionType().versionTypeForReplicationAndRecovery())
-                            .origin(Engine.Operation.Origin.RECOVERY));
+                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
+                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
                     break;
                 case DELETE_BY_QUERY:
                     Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.types()).origin(Engine.Operation.Origin.RECOVERY));
+                    engine.delete(prepareDeleteByQuery(deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
                     break;
                 default:
                     throw new ElasticsearchIllegalStateException("No operation defined for [" + operation + "]");

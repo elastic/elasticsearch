@@ -105,7 +105,8 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         breakerService.getBreaker().addWithoutBreaking(memorySizeInBytes);
 
         if (logger.isDebugEnabled()) {
-            String implName = maxOrd < threshold ? "PackedIntOrdinalMappingSource" : "CompressedOrdinalMappingSource";
+            // this does include the [] from the array in the impl name
+            String implName = segmentOrdToGlobalOrdLookups.getClass().getSimpleName();
             logger.debug(
                     "Global-ordinals[{}][{}][{}] took {} ms",
                     implName,

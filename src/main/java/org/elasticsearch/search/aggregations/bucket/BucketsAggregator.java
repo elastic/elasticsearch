@@ -72,6 +72,23 @@ public abstract class BucketsAggregator extends Aggregator {
     }
 
     /**
+     * Same as {@link #collectBucket(int, long)}, but doesn't check if the docCounts needs to be re-sized.
+     */
+    protected final void collectExistingBucket(int doc, long bucketOrd) throws IOException {
+        docCounts.increment(bucketOrd, 1);
+        for (int i = 0; i < collectableSugAggregators.length; i++) {
+            collectableSugAggregators[i].collect(doc, bucketOrd);
+        }
+    }
+
+    /**
+     * Initializes the docCounts to the specified size.
+     */
+    public void initializeDocCounts(long maxOrd) {
+        docCounts = bigArrays.grow(docCounts, maxOrd);
+    }
+
+    /**
      * Utility method to collect the given doc in the given bucket but not to update the doc counts of the bucket
      */
     protected final void collectBucketNoCounts(int doc, long bucketOrd) throws IOException {

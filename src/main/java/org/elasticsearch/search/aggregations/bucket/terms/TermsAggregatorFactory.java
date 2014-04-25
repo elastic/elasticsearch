@@ -112,6 +112,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (includeExclude != null) {
                     throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
                 }
+                if (factories != AggregatorFactories.EMPTY) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode can only be used as a leaf aggregation");
+                }
                 return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
 

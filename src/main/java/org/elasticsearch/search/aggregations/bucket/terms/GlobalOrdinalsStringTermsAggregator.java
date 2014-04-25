@@ -176,9 +176,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     }
 
-    // I think this class should be merged in with the main class, since this class just resolves
-    // the global ordinals post collect phase when going to the next segment instead of resolving global ords on the fly.
-    // and then the decision of post collect or on the fly global ord resolving can be made on a per segment basis.
+    /**
+     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that
+     */
     public static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
         private Ordinals.Docs segmentOrdinals;
@@ -186,7 +186,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
             super(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
-            assert factories == AggregatorFactories.EMPTY : LowCardinality.class.getSimpleName() + " can only be used as a leaf aggregation";
         }
 
         @Override
@@ -227,7 +226,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         private void mapSegmentCountsToGlobalCounts() {
-            if (globalOrdinals instanceof GlobalOrdinalMapping) {
+            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
                 // There is no public method in Ordinals.Docs that allows for this mapping...
                 // This is the cleanest way I can think of so far
                 GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalOrdinals;

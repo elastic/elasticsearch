@@ -49,6 +49,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * This class provides the basic functionality needed for adding a decay
@@ -93,6 +94,8 @@ import java.io.IOException;
 
 public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
+    public static final String MULTI_VALUE_MODE = "multi_value_mode";
+
     /**
      * Override this function if you want to produce your own scorer.
      * */
@@ -115,28 +118,31 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      * */
     @Override
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
-        String currentFieldName = null;
+        String currentFieldName;
         XContentParser.Token token;
-        ScoreFunction scoreFunction = null;
-        token = parser.nextToken();
-        if (token == XContentParser.Token.FIELD_NAME) {
+        AbstractDistanceScoreFunction scoreFunction = null;
+        String multiValueMode = "MIN";
+        while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
             currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 // parse per field the origin and scale value
                 scoreFunction = parseVariable(currentFieldName, parser, parseContext);
+            } else if (currentFieldName.equals(MULTI_VALUE_MODE)) {
+                multiValueMode = parser.text();
             } else {
                 throw new ElasticsearchParseException("Malformed score function score parameters.");
             }
-        } else {
+        }
+        if (scoreFunction == null) {
             throw new ElasticsearchParseException("Malformed score function score parameters.");
         }
-        parser.nextToken();
+        scoreFunction.setMultiValueMode(MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
         return scoreFunction;
     }
 
     // parses origin and scale parameter for field "fieldName"
-    private ScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext) throws IOException {
+    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext) throws IOException {
 
         // now, the field must exist, else we cannot read the value for
         // the doc later
@@ -159,7 +165,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
     }
 
-    private ScoreFunction parseNumberVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
+    private AbstractDistanceScoreFunction parseNumberVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
             NumberFieldMapper<?> mapper) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -194,7 +200,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
     }
 
-    private ScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
+    private AbstractDistanceScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
             GeoPointFieldMapper mapper) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -227,7 +233,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
     }
 
-    private ScoreFunction parseDateVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
+    private AbstractDistanceScoreFunction parseDateVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
             DateFieldMapper dateFieldMapper) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
@@ -286,27 +292,41 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             geoPointValues = fieldData.load(context).getGeoPointValues();
         }
 
-
         @Override
         protected double distance(int docId) {
             final int num = geoPointValues.setDocument(docId);
-            double value = mode.startDouble();
-            for (int i = 0; i < num; i++) {
-                GeoPoint other = geoPointValues.nextValue();
-                value = mode.apply(Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
-                        DistanceUnit.METERS)) - offset, value);
+            if (num > 0) {
+                double value = mode.startDouble();
+                for (int i = 0; i < num; i++) {
+                    GeoPoint other = geoPointValues.nextValue();
+                    value = mode.apply(Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
+                            DistanceUnit.METERS) - offset), value);
+                }
+                return mode.reduce(value, num);
+            } else {
+                return 0.0;
             }
-            return Math.max(0.0d, mode.reduce(value, num));
         }
 
         @Override
         protected String getDistanceString(int docId) {
-            //nocommit fix this for min / max etc
-//            final GeoPoint other = getValue(docId, origin);
-//            return "arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
-//                    + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
-//                    + "(=offset)";
-            return "";
+            String modeName = mode.name();
+            String values = modeName + " of: [";
+            final int num = geoPointValues.setDocument(docId);
+            if (num > 0) {
+                for (int i = 0; i < num; i++) {
+                    GeoPoint value = geoPointValues.nextValue();
+                    values += "Math.max(arcDistance(" + value + "(=doc value),"
+                            + origin + "(=origin)) - " + offset + "(=offset), 0)";
+                    if (i != num - 1) {
+                        values += ", ";
+                    }
+                }
+            } else {
+                values += "0.0";
+            }
+            values += "]";
+            return values;
         }
 
         @Override
@@ -335,21 +355,37 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         @Override
         protected double distance(int docId) {
             final int num = doubleValues.setDocument(docId);
-            double value = mode.startDouble();
-            for (int i = 0; i < num; i++) {
-                final double other = doubleValues.nextValue();
-                value = mode.apply(Math.abs(other - origin) - offset, value);
+            if (num > 0) {
+                double value = mode.startDouble();
+                for (int i = 0; i < num; i++) {
+                    final double other = doubleValues.nextValue();
+                    value = mode.apply(Math.max(0.0d, Math.abs(other - origin) - offset), value);
+                }
+                return mode.reduce(value, num);
+            } else {
+                return 0.0;
             }
-            return Math.max(0.0d, mode.reduce(value, num));
         }
 
         @Override
         protected String getDistanceString(int docId) {
-              // nocommit fix this
-//            return "Math.abs(" + getValue(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
-//                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + getValue(docId, origin) + "(=doc value) - "
-//                    + origin + ") - " + offset + "(=offset)";
-            return "";
+            String modeName = mode.name();
+            String values = modeName + " of: [";
+            final int num = doubleValues.setDocument(docId);
+            if (num > 0) {
+                for (int i = 0; i < num; i++) {
+                    double value = doubleValues.nextValue();
+                    values += "Math.max(Math.abs(" + value + "(=doc value) - "
+                            + origin + "(=origin)) - " + offset + "(=offset), 0)";
+                    if (i != num - 1) {
+                        values += ", ";
+                    }
+                }
+            } else {
+                values += "0.0";
+            }
+            values += "]";
+            return values;
         }
 
         @Override
@@ -367,7 +403,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private final double scale;
         protected final double offset;
         private final DecayFunction func;
-        protected final MultiValueMode mode = MultiValueMode.MIN;    // nocommit - this should be selectable
+        protected MultiValueMode mode = MultiValueMode.MIN;
 
         public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func) {
             super(CombineFunction.MULT);
@@ -412,6 +448,10 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             ce.setDescription("Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
+        }
+
+        public void setMultiValueMode(MultiValueMode multiValueMode) {
+            this.mode = multiValueMode;
         }
     }
 

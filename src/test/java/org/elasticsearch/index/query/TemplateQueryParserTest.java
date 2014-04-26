@@ -55,7 +55,7 @@ import java.io.IOException;
 
 /**
  * Test parsing and executing a template request.
- * */
+ */
 public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     private Injector injector;
@@ -63,8 +63,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        String scriptPath = this.getClass().getResource("config").getPath();
-        Settings settings = ImmutableSettings.settingsBuilder().put("path.conf", scriptPath).build();
+        Settings settings = ImmutableSettings.settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
 
         Index index = new Index("test");
         injector = new ModulesBuilder().add(

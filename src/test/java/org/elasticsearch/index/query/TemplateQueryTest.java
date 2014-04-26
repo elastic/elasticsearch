@@ -24,8 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,7 +41,7 @@ import static org.hamcrest.Matchers.is;
 
 /**
  * Full integration test of the template query plugin.
- * */
+ */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
@@ -59,8 +57,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        String scriptPath = this.getClass().getResource("config").getPath();
-        return settingsBuilder().put("path.conf", scriptPath).build();
+        return settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
     }
 
     @Test
@@ -78,7 +75,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
     @Test
     public void testTemplateInBodyWithSize() throws IOException {
         String request = "{\n" +
-                "    \"size\":0,"+
+                "    \"size\":0," +
                 "    \"query\": {\n" +
                 "        \"template\": {\n" +
                 "            \"query\": {\"match_{{template}}\": {}},\n" +
@@ -101,7 +98,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 "            }\n" +
                 "        }\n" +
                 "    },\n" +
-                "    \"size\":0"+
+                "    \"size\":0" +
                 "}";
 
         sr = client().prepareSearch().setSource(request)

@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileNotFoundException;
+import java.net.URI;
 import java.net.URL;
 import java.util.Map;
 import java.util.Set;
@@ -92,7 +93,8 @@ public final class FileUtils {
                 return file;
             }
         }
-        return new File(resource.getFile());
+
+        return new File(URI.create(resource.toString()));
     }
 
     private static URL findResource(String path, String optionalFileSuffix) {

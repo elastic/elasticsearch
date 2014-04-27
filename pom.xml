@@ -1077,6 +1077,7 @@
                             </bundledSignatures>
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -1098,6 +1099,10 @@
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>test-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
                         <phase>test-compile</phase>

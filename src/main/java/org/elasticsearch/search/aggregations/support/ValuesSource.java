@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -159,6 +161,8 @@ public abstract class ValuesSource {
 
             public abstract BytesValues.WithOrdinals globalBytesValues();
 
+            public abstract long maxOrd(IndexSearcher indexSearcher);
+
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
                 protected boolean needsHashes;
@@ -228,6 +232,17 @@ public abstract class ValuesSource {
                         globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
                     }
                     return globalBytesValues;
+                }
+
+                @Override
+                public long maxOrd(IndexSearcher indexSearcher) {
+                    IndexReaderContext topReaderContext = indexSearcher.getTopReaderContext();
+                    AtomicReaderContext atomicReaderContext = indexSearcher.getIndexReader().leaves().get(0);
+                    IndexFieldData.WithOrdinals<?> globalFieldData = indexFieldData.loadGlobal(topReaderContext.reader());
+                    AtomicFieldData.WithOrdinals afd = globalFieldData.load(atomicReaderContext);
+                    BytesValues.WithOrdinals values = afd.getBytesValues(false);
+                    Ordinals.Docs ordinals = values.ordinals();
+                    return ordinals.getMaxOrd();
                 }
             }
 

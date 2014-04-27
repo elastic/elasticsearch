@@ -51,8 +51,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected Ordinals.Docs globalOrdinals;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-            InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
+            long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
+        super(name, factories, maxOrd, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
         this.valuesSource = valuesSource;
     }
 
@@ -69,7 +69,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     public void setNextReader(AtomicReaderContext reader) {
         globalValues = valuesSource.globalBytesValues();
         globalOrdinals = globalValues.ordinals();
-        initializeDocCounts(globalOrdinals.getMaxOrd());
     }
 
     @Override
@@ -139,9 +138,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongHash bucketOrds;
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
+                long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
                 Aggregator parent) {
-            super(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            // Set maxOrd to estimatedBucketCount! To be conservative with memory.
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -177,25 +177,21 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     /**
-     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that
+     * Variant of {@link GlobalOrdinalsStringTermsAggregator} that resolves global ordinals post segment collection
+     * instead of on the fly for each match.This is beneficial for low cardinality fields, because it can reduce
+     * the amount of look-ups significantly.
      */
     public static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
+        private final LongArray segmentDocCounts;
+
         private Ordinals.Docs segmentOrdinals;
-        private LongArray segmentDocCounts;
+        private LongArray current;
 
-        public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
-        }
-
-        @Override
-        public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-            if (segmentDocCounts != null) {
-                mapSegmentCountsToGlobalCounts();
-                Releasables.close(segmentDocCounts);
-                segmentDocCounts = null;
-            }
-            return super.buildAggregation(owningBucketOrdinal);
+        public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
+                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+            this.segmentDocCounts = bigArrays.newLongArray(maxOrd, true);
         }
 
         @Override
@@ -203,49 +199,53 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             final int numOrds = segmentOrdinals.setDocument(doc);
             for (int i = 0; i < numOrds; i++) {
                 final long segmentOrd = segmentOrdinals.nextOrd();
-                segmentDocCounts.increment(segmentOrd, 1);
+                current.increment(segmentOrd, 1);
             }
         }
 
         @Override
         public void setNextReader(AtomicReaderContext reader) {
-            if (segmentDocCounts != null) {
+            if (segmentOrdinals != null && segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
                 mapSegmentCountsToGlobalCounts();
             }
+
             super.setNextReader(reader);
             BytesValues.WithOrdinals bytesValues = valuesSource.bytesValues();
             segmentOrdinals = bytesValues.ordinals();
-            Releasables.close(segmentDocCounts);
-            segmentDocCounts = bigArrays.newLongArray(segmentOrdinals.getMaxOrd(), true);
+            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+                current = segmentDocCounts;
+            } else {
+                current = getDocCounts();
+            }
+        }
+
+        @Override
+        protected void doPostCollection() {
+            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+                mapSegmentCountsToGlobalCounts();
+            }
         }
 
         @Override
         protected void doClose() {
-            super.doClose();
             Releasables.close(segmentDocCounts);
         }
 
         private void mapSegmentCountsToGlobalCounts() {
-            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
-                // There is no public method in Ordinals.Docs that allows for this mapping...
-                // This is the cleanest way I can think of so far
-                GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalOrdinals;
-                for (int i = 0; i < segmentDocCounts.size(); i++) {
-                    final long globalOrd = mapping.getGlobalOrd(i);
-                    try {
-                        incrementBucketDocCount(segmentDocCounts.get(i), globalOrd);
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToElastic(e);
-                    }
+            // There is no public method in Ordinals.Docs that allows for this mapping...
+            // This is the cleanest way I can think of so far
+            GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalOrdinals;
+            for (int i = 0; i < segmentDocCounts.size(); i++) {
+                final long inc = segmentDocCounts.get(i);
+                if (inc == 0) {
+                    continue;
                 }
-            } else {
-                for (int i = 0; i < segmentDocCounts.size(); i++) {
-                    try {
-                        // Instead of setting each individual value, maybe just replace BucketsAggregator.docCount field?
-                        incrementBucketDocCount(segmentDocCounts.get(i), i);
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToElastic(e);
-                    }
+                final long globalOrd = mapping.getGlobalOrd(i);
+                try {
+                    incrementBucketDocCount(inc, globalOrd);
+                    segmentDocCounts.set(i, 0); // reset for next segment
+                } catch (IOException e) {
+                    throw ExceptionsHelper.convertToElastic(e);
                 }
             }
         }

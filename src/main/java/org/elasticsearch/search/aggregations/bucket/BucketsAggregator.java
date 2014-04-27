@@ -78,11 +78,8 @@ public abstract class BucketsAggregator extends Aggregator {
         }
     }
 
-    /**
-     * Initializes the docCounts to the specified size.
-     */
-    public void initializeDocCounts(long maxOrd) {
-        docCounts = bigArrays.grow(docCounts, maxOrd);
+    public LongArray getDocCounts() {
+        return docCounts;
     }
 
     /**

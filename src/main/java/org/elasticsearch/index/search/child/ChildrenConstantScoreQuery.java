@@ -24,11 +24,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -98,10 +99,15 @@ public class ChildrenConstantScoreQuery extends Query {
         assert rewrittenChildQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader()  : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
 
+        AtomicFieldData.WithOrdinals afd = globalIfd.load(searcher.getIndexReader().leaves().get(0));
+        BytesValues.WithOrdinals globalValues = afd.getBytesValues(false);
+        Ordinals.Docs globalOrdinals = globalValues.ordinals();
+        final long maxOrd = globalOrdinals.getMaxOrd();
+
         Query childQuery = rewrittenChildQuery;
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
-        ParentOrdCollector collector = new ParentOrdCollector(globalIfd);
+        ParentOrdCollector collector = new ParentOrdCollector(globalIfd, maxOrd);
         indexSearcher.search(childQuery, collector);
 
         long remaining = collector.foundParents();
@@ -115,7 +121,7 @@ public class ChildrenConstantScoreQuery extends Query {
                     nonNestedDocsFilter, sc, parentType, collector.values, collector.parentOrds, remaining
             );
         }
-        return new ParentWeight(parentFilter, globalIfd, shortCircuitFilter, collector);
+        return new ParentWeight(parentFilter, globalIfd, shortCircuitFilter, collector, remaining);
     }
 
     @Override
@@ -168,12 +174,12 @@ public class ChildrenConstantScoreQuery extends Query {
         private float queryNorm;
         private float queryWeight;
 
-        public ParentWeight(Filter parentFilter, IndexFieldData.WithOrdinals globalIfd, Filter shortCircuitFilter, ParentOrdCollector collector) {
+        public ParentWeight(Filter parentFilter, IndexFieldData.WithOrdinals globalIfd, Filter shortCircuitFilter, ParentOrdCollector collector, long remaining) {
             this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
             this.globalIfd = globalIfd;
             this.shortCircuitFilter = shortCircuitFilter;
             this.collector = collector;
-            this.remaining = collector.foundParents();
+            this.remaining = remaining;
         }
 
         @Override
@@ -222,7 +228,7 @@ public class ChildrenConstantScoreQuery extends Query {
                 parentDocIdSet = BitsFilteredDocIdSet.wrap(parentDocIdSet, context.reader().getLiveDocs());
                 DocIdSetIterator innerIterator = parentDocIdSet.iterator();
                 if (innerIterator != null) {
-                    OpenBitSet parentOrds = collector.parentOrds;
+                    LongBitSet parentOrds = collector.parentOrds;
                     BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues(false);
                     if (globalValues != null) {
                         Ordinals.Docs globalOrdinals = globalValues.ordinals();
@@ -238,22 +244,23 @@ public class ChildrenConstantScoreQuery extends Query {
 
     private final static class ParentOrdCollector extends NoopCollector {
 
-        private final OpenBitSet parentOrds;
+        private final LongBitSet parentOrds;
         private final ParentChildIndexFieldData.WithOrdinals indexFieldData;
 
         private BytesValues.WithOrdinals values;
-        private Ordinals.Docs ordinals;
+        private Ordinals.Docs globalOrdinals;
 
-        private ParentOrdCollector(ParentChildIndexFieldData.WithOrdinals indexFieldData) {
-            // TODO: look into setting it to maxOrd
-            this.parentOrds = new OpenBitSet(512);
+        private ParentOrdCollector(ParentChildIndexFieldData.WithOrdinals indexFieldData, long maxOrd) {
+            // TODO: look into reusing LongBitSet#bits array
+            // TODO: LongBitSet#nextSetBit() assert is tripping if parentOrds is instantiated with maxOrd, I think this a bug?
+            this.parentOrds = new LongBitSet(maxOrd + 1);
             this.indexFieldData = indexFieldData;
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            if (ordinals != null) {
-                long globalOrd = ordinals.getOrd(doc);
+            if (globalOrdinals != null) {
+                long globalOrd = globalOrdinals.getOrd(doc);
                 if (globalOrd != Ordinals.MISSING_ORDINAL) {
                     parentOrds.set(globalOrd);
                 }
@@ -264,9 +271,9 @@ public class ChildrenConstantScoreQuery extends Query {
         public void setNextReader(AtomicReaderContext context) throws IOException {
             values = indexFieldData.load(context).getBytesValues(false);
             if (values != null) {
-                ordinals = values.ordinals();
+                globalOrdinals = values.ordinals();
             } else {
-                ordinals = null;
+                globalOrdinals = null;
             }
         }
 
@@ -278,11 +285,11 @@ public class ChildrenConstantScoreQuery extends Query {
 
     private final static class ParentOrdIterator extends FilteredDocIdSetIterator {
 
-        private final OpenBitSet parentOrds;
+        private final LongBitSet parentOrds;
         private final Ordinals.Docs ordinals;
         private final ParentWeight parentWeight;
 
-        private ParentOrdIterator(DocIdSetIterator innerIterator, OpenBitSet parentOrds, Ordinals.Docs ordinals, ParentWeight parentWeight) {
+        private ParentOrdIterator(DocIdSetIterator innerIterator, LongBitSet parentOrds, Ordinals.Docs ordinals, ParentWeight parentWeight) {
             super(innerIterator);
             this.parentOrds = parentOrds;
             this.ordinals = ordinals;

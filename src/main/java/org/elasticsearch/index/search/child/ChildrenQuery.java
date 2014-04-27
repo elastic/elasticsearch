@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.OpenBitSet;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -183,7 +183,7 @@ public class ChildrenQuery extends Query {
         final Filter parentFilter;
         if (numFoundParents <= shortCircuitParentDocSet) {
             parentFilter = ParentIdsFilter.createShortCircuitFilter(
-                    nonNestedDocsFilter, sc, parentType, collector.values, collector.parentOrds, numFoundParents
+                    nonNestedDocsFilter, sc, parentType, collector.values, collector.parentIdxs, numFoundParents
             );
         } else {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
@@ -253,22 +253,20 @@ public class ChildrenQuery extends Query {
 
     private abstract static class ParentOrdAndScoreCollector extends NoopCollector implements Releasable {
 
-        // Maybe use a LongHash instead, then the scores array will be smaller if not too many docs match
-        protected final OpenBitSet parentOrds;
         private final IndexFieldData.WithOrdinals globalIfd;
+        protected final LongHash parentIdxs;
         protected final BigArrays bigArrays;
         protected FloatArray scores;
         protected final SearchContext searchContext;
 
-        protected Ordinals.Docs ordinals;
+        protected Ordinals.Docs globalOrdinals;
         protected BytesValues.WithOrdinals values;
         protected Scorer scorer;
 
         private ParentOrdAndScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             this.globalIfd = globalIfd;
             this.bigArrays = searchContext.bigArrays();
-            // TODO: look into setting it to maxOrd
-            this.parentOrds = new OpenBitSet(512);
+            this.parentIdxs = new LongHash(512, bigArrays);
             this.scores = bigArrays.newFloatArray(512, false);
             this.searchContext = searchContext;
         }
@@ -276,14 +274,17 @@ public class ChildrenQuery extends Query {
 
         @Override
         public void collect(int doc) throws IOException {
-            if (ordinals != null) {
-                long ord = ordinals.getOrd(doc);
-                if (!parentOrds.get(ord)) {
-                    parentOrds.set(ord);
-                    scores = bigArrays.grow(scores, ord + 1);
-                    scores.set(ord, scorer.score());
-                } else {
-                    doScore(ord);
+            if (globalOrdinals != null) {
+                final long globalOrdinal = globalOrdinals.getOrd(doc);
+                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
+                    long parentIdx = parentIdxs.add(globalOrdinal);
+                    if (parentIdx >= 0) {
+                        scores = bigArrays.grow(scores, parentIdx + 1);
+                        scores.set(parentIdx, scorer.score());
+                    } else {
+                        parentIdx = -1 - parentIdx;
+                        doScore(parentIdx);
+                    }
                 }
             }
         }
@@ -295,13 +296,13 @@ public class ChildrenQuery extends Query {
         public void setNextReader(AtomicReaderContext context) throws IOException {
             values = globalIfd.load(context).getBytesValues(false);
             if (values != null) {
-                ordinals = values.ordinals();
+                globalOrdinals = values.ordinals();
             }
 
         }
 
         public long foundParents() {
-            return parentOrds.cardinality();
+            return parentIdxs.size();
         }
 
         @Override
@@ -311,7 +312,7 @@ public class ChildrenQuery extends Query {
 
         @Override
         public void close() throws ElasticsearchException {
-            Releasables.close(scores);
+            Releasables.close(parentIdxs, scores);
         }
     }
 
@@ -348,37 +349,39 @@ public class ChildrenQuery extends Query {
 
         AvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             super(globalIfd, searchContext);
-            // TODO: look into setting it to maxOrd
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            if (ordinals != null) {
-                long ord = ordinals.getOrd(doc);
-                if (!parentOrds.get(ord)) {
-                    parentOrds.set(ord);
-                    scores = bigArrays.grow(scores, ord + 1);
-                    occurrences = bigArrays.grow(occurrences, ord + 1);
-                    scores.set(ord, scorer.score());
-                    occurrences.set(ord, 1);
-                } else {
-                    scores.increment(ord, scorer.score());
-                    occurrences.increment(ord, 1);
+            if (globalOrdinals != null) {
+                final long globalOrdinal = globalOrdinals.getOrd(doc);
+                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
+                    long parentIdx = parentIdxs.add(globalOrdinal);
+                    if (parentIdx >= 0) {
+                        scores = bigArrays.grow(scores, parentIdx + 1);
+                        occurrences = bigArrays.grow(occurrences, parentIdx + 1);
+                        scores.set(parentIdx, scorer.score());
+                        occurrences.set(parentIdx, 1);
+                    } else {
+                        parentIdx = -1 - parentIdx;
+                        scores.increment(parentIdx, scorer.score());
+                        occurrences.increment(parentIdx, 1);
+                    }
                 }
             }
         }
 
         @Override
         public void close() throws ElasticsearchException {
-            Releasables.close(scores, occurrences);
+            Releasables.close(parentIdxs, scores, occurrences);
         }
     }
 
     private static class ParentScorer extends Scorer {
 
         final ParentWeight parentWeight;
-        final OpenBitSet parentIds;
+        final LongHash parentIds;
         final FloatArray scores;
 
         final Ordinals.Docs globalOrdinals;
@@ -392,7 +395,7 @@ public class ChildrenQuery extends Query {
             this.parentWeight = parentWeight;
             this.globalOrdinals = globalOrdinals;
             this.parentsIterator = parentsIterator;
-            this.parentIds = collector.parentOrds;
+            this.parentIds = collector.parentIdxs;
             this.scores = collector.scores;
         }
 
@@ -425,9 +428,14 @@ public class ChildrenQuery extends Query {
                     return currentDocId;
                 }
 
-                long ord = globalOrdinals.getOrd(currentDocId);
-                if (parentIds.get(ord)) {
-                    currentScore = scores.get(ord);
+                final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
+                if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                    continue;
+                }
+
+                final long parentIdx = parentIds.find(globalOrdinal);
+                if (parentIdx != -1) {
+                    currentScore = scores.get(parentIdx);
                     parentWeight.remaining--;
                     return currentDocId;
                 }
@@ -445,9 +453,14 @@ public class ChildrenQuery extends Query {
                 return currentDocId;
             }
 
-            long ord  = globalOrdinals.getOrd(currentDocId);
-            if (parentIds.get(ord)) {
-                currentScore = scores.get(ord);
+            final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
+            if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                return nextDoc();
+            }
+
+            final long parentIdx = parentIds.find(globalOrdinal);
+            if (parentIdx != -1) {
+                currentScore = scores.get(parentIdx);
                 parentWeight.remaining--;
                 return currentDocId;
             } else {
@@ -482,10 +495,15 @@ public class ChildrenQuery extends Query {
                     return currentDocId;
                 }
 
-                long ord = globalOrdinals.getOrd(currentDocId);
-                if (parentIds.get(ord)) {
-                    currentScore = scores.get(ord);
-                    currentScore /= occurrences.get(ord);
+                final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
+                if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                    continue;
+                }
+
+                final long parentIdx = parentIds.find(globalOrdinal);
+                if (parentIdx != -1) {
+                    currentScore = scores.get(parentIdx);
+                    currentScore /= occurrences.get(parentIdx);
                     parentWeight.remaining--;
                     return currentDocId;
                 }
@@ -503,10 +521,15 @@ public class ChildrenQuery extends Query {
                 return currentDocId;
             }
 
-            long ord  = globalOrdinals.getOrd(currentDocId);
-            if (parentIds.get(ord)) {
-                currentScore = scores.get(ord);
-                currentScore /= occurrences.get(ord);
+            final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
+            if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                return nextDoc();
+            }
+
+            final long parentIdx = parentIds.find(globalOrdinal);
+            if (parentIdx != -1) {
+                currentScore = scores.get(parentIdx);
+                currentScore /= occurrences.get(parentIdx);
                 parentWeight.remaining--;
                 return currentDocId;
             } else {

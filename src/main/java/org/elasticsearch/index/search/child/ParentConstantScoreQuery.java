@@ -23,11 +23,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -84,10 +85,16 @@ public class ParentConstantScoreQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         IndexFieldData.WithOrdinals globalIfd = parentChildIndexFieldData.getGlobalParentChild(parentType, searcher.getIndexReader());
-        ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd);
         assert rewrittenParentQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+
+        AtomicFieldData.WithOrdinals afd = globalIfd.load(searcher.getIndexReader().leaves().get(0));
+        BytesValues.WithOrdinals globalValues = afd.getBytesValues(false);
+        Ordinals.Docs globalOrdinals = globalValues.ordinals();
+        final long maxOrd = globalOrdinals.getMaxOrd();
+
         final Query parentQuery = rewrittenParentQuery;
+        ParentOrdsCollector collector = new ParentOrdsCollector(globalIfd, maxOrd);
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
         indexSearcher.search(parentQuery, collector);
@@ -136,9 +143,9 @@ public class ParentConstantScoreQuery extends Query {
 
     private final class ChildrenWeight extends Weight {
 
-        private final Filter childrenFilter;
-        private final OpenBitSet parentOrds;
         private final IndexFieldData.WithOrdinals globalIfd;
+        private final Filter childrenFilter;
+        private final LongBitSet parentOrds;
 
         private float queryNorm;
         private float queryWeight;
@@ -196,10 +203,10 @@ public class ParentConstantScoreQuery extends Query {
 
     private final class ChildrenDocIdIterator extends FilteredDocIdSetIterator {
 
-        private final OpenBitSet parentOrds;
+        private final LongBitSet parentOrds;
         private final Ordinals.Docs globalOrdinals;
 
-        ChildrenDocIdIterator(DocIdSetIterator innerIterator, OpenBitSet parentOrds, Ordinals.Docs globalOrdinals) {
+        ChildrenDocIdIterator(DocIdSetIterator innerIterator, LongBitSet parentOrds, Ordinals.Docs globalOrdinals) {
             super(innerIterator);
             this.parentOrds = parentOrds;
             this.globalOrdinals = globalOrdinals;
@@ -219,14 +226,13 @@ public class ParentConstantScoreQuery extends Query {
 
     private final static class ParentOrdsCollector extends NoopCollector {
 
-        private final OpenBitSet parentOrds;
+        private final LongBitSet parentOrds;
         private final IndexFieldData.WithOrdinals globalIfd;
 
         private Ordinals.Docs globalOrdinals;
 
-        ParentOrdsCollector(IndexFieldData.WithOrdinals globalIfd) {
-            // TODO: look into setting it to maxOrd
-            this.parentOrds = new OpenBitSet(512);
+        ParentOrdsCollector(IndexFieldData.WithOrdinals globalIfd, long maxOrd) {
+            this.parentOrds = new LongBitSet(maxOrd);
             this.globalIfd = globalIfd;
         }
 

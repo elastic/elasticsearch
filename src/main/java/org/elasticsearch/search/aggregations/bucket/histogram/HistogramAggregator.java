@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,8 +100,10 @@ public class HistogramAggregator extends BucketsAggregator {
             long bucketOrd = bucketOrds.add(key);
             if (bucketOrd < 0) { // already seen
                 bucketOrd = -1 - bucketOrd;
+                collectExistingBucket(doc, bucketOrd);
+            } else {
+                collectBucket(doc, bucketOrd);
             }
-            collectBucket(doc, bucketOrd);
             previousKey = key;
         }
     }

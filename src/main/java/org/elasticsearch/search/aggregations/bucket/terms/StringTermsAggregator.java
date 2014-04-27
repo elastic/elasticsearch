@@ -87,8 +87,10 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             long bucketOrdinal = bucketOrds.add(bytes, hash);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;
+                collectExistingBucket(doc, bucketOrdinal);
+            } else {
+                collectBucket(doc, bucketOrdinal);
             }
-            collectBucket(doc, bucketOrdinal);
         }
     }
 
@@ -289,11 +291,14 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                     bucketOrd = bucketOrds.add(bytes, hash);
                     if (bucketOrd < 0) { // already seen in another segment
                         bucketOrd = - 1 - bucketOrd;
+                        collectExistingBucket(doc, bucketOrd);
+                    } else {
+                        collectBucket(doc, bucketOrd);
                     }
                     ordinalToBucket.set(ord, bucketOrd);
+                } else {
+                    collectExistingBucket(doc, bucketOrd);
                 }
-
-                collectBucket(doc, bucketOrd);
             }
         }
 

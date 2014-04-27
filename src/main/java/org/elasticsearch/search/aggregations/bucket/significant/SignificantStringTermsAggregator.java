@@ -166,11 +166,15 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
                     bucketOrd = bucketOrds.add(bytes, hash);
                     if (bucketOrd < 0) { // already seen in another segment
                         bucketOrd = -1 - bucketOrd;
+                        collectExistingBucket(doc, bucketOrd);
+                    } else {
+                        collectBucket(doc, bucketOrd);
                     }
                     ordinalToBucket.set(ord, bucketOrd);
+                } else {
+                    collectExistingBucket(doc, bucketOrd);
                 }
 
-                collectBucket(doc, bucketOrd);
             }
         }
 

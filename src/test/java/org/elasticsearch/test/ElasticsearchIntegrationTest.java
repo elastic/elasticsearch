@@ -1127,17 +1127,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? Scope.GLOBAL : annotation.scope();
     }
 
-    private int getNumNodes() {
+    private int getNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? -1 : annotation.numDataNodes();
     }
 
-    private int getMinNumNodes() {
+    private int getMinNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? TestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
-    private int getMaxNumNodes() {
+    private int getMaxNumDataNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? TestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
     }
@@ -1160,7 +1160,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private TestCluster buildTestCluster(Scope scope) {
         long currentClusterSeed = randomLong();
-        int numNodes = getNumNodes();
+        int numNodes = getNumDataNodes();
         NodeSettingsSource nodeSettingsSource;
         if (numNodes > 0) {
             NodeSettingsSource.Immutable.Builder nodesSettings = NodeSettingsSource.Immutable.builder();
@@ -1181,8 +1181,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (numNodes >= 0) {
             minNumNodes = maxNumNodes = numNodes;
         } else {
-            minNumNodes = getMinNumNodes();
-            maxNumNodes = getMaxNumNodes();
+            minNumNodes = getMinNumDataNodes();
+            maxNumNodes = getMaxNumDataNodes();
         }
 
         int numClientNodes = getNumClientNodes();

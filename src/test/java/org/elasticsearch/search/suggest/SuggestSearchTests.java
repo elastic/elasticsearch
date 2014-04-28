@@ -751,10 +751,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         phraseSuggestion.field("ngram").analyzer("myDefAnalyzer")
                 .addCandidateGenerator(candidateGenerator("body").minWordLength(1).suggestMode("always"));
         Suggest suggest = searchSuggest( "Xor the Got-Jewel", phraseSuggestion);
-        assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
+        // xorr and xorn have the same score, and we
+        // tie-break favoring lower terms:
+        assertSuggestion(suggest, 0, "simple_phrase", "xorn the god jewel");
 
         phraseSuggestion.analyzer(null);
         suggest = searchSuggest( "Xor the Got-Jewel", phraseSuggestion);
+        // In this case xorr has better score than xorn... why?:
         assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
     }
 

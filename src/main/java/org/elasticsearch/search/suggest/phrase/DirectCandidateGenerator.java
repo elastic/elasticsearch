@@ -30,6 +30,7 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -186,11 +187,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         }
         
         public void addCandidates(List<Candidate> candidates) {
-            final Set<Candidate> set = new HashSet<>(candidates);
-            for (int i = 0; i < this.candidates.length; i++) {
-                set.add(this.candidates[i]);
-            }
-            this.candidates = set.toArray(new Candidate[set.size()]);
+            this.candidates = candidates.toArray(new Candidate[candidates.size()]);
         }
 
         public void addOneCandidate(Candidate candidate) {

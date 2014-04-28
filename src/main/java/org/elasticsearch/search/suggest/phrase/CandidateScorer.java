@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
@@ -42,7 +43,24 @@ final class CandidateScorer {
         PriorityQueue<Correction> corrections = new PriorityQueue<Correction>(maxNumCorrections) {
             @Override
             protected boolean lessThan(Correction a, Correction b) {
-                return a.score < b.score;
+                if (a.score == b.score) {
+                    // Tie break by candidate term; earlier terms (aaa) are less than later terms (zzz):
+                    int limit = Math.min(a.candidates.length, b.candidates.length);
+                    for(int i=0;i<limit;i++) {
+                        int cmp = a.candidates[i].term.compareTo(b.candidates[i].term);
+                        if (cmp != 0) {
+                            return cmp > 0;
+                        }
+                    }
+
+                    int cmp = a.candidates.length - b.candidates.length;
+
+                    // NOTE: could still be 0, if a.equals(b), but we shouldn't ever see dups here?
+                    assert cmp != 0;
+                    return cmp > 0;
+                } else {
+                    return a.score < b.score;
+                }
             }
         };
         int numMissspellings = 1;

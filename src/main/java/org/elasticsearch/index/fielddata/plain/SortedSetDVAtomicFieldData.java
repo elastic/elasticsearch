@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -104,7 +102,7 @@ abstract class SortedSetDVAtomicFieldData {
             if (values == null) {
                 // This field has not been populated
                 assert reader.getFieldInfos().fieldInfo(field) == null;
-                values = SortedSetDocValues.EMPTY;
+                values = DocValues.EMPTY_SORTED_SET;
             }
             return values;
         } catch (IOException e) {

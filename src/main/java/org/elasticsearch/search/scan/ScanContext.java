@@ -127,7 +127,7 @@ public class ScanContext {
 
         @Override
         public boolean acceptsDocsOutOfOrder() {
-            return true;
+            return false;
         }
 
         public static final RuntimeException StopCollectingException = new StopCollectingException();

@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -94,7 +93,7 @@ public class DefaultPostingsFormatTests extends ElasticsearchTestCase {
         for (int i = 0; i < 100; i++) {
             writer.addDocument(Arrays.asList(new TextField("foo", "foo bar foo bar", Store.YES), new TextField("some_other_field", "1234", Store.YES)));
         }
-        Merges.forceMerge(writer, 1);
+        writer.forceMerge(1, true);
         writer.commit();
         
         DirectoryReader reader = DirectoryReader.open(writer, false);

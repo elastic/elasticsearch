@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -82,7 +83,7 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
             final NumericDocValues v = reader.getNumericDocValues(field);
             if (v == null) {
                 // segment has no value
-                values = NumericDocValues.EMPTY;
+                values = DocValues.EMPTY_NUMERIC;
                 docsWithField = new Bits.MatchNoBits(reader.maxDoc());
             } else {
                 values = v;

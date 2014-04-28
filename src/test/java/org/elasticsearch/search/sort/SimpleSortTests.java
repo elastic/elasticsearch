@@ -21,8 +21,8 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -128,7 +128,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             String docId = Integer.toString(i);
             BytesRef ref = null;
             do {
-                ref = new BytesRef(_TestUtil.randomRealisticUnicodeString(random));
+                ref = new BytesRef(TestUtil.randomRealisticUnicodeString(random));
             } while (denseBytes.containsKey(ref));
             denseBytes.put(ref, docId);
             XContentBuilder src = jsonBuilder().startObject().field("dense_bytes", ref.utf8ToString());

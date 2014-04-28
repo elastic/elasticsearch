@@ -207,6 +207,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
         final FieldMapper.Names fieldNames = mapper.names();
         final FieldDataType type = mapper.fieldDataType();
+        if (type == null) {
+            throw new ElasticsearchIllegalArgumentException("found no fielddata type for field [" + fieldNames.fullName() + "]");
+        }
         final boolean docValues = mapper.hasDocValues();
         IndexFieldData<?> fieldData = loadedFieldData.get(fieldNames.indexName());
         if (fieldData == null) {

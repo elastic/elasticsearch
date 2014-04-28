@@ -215,7 +215,7 @@ better GET scaling we will have.
 
 
 [float]
-[[get-versioning]
+[[get-versioning]]
 === Versioning support
 
 You can use the `version` parameter to retrieve the document only if

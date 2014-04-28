@@ -327,7 +327,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.v().get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
                 if (scoreType == ScoreType.MAX) {

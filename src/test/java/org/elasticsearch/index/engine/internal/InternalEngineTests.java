@@ -31,7 +31,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -322,9 +321,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
 
-    static {
-        assert Version.LUCENE_47.onOrAfter(Lucene.VERSION) : "LUCENE-5481 is fixed, improve test below";
-    }
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
@@ -396,17 +392,16 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         // forcing an optimize will merge this single segment shard
-        // TODO: put a random boolean again once LUCENE-5481 is fixed
-        final boolean force = true; // randomBoolean();
-        waitTillMerge.set(new CountDownLatch(1));
-        waitForMerge.set(new CountDownLatch(1));
+        final boolean force = randomBoolean();
+        if (force) {
+            waitTillMerge.set(new CountDownLatch(1));
+            waitForMerge.set(new CountDownLatch(1));
+        }
         engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).force(force).waitForMerge(false));
         waitTillMerge.get().await();
-
         for (Segment segment : engine.segments()) {
             assertThat(segment.getMergeId(), force ? notNullValue() : nullValue());
         }
-
         waitForMerge.get().countDown();
 
         engine.close();

@@ -765,7 +765,7 @@ public final class TestCluster extends ImmutableTestCluster {
         if (!dataDirToClean.isEmpty()) {
             boolean deleted = false;
             try {
-                deleted = FileSystemUtils.deleteRecursively(dataDirToClean.toArray(new File[dataDirToClean.size()]), false);
+                deleted = FileSystemUtils.deleteSubDirectories(dataDirToClean.toArray(new File[dataDirToClean.size()]));
             } finally {
                 logger.info("Wipe data directory for all nodes locations: {} success: {}", this.dataDirToClean, deleted);
                 this.dataDirToClean.clear();

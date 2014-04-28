@@ -91,7 +91,7 @@ public class DeleteByQueryWrappingFilter extends Filter {
         return new DocIdSet() {
             @Override
             public DocIdSetIterator iterator() throws IOException {
-                return weight.scorer(context, true, false, acceptDocs);
+                return weight.scorer(context, acceptDocs);
             }
             @Override
             public boolean isCacheable() { return false; }

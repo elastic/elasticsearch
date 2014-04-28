@@ -30,7 +30,6 @@ import org.apache.lucene.index.TrackingSerialMergeScheduler;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.merge.EnableMergeScheduler;
-import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
@@ -62,10 +61,10 @@ public class TrackingSerialMergeSchedulerTests extends ElasticsearchLuceneTestCa
         // 4 merge runs to work out through the pending merges
         for (int i = 0; i < 4; i++) {
             assertTrue(iw.hasPendingMerges());
-            Merges.maybeMerge(iw);
+            iw.maybeMerge();
             assertTrue(iw.hasPendingMerges());
         }
-        Merges.maybeMerge(iw);
+        iw.maybeMerge();
         assertFalse(iw.hasPendingMerges());
 
         iw.close(false);

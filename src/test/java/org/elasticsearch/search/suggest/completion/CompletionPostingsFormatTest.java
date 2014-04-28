@@ -42,7 +42,6 @@ import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvid
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
 import org.elasticsearch.search.suggest.context.ContextMapping;
@@ -54,6 +53,7 @@ import java.lang.reflect.Field;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -180,6 +180,16 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 return false;
             }
 
+            @Override
+            public Set<BytesRef> contexts() {
+                return null;
+            }
+
+            @Override
+            public boolean hasContexts() {
+                return false;
+            }
+
         };
         InputIterator iter;
         if (usePayloads) {
@@ -207,6 +217,16 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                 @Override
                 public boolean hasPayloads() {
                     return true;
+                }
+                
+                @Override
+                public Set<BytesRef> contexts() {
+                    return null;
+                }
+
+                @Override
+                public boolean hasContexts() {
+                    return false;
                 }
             };
         } else {
@@ -275,7 +295,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             writer.addDocument(doc);
         }
         writer.commit();
-        Merges.forceMerge(writer, 1);
+        writer.forceMerge(1, true);
         writer.commit();
         DirectoryReader reader = DirectoryReader.open(writer, true);
         assertThat(reader.leaves().size(), equalTo(1));

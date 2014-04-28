@@ -32,7 +32,7 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util._TestUtil;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
@@ -176,9 +176,9 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
         for (int j = 0; j < iters; j++) {
             String[] fields = new String[1 + random().nextInt(10)];
             for (int i = 0; i < fields.length; i++) {
-                fields[i] = _TestUtil.randomRealisticUnicodeString(random(), 1, 10);
+                fields[i] = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
             }
-            String term = _TestUtil.randomRealisticUnicodeString(random(), 1, 10);
+            String term = TestUtil.randomRealisticUnicodeString(random(), 1, 10);
             Term[] terms = toTerms(fields, term);
             boolean disableCoord = random().nextBoolean();
             boolean useBoolean = random().nextBoolean();
@@ -213,7 +213,7 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
         Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);
         for (int i = 0; i < num; i++) {
-            terms.add(new Term(_TestUtil.randomRealisticUnicodeString(random(), 1, 10), _TestUtil.randomRealisticUnicodeString(random(), 1, 10)));
+            terms.add(new Term(TestUtil.randomRealisticUnicodeString(random(), 1, 10), TestUtil.randomRealisticUnicodeString(random(), 1, 10)));
         }
 
         BlendedTermQuery blendedTermQuery = random().nextBoolean() ? BlendedTermQuery.dismaxBlendedQuery(terms.toArray(new Term[0]), random().nextFloat()) :

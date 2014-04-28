@@ -32,8 +32,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.fst.*;
+import org.apache.lucene.util.fst.ByteSequenceOutputs;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
+import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
@@ -55,7 +58,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
     public static final String CODEC_NAME = "analyzing";
     public static final int CODEC_VERSION_START = 1;
-    public static final int CODEC_VERSION_LATEST = 2;
+    public static final int CODEC_VERSION_SERIALIZED_LABELS = 2;
+    public static final int CODEC_VERSION_CHECKSUMS = 3;
+    public static final int CODEC_VERSION_LATEST = CODEC_VERSION_CHECKSUMS;
 
     private boolean preserveSep;
     private boolean preservePositionIncrements;
@@ -89,10 +94,11 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
             @Override
             public void close() throws IOException {
-                try { /*
-                       * write the offsets per field such that we know where
-                       * we need to load the FSTs from
-                       */
+                try {
+                  /*
+                   * write the offsets per field such that we know where
+                   * we need to load the FSTs from
+                   */
                     long pointer = output.getFilePointer();
                     output.writeVInt(fieldOffsets.size());
                     for (Map.Entry<FieldInfo, Long> entry : fieldOffsets.entrySet()) {
@@ -100,7 +106,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         output.writeVLong(entry.getValue());
                     }
                     output.writeLong(pointer);
-                    output.flush();
+                    CodecUtil.writeFooter(output);
                 } finally {
                     IOUtils.close(output);
                 }
@@ -202,8 +208,12 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
     public LookupFactory load(IndexInput input) throws IOException {
         long sizeInBytes = 0;
         int version = CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION_START, CODEC_VERSION_LATEST);
+        if (version >= CODEC_VERSION_CHECKSUMS) {
+            CodecUtil.checksumEntireFile(input);
+        }
+        final long metaPointerPosition = input.length() - (version >= CODEC_VERSION_CHECKSUMS? 8 + CodecUtil.footerLength() : 8);
         final Map<String, AnalyzingSuggestHolder> lookupMap = new HashMap<>();
-        input.seek(input.length() - 8);
+        input.seek(metaPointerPosition);
         long metaPointer = input.readLong();
         input.seek(metaPointer);
         int numFields = input.readVInt();

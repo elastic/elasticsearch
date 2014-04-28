@@ -35,8 +35,8 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.OpenBitSet;
+import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
-import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -225,7 +225,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         d.add(s);
         final String[] values = new String[randomIntBetween(2, 30)];
         for (int i = 1; i < values.length; ++i) {
-            values[i] = _TestUtil.randomUnicodeString(getRandom());
+            values[i] = TestUtil.randomUnicodeString(getRandom());
         }
         final int numDocs = scaledRandomIntBetween(10, 10000);
         for (int i = 0; i < numDocs; ++i) {
@@ -283,7 +283,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         d.add(s);
         final String[] values = new String[randomIntBetween(2, 10)];
         for (int i = 1; i < values.length; ++i) {
-            values[i] = _TestUtil.randomUnicodeString(getRandom());
+            values[i] = TestUtil.randomUnicodeString(getRandom());
         }
         final int numDocs = scaledRandomIntBetween(10, 10000);
         for (int i = 0; i < numDocs; ++i) {
@@ -335,7 +335,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     public void testNestedSorting(MultiValueMode sortMode) throws IOException {
         final String[] values = new String[randomIntBetween(2, 20)];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = _TestUtil.randomSimpleString(getRandom());
+            values[i] = TestUtil.randomSimpleString(getRandom());
         }
         final int numParents = scaledRandomIntBetween(10, 10000);
         List<Document> docs = new ArrayList<>();
@@ -379,7 +379,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
             missingValue = new BytesRef(RandomPicks.randomFrom(getRandom(), values));
             break;
         default:
-            missingValue = new BytesRef(_TestUtil.randomSimpleString(getRandom()));
+            missingValue = new BytesRef(TestUtil.randomSimpleString(getRandom()));
             break;
         }
         BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode);

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.ByteUtils;
@@ -33,7 +34,7 @@ final class GeoPointBinaryDVAtomicFieldData extends AtomicGeoPointFieldData<Scri
 
     GeoPointBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.values = values == null ? BinaryDocValues.EMPTY : values;
+        this.values = values == null ? DocValues.EMPTY_BINARY : values;
     }
 
     @Override

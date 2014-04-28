@@ -29,7 +29,7 @@ be used. Once a script has been placed in this directory, it can be referenced
 by name. For example, a script called `calculate-score.mvel` can be referenced
 in a request like this:
 
-[source]
+[source,sh]
 --------------------------------------------------
 $ tree config
 config
@@ -37,6 +37,10 @@ config
 ├── logging.yml
 └── scripts
     └── calculate-score.mvel
+--------------------------------------------------
+
+[source,sh]
+--------------------------------------------------
 $ cat config/scripts/calculate-score.mvel
 Math.log(_score * 2) + my_modifier
 --------------------------------------------------

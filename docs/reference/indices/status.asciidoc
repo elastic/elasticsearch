@@ -1,6 +1,8 @@
 [[indices-status]]
 == Status
 
+deprecated[1.2.0,See the <<indices-recovery>> API]
+
 The indices status API allows to get a comprehensive status information
 of one or more indices.
 

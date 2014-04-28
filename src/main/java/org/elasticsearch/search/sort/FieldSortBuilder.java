@@ -36,7 +36,7 @@ public class FieldSortBuilder extends SortBuilder {
 
     private Object missing;
 
-    private Boolean ignoreUnampped;
+    private Boolean ignoreUnmapped;
 
     private String sortMode;
 
@@ -123,8 +123,8 @@ public class FieldSortBuilder extends SortBuilder {
         if (missing != null) {
             builder.field("missing", missing);
         }
-        if (ignoreUnampped != null) {
-            builder.field("ignore_unmapped", ignoreUnampped);
+        if (ignoreUnmapped != null) {
+            builder.field("ignore_unmapped", ignoreUnmapped);
         }
         if (sortMode != null) {
             builder.field("mode", sortMode);

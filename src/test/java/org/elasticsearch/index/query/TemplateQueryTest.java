@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -222,10 +223,16 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexedTemplate() throws Exception {
-        createIndex("template_index");
-        ensureGreen("template_index");
+        createIndex(ScriptService.SCRIPT_INDEX);
+        ensureGreen(ScriptService.SCRIPT_INDEX);
         List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
-        builders.add(client().prepareIndex("template_index","mustache","1").setSource("{" +
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "1").setSource("{" +
+                "                \"query\":{" +
+                "                   \"match\":{" +
+                "                    \"theField\" : \"{{fieldParam}}\"}" +
+                "       }" +
+                "}"));
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "2").setSource("{" +
                 "                \"query\":{" +
                 "                   \"match\":{" +
                 "                    \"theField\" : \"{{fieldParam}}\"}" +
@@ -247,7 +254,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("/template_index/mustache/1").setTemplateParams(templateParams).get();
+                setTemplateName("/mustache/1").setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         Exception e = null;
@@ -261,7 +268,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         e = null;
         try {
             searchResponse = client().prepareSearch("test").setTypes("type").
-                    setTemplateName("/template_indexmustache/1").setTemplateParams(templateParams).get();
+                    setTemplateName("/myindex/mustache/1").setTemplateParams(templateParams).get();
             assertFailures(searchResponse);
         } catch (SearchPhaseExecutionException spee){
             e = spee;
@@ -272,7 +279,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         templateParams.put("fieldParam", "bar");
         searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("/template_index/mustache/1").setTemplateParams(templateParams).get();
+                setTemplateName("/mustache/2").setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 1);
     }
 

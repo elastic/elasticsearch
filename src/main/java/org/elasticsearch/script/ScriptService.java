@@ -25,9 +25,17 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -39,6 +47,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -52,6 +61,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -105,6 +115,7 @@ public class ScriptService extends AbstractComponent {
         }
     }
     private Client client = null;
+    public static final String SCRIPT_INDEX = ".script";
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
@@ -155,6 +166,39 @@ public class ScriptService extends AbstractComponent {
     @Inject(optional=true)
     public void setClient(Client client) {
         this.client= client;
+        /*
+        //Ensure we have a ".scripts" index
+        ListenableActionFuture<IndicesExistsResponse> lafResp = client.admin().indices().prepareExists(SCRIPT_INDEX).execute();
+        try {
+            //IndicesExistsResponse response = client.admin().indices().prepareExists(SCRIPT_INDEX).execute().get();
+
+            IndicesExistsResponse response = null;
+            response = lafResp.get();
+            if( !response.isExists() ){
+
+                CreateIndexRequestBuilder indexBuilder = client.admin().indices().prepareCreate(SCRIPT_INDEX);
+                HashMap propertiesMap = new HashMap();
+                HashMap disabledMap = new HashMap();
+                disabledMap.put("enabled","false");
+                for (String scriptType : scriptEngines.keySet()){
+                    propertiesMap.put(scriptType,disabledMap);
+                }
+                HashMap<String,Object> nest = new HashMap<>();
+                nest.put("properties", nest);
+                indexBuilder.addMapping("__default__",nest);
+                CreateIndexResponse cir = indexBuilder.get();
+                if( !cir.isAcknowledged() ){
+                    logger.error("Unable to create scripts index named " + SCRIPT_INDEX);
+                }
+            }
+        } catch (InterruptedException ie){
+            logger.error("Got InterruptedException creating scripts index",ie);
+            //throw ie;
+        } catch (ExecutionException ee) {
+            logger.error("Got ExecutionException creating scripts index",ee);
+            logger.error("Root failure ",lafResp.getRootFailure());
+        }
+        */
     }
 
     public void close() {
@@ -167,55 +211,63 @@ public class ScriptService extends AbstractComponent {
         return compile(defaultLang, script);
     }
 
-
     public CompiledScript compile(String lang, String script) {
-        CacheKey cacheKey = new CacheKey(lang, script);
+        CacheKey cacheKey = null;
 
         String scriptContent = null;
+        CompiledScript compiled = null;
 
-        if(script.startsWith("/")){ //This is how we determine if we need to search the index for the script
+        if (script.startsWith("/")){ //This is how we determine if we need to search the index for the script
             if( client == null ){
                 throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
             }
             String[] parts = script.split("/");
-            if (parts.length != 4) {
+            if (parts.length != 3) {
                 throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
-                        " should be /index/lang/id"  );
+                        " should be /lang/id"  );
             } else {
-                final String index = parts[1];
-                final String scriptLang = parts[2];
-                final String id = parts[3];
+                String scriptLang = parts[1];
+                String id = parts[2];
+
                 if (lang != null && !lang.equals(scriptLang)){
                     logger.trace("Overriding lang to " + scriptLang);
                     lang = scriptLang;
                     //cacheKey = new CacheKey(lang,script);
                 }
                 /*
+                //No point in even querying the index if we have the script cached
                 compiled = cache.getIfPresent(cacheKey);
 
                 if (compiled != null) {
                     return compiled;
                 }
                 */
-                scriptContent = getScriptFromIndex(script, index, scriptLang, id);
+                scriptContent = getScriptFromIndex(script, SCRIPT_INDEX, scriptLang, id);
+            }
+        } else {
+            compiled = staticCache.get(script); //Indexed scripts will never be in the static cache
+            if (compiled != null) {
+                return compiled;
             }
         }
 
-        CompiledScript compiled = staticCache.get(script);
-        if (compiled != null) {
-            return compiled;
-        }
         if (lang == null) {
             lang = defaultLang;
         }
+
         if (!dynamicScriptEnabled(lang)) {
             throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
+        }
+
+        if (cacheKey == null) {
+            cacheKey = new CacheKey(lang, script);
         }
 
         compiled = cache.getIfPresent(cacheKey);
         if (compiled != null) {
             return compiled;
         }
+
         // not the end of the world if we compile it twice...
         ScriptEngineService service = scriptEngines.get(lang);
         if (service == null) {
@@ -225,8 +277,10 @@ public class ScriptService extends AbstractComponent {
             compiled = new CompiledScript(lang, service.compile(scriptContent)); //We have loaded the script from the index
         } else {
             compiled = new CompiledScript(lang, service.compile(script));
-            cache.put(cacheKey, compiled); //only cache non indexed templates for now
+            cache.put(cacheKey, compiled); //Only cache non indexed scripts here
         }
+
+
         return compiled;
     }
 
@@ -350,6 +404,11 @@ public class ScriptService extends AbstractComponent {
     public static class CacheKey {
         public final String lang;
         public final String script;
+
+        private CacheKey(){
+            this.lang = null;
+            this.script = null;
+        }
 
         public CacheKey(String lang, String script) {
             this.lang = lang;

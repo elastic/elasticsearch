@@ -43,7 +43,6 @@ and warmers.
 [float]
 [[monitoring]]
 == Monitoring:
-* <<indices-status>>
 * <<indices-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>

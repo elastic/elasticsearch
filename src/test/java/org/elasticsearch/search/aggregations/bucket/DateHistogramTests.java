@@ -240,6 +240,71 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void singleValuedField_WithTimeZone() throws Exception {
+        SearchResponse response;
+        // checking post_zone setting as an int
+
+        response = client().prepareSearch("idx")
+                .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        return builder.startObject(name)
+                                .startObject(type)
+                                .field("field", "date")
+                                .field("interval", "1d")
+                                .field("time_zone", +1)
+                                .endObject()
+                                .endObject();
+                    }
+                })
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        DateHistogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(6));
+
+        long key = new DateTime(2012, 1, 2, 1, 0, DateTimeZone.UTC).getMillis();
+        DateHistogram.Bucket bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 2, 1, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 15, 1, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 2, 1, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 15, 1, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 23, 1, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+    }
+
+    @Test
     public void singleValuedField_OrderedByKeyAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")

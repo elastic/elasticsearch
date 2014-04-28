@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -29,7 +30,7 @@ public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Dou
 
     private final double[] values;
 
-    public DoubleValuesComparator(IndexNumericFieldData<?> indexFieldData, double missingValue, int numHits, SortMode sortMode) {
+    public DoubleValuesComparator(IndexNumericFieldData<?> indexFieldData, double missingValue, int numHits, MultiValueMode sortMode) {
         super(indexFieldData, missingValue, sortMode);
         assert indexFieldData.getNumericType().requiredBits() <= 64;
         this.values = new double[numHits];

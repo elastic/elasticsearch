@@ -103,9 +103,8 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
         try (OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio)) {
             final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator(null)));
             GeoPoint point;
-            long ord = 0;
             while ((point = iter.next()) != null) {
-                ++ord;
+                final long ord = builder.currentOrdinal();
                 if (lat.size() <= ord) {
                     final long newSize = BigArrays.overSize(ord + 1);
                     lat = lat.resize(newSize);
@@ -127,10 +126,16 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
                 int maxDoc = reader.maxDoc();
                 PagedMutable sLat = new PagedMutable(reader.maxDoc(), pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
                 PagedMutable sLon = new PagedMutable(reader.maxDoc(), pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
+                final long missing = encoding.encodeCoordinate(0);
                 for (int i = 0; i < maxDoc; i++) {
                     final long nativeOrdinal = ordinals.getOrd(i);
-                    sLat.set(i, lat.get(nativeOrdinal));
-                    sLon.set(i, lon.get(nativeOrdinal));
+                    if (nativeOrdinal != Ordinals.MISSING_ORDINAL) {
+                        sLat.set(i, lat.get(nativeOrdinal));
+                        sLon.set(i, lon.get(nativeOrdinal));
+                    } else {
+                        sLat.set(i, missing);
+                        sLon.set(i, missing);
+                    }
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {

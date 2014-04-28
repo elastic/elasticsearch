@@ -72,8 +72,6 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
         }
         final BigDoubleArrayList lat = new BigDoubleArrayList();
         final BigDoubleArrayList lon = new BigDoubleArrayList();
-        lat.add(0); // first "t" indicates null value
-        lon.add(0); // first "t" indicates null value
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio)) {
@@ -92,8 +90,13 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
                 BigDoubleArrayList sLon = new BigDoubleArrayList(reader.maxDoc());
                 for (int i = 0; i < maxDoc; i++) {
                     long nativeOrdinal = ordinals.getOrd(i);
-                    sLat.add(lat.get(nativeOrdinal));
-                    sLon.add(lon.get(nativeOrdinal));
+                    if (nativeOrdinal == Ordinals.MISSING_ORDINAL) {
+                        sLat.add(0);
+                        sLon.add(0);
+                    } else {
+                        sLat.add(lat.get(nativeOrdinal));
+                        sLon.add(lon.get(nativeOrdinal));
+                    }
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {

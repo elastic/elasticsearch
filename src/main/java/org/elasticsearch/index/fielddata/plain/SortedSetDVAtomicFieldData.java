@@ -53,10 +53,6 @@ abstract class SortedSetDVAtomicFieldData {
         return true;
     }
 
-    public int getNumDocs() {
-        return reader.maxDoc();
-    }
-
     public long getNumberUniqueValues() {
         final SortedSetDocValues values = getValuesNoException(reader, field);
         return values.getValueCount();
@@ -83,12 +79,11 @@ abstract class SortedSetDVAtomicFieldData {
             synchronized (this) {
                 if (hashes == null) {
                     final long valueCount = values.getValueCount();
-                    final IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(1L + valueCount);
+                    final IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(valueCount);
                     BytesRef scratch = new BytesRef(16);
-                    hashes.set(0, scratch.hashCode());
                     for (long i = 0; i < valueCount; ++i) {
                         values.lookupOrd(i, scratch);
-                        hashes.set(1L + i, scratch.hashCode());
+                        hashes.set(i, scratch.hashCode());
                     }
                     this.hashes = hashes;
                 }
@@ -98,20 +93,7 @@ abstract class SortedSetDVAtomicFieldData {
     }
 
     public TermsEnum getTermsEnum() {
-        final TermsEnum termsEnum = getValuesNoException(reader, field).termsEnum();
-        return new FilterAtomicReader.FilterTermsEnum(termsEnum) {
-
-            @Override
-            public void seekExact(long ord) throws IOException {
-                super.seekExact(ord - 1);
-            }
-
-            @Override
-            public long ord() throws IOException {
-                return super.ord() + 1;
-            }
-
-        };
+        return getValuesNoException(reader, field).termsEnum();
     }
 
     private static SortedSetDocValues getValuesNoException(AtomicReader reader, String field) {
@@ -140,13 +122,13 @@ abstract class SortedSetDVAtomicFieldData {
         @Override
         public BytesRef getValueByOrd(long ord) {
             assert ord != Ordinals.MISSING_ORDINAL;
-            values.lookupOrd(ord - 1, scratch);
+            values.lookupOrd(ord, scratch);
             return scratch;
         }
 
         @Override
         public BytesRef nextValue() {
-            values.lookupOrd(ordinals.nextOrd()-1, scratch);
+            values.lookupOrd(ordinals.nextOrd(), scratch);
             return scratch;
         }
     }
@@ -172,13 +154,13 @@ abstract class SortedSetDVAtomicFieldData {
         // We don't store SortedSetDocValues as a member because Ordinals must be thread-safe
         private final AtomicReader reader;
         private final String field;
-        private final long numOrds;
+        private final long maxOrd;
 
         public SortedSetOrdinals(AtomicReader reader, String field, long numOrds) {
             super();
             this.reader = reader;
             this.field = field;
-            this.numOrds = numOrds;
+            this.maxOrd = numOrds;
         }
 
         @Override
@@ -194,13 +176,13 @@ abstract class SortedSetDVAtomicFieldData {
 
         @Override
         public long getMaxOrd() {
-            return 1 + numOrds;
+            return maxOrd;
         }
 
         @Override
         public Docs ordinals() {
             final SortedSetDocValues values = getValuesNoException(reader, field);
-            assert values.getValueCount() == numOrds;
+            assert values.getValueCount() == maxOrd;
             return new SortedSetDocs(this, values);
         }
 
@@ -222,7 +204,7 @@ abstract class SortedSetDVAtomicFieldData {
         @Override
         public long getOrd(int docId) {
             values.setDocument(docId);
-            return currentOrdinal = 1 + values.nextOrd();
+            return currentOrdinal = values.nextOrd();
         }
 
         @Override
@@ -239,7 +221,7 @@ abstract class SortedSetDVAtomicFieldData {
             int i = 0;
             for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
                 ords = ArrayUtil.grow(ords, i + 1);
-                ords[i++] = ord + Ordinals.MIN_ORDINAL;
+                ords[i++] = ord;
             }
             ordIndex = 0;
             return i;

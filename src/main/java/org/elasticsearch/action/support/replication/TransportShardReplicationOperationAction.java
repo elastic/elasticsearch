@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -559,7 +560,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 listener.onResponse(response.response());
                 return;
             }
-
             ShardRouting shard;
 
             // we double check on the state, if it got changed we need to make sure we take the latest one cause
@@ -595,6 +595,16 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         break;
                     }
                 }
+                shardIt.reset();
+                request.setCanHaveDuplicates(); // safe side, cluster state changed, we might have dups
+            } else{
+                shardIt.reset();
+                while ((shard = shardIt.nextOrNull()) != null) {
+                    if (shard.state() != ShardRoutingState.STARTED) {
+                        request.setCanHaveDuplicates();
+                    }
+                }
+                shardIt.reset();
             }
 
             // initialize the counter

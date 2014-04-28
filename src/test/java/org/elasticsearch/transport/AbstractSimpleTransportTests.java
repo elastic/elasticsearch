@@ -382,6 +382,45 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @Test
+    public void testNotifyOnShutdown() throws Exception {
+        final CountDownLatch latch2 = new CountDownLatch(1);
+
+        serviceA.registerHandler("foobar", new BaseTransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public StringMessageRequest newInstance() {
+                return new StringMessageRequest();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) {
+
+                try {
+                    latch2.await();
+                    logger.info("Stop ServiceB now");
+                    serviceB.stop();
+                } catch (Exception e) {
+                    fail(e.getMessage());
+                }
+            }
+        });
+        TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "foobar",
+                new StringMessageRequest(""), options(), EmptyTransportResponseHandler.INSTANCE_SAME);
+        latch2.countDown();
+        try {
+            foobar.txGet();
+            fail("TransportException expected");
+        } catch (TransportException ex) {
+
+        }
+        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
+    }
+
+    @Test
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
         serviceA.registerHandler("sayHelloTimeoutNoResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override

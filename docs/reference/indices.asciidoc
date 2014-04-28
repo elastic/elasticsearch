@@ -43,7 +43,6 @@ and warmers.
 [float]
 [[monitoring]]
 == Monitoring:
-* <<indices-status>>
 * <<indices-stats>>
 * <<indices-segments>>
 * <<indices-recovery>>
@@ -87,8 +86,6 @@ include::indices/analyze.asciidoc[]
 include::indices/templates.asciidoc[]
 
 include::indices/warmers.asciidoc[]
-
-include::indices/status.asciidoc[]
 
 include::indices/stats.asciidoc[]
 

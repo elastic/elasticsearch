@@ -94,7 +94,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             @Override
             public GeoPoint nextValue() {
                 final long ord = ordinals.nextOrd();
-                assert ord > 0;
                 return scratch.reset(lat.get(ord), lon.get(ord));
             }
 

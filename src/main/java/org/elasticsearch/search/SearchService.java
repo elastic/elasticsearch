@@ -617,6 +617,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             XContentParser.Token token;
+            token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchParseException("Expected START_OBJECT but got " + token.name() + " " + parser.currentName());
+            }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
@@ -626,8 +630,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         throw new SearchParseException(context, "No parser for element [" + fieldName + "]");
                     }
                     element.parse(parser, context);
-                } else if (token == null) {
-                    break;
+                } else {
+                    if (token == null) {
+                        throw new ElasticsearchParseException("End of query source reached but query is not complete.");
+                    } else {
+                        throw new ElasticsearchParseException("Expected field name but got " + token.name() + " \"" + parser.currentName() + "\"");
+                    }
                 }
             }
         } catch (Throwable e) {

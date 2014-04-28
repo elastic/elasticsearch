@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.BigFloatArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
@@ -86,8 +86,6 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigFloatArrayList values = new BigFloatArrayList();
 
-        values.add(0); // first "t" indicates null value
-
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
@@ -116,7 +114,12 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 int maxDoc = reader.maxDoc();
                 BigFloatArrayList sValues = new BigFloatArrayList(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    sValues.add(values.get(ordinals.getOrd(i)));
+                    final long ordinal = ordinals.getOrd(i);
+                    if (ordinal == Ordinals.MISSING_ORDINAL) {
+                        sValues.add(0);
+                    } else {
+                        sValues.add(values.get(ordinal));
+                    }
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {
@@ -137,7 +140,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         return new FloatValuesComparatorSource(this, missingValue, sortMode);
     }
 }

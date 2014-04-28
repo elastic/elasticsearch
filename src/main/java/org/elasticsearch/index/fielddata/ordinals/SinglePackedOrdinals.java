@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 
@@ -35,9 +34,9 @@ public class SinglePackedOrdinals implements Ordinals {
 
     public SinglePackedOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         assert builder.getNumMultiValuesDocs() == 0;
-        this.maxOrd = builder.getNumOrds() + 1;
+        this.maxOrd = builder.getMaxOrd();
         // We don't reuse the builder as-is because it might have been built with a higher overhead ratio
-        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(getMaxOrd() - 1), acceptableOverheadRatio);
+        final PackedInts.Mutable reader = PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(getMaxOrd()), acceptableOverheadRatio);
         PackedInts.copy(builder.getFirstOrdinals(), 0, reader, 0, builder.maxDoc(), 8 * 1024);
         this.reader = reader;
     }
@@ -69,7 +68,6 @@ public class SinglePackedOrdinals implements Ordinals {
 
         private final PackedInts.Reader reader;
 
-        private final LongsRef longsScratch = new LongsRef(1);
         private long currentOrdinal;
 
         public Docs(SinglePackedOrdinals parent, PackedInts.Reader reader) {
@@ -79,20 +77,20 @@ public class SinglePackedOrdinals implements Ordinals {
 
         @Override
         public long getOrd(int docId) {
-            return currentOrdinal = reader.get(docId);
+            return currentOrdinal = reader.get(docId) - 1;
         }
 
         @Override
         public long nextOrd() {
-            assert currentOrdinal > 0;
+            assert currentOrdinal >= Ordinals.MIN_ORDINAL;
             return currentOrdinal;
         }
 
         @Override
         public int setDocument(int docId) {
-            currentOrdinal = reader.get(docId);
+            currentOrdinal = reader.get(docId) - 1;
             // either this is > 1 or 0 - in any case it prevents a branch!
-            return (int)Math.min(currentOrdinal, 1);
+            return 1 + (int) Math.min(currentOrdinal, 0);
         }
 
         @Override

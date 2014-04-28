@@ -121,6 +121,11 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
     }
 
     @Override
+    public boolean sandboxed() {
+        return true;
+    }
+
+    @Override
     public ExecutableScript executable(Object mustache,
             @Nullable Map<String, Object> vars) {
         return new MustacheExecutableScript((Mustache) mustache, vars);

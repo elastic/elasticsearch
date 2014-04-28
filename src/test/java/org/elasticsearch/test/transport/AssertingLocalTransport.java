@@ -23,8 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.ImmutableTestCluster;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -42,14 +42,14 @@ public class AssertingLocalTransport extends LocalTransport {
     @Inject
     public AssertingLocalTransport(Settings settings, ThreadPool threadPool, Version version) {
         super(settings, threadPool, version);
-        final long seed = settings.getAsLong(ImmutableTestCluster.SETTING_INDEX_SEED, 0l);
+        final long seed = settings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         random = new Random(seed);
     }
 
     @Override
-    protected void handleParsedRespone(final TransportResponse response, final TransportResponseHandler handler) {
+    protected void handleParsedResponse(final TransportResponse response, final TransportResponseHandler handler) {
         ElasticsearchAssertions.assertVersionSerializable(ElasticsearchTestCase.randomVersion(random), response);
-        super.handleParsedRespone(response, handler);
+        super.handleParsedResponse(response, handler);
     }
     
     @Override

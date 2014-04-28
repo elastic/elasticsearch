@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.OrdinalMappingSource;
 import org.elasticsearch.index.fielddata.plain.AtomicFieldDataWithOrdinalsTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -90,7 +90,7 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         throw new UnsupportedOperationException("no global ordinals sorting yet");
     }
 
@@ -127,8 +127,12 @@ public final class GlobalOrdinalsIndexFieldData extends AbstractIndexComponent i
         public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
             BytesValues.WithOrdinals values = afd.getBytesValues(false);
             Ordinals.Docs segmentOrdinals = values.ordinals();
-            Ordinals.Docs globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
-
+            final Ordinals.Docs globalOrdinals;
+            if (segmentOrdToGlobalOrdLookup != null) {
+                globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
+            } else {
+                globalOrdinals = segmentOrdinals;
+            }
             final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
                 bytesValues[i] = atomicReaders[i].afd.getBytesValues(false);

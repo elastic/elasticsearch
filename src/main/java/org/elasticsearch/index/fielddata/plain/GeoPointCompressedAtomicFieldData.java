@@ -100,7 +100,6 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
             @Override
             public GeoPoint nextValue() {
                 final long ord = ordinals.nextOrd();
-                assert ord > 0;
                 return encoding.decode(lat.get(ord), lon.get(ord), scratch);
             }
 

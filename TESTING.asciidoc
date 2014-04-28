@@ -132,6 +132,15 @@ Don't count hypercores for CPU-intense tests and leave some slack
 for JVM-internal threads (like the garbage collector). Make sure there is 
 enough RAM to handle child JVMs.
 
+=== Test compatibility.
+
+It is possible to provide a version that allows to adapt the tests behaviour
+to older features or bugs that have been changed or fixed in the meantime.
+
+-----------------------------------------
+mvn test -Dtests.compatibility=1.0.0
+-----------------------------------------
+
 
 === Miscellaneous.
 

@@ -96,7 +96,25 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        transport.stop();
+        try {
+            transport.stop();
+        } finally {
+            // in case the transport is not connected to our local node (thus cleaned on node disconnect)
+            // make sure to clean any leftover on going handles
+            for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
+                final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
+                if (holderToNotify != null) {
+                    // callback that an exception happened, but on a different thread since we don't
+                    // want handlers to worry about stack overflows
+                    threadPool.generic().execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            holderToNotify.handler().handleException(new TransportException("transport stopped, action: " + holderToNotify.action()));
+                        }
+                    });
+                }
+            }
+        }
     }
 
     @Override
@@ -291,38 +309,34 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void raiseNodeDisconnected(final DiscoveryNode node) {
-            if (lifecycle.stoppedOrClosed()) {
-                return;
-            }
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        for (TransportConnectionListener connectionListener : connectionListeners) {
+            try {
+                for (final TransportConnectionListener connectionListener : connectionListeners) {
+                    threadPool.generic().execute(new Runnable() {
+                        @Override
+                        public void run() {
                             connectionListener.onNodeDisconnected(node);
                         }
-                        // node got disconnected, raise disconnection on possible ongoing handlers
-                        for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
-                            RequestHolder holder = entry.getValue();
-                            if (holder.node().equals(node)) {
-                                final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
-                                if (holderToNotify != null) {
-                                    // callback that an exception happened, but on a different thread since we don't
-                                    // want handlers to worry about stack overflows
-                                    threadPool.generic().execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
-                                        }
-                                    });
+                    });
+                }
+                for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
+                    RequestHolder holder = entry.getValue();
+                    if (holder.node().equals(node)) {
+                        final RequestHolder holderToNotify = clientHandlers.remove(entry.getKey());
+                        if (holderToNotify != null) {
+                            // callback that an exception happened, but on a different thread since we don't
+                            // want handlers to worry about stack overflows
+                            threadPool.generic().execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    holderToNotify.handler().handleException(new NodeDisconnectedException(node, holderToNotify.action()));
                                 }
-                            }
+                            });
                         }
-                    } catch (EsRejectedExecutionException ex) {
-                        logger.debug("Rejected execution on NodeDisconnected", ex);
                     }
                 }
-            });
+            } catch (EsRejectedExecutionException ex) {
+                logger.debug("Rejected execution on NodeDisconnected", ex);
+            }
         }
     }
 

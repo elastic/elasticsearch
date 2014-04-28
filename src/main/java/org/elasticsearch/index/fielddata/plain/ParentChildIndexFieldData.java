@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -80,7 +80,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
     }
 
@@ -188,9 +188,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
         TypeBuilder(float acceptableTransientOverheadRatio, AtomicReader reader) throws IOException {
             bytes = new PagedBytes(15);
             termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
-            termOrdToBytesOffset.add(0); // first ord is reserved for missing values
-            // 0 is reserved for "unset"
-            bytes.copyUsingLengthPrefix(new BytesRef());
             builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         }
     }

@@ -56,7 +56,7 @@ public enum EmptyOrdinals implements Ordinals {
 
         @Override
         public long getOrd(int docId) {
-            return 0;
+            return Ordinals.MISSING_ORDINAL;
         }
 
         @Override
@@ -71,7 +71,7 @@ public enum EmptyOrdinals implements Ordinals {
 
         @Override
         public long currentOrd() {
-            return 0;
+            return Ordinals.MISSING_ORDINAL;
         }
     }
 }

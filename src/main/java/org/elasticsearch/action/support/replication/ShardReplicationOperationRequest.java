@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
@@ -45,6 +46,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     private boolean threadedOperation = true;
     private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private boolean canHaveDuplicates = false;
 
     protected ShardReplicationOperationRequest() {
 
@@ -61,6 +63,17 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         this.threadedOperation = request.operationThreaded();
         this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
+    }
+
+    void setCanHaveDuplicates() {
+        this.canHaveDuplicates = true;
+    }
+
+    /**
+     * Is this request can potentially be dup on a single shard.
+     */
+    public boolean canHaveDuplicates() {
+        return canHaveDuplicates;
     }
 
     /**
@@ -162,6 +175,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readSharedString();
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            canHaveDuplicates = in.readBoolean();
+        }
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
@@ -172,6 +188,9 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeSharedString(index);
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeBoolean(canHaveDuplicates);
+        }
     }
 
     /**

@@ -42,7 +42,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
@@ -244,7 +244,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         final IndexFieldData indexFieldData = getForField("value");
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, SortMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(missingValue, MultiValueMode.MIN);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -300,7 +300,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         final IndexFieldData indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", SortMode.MIN);
+        XFieldComparatorSource comparator = indexFieldData.comparatorSource(first ? "_first" : "_last", MultiValueMode.MIN);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(new SortField("value", comparator, reverse)));
         assertEquals(numDocs, topDocs.totalHits);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
@@ -325,14 +325,14 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     }
 
     public void testNestedSortingMin() throws IOException {
-        testNestedSorting(SortMode.MIN);
+        testNestedSorting(MultiValueMode.MIN);
     }
 
     public void testNestedSortingMax() throws IOException {
-        testNestedSorting(SortMode.MAX);
+        testNestedSorting(MultiValueMode.MAX);
     }
 
-    public void testNestedSorting(SortMode sortMode) throws IOException {
+    public void testNestedSorting(MultiValueMode sortMode) throws IOException {
         final String[] values = new String[randomIntBetween(2, 20)];
         for (int i = 0; i < values.length; ++i) {
             values[i] = TestUtil.randomSimpleString(getRandom());
@@ -404,9 +404,9 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
                     final BytesRef bytesValue = new BytesRef(value);
                     if (cmpValue == null) {
                         cmpValue = bytesValue;
-                    } else if (sortMode == SortMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
+                    } else if (sortMode == MultiValueMode.MIN && bytesValue.compareTo(cmpValue) < 0) {
                         cmpValue = bytesValue;
-                    } else if (sortMode == SortMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
+                    } else if (sortMode == MultiValueMode.MAX && bytesValue.compareTo(cmpValue) > 0) {
                         cmpValue = bytesValue;
                     }
                 }
@@ -439,15 +439,15 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         Ordinals.Docs ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(2));
         long ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(4l));
+        assertThat(ord, equalTo(3l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("02"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(6l));
+        assertThat(ord, equalTo(5l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
         assertThat(ordinals.setDocument(1), equalTo(0));
         assertThat(ordinals.setDocument(2), equalTo(1));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(5l));
+        assertThat(ord, equalTo(4l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("03"));
 
         // Second segment
@@ -456,34 +456,34 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(6l));
+        assertThat(ord, equalTo(5l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("04"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(7l));
+        assertThat(ord, equalTo(6l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("05"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(8l));
+        assertThat(ord, equalTo(7l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
         assertThat(ordinals.setDocument(1), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(8l));
+        assertThat(ord, equalTo(7l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("06"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(9l));
+        assertThat(ord, equalTo(8l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("07"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(10l));
+        assertThat(ord, equalTo(9l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
         assertThat(ordinals.setDocument(2), equalTo(0));
         assertThat(ordinals.setDocument(3), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(10l));
+        assertThat(ord, equalTo(9l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("08"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(11l));
+        assertThat(ord, equalTo(10l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("09"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(12l));
+        assertThat(ord, equalTo(11l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("10"));
 
         // Third segment
@@ -492,13 +492,13 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         ordinals = afd.getBytesValues(randomBoolean()).ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(1l));
+        assertThat(ord, equalTo(0l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!08"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(2l));
+        assertThat(ord, equalTo(1l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!09"));
         ord = ordinals.nextOrd();
-        assertThat(ord, equalTo(3l));
+        assertThat(ord, equalTo(2l));
         assertThat(values.getValueByOrd(ord).utf8ToString(), equalTo("!10"));
     }
 
@@ -529,7 +529,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         }
         assertThat(size, equalTo(2));
 
-        termsEnum.seekExact(9);
+        termsEnum.seekExact(8);
         assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
         size = 0;
         while (termsEnum.next() != null) {

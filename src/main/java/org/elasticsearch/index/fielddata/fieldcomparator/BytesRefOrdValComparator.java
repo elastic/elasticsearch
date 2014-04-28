@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -54,7 +55,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
        @lucene.internal */
     final long[] ords;
 
-    final SortMode sortMode;
+    final MultiValueMode sortMode;
 
     /* Values for each slot.
        @lucene.internal */
@@ -88,7 +89,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     BytesRef top;
     long topOrd;
 
-    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, MultiValueMode sortMode, BytesRef missingValue) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
         this.missingValue = missingValue;
@@ -242,7 +243,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
                 ords[slot] = missingOrd;
                 values[slot] = missingValue;
             } else {
-                assert ord > 0;
+                assert ord >= 0;
                 ords[slot] = ord << 2;
                 if (values[slot] == null || values[slot] == missingValue) {
                     values[slot] = new BytesRef();
@@ -261,11 +262,9 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
     // for assertions
     private boolean consistentInsertedOrd(BytesValues.WithOrdinals termsIndex, long ord, BytesRef value) {
-        assert ord >= 0 : ord;
-        assert (ord == 0) == (value == null) : "ord=" + ord + ", value=" + value;
-        final long previousOrd = ord >>> 2;
+        final long previousOrd = ord >> 2;
         final long nextOrd = previousOrd + 1;
-        final BytesRef previous = previousOrd == 0 ? null : termsIndex.getValueByOrd(previousOrd);
+        final BytesRef previous = previousOrd == Ordinals.MISSING_ORDINAL ? null : termsIndex.getValueByOrd(previousOrd);
         if ((ord & 3) == 0) { // there was an existing ord with the inserted value
             assert compareValues(previous, value) == 0;
         } else {
@@ -281,7 +280,6 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     // find where to insert an ord in the current terms index
     private long ordInCurrentReader(BytesValues.WithOrdinals termsIndex, BytesRef value) {
         final long docOrd = binarySearch(termsIndex, value);
-        assert docOrd != -1; // would mean smaller than null
         final long ord;
         if (docOrd >= 0) {
             // value exists in the current segment
@@ -395,16 +393,16 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         return -(low + 1);
     }
 
-    static long getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
+    static long getRelevantOrd(Ordinals.Docs readerOrds, int docId, MultiValueMode sortMode) {
         int length = readerOrds.setDocument(docId);
         long relevantVal = sortMode.startLong();
-        long result = 0;
-        assert sortMode == SortMode.MAX || sortMode == SortMode.MIN;
+        long result = Ordinals.MISSING_ORDINAL;
+        assert sortMode == MultiValueMode.MAX || sortMode == MultiValueMode.MIN;
         for (int i = 0; i < length; i++) {
             result = relevantVal = sortMode.apply(readerOrds.nextOrd(), relevantVal);
         }
-        assert result >= 0;
-        assert result <= readerOrds.getMaxOrd();
+        assert result >= Ordinals.MISSING_ORDINAL;
+        assert result < readerOrds.getMaxOrd();
         return result;
         // Enable this when the api can tell us that the ords per doc are ordered
         /*if (reversed) {

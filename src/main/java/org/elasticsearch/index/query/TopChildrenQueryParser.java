@@ -35,7 +35,7 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.HasChildFilterParser.ensureNotDeleteByQuery;
+import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *

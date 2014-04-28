@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.index.query.HasChildFilterParser.ensureNotDeleteByQuery;
+import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *

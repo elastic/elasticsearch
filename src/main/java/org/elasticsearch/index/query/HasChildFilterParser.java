@@ -31,9 +31,10 @@ import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *
@@ -152,9 +153,4 @@ public class HasChildFilterParser implements FilterParser {
         return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
     }
 
-    public static void ensureNotDeleteByQuery(String name, QueryParseContext parseContext) {
-        if ("delete_by_query".equals(SearchContext.current().source())) {
-            throw new QueryParsingException(parseContext.index(), "[" + name + "] unsupported in delete_by_query api");
-        }
-    }
 }

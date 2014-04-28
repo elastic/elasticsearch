@@ -30,8 +30,14 @@ import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
@@ -49,6 +55,10 @@ public class Strings {
     private static final String CURRENT_PATH = ".";
 
     private static final char EXTENSION_SEPARATOR = '.';
+
+    private static volatile long LAST_TIMESTAMP = 0;
+
+    private static AtomicLong SEQUENCE_NUMBER = new AtomicLong();
 
     public static void tabify(int tabs, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -1505,6 +1515,33 @@ public class Strings {
         private static final SecureRandom INSTANCE = new SecureRandom();
     }
 
+    private static class MacAddressXORHolder {
+
+        private static byte[] MAC_ADDRESS_XOR = null;
+
+        static {
+            final byte[] randomBytes = new byte[6];
+            SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
+            try {
+                InetAddress ip = InetAddress.getLocalHost();
+                NetworkInterface ni = NetworkInterface.getByInetAddress(ip);
+                byte[] MAC_ADDRESS = ni.getHardwareAddress();
+                MAC_ADDRESS_XOR = new byte[6]; //Use 48 MSB even on ipv6 which uses EUI-64
+                for (int i=0; i < 6; ++i) {
+                    if( i >= MAC_ADDRESS.length ) {
+                        MAC_ADDRESS_XOR[i] = randomBytes[i];
+                    } else {
+                        MAC_ADDRESS_XOR[i] = (byte)( 0xff & (randomBytes[i] ^ MAC_ADDRESS[i]));
+                    }
+                }
+
+            } catch (Exception uhe){
+                //This isn't good at all
+                MAC_ADDRESS_XOR = null;
+            }
+        }
+    }
+
     /**
      * Returns a Base64 encoded version of a Version 4.0 compatible UUID
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
@@ -1519,9 +1556,9 @@ public class Strings {
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
     public static String randomBase64UUID(Random random) {
+
         final byte[] randomBytes = new byte[16];
         random.nextBytes(randomBytes);
-        
         /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
          * The randomly or pseudo-randomly generated version.
          * The version number is in the most significant 4 bits of the time
@@ -1536,6 +1573,32 @@ public class Strings {
         randomBytes[8] |= 0x80;  /* set the variant (MSB is set)*/
         try {
             byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
+            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
+            assert encoded[encoded.length - 1] == '=';
+            assert encoded[encoded.length - 2] == '=';
+            // we always have padding of two at the end, encode it differently
+            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
+        } catch (IOException e) {
+            throw new ElasticsearchIllegalStateException("should not be thrown");
+        }
+    }
+
+    public static String timestampBase64UUID(){
+        final byte[] uuidBytes = new byte[22];
+        ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
+        long timestamp = System.currentTimeMillis();
+        long sequence = SEQUENCE_NUMBER.addAndGet(1);
+        if( timestamp < LAST_TIMESTAMP ){ //If time slips backward just inc time
+            timestamp = LAST_TIMESTAMP + 1;
+        }
+
+        LAST_TIMESTAMP = timestamp;
+        buffer.putLong(timestamp); // 8 bytes
+        buffer.put(MacAddressXORHolder.MAC_ADDRESS_XOR); // 6 bytes
+        buffer.putLong(sequence); // 8 bytes
+
+        try {
+            byte[] encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
             // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
             assert encoded[encoded.length - 1] == '=';
             assert encoded[encoded.length - 2] == '=';

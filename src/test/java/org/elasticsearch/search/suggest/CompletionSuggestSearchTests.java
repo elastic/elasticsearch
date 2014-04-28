@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -1060,6 +1062,33 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("output", "foobar")
                 .endObject().endObject()
         ).setRefresh(true).get();
+    }
+
+    @Test // see #5930
+    public void testIssue5930() throws IOException {
+        client().admin().indices().prepareCreate(INDEX).get();
+        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .endObject()
+                .endObject().endObject()
+                .endObject()));
+        ensureYellow();
+        String string = "foo bar";
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject()
+                .field(FIELD, string)
+                .endObject()
+        ).setRefresh(true).get();
+
+        try {
+            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)).execute().actionGet();
+            // Exception must be thrown
+            assertFalse(true);
+        } catch (SearchPhaseExecutionException e) {
+            assertTrue(e.getDetailedMessage().contains("found no fielddata type for field [" + FIELD + "]"));
+        }
     }
 
     private static String replaceReservedChars(String input, char replacement) {

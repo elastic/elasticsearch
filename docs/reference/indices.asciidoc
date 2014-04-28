@@ -87,8 +87,6 @@ include::indices/templates.asciidoc[]
 
 include::indices/warmers.asciidoc[]
 
-include::indices/status.asciidoc[]
-
 include::indices/stats.asciidoc[]
 
 include::indices/segments.asciidoc[]

@@ -282,10 +282,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             handleException(handler, new TransportSerializationException("Failed to deserialize response of type [" + response.getClass().getName() + "]", e));
             return;
         }
-        handleParsedRespone(response, handler);
+        handleParsedResponse(response, handler);
     }
 
-    protected void handleParsedRespone(final TransportResponse response, final TransportResponseHandler handler) {
+    protected void handleParsedResponse(final TransportResponse response, final TransportResponseHandler handler) {
         threadPool.executor(handler.executor()).execute(new Runnable() {
             @SuppressWarnings({"unchecked"})
             @Override

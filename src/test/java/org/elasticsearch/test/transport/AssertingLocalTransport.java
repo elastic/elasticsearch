@@ -47,9 +47,9 @@ public class AssertingLocalTransport extends LocalTransport {
     }
 
     @Override
-    protected void handleParsedRespone(final TransportResponse response, final TransportResponseHandler handler) {
+    protected void handleParsedResponse(final TransportResponse response, final TransportResponseHandler handler) {
         ElasticsearchAssertions.assertVersionSerializable(ElasticsearchTestCase.randomVersion(random), response);
-        super.handleParsedRespone(response, handler);
+        super.handleParsedResponse(response, handler);
     }
     
     @Override

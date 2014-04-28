@@ -31,13 +31,14 @@ import java.io.File;
 import java.net.URISyntaxException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * We want to test site plugins
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class SitePluginTests extends ElasticsearchIntegrationTest {
 
 

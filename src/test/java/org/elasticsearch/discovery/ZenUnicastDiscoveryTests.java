@@ -31,7 +31,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope=Scope.TEST, numNodes=2)
+@ClusterScope(scope=Scope.TEST, numDataNodes =2)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Override

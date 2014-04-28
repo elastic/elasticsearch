@@ -55,7 +55,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 1)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override

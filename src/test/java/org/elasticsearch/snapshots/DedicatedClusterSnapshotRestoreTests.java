@@ -28,7 +28,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,13 +37,15 @@ import java.util.ArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test

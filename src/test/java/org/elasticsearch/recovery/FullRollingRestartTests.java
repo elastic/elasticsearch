@@ -30,12 +30,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
  *
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {

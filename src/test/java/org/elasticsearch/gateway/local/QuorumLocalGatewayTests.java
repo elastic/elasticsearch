@@ -37,6 +37,7 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
@@ -44,7 +45,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@ClusterScope(numNodes=0, scope= ElasticsearchIntegrationTest.Scope.TEST)
+@ClusterScope(numDataNodes =0, scope= Scope.TEST)
 public class QuorumLocalGatewayTests extends ElasticsearchIntegrationTest {
 
     @Override

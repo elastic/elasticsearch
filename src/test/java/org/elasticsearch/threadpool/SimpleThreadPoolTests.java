@@ -38,11 +38,12 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=2)
+@ClusterScope(scope= Scope.TEST, numDataNodes =2)
 public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override

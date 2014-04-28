@@ -134,7 +134,7 @@ import static org.hamcrest.Matchers.equalTo;
  * the tests start.
  * <p/>
  *  <pre>
- * @ClusterScope(scope=Scope.SUITE, numNodes=3)
+ * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIntegrationTest extends ElasticsearchIntegrationTest {
  * @Test public void testMethod() {}
  * }
@@ -1032,19 +1032,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          * a random number of nodes is used, where the minimum and maximum number of nodes
          * are either the specified ones or the default ones if not specified.
          */
-        int numNodes() default -1;
+        int numDataNodes() default -1;
 
         /**
-         * Returns the minimum number of nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MIN_NUM_NODES}.
-         * Ignored when {@link ClusterScope#numNodes()} is set.
+         * Returns the minimum number of nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MIN_NUM_DATA_NODES}.
+         * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
-        int minNumNodes() default TestCluster.DEFAULT_MIN_NUM_NODES;
+        int minNumDataNodes() default TestCluster.DEFAULT_MIN_NUM_DATA_NODES;
 
         /**
-         * Returns the maximum number of nodes in the cluster.  Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MAX_NUM_NODES}.
-         * Ignored when {@link ClusterScope#numNodes()} is set.
+         * Returns the maximum number of nodes in the cluster.  Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_MAX_NUM_DATA_NODES}.
+         * Ignored when {@link ClusterScope#numDataNodes()} is set.
          */
-        int maxNumNodes() default TestCluster.DEFAULT_MAX_NUM_NODES;
+        int maxNumDataNodes() default TestCluster.DEFAULT_MAX_NUM_DATA_NODES;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_NUM_CLIENT_NODES}.
@@ -1129,17 +1129,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private int getNumNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? -1 : annotation.numNodes();
+        return annotation == null ? -1 : annotation.numDataNodes();
     }
 
     private int getMinNumNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? TestCluster.DEFAULT_MIN_NUM_NODES : annotation.minNumNodes();
+        return annotation == null ? TestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
     private int getMaxNumNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? TestCluster.DEFAULT_MAX_NUM_NODES : annotation.maxNumNodes();
+        return annotation == null ? TestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
     }
 
     private int getNumClientNodes() {

@@ -46,11 +46,12 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
             .put("discovery.zen.ping.multicast.enabled", false)

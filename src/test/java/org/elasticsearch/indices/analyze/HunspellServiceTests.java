@@ -28,13 +28,14 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class HunspellServiceTests extends ElasticsearchIntegrationTest {
 
     @Test

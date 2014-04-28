@@ -30,12 +30,13 @@ import org.junit.Test;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class SimpleDataNodesTests extends ElasticsearchIntegrationTest {
 
     @Test

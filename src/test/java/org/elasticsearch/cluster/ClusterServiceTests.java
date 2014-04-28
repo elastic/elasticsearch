@@ -44,12 +44,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
     @Test

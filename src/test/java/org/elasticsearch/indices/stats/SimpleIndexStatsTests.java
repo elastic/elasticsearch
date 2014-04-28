@@ -39,10 +39,11 @@ import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 2)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
 public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
     @Test

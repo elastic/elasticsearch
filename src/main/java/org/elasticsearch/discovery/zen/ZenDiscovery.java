@@ -313,7 +313,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 clusterService.submitStateUpdateTask("zen-disco-join (elected_as_master)", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
+                        // Take into account the previous known nodes, if they happen not to be available
+                        // then fault detection will remove these nodes.
+                        DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder(latestDiscoNodes)
                                 .localNodeId(localNode.id())
                                 .masterNodeId(localNode.id())
                                         // put our local node

@@ -125,7 +125,7 @@ public class MultiOrdinalsTests extends ElasticsearchTestCase {
                     assertIter(docs, docId, array);
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
-                    assertThat(docs.getOrd(i), equalTo(0L));
+                    assertThat(docs.getOrd(i), equalTo(Ordinals.MISSING_ORDINAL));
                 }
                 docId = ordAndId.id;
                 docOrds.clear();

@@ -122,7 +122,9 @@ public final class TestCluster extends ImmutableTestCluster {
     static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
     static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
 
-    static final int DEFAULT_NUM_CLIENT_NODES = 1;
+    static final int DEFAULT_NUM_CLIENT_NODES = -1;
+    static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
+    static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
@@ -171,18 +173,18 @@ public final class TestCluster extends ImmutableTestCluster {
 
         Random random = new Random(clusterSeed);
 
-        if (minNumDataNodes == maxNumDataNodes) {
-            this.numSharedDataNodes = minNumDataNodes;
-        } else {
-            this.numSharedDataNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
-        }
+        this.numSharedDataNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
         assert this.numSharedDataNodes >= 0;
 
         //for now all shared data nodes are also master eligible
         if (numSharedDataNodes == 0) {
             this.numSharedClientNodes = 0;
         } else {
-            this.numSharedClientNodes = numClientNodes;
+            if (numClientNodes < 0) {
+                this.numSharedClientNodes = RandomInts.randomIntBetween(random, DEFAULT_MIN_NUM_CLIENT_NODES, DEFAULT_MAX_NUM_CLIENT_NODES);
+            } else {
+                this.numSharedClientNodes = numClientNodes;
+            }
         }
         assert this.numSharedClientNodes >=0;
 

@@ -1047,7 +1047,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         int maxNumDataNodes() default TestCluster.DEFAULT_MAX_NUM_DATA_NODES;
 
         /**
-         * Returns the number of client nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_NUM_CLIENT_NODES}.
+         * Returns the number of client nodes in the cluster. Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_NUM_CLIENT_NODES}, a
+         * negative value means that the number of client nodes will be randomized.
          */
         int numClientNodes() default TestCluster.DEFAULT_NUM_CLIENT_NODES;
 

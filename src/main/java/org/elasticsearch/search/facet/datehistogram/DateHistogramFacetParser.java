@@ -125,6 +125,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
                     interval = parser.text();
                 } else if ("time_zone".equals(fieldName) || "timeZone".equals(fieldName)) {
                     preZone = parseZone(parser, token);
+                    postZone = preZone;
                 } else if ("pre_zone".equals(fieldName) || "preZone".equals(fieldName)) {
                     preZone = parseZone(parser, token);
                 } else if ("pre_zone_adjust_large_interval".equals(fieldName) || "preZoneAdjustLargeInterval".equals(fieldName)) {

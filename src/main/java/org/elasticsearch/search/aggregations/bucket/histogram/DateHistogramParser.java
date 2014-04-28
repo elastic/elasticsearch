@@ -100,6 +100,7 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
                     preZone = parseZone(parser.text());
+                    postZone = preZone;
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
                     preZone = parseZone(parser.text());
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
@@ -126,6 +127,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                     minDocCount = parser.longValue();
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
                     preZone = DateTimeZone.forOffsetHours(parser.intValue());
+                    postZone = preZone;
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
                     preZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {

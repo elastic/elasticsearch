@@ -29,7 +29,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope=Scope.TEST, numNodes=2)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
@@ -47,14 +47,14 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     public void testUnicastDiscovery() {
         for (Client client : clients()) {
             ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
-            int clientNodes = 0;
+            //client nodes might be added randomly
+            int dataNodes = 0;
             for (DiscoveryNode discoveryNode : state.nodes()) {
-                if (discoveryNode.isClientNode()) {
-                    clientNodes++;
+                if (discoveryNode.isDataNode()) {
+                    dataNodes++;
                 }
             }
-            //client nodes might be added randomly
-            assertThat(state.nodes().size(), greaterThanOrEqualTo(2 + clientNodes));
+            assertThat(dataNodes, equalTo(2));
         }
     }
 }

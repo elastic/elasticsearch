@@ -19,6 +19,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
@@ -118,8 +119,8 @@ public final class TestCluster extends ImmutableTestCluster {
 
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
-    static final int DEFAULT_MIN_NUM_NODES = 2;
-    static final int DEFAULT_MAX_NUM_NODES = 6;
+    static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
+    static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
 
     static final int DEFAULT_NUM_CLIENT_NODES = 1;
 
@@ -150,7 +151,7 @@ public final class TestCluster extends ImmutableTestCluster {
     private final ExecutorService executor;
 
     public TestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, DEFAULT_MIN_NUM_NODES, DEFAULT_MAX_NUM_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES);
+        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES);
     }
 
     public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes) {
@@ -173,7 +174,7 @@ public final class TestCluster extends ImmutableTestCluster {
         if (minNumDataNodes == maxNumDataNodes) {
             this.numSharedDataNodes = minNumDataNodes;
         } else {
-            this.numSharedDataNodes = minNumDataNodes + random.nextInt(maxNumDataNodes - minNumDataNodes);
+            this.numSharedDataNodes = RandomInts.randomIntBetween(random, minNumDataNodes, maxNumDataNodes);
         }
         assert this.numSharedDataNodes >= 0;
 

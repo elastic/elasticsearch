@@ -187,7 +187,13 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         }
         
         public void addCandidates(List<Candidate> candidates) {
-            this.candidates = candidates.toArray(new Candidate[candidates.size()]);
+            // Merge new candidates into existing ones,
+            // deduping:
+            final Set<Candidate> set = new HashSet<>(candidates);
+            for (int i = 0; i < this.candidates.length; i++) {
+                set.add(this.candidates[i]);
+            }
+            this.candidates = set.toArray(new Candidate[set.size()]);
         }
 
         public void addOneCandidate(Candidate candidate) {

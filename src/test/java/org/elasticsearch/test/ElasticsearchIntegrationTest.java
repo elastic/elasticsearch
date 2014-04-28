@@ -1161,33 +1161,25 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private TestCluster buildTestCluster(Scope scope) {
         long currentClusterSeed = randomLong();
-        int numNodes = getNumDataNodes();
-        NodeSettingsSource nodeSettingsSource;
-        if (numNodes > 0) {
-            NodeSettingsSource.Immutable.Builder nodesSettings = NodeSettingsSource.Immutable.builder();
-            for (int i = 0; i < numNodes; i++) {
-                nodesSettings.set(i, nodeSettings(i));
-            }
-            nodeSettingsSource = nodesSettings.build();
-        } else {
-            nodeSettingsSource = new NodeSettingsSource() {
-                @Override
-                public Settings settings(int nodeOrdinal) {
-                    return nodeSettings(nodeOrdinal);
-                }
-            };
-        }
 
-        int minNumNodes, maxNumNodes;
-        if (numNodes >= 0) {
-            minNumNodes = maxNumNodes = numNodes;
+        NodeSettingsSource nodeSettingsSource = new NodeSettingsSource() {
+            @Override
+            public Settings settings(int nodeOrdinal) {
+                return nodeSettings(nodeOrdinal);
+            }
+        };
+
+        int numDataNodes = getNumDataNodes();
+        int minNumDataNodes, maxNumDataNodes;
+        if (numDataNodes >= 0) {
+            minNumDataNodes = maxNumDataNodes = numDataNodes;
         } else {
-            minNumNodes = getMinNumDataNodes();
-            maxNumNodes = getMaxNumDataNodes();
+            minNumDataNodes = getMinNumDataNodes();
+            maxNumDataNodes = getMaxNumDataNodes();
         }
 
         int numClientNodes = getNumClientNodes();
-        return new TestCluster(currentClusterSeed, minNumNodes, maxNumNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes);
+        return new TestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes);
     }
 
     /**

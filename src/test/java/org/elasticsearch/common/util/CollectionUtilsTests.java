@@ -21,12 +21,16 @@ package org.elasticsearch.common.util;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class CollectionUtilsTests extends ElasticsearchTestCase {
 
@@ -59,6 +63,69 @@ public class CollectionUtilsTests extends ElasticsearchTestCase {
                 assertEquals(list, CollectionUtils.rotate(CollectionUtils.rotate(list, distance), -distance));
             }
         }
+    }
+
+    @Test
+    public void testSortAndDedupByteRefArray() {
+        SortedSet<BytesRef> set = new TreeSet<>();
+        final int numValues = scaledRandomIntBetween(0, 10000);
+        List<BytesRef> tmpList = new ArrayList<>();
+        BytesRefArray array = new BytesRefArray(Counter.newCounter());
+        for (int i = 0; i < numValues; i++) {
+            String s = randomRealisticUnicodeOfCodepointLengthBetween(1, 100);
+            set.add(new BytesRef(s));
+            tmpList.add(new BytesRef(s));
+            array.append(new BytesRef(s));
+        }
+        if (randomBoolean()) {
+            Collections.shuffle(tmpList, getRandom());
+            for (BytesRef ref : tmpList) {
+                array.append(ref);
+            }
+        }
+        int[] indices = new int[array.size()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = i;
+        }
+        int numUnique = CollectionUtils.sortAndDedup(array, indices);
+        assertThat(numUnique, equalTo(set.size()));
+        Iterator<BytesRef> iterator = set.iterator();
+
+        BytesRef spare = new BytesRef();
+        for (int i = 0; i < numUnique; i++) {
+            assertThat(iterator.hasNext(), is(true));
+            assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));
+        }
+
+    }
+
+    @Test
+    public void testSortByteRefArray() {
+        List<BytesRef> values = new ArrayList<>();
+        final int numValues = scaledRandomIntBetween(0, 10000);
+        BytesRefArray array = new BytesRefArray(Counter.newCounter());
+        for (int i = 0; i < numValues; i++) {
+            String s = randomRealisticUnicodeOfCodepointLengthBetween(1, 100);
+            values.add(new BytesRef(s));
+            array.append(new BytesRef(s));
+        }
+        if (randomBoolean()) {
+            Collections.shuffle(values, getRandom());
+        }
+        int[] indices = new int[array.size()];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = i;
+        }
+        CollectionUtils.sort(array, indices);
+        Collections.sort(values);
+        Iterator<BytesRef> iterator = values.iterator();
+
+        BytesRef spare = new BytesRef();
+        for (int i = 0; i < values.size(); i++) {
+            assertThat(iterator.hasNext(), is(true));
+            assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));
+        }
+
     }
 
 }

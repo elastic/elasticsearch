@@ -22,7 +22,6 @@ package org.elasticsearch.monitor.dump;
 import org.elasticsearch.common.Nullable;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.util.Map;
 
 /**
@@ -32,7 +31,7 @@ public class SimpleDump extends AbstractDump {
 
     private final File location;
 
-    public SimpleDump(long timestamp, String cause, @Nullable Map<String, Object> context, File location) throws FileNotFoundException {
+    public SimpleDump(long timestamp, String cause, @Nullable Map<String, Object> context, File location)  {
         super(timestamp, cause, context);
         this.location = location;
     }

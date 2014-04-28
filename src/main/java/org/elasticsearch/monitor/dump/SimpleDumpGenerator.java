@@ -25,7 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -59,12 +58,7 @@ public class SimpleDumpGenerator implements DumpGenerator {
         }
         File file = new File(dumpLocation, fileName + cause + "-" + timestamp);
         FileSystemUtils.mkdirs(file);
-        SimpleDump dump;
-        try {
-            dump = new SimpleDump(System.currentTimeMillis(), cause, context, file);
-        } catch (FileNotFoundException e) {
-            throw new DumpGenerationFailedException("Failed to generate dump", e);
-        }
+        SimpleDump dump = new SimpleDump(System.currentTimeMillis(), cause, context, file);
         ArrayList<DumpContributionFailedException> failedContributors = new ArrayList<>();
         for (String name : contributors) {
             DumpContributor contributor = this.contributors.get(name);

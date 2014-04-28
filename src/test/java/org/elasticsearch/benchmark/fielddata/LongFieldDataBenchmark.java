@@ -37,7 +37,6 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.merge.Merges;
 import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 
 import java.util.Random;
@@ -142,7 +141,7 @@ public class LongFieldDataBenchmark {
                 }
                 indexWriter.addDocument(doc);
             }
-            Merges.forceMerge(indexWriter, 1);
+            indexWriter.forceMerge(1, true);
             indexWriter.close();
 
             final DirectoryReader dr = DirectoryReader.open(dir);

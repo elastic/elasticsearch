@@ -1,9 +1,0 @@
----
-"Indices status test":
-  - do:
-      indices.status: {}
-
-  - do:
-      catch: missing
-      indices.status:
-        index: not_here

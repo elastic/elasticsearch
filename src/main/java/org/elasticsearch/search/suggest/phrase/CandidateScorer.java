@@ -43,24 +43,7 @@ final class CandidateScorer {
         PriorityQueue<Correction> corrections = new PriorityQueue<Correction>(maxNumCorrections) {
             @Override
             protected boolean lessThan(Correction a, Correction b) {
-                if (a.score == b.score) {
-                    // Tie break by candidate term; earlier terms (aaa) are less than later terms (zzz):
-                    int limit = Math.min(a.candidates.length, b.candidates.length);
-                    for(int i=0;i<limit;i++) {
-                        int cmp = a.candidates[i].term.compareTo(b.candidates[i].term);
-                        if (cmp != 0) {
-                            return cmp > 0;
-                        }
-                    }
-
-                    int cmp = a.candidates.length - b.candidates.length;
-
-                    // NOTE: could still be 0, if a.equals(b), but we shouldn't ever see dups here?
-                    assert cmp != 0;
-                    return cmp > 0;
-                } else {
-                    return a.score < b.score;
-                }
+                return a.compareTo(b) < 0;
             }
         };
         int numMissspellings = 1;
@@ -116,7 +99,7 @@ final class CandidateScorer {
                 Candidate[] c = new Candidate[candidates.length];
                 System.arraycopy(path, 0, c, 0, path.length);
                 corrections.add(new Correction(score, c));
-            } else if (corrections.top().score < score) {
+            } else if (corrections.top().compareTo(score, path) < 0) {
                 Correction top = corrections.top();
                 System.arraycopy(path, 0, top.candidates, 0, path.length);
                 top.score = score;

@@ -31,6 +31,7 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -194,6 +195,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                 set.add(this.candidates[i]);
             }
             this.candidates = set.toArray(new Candidate[set.size()]);
+            // Sort strongest to weakest:
+            Arrays.sort(this.candidates, Collections.reverseOrder());
         }
 
         public void addOneCandidate(Candidate candidate) {
@@ -205,7 +208,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
     }
 
-    public static class Candidate {
+    public static class Candidate implements Comparable<Candidate> {
         public static final Candidate[] EMPTY = new Candidate[0];
         public final BytesRef term;
         public final double stringDistance;
@@ -223,7 +226,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
 
         @Override
         public String toString() {
-            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", frequency=" + frequency + 
+            return "Candidate [term=" + term.utf8ToString() + ", stringDistance=" + stringDistance + ", score=" + score + ", frequency=" + frequency + 
                     (userInput ? ", userInput" : "" ) + "]";
         }
 
@@ -250,6 +253,17 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             } else if (!term.equals(other.term))
                 return false;
             return true;
+        }
+
+        /** Lower scores sort first; if scores are equal, then later (zzz) terms sort first */
+        @Override
+        public int compareTo(Candidate other) {
+            if (score == other.score) {
+                // Later (zzz) terms sort before earlier (aaa) terms:
+                return other.term.compareTo(term);
+            } else {
+                return Double.compare(score, other.score);
+            }
         }
     }
 

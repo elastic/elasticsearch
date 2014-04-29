@@ -48,7 +48,7 @@ public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactor
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new JapanesePartOfSpeechStopFilter(Version.LUCENE_44, tokenStream, stopTags);
+        return new JapanesePartOfSpeechStopFilter(Version.LUCENE_48, tokenStream, stopTags);
     }
 
 }

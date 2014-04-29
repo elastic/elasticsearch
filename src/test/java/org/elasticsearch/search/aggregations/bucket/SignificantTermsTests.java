@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
@@ -46,6 +47,10 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class SignificantTermsTests extends ElasticsearchIntegrationTest {
+
+    public String randomExecutionHint() {
+        return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
+    }
 
     @Override
     public Settings indexSettings() {
@@ -103,7 +108,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category")
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();
@@ -119,7 +124,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category")
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();
@@ -134,7 +139,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();
@@ -154,6 +159,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(new TermsBuilder("myCategories").field("fact_category").minDocCount(2)
                         .subAggregation(
                                    new SignificantTermsBuilder("mySignificantTerms").field("description")
+                                   .executionHint(randomExecutionHint())
                                    .minDocCount(2)))
                 .execute()
                 .actionGet();
@@ -180,6 +186,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                            .executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();

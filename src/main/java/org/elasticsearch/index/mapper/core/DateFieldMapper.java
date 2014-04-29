@@ -301,6 +301,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     public long parseToMilliseconds(Object value, @Nullable QueryParseContext context, boolean includeUpper) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
         long now = context == null ? System.currentTimeMillis() : context.nowInMillis();
         return includeUpper && roundCeil ? dateMathParser.parseRoundCeil(convertToString(value), now) : dateMathParser.parse(convertToString(value), now);
     }
@@ -335,14 +338,22 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         Long lowerVal = null;
         Long upperVal = null;
         if (lowerTerm != null) {
-            String value = convertToString(lowerTerm);
-            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-            lowerVal = parseToMilliseconds(value, context, false);
+            if (lowerTerm instanceof Number) {
+                lowerVal = ((Number) lowerTerm).longValue();
+            } else {
+                String value = convertToString(lowerTerm);
+                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+                lowerVal = parseToMilliseconds(value, context, false);
+            }
         }
         if (upperTerm != null) {
-            String value = convertToString(upperTerm);
-            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-            upperVal = parseToMilliseconds(value, context, includeUpper);
+            if (upperTerm instanceof Number) {
+                upperVal = ((Number) upperTerm).longValue();
+            } else {
+                String value = convertToString(upperTerm);
+                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+                upperVal = parseToMilliseconds(value, context, includeUpper);
+            }
         }
 
         Filter filter =  NumericRangeFilter.newLongRange(
@@ -367,14 +378,22 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         Long lowerVal = null;
         Long upperVal = null;
         if (lowerTerm != null) {
-            String value = convertToString(lowerTerm);
-            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-            lowerVal = parseToMilliseconds(value, context, false);
+            if (lowerTerm instanceof Number) {
+                lowerVal = ((Number) lowerTerm).longValue();
+            } else {
+                String value = convertToString(lowerTerm);
+                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+                lowerVal = parseToMilliseconds(value, context, false);
+            }
         }
         if (upperTerm != null) {
-            String value = convertToString(upperTerm);
-            cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
-            upperVal = parseToMilliseconds(value, context, includeUpper);
+            if (upperTerm instanceof Number) {
+                upperVal = ((Number) upperTerm).longValue();
+            } else {
+                String value = convertToString(upperTerm);
+                cache = explicitCaching || !hasNowExpressionWithNoRounding(value);
+                upperVal = parseToMilliseconds(value, context, includeUpper);
+            }
         }
 
         Filter filter =  NumericRangeFieldDataFilter.newLongRange(

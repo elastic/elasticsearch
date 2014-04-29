@@ -86,7 +86,7 @@ public class AggregatorFactories {
                 }
 
                 @Override
-                protected void doPostCollection() {
+                protected void doPostCollection() throws IOException {
                     for (long i = 0; i < aggregators.size(); ++i) {
                         final Aggregator aggregator = aggregators.get(i);
                         if (aggregator != null) {

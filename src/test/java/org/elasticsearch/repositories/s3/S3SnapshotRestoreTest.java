@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 @AwsTest
-@ClusterScope(scope = Scope.SUITE, numNodes = 2)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
 public class S3SnapshotRestoreTest extends AbstractAwsTest {
 
     @Override

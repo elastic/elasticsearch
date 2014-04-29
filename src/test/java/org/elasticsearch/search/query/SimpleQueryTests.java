@@ -2156,6 +2156,19 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testDateProvidedAsNumber() {
+        createIndex("test");
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date").get());
+        client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L).get();
+        client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L).get();
+        client().prepareIndex("test", "type", "3").setSource("field", -999999999999L).get();
+        refresh();
+
+        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
+        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
+    }
+
+    @Test
     public void testRangeFilterNoCacheWithNow() throws Exception {
         assertAcked(prepareCreate("test")
                 //no replicas to make sure we always hit the very same shard and verify the caching behaviour

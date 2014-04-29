@@ -867,7 +867,7 @@ All queries in Elasticsearch trigger computation of the relevance scores. In cas
 * Filters do not score so they are faster to execute than queries
 * Filters can be http://www.elasticsearch.org/blog/all-about-elasticsearch-filter-bitsets/[cached in memory] allowing repeated search executions to be significantly faster than queries
 
-To understand filters, let's first introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-filtered-query.html[`filtered_query` query], which allows you to combine a query (like `match_all`, `match`, `bool`, etc.) together with a filter. As an example, let's introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-range-filter.html[`range` filter], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
+To understand filters, let's first introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-filtered-query.html[`filtered` query], which allows you to combine a query (like `match_all`, `match`, `bool`, etc.) together with a filter. As an example, let's introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-range-filter.html[`range` filter], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
 
 This example uses a filtered query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
 
@@ -895,7 +895,7 @@ Dissecting the above, the filtered query contains a `match_all` query (the query
 
 In general, the easiest way to decide whether you want a filter or a query is to ask yourself if you care about the relevance score or not. If relevance is not important, use filters, otherwise, use queries. If you come from a SQL background, queries and filters are similar in concept to the `SELECT WHERE` clause, although more so for filters than queries.
 
-In addition to the `match_all`, `match`, `bool`, `filtered_query`, and `range` queries, there are a lot of other query/filter types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query/filter types.
+In addition to the `match_all`, `match`, `bool`, `filtered`, and `range` queries, there are a lot of other query/filter types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query/filter types.
 
 === Executing Aggregations
 

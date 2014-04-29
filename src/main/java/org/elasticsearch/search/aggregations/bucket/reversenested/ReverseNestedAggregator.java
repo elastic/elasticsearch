@@ -29,9 +29,12 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -40,35 +43,22 @@ import java.io.IOException;
  */
 public class ReverseNestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
 
-    private final Filter parentFilter;
+    private final String nestedPath;
+    private Filter parentFilter;
     private DocIdSetIterator parentDocs;
 
-    // TODO: Should we add LongIntPagedHashMap?
+    // TODO: Add LongIntPagedHashMap?
     private final Recycler.V<LongIntOpenHashMap> bucketOrdToLastCollectedParentDocRecycler;
     private final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc;
 
     public ReverseNestedAggregator(String name, AggregatorFactories factories, String nestedPath, AggregationContext aggregationContext, Aggregator parent) {
         super(name, factories, aggregationContext, parent);
+        this.nestedPath = nestedPath;
 
-        // root means we link back to the top level root docId
-        // TODO: Better name? maybe empty should mean root?
-        if ("root".equals(nestedPath)) {
-            parentFilter = aggregationContext.searchContext().filterCache().cache(NonNestedDocsFilter.INSTANCE);
-        } else {
-            // TODO: add validation to see if the first nested agg from parent agg can emit valid docIds for docs
-            // in this nested path.
-            MapperService.SmartNameObjectMapper mapper = aggregationContext.searchContext().smartNameObjectMapper(nestedPath);
-            if (mapper == null) {
-                throw new AggregationExecutionException("facet nested path [" + nestedPath + "] not found");
-            }
-            ObjectMapper objectMapper = mapper.mapper();
-            if (objectMapper == null) {
-                throw new AggregationExecutionException("facet nested path [" + nestedPath + "] not found");
-            }
-            if (!objectMapper.nested().isNested()) {
-                throw new AggregationExecutionException("facet nested path [" + nestedPath + "] is not nested");
-            }
-            parentFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter());
+        // Early validation
+        NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
+        if (closestNestedAggregator == null) {
+            throw new SearchParseException(context.searchContext(), "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
         }
         bucketOrdToLastCollectedParentDocRecycler = aggregationContext.searchContext().cacheRecycler().longIntMap(32);
         bucketOrdToLastCollectedParentDoc = bucketOrdToLastCollectedParentDocRecycler.v();
@@ -77,6 +67,38 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
     @Override
     public void setNextReader(AtomicReaderContext reader) {
+        if (parentFilter == null) {
+            String nestedPath = this.nestedPath;
+            if (nestedPath == null) {
+                NestedAggregator wrappingNestedAggregator = findClosestNestedAggregator(parent);
+                ObjectMapper closestNestedObjectField = SearchContext.current().mapperService().resolveClosestNestedObjectMapper(wrappingNestedAggregator.getNestedPath());
+                if (closestNestedObjectField == null) {
+                    nestedPath = "root";
+                } else {
+                    nestedPath = closestNestedObjectField.fullPath();
+                }
+            }
+
+            // root means we link back to the top level root docId
+            // Better name? maybe empty should mean root?
+            if ("root".equals(nestedPath)) {
+                parentFilter = SearchContext.current().filterCache().cache(NonNestedDocsFilter.INSTANCE);
+            } else {
+                MapperService.SmartNameObjectMapper mapper = SearchContext.current().smartNameObjectMapper(nestedPath);
+                if (mapper == null) {
+                    throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] not found");
+                }
+                ObjectMapper objectMapper = mapper.mapper();
+                if (objectMapper == null) {
+                    throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] not found");
+                }
+                if (!objectMapper.nested().isNested()) {
+                    throw new AggregationExecutionException("[reverse_nested] nested path [" + nestedPath + "] is not nested");
+                }
+                parentFilter = SearchContext.current().filterCache().cache(objectMapper.nestedTypeFilter());
+            }
+        }
+
         bucketOrdToLastCollectedParentDoc.clear();
         try {
             // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
@@ -114,7 +136,6 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     }
 
     private void innerCollect(int parentDoc, long bucketOrd) throws IOException {
-//        System.out.println("collecting parentDoc=" + parentDoc + " bucketOrd=" + bucketOrd);
         collectBucket(parentDoc, bucketOrd);
     }
 
@@ -130,8 +151,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     }
 
     @Override
-    protected void doRelease() {
-        Releasables.release(bucketOrdToLastCollectedParentDocRecycler);
+    protected void doClose() {
+        Releasables.close(bucketOrdToLastCollectedParentDocRecycler);
     }
 
     public static class Factory extends AggregatorFactory {

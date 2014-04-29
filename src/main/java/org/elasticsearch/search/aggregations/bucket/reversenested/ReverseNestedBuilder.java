@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.reversenested;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
 import java.io.IOException;
 
@@ -43,10 +42,9 @@ public class ReverseNestedBuilder extends AggregationBuilder<ReverseNestedBuilde
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (path == null) {
-            throw new SearchSourceBuilderException("nested path must be set on reverse_nested aggregation [" + name + "]");
+        if (path != null) {
+            builder.field("path", path);
         }
-        builder.field("path", path);
         return builder.endObject();
     }
 }

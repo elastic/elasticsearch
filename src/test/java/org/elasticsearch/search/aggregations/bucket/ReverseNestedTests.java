@@ -17,6 +17,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -41,7 +42,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 1)
 public class ReverseNestedTests extends ElasticsearchIntegrationTest {
 
     @Before
@@ -128,6 +129,24 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void simple_reverseNestedToRoot_automaticPathResolving() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type1")
+                .addAggregation(nested("nested1").path("nested1")
+                                .subAggregation(
+                                        terms("field2").field("nested1.field2")
+                                                .subAggregation(
+                                                        reverseNested("nested1_to_field1")
+                                                                .subAggregation(
+                                                                        terms("field1").field("field1")
+                                                                )
+                                                )
+                                )
+                ).get();
+
+        verifyResults(response);
+    }
+
+    @Test
     public void simple_reverseNestedToNested1() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested1").path("nested1.nested2")
@@ -142,6 +161,36 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                         )
                 ).get();
         verifyResults(response);
+    }
+
+    @Test
+    public void simple_reverseNestedToNested1_automaticPathResolving() throws Exception {
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(nested("nested1").path("nested1.nested2")
+                                .subAggregation(
+                                        terms("field2").field("nested1.nested2.field2")
+                                                .subAggregation(
+                                                        reverseNested("nested1_to_field1")
+                                                                .subAggregation(
+                                                                        terms("field1").field("nested1.field1")
+                                                                )
+                                                )
+                                )
+                ).get();
+        verifyResults(response);
+    }
+
+    @Test(expected = SearchPhaseExecutionException.class)
+    public void testReverseNestedAggWithoutNestedAgg() throws Exception {
+        client().prepareSearch("idx")
+                .addAggregation(terms("field2").field("nested1.nested2.field2")
+                                .subAggregation(
+                                        reverseNested("nested1_to_field1")
+                                                .subAggregation(
+                                                        terms("field1").field("nested1.field1")
+                                                )
+                                )
+                ).get();
     }
 
     private void verifyResults(SearchResponse response) {

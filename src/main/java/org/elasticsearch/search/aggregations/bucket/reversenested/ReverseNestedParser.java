@@ -55,11 +55,6 @@ public class ReverseNestedParser implements Aggregator.Parser {
             }
         }
 
-        if (path == null) {
-            // "field" doesn't exist, so we fall back to the context of the ancestors
-            throw new SearchParseException(context, "Missing [path] field for reverse_nested aggregation [" + aggregationName + "]");
-        }
-
         return new ReverseNestedAggregator.Factory(aggregationName, path);
     }
 }

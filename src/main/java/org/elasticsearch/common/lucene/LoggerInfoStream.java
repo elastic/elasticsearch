@@ -36,7 +36,7 @@ public final class LoggerInfoStream extends InfoStream {
     }
 
     public void message(String component, String message) {
-        logger.trace("{}: {}",  component, message);
+        logger.trace("{} {}: {}", Thread.currentThread().getName(), component, message);
     }
   
     public boolean isEnabled(String component) {

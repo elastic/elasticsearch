@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.SUITE,
-        numNodes = 1,
+        numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreTest extends AbstractAzureRepositoryServiceTest {
 

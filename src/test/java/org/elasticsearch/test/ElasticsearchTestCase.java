@@ -163,8 +163,17 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         });
         defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
-        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
+        Requests.CONTENT_TYPE = randomXContentType();
+        Requests.INDEX_CONTENT_TYPE = randomXContentType();
+    }
+
+    private static XContentType randomXContentType() {
+        XContentType type = randomFrom(XContentType.values());
+        // for now, CBOR is disabled, see JsonVsCborTests#testBugInJacksonCBOR
+        if (type == XContentType.CBOR) {
+            return XContentType.JSON;
+        }
+        return type;
     }
 
     @AfterClass

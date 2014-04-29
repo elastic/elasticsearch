@@ -35,7 +35,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  * This test requires AWS to run.
  */
 @AwsTest
-@ClusterScope(scope = Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class Ec2DiscoveryITest extends AbstractAwsTest {
 
     @Test

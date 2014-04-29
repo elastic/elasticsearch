@@ -323,7 +323,7 @@ public class BulkProcessor implements Closeable {
         if (bulkActions != -1 && bulkRequest.numberOfActions() >= bulkActions) {
             return true;
         }
-        if (bulkSize != -1 && bulkRequest.estimatedSizeInBytes() >= bulkSize) {
+        if (bulkSize.getBytes() != -1 && bulkRequest.estimatedSizeInBytes() >= bulkSize) {
             return true;
         }
         return false;

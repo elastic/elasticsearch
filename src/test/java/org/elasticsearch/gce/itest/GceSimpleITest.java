@@ -37,7 +37,7 @@ import org.junit.Test;
 @AbstractGceTest.GceTest
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.TEST,
-        numNodes = 1,
+        numDataNodes = 1,
         transportClientRatio = 0.0)
 public class GceSimpleITest extends AbstractGceTest {
 

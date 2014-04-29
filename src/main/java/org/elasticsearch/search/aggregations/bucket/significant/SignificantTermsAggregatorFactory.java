@@ -21,18 +21,17 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -47,8 +46,106 @@ import java.io.IOException;
  */
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory implements Releasable {
 
-    public static final String EXECUTION_HINT_VALUE_MAP = "map";
-    public static final String EXECUTION_HINT_VALUE_ORDINALS = "ordinals";
+    public enum ExecutionMode {
+
+        MAP(new ParseField("map")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
+                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, termsAggregatorFactory);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
+            }
+
+        },
+        ORDINALS(new ParseField("ordinals")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggregatorFactory);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return false;
+            }
+
+        },
+        GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
+                long maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
+                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggregatorFactory);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
+            }
+
+        },
+        GLOBAL_ORDINALS_HASH(new ParseField("global_ordinals_hash")) {
+
+            @Override
+            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
+                if (includeExclude != null) {
+                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                }
+                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggregatorFactory);
+            }
+
+            @Override
+            boolean needsGlobalOrdinals() {
+                return true;
+            }
+        };
+
+        public static ExecutionMode fromString(String value) {
+            for (ExecutionMode mode : values()) {
+                if (mode.parseField.match(value)) {
+                    return mode;
+                }
+            }
+            throw new ElasticsearchIllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+        }
+
+        private final ParseField parseField;
+
+        ExecutionMode(ParseField parseField) {
+            this.parseField = parseField;
+        }
+
+        abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
+                                   int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                                   AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory);
+
+        abstract boolean needsGlobalOrdinals();
+
+        @Override
+        public String toString() {
+            return parseField.getPreferredName();
+        }
+    }
 
     private final int requiredSize;
     private final int shardSize;
@@ -117,30 +214,25 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
 
         if (valuesSource instanceof ValuesSource.Bytes) {
-            if (executionHint != null && !executionHint.equals(EXECUTION_HINT_VALUE_MAP) && !executionHint.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
-                throw new ElasticsearchIllegalArgumentException("execution_hint can only be '" + EXECUTION_HINT_VALUE_MAP + "' or '" + EXECUTION_HINT_VALUE_ORDINALS + "', not " + executionHint);
+            ExecutionMode execution = null;
+            if (executionHint != null) {
+                execution = ExecutionMode.fromString(executionHint);
             }
-            String execution = executionHint;
             if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
-                execution = EXECUTION_HINT_VALUE_MAP;
+                execution = ExecutionMode.MAP;
             } else if (includeExclude != null) {
-                execution = EXECUTION_HINT_VALUE_MAP;
+                execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                if ((valuesSource instanceof ValuesSource.Bytes.WithOrdinals)
-                        && !hasParentBucketAggregator(parent)) {
-                    execution = EXECUTION_HINT_VALUE_ORDINALS;
+                if (hasParentBucketAggregator(parent)) {
+                    execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
-                    execution = EXECUTION_HINT_VALUE_MAP;
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
             }
             assert execution != null;
-
-            if (execution.equals(EXECUTION_HINT_VALUE_ORDINALS)) {
-                assert includeExclude == null;
-                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
-            }
-            return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
+            valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
+            return execution.create(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
         }
 
         if (includeExclude != null) {

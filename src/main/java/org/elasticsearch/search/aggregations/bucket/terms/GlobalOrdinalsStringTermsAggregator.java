@@ -80,7 +80,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
     }
 
-    private static void copy(BytesRef from, BytesRef to) {
+    protected static void copy(BytesRef from, BytesRef to) {
         if (to.bytes.length < from.length) {
             to.bytes = new byte[ArrayUtil.oversize(from.length, RamUsageEstimator.NUM_BYTES_BYTE)];
         }

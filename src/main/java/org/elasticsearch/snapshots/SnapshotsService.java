@@ -537,7 +537,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
                     for (final SnapshotMetaData.Entry snapshot : snapshots.entries()) {
                         SnapshotMetaData.Entry updatedSnapshot = snapshot;
                         boolean snapshotChanged = false;
-                        if (snapshot.state() == State.STARTED) {
+                        if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
                             ImmutableMap.Builder<ShardId, ShardSnapshotStatus> shards = ImmutableMap.builder();
                             for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> shardEntry : snapshot.shards().entrySet()) {
                                 ShardSnapshotStatus shardStatus = shardEntry.getValue();

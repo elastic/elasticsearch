@@ -94,7 +94,7 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
 
                     @Override
                     public TokenStream create(TokenStream tokenStream) {
-                        return new JapanesePartOfSpeechStopFilter(Version.LUCENE_44,
+                        return new JapanesePartOfSpeechStopFilter(Version.LUCENE_48,
                                 tokenStream, JapaneseAnalyzer
                                 .getDefaultStopTags());
                     }

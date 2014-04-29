@@ -20,13 +20,18 @@
 package org.elasticsearch.mlt;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -290,6 +295,50 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                 moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).percentTermsToMatch(0))
                 .actionGet();
         assertSearchHits(mltResponse, "2");
+    }
+
+    @Test
+    public void testMoreLikeThisBodyFromSize() throws Exception {
+        logger.info("Creating index test");
+        assertAcked(prepareCreate("test").addMapping("type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("text").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        List<IndexRequestBuilder> builders = new ArrayList<>(10);
+        for (int i = 1; i <= 10; i++) {
+            builders.add(client().prepareIndex("test", "type1").setSource("text", "lucene").setId(String.valueOf(i)));
+        }
+        indexRandom(true, builders);
+
+        logger.info("'size' set but 'search_from' and 'search_size' kept to defaults");
+        SearchResponse mltResponse = client().moreLikeThis(
+                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).include(true)
+                        .searchSource(SearchSourceBuilder.searchSource().size(5)))
+                .actionGet();
+        assertSearchResponse(mltResponse);
+        assertEquals(mltResponse.getHits().hits().length, 5);
+
+        logger.info("'from' set but 'search_from' and 'search_size' kept to defaults");
+        mltResponse = client().moreLikeThis(
+                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).include(true)
+                        .searchSource(SearchSourceBuilder.searchSource().from(5)))
+                .actionGet();
+        assertSearchResponse(mltResponse);
+        assertEquals(mltResponse.getHits().hits().length, 5);
+
+        logger.info("When set, 'search_from' and 'search_size' should override 'from' and 'size'");
+        mltResponse = client().moreLikeThis(
+                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).include(true)
+                        .searchSize(10).searchFrom(2)
+                        .searchSource(SearchSourceBuilder.searchSource().size(1).from(1)))
+                .actionGet();
+        assertSearchResponse(mltResponse);
+        assertEquals(mltResponse.getHits().hits().length, 8);
     }
 
 }

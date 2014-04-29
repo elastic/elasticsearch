@@ -25,8 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -124,10 +122,10 @@ public class AggregationPhase implements SearchPhase {
             }
             try {
                 context.searcher().search(query, collector);
+                collector.postCollection();
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
             }
-            collector.postCollection();
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
@@ -171,7 +169,7 @@ public class AggregationPhase implements SearchPhase {
         }
 
         @Override
-        public void postCollection() {
+        public void postCollection() throws IOException {
             for (Aggregator collector : collectors) {
                 collector.postCollection();
             }

@@ -184,13 +184,13 @@ public class FacetPhase implements SearchPhase {
                 }
                 try {
                     context.searcher().search(query, MultiCollector.wrap(entry.getValue().toArray(new Collector[entry.getValue().size()])));
+                    for (Collector collector : entry.getValue()) {
+                        if (collector instanceof XCollector) {
+                            ((XCollector) collector).postCollection();
+                        }
+                    }
                 } catch (Exception e) {
                     throw new QueryPhaseExecutionException(context, "Failed to execute global facets", e);
-                }
-                for (Collector collector : entry.getValue()) {
-                    if (collector instanceof XCollector) {
-                        ((XCollector) collector).postCollection();
-                    }
                 }
             }
         }

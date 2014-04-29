@@ -27,7 +27,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.CoreMatchers.*;
 
-@ElasticsearchIntegrationTest.ClusterScope(numNodes = 1, scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class SimpleSmartChineseIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test

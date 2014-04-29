@@ -101,20 +101,14 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     @Override
     public int compare(int slot1, int slot2) {
         if (readerGen[slot1] == readerGen[slot2]) {
-            return Long.compare(ords[slot1], ords[slot2]);
+            final int res = Long.compare(ords[slot1], ords[slot2]);
+            assert Integer.signum(res) == Integer.signum(compareValues(values[slot1], values[slot2])) : values[slot1] + " " + values[slot2] + " " + ords[slot1] + " " + ords[slot2];
+            return res;
         }
 
         final BytesRef val1 = values[slot1];
         final BytesRef val2 = values[slot2];
-        if (val1 == null) {
-            if (val2 == null) {
-                return 0;
-            }
-            return -1;
-        } else if (val2 == null) {
-            return 1;
-        }
-        return val1.compareTo(val2);
+        return compareValues(val1, val2);
     }
 
     @Override
@@ -257,6 +251,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         public void missing(int slot) {
             ords[slot] = missingOrd;
             values[slot] = missingValue;
+            readerGen[slot] = currentReaderGen;
         }
     }
 
@@ -351,7 +346,6 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
             }
             assert consistentInsertedOrd(termsIndex, bottomOrd, bottomValue);
         }
-        readerGen[bottomSlot] = currentReaderGen;
     }
 
     @Override

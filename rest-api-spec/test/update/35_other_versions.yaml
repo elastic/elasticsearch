@@ -2,7 +2,7 @@
 "Not supported versions":
 
  - do:
-      catch:            /Validation/
+      catch:            /Validation|Invalid/
       update:
           index:        test_1
           type:         test
@@ -14,7 +14,7 @@
             upsert:     { foo: bar }
 
  - do:
-      catch:            /Validation/
+      catch:            /Validation|Invalid/
       update:
           index:        test_1
           type:         test

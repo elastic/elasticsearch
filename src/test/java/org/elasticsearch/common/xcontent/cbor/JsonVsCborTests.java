@@ -19,6 +19,10 @@
 
 package org.elasticsearch.common.xcontent.cbor;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -27,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -36,6 +41,26 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class JsonVsCborTests extends ElasticsearchTestCase {
+
+    @Test
+    public void testBugInJacksonCBOR() throws Exception {
+        JsonFactory factory = new CBORFactory();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        JsonGenerator generator = factory.createGenerator(out);
+        generator.writeStartObject();
+        generator.writeFieldName("field");
+        generator.writeNumber(-1000000000001L);
+        generator.writeEndObject();
+        generator.close();
+
+        JsonParser parser = factory.createParser(out.toByteArray());
+        parser.nextToken();
+        parser.nextToken();
+        parser.nextToken();
+        // this is the bug, if it gets fixed when upgrading to a new Jackson version
+        // we should re-enable using CBOR in our randomized testing (ElasticsearchTestCase#randomXContentType)
+        assertThat(parser.getLongValue(), equalTo(0L));
+    }
 
     @Test
     public void compareParsingTokens() throws IOException {

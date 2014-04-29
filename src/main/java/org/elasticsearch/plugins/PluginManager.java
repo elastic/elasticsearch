@@ -68,7 +68,7 @@ public class PluginManager {
     private final Environment environment;
 
     private String url;
-    private OutputMode outputMode;
+    private static OutputMode outputMode;
     private TimeValue timeout;
 
     public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
@@ -120,18 +120,18 @@ public class PluginManager {
             throw new IOException("plugin directory " + pluginDir + " is read only");
         }
 
-        Plugin plugin = new Plugin(name);
+        Plugin plugin = new Plugin(name, environment);
         if (plugin.isInstalled()) {
             throw new IOException("plugin directory " + plugin.extractedDir().getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
         }
 
         // download & unpack the plugin
-        plugin.download(downloadHelper, progress);
+        plugin.download(downloadHelper, progress, url, timeout);
         plugin.unpack();
     }
 
     public void removePlugin(String name) throws IOException {
-         Plugin plugin = new Plugin(name);
+         Plugin plugin = new Plugin(name, environment);
 
         boolean removed = plugin.remove();
         if (removed) {
@@ -142,7 +142,7 @@ public class PluginManager {
     }
 
     public boolean isPluginInstalled(String name) {
-        Plugin plugin = new Plugin(name);
+        Plugin plugin = new Plugin(name, environment);
         return plugin.isInstalled();
     }
 
@@ -300,11 +300,11 @@ public class PluginManager {
         }
     }
 
-    private void debug(String line) {
+    private static void debug(String line) {
         if (outputMode == OutputMode.VERBOSE) System.out.println(line);
     }
 
-    private void log(String line) {
+    private static void log(String line) {
         if (outputMode != OutputMode.SILENT) System.out.println(line);
     }
 
@@ -397,14 +397,16 @@ public class PluginManager {
         }
     }
 
-    class Plugin {
+    static class Plugin {
 
         private final PluginHandle pluginHandle;
         private final String pluginName;
+        private final Environment environment;
 
-        public Plugin(String name) {
-            pluginName = name;
-            pluginHandle = PluginHandle.parse(name);
+        public Plugin(String name, Environment environment) {
+            this.pluginName = name;
+            this.environment = environment;
+            this.pluginHandle = PluginHandle.parse(name);
             if (Strings.isNullOrEmpty(pluginHandle.name)) {
                 throw new ElasticsearchIllegalArgumentException("plugin name \"" + name + "\" is incorrect");
             }
@@ -426,7 +428,8 @@ public class PluginManager {
             return pluginHandle.binDir(environment);
         }
 
-        private void download(HttpDownloadHelper downloadHelper, HttpDownloadHelper.DownloadProgress progress) throws IOException {
+        private void download(HttpDownloadHelper downloadHelper, HttpDownloadHelper.DownloadProgress progress,
+                              String url, TimeValue timeout) throws IOException {
             boolean downloaded = false;
             File pluginFile = distroFile();
             // first, try directly from the URL provided
@@ -446,10 +449,10 @@ public class PluginManager {
 
             if (!downloaded) {
                 // We try all possible locations
-                for (URL url : pluginHandle.urls()) {
-                    log("Trying " + url.toExternalForm() + "...");
+                for (URL otherurl : pluginHandle.urls()) {
+                    log("Trying " + otherurl.toExternalForm() + "...");
                     try {
-                        downloadHelper.download(url, pluginFile, progress, timeout);
+                        downloadHelper.download(otherurl, pluginFile, progress, timeout);
                         downloaded = true;
                         break;
                     } catch (ElasticsearchTimeoutException e) {

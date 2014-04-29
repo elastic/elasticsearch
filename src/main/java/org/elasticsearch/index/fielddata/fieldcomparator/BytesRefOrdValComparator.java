@@ -228,7 +228,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
         @Override
         public int compareTopMissing() {
-            int cmp =  Long.compare(topOrd, missingOrd);
+            int cmp = Long.compare(topOrd, missingOrd);
             if (cmp == 0) {
                 return compareValues(top, missingValue);
             } else {
@@ -279,15 +279,20 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
 
     // find where to insert an ord in the current terms index
     private long ordInCurrentReader(BytesValues.WithOrdinals termsIndex, BytesRef value) {
-        final long docOrd = binarySearch(termsIndex, value);
         final long ord;
-        if (docOrd >= 0) {
-            // value exists in the current segment
-            ord = docOrd << 2;
+        if (value == null) {
+            ord = Ordinals.MISSING_ORDINAL << 2;
         } else {
-            // value doesn't exist, use the ord between the previous and the next term
-            ord = ((-2 - docOrd) << 2) + 2;
+            final long docOrd = binarySearch(termsIndex, value);
+            if (docOrd >= Ordinals.MIN_ORDINAL) {
+                // value exists in the current segment
+                ord = docOrd << 2;
+            } else {
+                // value doesn't exist, use the ord between the previous and the next term
+                ord = ((-2 - docOrd) << 2) + 2;
+            }
         }
+
         assert (ord & 1) == 0;
         return ord;
     }
@@ -296,12 +301,8 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         termsIndex = indexFieldData.load(context).getBytesValues(false);
         assert termsIndex.ordinals() != null;
-        if (missingValue == null) {
-            missingOrd = Ordinals.MISSING_ORDINAL;
-        } else {
-            missingOrd = ordInCurrentReader(termsIndex, missingValue);
-            assert consistentInsertedOrd(termsIndex, missingOrd, missingValue);
-        }
+        missingOrd = ordInCurrentReader(termsIndex, missingValue);
+        assert consistentInsertedOrd(termsIndex, missingOrd, missingValue);
         FieldComparator<BytesRef> perSegComp = null;
         assert termsIndex.ordinals() != null;
         if (termsIndex.isMultiValued()) {
@@ -332,14 +333,12 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
         bottomSlot = bottom;
         final BytesRef bottomValue = values[bottomSlot];
 
-        if (bottomValue == null) {
-            bottomOrd = Ordinals.MISSING_ORDINAL;
-        } else if (currentReaderGen == readerGen[bottomSlot]) {
+        if (currentReaderGen == readerGen[bottomSlot]) {
             bottomOrd = ords[bottomSlot];
         } else {
             // insert an ord
             bottomOrd = ordInCurrentReader(termsIndex, bottomValue);
-            if (bottomOrd == missingOrd) {
+            if (bottomOrd == missingOrd && bottomValue != null) {
                 // bottomValue and missingValue and in-between the same field data values -> tie-break
                 // this is why we multiply ords by 4
                 assert missingValue != null;

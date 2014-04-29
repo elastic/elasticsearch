@@ -18,8 +18,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -27,12 +28,16 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-public abstract class Aggregator implements Releasable, ReaderContextAware {
+public abstract class Aggregator extends BucketCollector implements Releasable {
+
+    private static final Predicate<Aggregator> COLLECTABLE_AGGREGATOR = new Predicate<Aggregator>() {
+        @Override
+        public boolean apply(Aggregator aggregator) {
+            return aggregator.shouldCollect();
+        }
+    };
 
     /**
      * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
@@ -60,6 +65,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
     protected final BucketAggregationMode bucketAggregationMode;
     protected final AggregatorFactories factories;
     protected final Aggregator[] subAggregators;
+    protected final BucketCollector collectableSugAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
 
@@ -84,6 +90,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.factories = factories;
         this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
+        collectableSugAggregators = BucketCollector.wrap(Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR));
         context.searchContext().addReleasable(this, Lifetime.PHASE);
     }
 
@@ -151,25 +158,10 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
     public abstract boolean shouldCollect();
 
     /**
-     * Called during the query phase, to collect & aggregate the given document.
-     *
-     * @param doc                   The document to be collected/aggregated
-     * @param owningBucketOrdinal   The ordinal of the bucket this aggregator belongs to, assuming this aggregator is not a top level aggregator.
-     *                              Typically, aggregators with {@code #bucketAggregationMode} set to {@link BucketAggregationMode#MULTI_BUCKETS}
-     *                              will heavily depend on this ordinal. Other aggregators may or may not use it and can see this ordinal as just
-     *                              an extra information for the aggregation context. For top level aggregators, the ordinal will always be
-     *                              equal to 0.
-     * @throws IOException
-     */
-    public abstract void collect(int doc, long owningBucketOrdinal) throws IOException;
-
-    /**
      * Called after collection of all document is done.
      */
-    public final void postCollection() {
-        for (int i = 0; i < subAggregators.length; i++) {
-            subAggregators[i].postCollection();
-        }
+    public final void postCollection() throws IOException {
+        collectableSugAggregators.postCollection();
         doPostCollection();
     }
 
@@ -185,7 +177,7 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
     /**
      * Can be overriden by aggregator implementation to be called back when the collection phase ends.
      */
-    protected void doPostCollection() {
+    protected void doPostCollection() throws IOException {
     }
 
     /**

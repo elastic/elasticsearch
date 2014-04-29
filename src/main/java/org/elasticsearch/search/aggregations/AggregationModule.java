@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeParser;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IpRangeParser;
-import org.elasticsearch.search.aggregations.bucket.reversenested.ReverseNestedParser;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;

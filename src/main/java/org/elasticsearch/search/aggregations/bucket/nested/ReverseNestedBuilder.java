@@ -16,7 +16,7 @@
  * the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.reversenested;
+package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;

@@ -15,7 +15,7 @@
  * License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.elasticsearch.search.aggregations.bucket.reversenested;
+package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationStreams;

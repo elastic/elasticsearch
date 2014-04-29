@@ -132,6 +132,15 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         return nestedPath;
     }
 
+    static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
+        for (; parent != null; parent = parent.parent()) {
+            if (parent instanceof NestedAggregator) {
+                return (NestedAggregator) parent;
+            }
+        }
+        return null;
+    }
+
     public static class Factory extends AggregatorFactory {
 
         private final String path;

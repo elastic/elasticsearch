@@ -5,7 +5,14 @@ A special single bucket aggregation that enables aggregating on parent docs from
 aggregation can break out of the nested block structure and link to other nested structures or the root document,
 which allows nesting other aggregations that aren't part of the nested object in a nested aggregation.
 
-For example, lets say we have an index for a ticket system which issues and comments. The commends are inlined into
+The `reverse_nested` aggregation must be defined inside a `nested` aggregation.
+
+The `reverse_nested` aggregation has a single option:
+* `path` - Which defines to what nested object field should be joined back. The default is empty, which means that it
+joins back to the root / main document level. The path cannot contain a reference to a nested object field that falls
+outside the nested structure a `nested` and `reverse_nested` is in.
+
+For example, lets say we have an index for a ticket system which issues and comments. The comments are inlined into
 the issue documents as nested documents. The mapping could look like:
 
 [source,js]
@@ -52,9 +59,7 @@ tags that issues have the commenter has commented to:
                 },
                 "aggs" : {
                     "comment_to_issue" : {
-                        "reverse_nested" : {
-                            "path" : "root", <2>
-
+                        "reverse_nested" : { <2>
                         },
                         "aggs" : {
                             "top_tags_per_comment" : {
@@ -70,12 +75,12 @@ tags that issues have the commenter has commented to:
 --------------------------------------------------
 
 As you can see above, the the `reverse_nested` aggregation is put in to a `nested` aggregation as this is the only place
-in the dsl where the `reversed_nested` aggregation can be used. Its sole purpose is to join back to a parent doc up
-higher up in the nested structure.
+in the dsl where the `reversed_nested` aggregation can be used. Its sole purpose is to join back to a parent doc higher
+up in the nested structure.
 
-<2> The value `root` in path points to the the main / root document, since there isn't field for the root document this
-value should be used if joining back to the main document is required. Another nested field higher up the nested
-structure in the path is also a valid value.
+<2> A `reverse_nested` aggregation that joins back to the root / main document level, because no `path` has been defined.
+Via the `path` option the `reverse_nested` aggregation can join back to a different level, if multiple layered nested
+object types have been defined in the mapping
 
 Possible response snippet:
 

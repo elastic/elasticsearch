@@ -22,7 +22,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -127,15 +126,6 @@ public abstract class Aggregator implements Releasable, ReaderContextAware {
             }
         }
         return subAggregatorbyName.get(aggName);
-    }
-
-    public NestedAggregator findClosestNestedAggregator(Aggregator parent) {
-        for (; parent != null; parent = parent.parent()) {
-            if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
-            }
-        }
-        return null;
     }
 
     /**

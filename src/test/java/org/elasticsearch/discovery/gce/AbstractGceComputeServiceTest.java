@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.SUITE,
-        numNodes = 2,
+        numDataNodes = 2,
         transportClientRatio = 0.0)
 public abstract class AbstractGceComputeServiceTest extends ElasticsearchIntegrationTest {
     /**

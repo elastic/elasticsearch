@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -196,22 +197,25 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 if (searchTypes == null) {
                     searchTypes = new String[]{request.type()};
                 }
-                int size = request.searchSize() != 0 ? request.searchSize() : 10;
-                int from = request.searchFrom() != 0 ? request.searchFrom() : 0;
                 SearchRequest searchRequest = searchRequest(searchIndices)
                         .types(searchTypes)
                         .searchType(request.searchType())
                         .scroll(request.searchScroll())
-                        .extraSource(searchSource()
-                                .query(boolBuilder)
-                                .from(from)
-                                .size(size)
-                        )
                         .listenerThreaded(request.listenerThreaded());
+
+                SearchSourceBuilder extraSource = searchSource().query(boolBuilder);
+                if (request.searchFrom() != 0) {
+                    extraSource.from(request.searchFrom());
+                }
+                if (request.searchSize() != 0) {
+                    extraSource.size(request.searchSize());
+                }
+                searchRequest.extraSource(extraSource);
 
                 if (request.searchSource() != null) {
                     searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
                 }
+
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse response) {

@@ -31,7 +31,7 @@ import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.*;
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -186,32 +186,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         };
     }
 
-    private static boolean hasParentBucketAggregator(Aggregator parent) {
-        if (parent == null) {
-            return false;
-        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
-            return true;
-        }
-        return hasParentBucketAggregator(parent.parent());
-    }
-
     @Override
     protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
         numberOfAggregatorsCreated++;
 
-        long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
-        if (estimatedBucketCount < 0) {
-            // there isn't an estimation available.. 50 should be a good start
-            estimatedBucketCount = 50;
-        }
-
-        // adding an upper bound on the estimation as some atomic field data in the future (binary doc values) and not
-        // going to know their exact cardinality and will return upper bounds in AtomicFieldData.getNumberUniqueValues()
-        // that may be largely over-estimated.. the value chosen here is arbitrary just to play nice with typical CPU cache
-        //
-        // Another reason is that it may be faster to resize upon growth than to start directly with the appropriate size.
-        // And that all values are not necessarily visited by the matches.
-        estimatedBucketCount = Math.min(estimatedBucketCount, 512);
+        long estimatedBucketCount = TermsAggregatorFactory.estimatedBucketCount(valuesSource, parent);
 
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
@@ -224,7 +203,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                if (hasParentBucketAggregator(parent)) {
+                if (Aggregator.hasParentBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     execution = ExecutionMode.GLOBAL_ORDINALS;

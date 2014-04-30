@@ -22,7 +22,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.*;
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -182,18 +181,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
     }
 
-    private static boolean hasParentBucketAggregator(Aggregator parent) {
-        if (parent == null) {
-            return false;
-        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
-            return true;
-        } else {
-            return hasParentBucketAggregator(parent.parent());
-        }
-    }
-
-    @Override
-    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+    public static long estimatedBucketCount(ValuesSource valuesSource, Aggregator parent) {
         long estimatedBucketCount = valuesSource.metaData().maxAtomicUniqueValuesCount();
         if (estimatedBucketCount < 0) {
             // there isn't an estimation available.. 50 should be a good start
@@ -207,6 +195,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         // Another reason is that it may be faster to resize upon growth than to start directly with the appropriate size.
         // And that all values are not necessarily visited by the matches.
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
+
+        if (Aggregator.hasParentBucketAggregator(parent)) {
+            // There is a parent that creates buckets, potentially with a very long tail of buckets with few documents
+            // Let's be conservative with memory in that case
+            estimatedBucketCount = Math.min(estimatedBucketCount, 8);
+        }
+
+        return estimatedBucketCount;
+    }
+
+    @Override
+    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        long estimatedBucketCount = estimatedBucketCount(valuesSource, parent);
 
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
@@ -238,7 +239,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // if there is a parent bucket aggregator the number of instances of this aggregator is going
                 // to be unbounded and most instances may only aggregate few documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
-                if (hasParentBucketAggregator(parent)) {
+                if (Aggregator.hasParentBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {

@@ -51,3 +51,6 @@ java.lang.Math#abs(long)
 
 @defaultMessage Use Long.compare instead we are on Java7
 com.google.common.primitives.Longs#compare(long,long)
+
+@defaultMessage we have an optimized XStringField to reduce analysis creation overhead
+org.apache.lucene.document.Field#<init>(java.lang.String,java.lang.String,org.apache.lucene.document.FieldType)

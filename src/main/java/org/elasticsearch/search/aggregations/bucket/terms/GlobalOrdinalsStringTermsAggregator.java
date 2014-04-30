@@ -28,6 +28,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.GlobalOrdinalMapping;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -38,8 +39,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
-
-import static org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.GlobalOrdinalMapping;
 
 /**
  * An aggregator of string values that relies on global ordinals in order to build buckets.
@@ -159,8 +158,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 long bucketOrd = bucketOrds.add(globalOrd);
                 if (bucketOrd < 0) {
                     bucketOrd = -1 - bucketOrd;
+                    collectExistingBucket(doc, bucketOrd);
+                } else {
+                    collectBucket(doc, bucketOrd);
                 }
-                collectBucket(doc, bucketOrd);
             }
         }
 

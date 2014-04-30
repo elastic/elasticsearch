@@ -206,7 +206,7 @@ The direct generators support the following parameters:
 [horizontal]
 `field`:: 
     The field to fetch the candidate suggestions from. This is
-    an required option that either needs to be set globally or per
+    a required option that either needs to be set globally or per
     suggestion.
 
 `size`:: 

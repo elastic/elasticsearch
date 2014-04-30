@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.util.BytesRef;
@@ -570,7 +571,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         }
 
         if (fieldType.indexed() || fieldType.stored()) {
-            Field field = new Field(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
+            Field field = new XStringField(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
             context.doc().add(field);
         }
         if (enableGeoHash) {

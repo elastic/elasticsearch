@@ -43,26 +43,6 @@ import static org.hamcrest.Matchers.nullValue;
 public class JsonVsCborTests extends ElasticsearchTestCase {
 
     @Test
-    public void testBugInJacksonCBOR() throws Exception {
-        JsonFactory factory = new CBORFactory();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        JsonGenerator generator = factory.createGenerator(out);
-        generator.writeStartObject();
-        generator.writeFieldName("field");
-        generator.writeNumber(-1000000000001L);
-        generator.writeEndObject();
-        generator.close();
-
-        JsonParser parser = factory.createParser(out.toByteArray());
-        parser.nextToken();
-        parser.nextToken();
-        parser.nextToken();
-        // this is the bug, if it gets fixed when upgrading to a new Jackson version
-        // we should re-enable using CBOR in our randomized testing (ElasticsearchTestCase#randomXContentType)
-        assertThat(parser.getLongValue(), equalTo(0L));
-    }
-
-    @Test
     public void compareParsingTokens() throws IOException {
         BytesStreamOutput xsonOs = new BytesStreamOutput();
         XContentGenerator xsonGen = XContentFactory.xContent(XContentType.CBOR).createGenerator(xsonOs);

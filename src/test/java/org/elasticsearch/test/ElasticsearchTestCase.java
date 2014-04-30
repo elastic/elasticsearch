@@ -168,12 +168,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     }
 
     private static XContentType randomXContentType() {
-        XContentType type = randomFrom(XContentType.values());
-        // for now, CBOR is disabled, see JsonVsCborTests#testBugInJacksonCBOR
-        if (type == XContentType.CBOR) {
-            return XContentType.JSON;
-        }
-        return type;
+        return randomFrom(XContentType.values());
     }
 
     @AfterClass

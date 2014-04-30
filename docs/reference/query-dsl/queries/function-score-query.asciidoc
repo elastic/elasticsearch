@@ -511,7 +511,7 @@ and the `custom_filters_score`
 "custom_filters_score": {
     "filters": [
         {
-            "boost_factor": "3",
+            "boost": "3",
             "filter": {...}
         },
         {

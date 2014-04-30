@@ -153,8 +153,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 long bucketOrd = bucketOrds.add(globalOrd);
                 if (bucketOrd < 0) {
                     bucketOrd = -1 - bucketOrd;
+                    collectExistingBucket(doc, bucketOrd);
+                } else {
+                    collectBucket(doc, bucketOrd);
                 }
-                collectBucket(doc, bucketOrd);
             }
         }
 

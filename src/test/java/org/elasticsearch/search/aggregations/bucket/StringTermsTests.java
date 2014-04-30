@@ -66,6 +66,13 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         return randomBoolean() ? null : randomFrom(modes.toArray()).toString();
     }
 
+    public static String randomExecutionHintNoOrdinals() {
+        EnumSet<ExecutionMode> modes = EnumSet.allOf(ExecutionMode.class);
+        modes.remove(ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY);
+        modes.remove(ExecutionMode.ORDINALS);
+        return randomBoolean() ? null : randomFrom(modes.toArray()).toString();
+    }
+
     public static String randomAllExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
     }
@@ -189,6 +196,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
                 .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHintNoOrdinals())
                         .field(SINGLE_VALUED_FIELD_NAME).include("val00.+"))
                 .execute().actionGet();
 
@@ -211,6 +219,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch("idx").setTypes("high_card_type")
                 .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHintNoOrdinals())
                         .field(SINGLE_VALUED_FIELD_NAME).include("val00.+").exclude("(val000|val001)"))
                 .execute().actionGet();
 
@@ -233,6 +242,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch("idx").setTypes("high_card_type")
                 .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHintNoOrdinals())
                         .field(SINGLE_VALUED_FIELD_NAME).exclude("val0[1-9]+.+"))
                 .execute().actionGet();
 
@@ -260,6 +270,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
                 .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHintNoOrdinals())
                         .field(SINGLE_VALUED_FIELD_NAME).include("VAL00.+", Pattern.CASE_INSENSITIVE))
                 .execute().actionGet();
 
@@ -283,6 +294,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch("idx").setTypes("high_card_type")
                 .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHintNoOrdinals())
                         .field(SINGLE_VALUED_FIELD_NAME).include("val00.+").exclude("( val000 | VAL001 )#this is a comment", Pattern.CASE_INSENSITIVE | Pattern.COMMENTS))
                 .execute().actionGet();
 
@@ -306,6 +318,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch("idx").setTypes("high_card_type")
                 .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHintNoOrdinals())
                         .field(SINGLE_VALUED_FIELD_NAME).exclude("val0[1-9]+.+", 0))
                 .execute().actionGet();
 

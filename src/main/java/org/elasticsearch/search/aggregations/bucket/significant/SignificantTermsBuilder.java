@@ -38,6 +38,10 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int minDocCount = SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
     private int shardMinDocCount = SignificantTermsParser.DEFAULT_SHARD_MIN_DOC_COUNT;
     private String executionHint;
+    private String includePattern;
+    private int includeFlags;
+    private String excludePattern;
+    private int excludeFlags;
 
     public SignificantTermsBuilder(String name) {
         super(name, SignificantStringTerms.TYPE.name());
@@ -73,6 +77,50 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         return this;
     }
 
+    /**
+     * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
+     * on the {@link java.util.regex.Pattern} class.
+     *
+     * @see #include(String, int)
+     */
+    public SignificantTermsBuilder include(String regex) {
+        return include(regex, 0);
+    }
+
+    /**
+     * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
+     * on the {@link java.util.regex.Pattern} class.
+     *
+     * @see java.util.regex.Pattern#compile(String, int)
+     */
+    public SignificantTermsBuilder include(String regex, int flags) {
+        this.includePattern = regex;
+        this.includeFlags = flags;
+        return this;
+    }
+
+    /**
+     * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
+     * expression is based on the {@link java.util.regex.Pattern} class.
+     *
+     * @see #exclude(String, int)
+     */
+    public SignificantTermsBuilder exclude(String regex) {
+        return exclude(regex, 0);
+    }
+
+    /**
+     * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
+     * expression is based on the {@link java.util.regex.Pattern} class.
+     *
+     * @see java.util.regex.Pattern#compile(String, int)
+     */
+    public SignificantTermsBuilder exclude(String regex, int flags) {
+        this.excludePattern = regex;
+        this.excludeFlags = flags;
+        return this;
+    }
+
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -93,6 +141,26 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         if (executionHint != null) {
             builder.field("execution_hint", executionHint);
+        }
+        if (includePattern != null) {
+            if (includeFlags == 0) {
+                builder.field("include", includePattern);
+            } else {
+                builder.startObject("include")
+                        .field("pattern", includePattern)
+                        .field("flags", includeFlags)
+                        .endObject();
+            }
+        }
+        if (excludePattern != null) {
+            if (excludeFlags == 0) {
+                builder.field("exclude", excludePattern);
+            } else {
+                builder.startObject("exclude")
+                        .field("pattern", excludePattern)
+                        .field("flags", excludeFlags)
+                        .endObject();
+            }
         }
 
         return builder.endObject();

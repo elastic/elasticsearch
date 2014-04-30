@@ -551,8 +551,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             return;
         }
-        logger.debug("received cluster state from [{}] which is also master but with cluster name [{}]",  newClusterState.nodes().masterNode(), incomingClusterName);
         if (master) {
+            logger.debug("received cluster state from [{}] which is also master but with cluster name [{}]",  newClusterState.nodes().masterNode(), incomingClusterName);
             final ClusterState newState = newClusterState;
             clusterService.submitStateUpdateTask("zen-disco-master_receive_cluster_state_from_another_master [" + newState.nodes().masterNode() + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
                 @Override

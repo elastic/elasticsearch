@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -501,6 +500,7 @@ public class ThreadPool extends AbstractComponent {
         EstimatedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
+            this.estimatedTimeInMillis = System.currentTimeMillis();
             setDaemon(true);
         }
 

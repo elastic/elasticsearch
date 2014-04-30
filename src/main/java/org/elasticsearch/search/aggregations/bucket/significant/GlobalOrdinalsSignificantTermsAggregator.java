@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -46,11 +46,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                                                     long estimatedBucketCount, long maxOrd, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount,
-                                                    AggregationContext aggregationContext, Aggregator parent,
+                                                    IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
                                                     SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, requiredSize, shardSize,
-                minDocCount, aggregationContext, parent);
+        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
         this.shardMinDocCount = shardMinDocCount;
     }
@@ -80,8 +79,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantStringTerms.Bucket spare = null;
-        for (long termOrd = Ordinals.MIN_ORDINAL; termOrd < globalOrdinals.getMaxOrd(); ++termOrd) {
-            final long bucketOrd = getBucketOrd(termOrd);
+        for (long globalTermOrd = Ordinals.MIN_ORDINAL; globalTermOrd < globalOrdinals.getMaxOrd(); ++globalTermOrd) {
+            final long bucketOrd = getBucketOrd(globalTermOrd);
             final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (minDocCount > 0 && bucketDocCount == 0) {
                 continue;
@@ -90,7 +89,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 spare = new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, 0, 0, null);
             }
             spare.bucketOrd = bucketOrd;
-            copy(globalValues.getValueByOrd(termOrd), spare.termBytes);
+            copy(globalValues.getValueByOrd(globalTermOrd), spare.termBytes);
             spare.subsetDf = bucketDocCount;
             spare.subsetSize = subsetSize;
             spare.supersetDf = termsAggFactory.getBackgroundFrequency(spare.termBytes);
@@ -136,15 +135,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, termsAggFactory);
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, termsAggFactory);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
-        }
-
-        @Override
-        public void setNextReader(AtomicReaderContext reader) {
-            globalValues = valuesSource.globalBytesValues();
-            globalOrdinals = globalValues.ordinals();
         }
 
         @Override

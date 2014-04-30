@@ -33,14 +33,16 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -49,7 +51,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     public String randomExecutionHint() {
-        return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
+        return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
+    }
+
+    public String randomExecutionHintNoOrdinals() {
+        EnumSet<SignificantTermsAggregatorFactory.ExecutionMode> modes = EnumSet.allOf(ExecutionMode.class);
+        modes.remove(ExecutionMode.ORDINALS);
+        return randomBoolean() ? null : randomFrom(modes.toArray()).toString();
     }
 
     @Override
@@ -117,6 +125,42 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
     }
+
+    @Test
+    public void includeExclude() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHintNoOrdinals())
+                        .exclude("weller"))
+                .get();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        Set<String> terms  = new HashSet<>();
+        for (Bucket topTerm : topTerms) {
+            terms.add(topTerm.getKey());
+        }
+        assertThat(terms, hasSize(6));
+        assertThat(terms.contains("jam"), is(true));
+        assertThat(terms.contains("council"), is(true));
+        assertThat(terms.contains("style"), is(true));
+        assertThat(terms.contains("paul"), is(true));
+        assertThat(terms.contains("of"), is(true));
+        assertThat(terms.contains("the"), is(true));
+
+        response = client().prepareSearch("test")
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHintNoOrdinals())
+                        .include("weller"))
+                .get();
+        assertSearchResponse(response);
+        topTerms = response.getAggregations().get("mySignificantTerms");
+        terms  = new HashSet<>();
+        for (Bucket topTerm : topTerms) {
+            terms.add(topTerm.getKey());
+        }
+        assertThat(terms, hasSize(1));
+        assertThat(terms.contains("weller"), is(true));
+    }
     
     @Test
     public void unmapped() throws Exception {
@@ -125,7 +169,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
-                           .minDocCount(2))
+                        .minDocCount(2))
                 .execute()
                 .actionGet();
         assertSearchResponse(response);

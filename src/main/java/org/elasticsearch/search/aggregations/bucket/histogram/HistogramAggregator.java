@@ -164,6 +164,10 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             // todo if we'll keep track of min/max values in IndexFieldData, we could use the max here to come up with a better estimation for the buckets count
+            long estimatedBucketCount = 50;
+            if (hasParentBucketAggregator(parent)) {
+                estimatedBucketCount = 8;
+            }
 
             // we need to round the bounds given by the user and we have to do it for every aggregator we crate
             // as the rounding is not necessarily an idempotent operation.
@@ -174,7 +178,7 @@ public class HistogramAggregator extends BucketsAggregator {
                 extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
                 roundedBounds = extendedBounds.round(rounding);
             }
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, config.formatter(), 50, histogramFactory, aggregationContext, parent);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, config.formatter(), estimatedBucketCount, histogramFactory, aggregationContext, parent);
         }
 
     }

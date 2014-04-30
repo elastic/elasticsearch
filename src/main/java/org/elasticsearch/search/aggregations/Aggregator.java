@@ -40,6 +40,19 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     };
 
     /**
+     * Returns whether any of the parent aggregators has {@link BucketAggregationMode#PER_BUCKET} as a bucket aggregation mode.
+     */
+    public static boolean hasParentBucketAggregator(Aggregator parent) {
+        if (parent == null) {
+            return false;
+        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
+            return true;
+        } else {
+            return hasParentBucketAggregator(parent.parent());
+        }
+    }
+
+    /**
      * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
      */
     public static enum BucketAggregationMode {

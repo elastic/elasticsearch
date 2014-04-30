@@ -39,15 +39,17 @@ import java.util.Collections;
 public class SignificantLongTermsAggregator extends LongTermsAggregator {
 
     public SignificantLongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
-              long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
+              long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount,
               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
 
         super(name, factories, valuesSource, format, estimatedBucketCount, null, requiredSize, shardSize, minDocCount, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
+        this.shardMinDocCount = shardMinDocCount;
     }
 
     protected long numCollectedDocs;
     private final SignificantTermsAggregatorFactory termsAggFactory;
+    protected long shardMinDocCount;
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
@@ -81,7 +83,9 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.updateScore();
 
             spare.bucketOrd = i;
-            spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (spare.subsetDf >= shardMinDocCount) {
+                spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];

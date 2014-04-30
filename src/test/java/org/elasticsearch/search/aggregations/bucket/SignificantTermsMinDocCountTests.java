@@ -74,7 +74,7 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
                         (new FilterAggregationBuilder("inclass").filter(FilterBuilders.termFilter("class", true)))
-                                .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
+                                .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
                 )
                 .execute()
                 .actionGet();

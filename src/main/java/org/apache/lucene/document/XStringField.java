@@ -20,6 +20,7 @@ package org.apache.lucene.document;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.util.CloseableThreadLocal;
 
 import java.io.IOException;
 
@@ -33,7 +34,7 @@ import java.io.IOException;
  */
 public class XStringField extends Field {
 
-    private static final ThreadLocal<StringTokenStream> NOT_ANALYZED_TOKENSTREAM = new ThreadLocal<StringTokenStream>() {
+    private static final CloseableThreadLocal<StringTokenStream> NOT_ANALYZED_TOKENSTREAM = new CloseableThreadLocal<StringTokenStream>() {
         @Override
         protected StringTokenStream initialValue() {
             return new StringTokenStream();

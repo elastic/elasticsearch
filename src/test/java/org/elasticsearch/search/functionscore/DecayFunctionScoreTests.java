@@ -27,6 +27,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
@@ -799,4 +801,59 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
         sh = sr.getHits();
         assertThat((double) (sh.getAt(0).getScore()), closeTo((double) (sh.getAt(1).getScore()), 1.e-6d));
     }
+
+    @Test
+    public void errorMessageForFaultyFunctionScoreBody() throws Exception {
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+        client().index(
+                indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
+                .actionGet();
+        refresh();
+
+        XContentBuilder query = XContentFactory.jsonBuilder();
+        // query that contains a functions[] array but also a single function
+        query.startObject().startObject("function_score").startArray("functions").startObject().field("boost_factor", "1.3").endObject().endArray().field("boost_factor", "1").endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"functions\": [...] already, now encountering \"boost_factor\". Did you mean \"boost\" instead?"));
+        }
+
+        query = XContentFactory.jsonBuilder();
+        // query that contains a single function and a functions[] array
+        query.startObject().startObject("function_score").field("boost_factor", "1").startArray("functions").startObject().field("boost_factor", "1.3").endObject().endArray().endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"boost_factor\" already, now encountering \"functions\": [...]. Did you mean \"boost\" instead?"));
+        }
+
+        query = XContentFactory.jsonBuilder();
+        // query that contains a single function (but not boost factor) and a functions[] array
+        query.startObject().startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"random_score\" already, now encountering \"functions\": [...]."));
+            assertFalse(e.shardFailures()[0].reason().contains("Did you mean \"boost\" instead?"));
+
+        }
+    }
+
 }

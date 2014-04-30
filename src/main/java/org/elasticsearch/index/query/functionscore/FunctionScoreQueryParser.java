@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -82,6 +83,12 @@ public class FunctionScoreQueryParser implements QueryParser {
         String currentFieldName = null;
         XContentParser.Token token;
         CombineFunction combineFunction = CombineFunction.MULT;
+        // Either define array of functions and filters or only one function
+        boolean functionArrayFound = false;
+        boolean singleFunctionFound = false;
+        // For better readability of error message
+        String singleFunctionName = null;
+        final String errorMessagePrefix = "You can either define \"functions\":[...] or a single function, not both. ";
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -98,13 +105,23 @@ public class FunctionScoreQueryParser implements QueryParser {
             } else if ("boost".equals(currentFieldName)) {
                 boost = parser.floatValue();
             } else if ("functions".equals(currentFieldName)) {
+                if (singleFunctionFound) {
+                    throw new ElasticsearchParseException(errorMessagePrefix + "Found \"" + singleFunctionName + "\" already, now encountering \"functions\": [...");
+                }
                 currentFieldName = parseFiltersAndFunctions(parseContext, parser, filterFunctions, currentFieldName);
+                functionArrayFound = true;
             } else {
-                // we tru to parse a score function. If there is no score
+
+                // we try to parse a score function. If there is no score
                 // function for the current field name,
-                // funtionParserMapper.get() will throw an Exception.
-                filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(null, funtionParserMapper.get(parseContext.index(),
-                        currentFieldName).parse(parseContext, parser)));
+                // functionParserMapper.get() will throw an Exception.
+                ScoreFunctionParser currentFunctionParser =  funtionParserMapper.get(parseContext.index(), currentFieldName);
+                singleFunctionName = currentFunctionParser.getNames()[0];
+                if (functionArrayFound) {
+                    throw new ElasticsearchParseException(errorMessagePrefix + "Found \"functions\": [...] already, now encountering \""  + singleFunctionName + "\"");
+                }
+                filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(null, currentFunctionParser.parse(parseContext, parser)));
+                singleFunctionFound = true;
             }
         }
         if (query == null) {

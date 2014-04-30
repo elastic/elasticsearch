@@ -45,15 +45,17 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected long numCollectedDocs;
     protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected long shardMinDocCount;
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount,
+            long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount,
             IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
             SignificantTermsAggregatorFactory termsAggFactory) {
 
         super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize,
                 minDocCount, includeExclude, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
+        this.shardMinDocCount = shardMinDocCount;
     }
 
     @Override
@@ -90,7 +92,9 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             spare.updateScore();
 
             spare.bucketOrd = i;
-            spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (spare.subsetDf >= shardMinDocCount) {
+                spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];
@@ -130,9 +134,9 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         private LongArray ordinalToBucket;
 
         public WithOrdinals(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext,
+                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, AggregationContext aggregationContext,
                 Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, esitmatedBucketCount, requiredSize, shardSize, minDocCount, null, aggregationContext, parent, termsAggFactory);
+            super(name, factories, valuesSource, esitmatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, null, aggregationContext, parent, termsAggFactory);
             this.valuesSource = valuesSource;
         }
 

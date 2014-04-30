@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -41,6 +42,9 @@ public class SignificantTermsParser implements Aggregator.Parser {
     //Typically need more than one occurrence of something for it to be statistically significant
     public static final int DEFAULT_MIN_DOC_COUNT = 3;
 
+    static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
+    public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 1;
+
     @Override
     public String type() {
         return SignificantStringTerms.TYPE.name();
@@ -62,6 +66,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
         int requiredSize = DEFAULT_REQUIRED_SIZE;
         int shardSize = DEFAULT_SHARD_SIZE;
         long minDocCount = DEFAULT_MIN_DOC_COUNT;
+        long shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
+
         String executionHint = null;
 
         XContentParser.Token token;
@@ -86,8 +92,11 @@ public class SignificantTermsParser implements Aggregator.Parser {
                     shardSize = parser.intValue();
                 } else if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.intValue();
+                } else if (SHARD_MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)){
+                    shardMinDocCount = parser.longValue();
                 } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                        throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // TODO not sure if code below is the best means to declare a filter for 
@@ -124,8 +133,13 @@ public class SignificantTermsParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
+        // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
+        if (shardMinDocCount > minDocCount) {
+            shardMinDocCount = minDocCount;
+        }
+
         IncludeExclude includeExclude = incExcParser.includeExclude();
-        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), requiredSize, shardSize, minDocCount, includeExclude, executionHint, filter);
+        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, executionHint, filter);
     }
 
 }

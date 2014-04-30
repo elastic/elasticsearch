@@ -52,9 +52,9 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
-                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, termsAggregatorFactory);
+                return new SignificantStringTermsAggregator(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, termsAggregatorFactory);
             }
 
             @Override
@@ -67,12 +67,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
                 if (includeExclude != null) {
                     throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
                 }
-                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggregatorFactory);
+                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, termsAggregatorFactory);
             }
 
             @Override
@@ -85,7 +85,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
                 if (includeExclude != null) {
                     throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
@@ -93,7 +93,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                 IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
                 long maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
-                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggregatorFactory);
+                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, termsAggregatorFactory);
             }
 
             @Override
@@ -106,12 +106,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                              int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
                 if (includeExclude != null) {
                     throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
                 }
-                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggregatorFactory);
+                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, termsAggregatorFactory);
             }
 
             @Override
@@ -136,7 +136,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                                   int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
+                                   int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory);
 
         abstract boolean needsGlobalOrdinals();
@@ -150,6 +150,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private final int requiredSize;
     private final int shardSize;
     private final long minDocCount;
+    private final long shardMinDocCount;
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private String indexedFieldName;
@@ -159,13 +160,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private Filter filter;
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, int requiredSize,
-                                             int shardSize, long minDocCount, IncludeExclude includeExclude,
+                                             int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                                              String executionHint, Filter filter) {
 
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
         this.minDocCount = minDocCount;
+        this.shardMinDocCount = shardMinDocCount;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         if (!valueSourceConfig.unmapped()) {
@@ -211,7 +213,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
             assert execution != null;
             valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
-            return execution.create(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent, this);
+            return execution.create(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, this);
         }
 
         if (includeExclude != null) {
@@ -224,7 +226,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
                 throw new UnsupportedOperationException("No support for examining floating point numerics");
             }
-            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, this);
+            return new SignificantLongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(), estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, this);
         }
 
         throw new AggregationExecutionException("sigfnificant_terms aggregation cannot be applied to field [" + config.fieldContext().field() +

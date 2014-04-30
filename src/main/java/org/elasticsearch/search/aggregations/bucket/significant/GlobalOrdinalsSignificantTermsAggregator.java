@@ -42,15 +42,17 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
     protected long numCollectedDocs;
     protected final SignificantTermsAggregatorFactory termsAggFactory;
+    protected long shardMinDocCount;
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
-                                                    long estimatedBucketCount, long maxOrd, int requiredSize, int shardSize, long minDocCount,
+                                                    long estimatedBucketCount, long maxOrd, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount,
                                                     AggregationContext aggregationContext, Aggregator parent,
                                                     SignificantTermsAggregatorFactory termsAggFactory) {
 
         super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, requiredSize, shardSize,
                 minDocCount, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
+        this.shardMinDocCount = shardMinDocCount;
     }
 
     @Override
@@ -99,8 +101,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             // Back at the central reducer these properties will be updated with
             // global stats
             spare.updateScore();
-
-            spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (spare.subsetDf >= shardMinDocCount) {
+                spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalSignificantTerms.Bucket[] list = new InternalSignificantTerms.Bucket[ordered.size()];
@@ -133,8 +136,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, requiredSize, shardSize, minDocCount, aggregationContext, parent, termsAggFactory);
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, termsAggFactory);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 

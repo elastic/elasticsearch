@@ -74,10 +74,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
-                }
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
             }
 
             @Override
@@ -92,10 +89,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
-                }
-                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
+                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
             }
 
             @Override
@@ -217,8 +211,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
             // In some cases, using ordinals is just not supported: override it
             if (!(valuesSource instanceof ValuesSource.Bytes.WithOrdinals)) {
-                execution = ExecutionMode.MAP;
-            } else if (includeExclude != null) {
                 execution = ExecutionMode.MAP;
             }
 

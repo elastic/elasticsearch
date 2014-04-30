@@ -823,7 +823,8 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                             searchSource().query(query))).actionGet();
             fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
-            assertTrue(e.shardFailures()[0].reason().contains("Found \"functions\": [...] already, now encountering \"boost_factor\""));
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"functions\": [...] already, now encountering \"boost_factor\". Did you mean \"boost\" instead?"));
         }
 
         query = XContentFactory.jsonBuilder();
@@ -836,7 +837,22 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
             fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             logger.info(e.shardFailures()[0].reason());
-            assertTrue(e.shardFailures()[0].reason().contains("Found \"boost_factor\" already, now encountering \"functions\": [...]"));
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"boost_factor\" already, now encountering \"functions\": [...]. Did you mean \"boost\" instead?"));
+        }
+
+        query = XContentFactory.jsonBuilder();
+        // query that contains a single function (but not boost factor) and a functions[] array
+        query.startObject().startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"random_score\" already, now encountering \"functions\": [...]."));
+            assertFalse(e.shardFailures()[0].reason().contains("Did you mean \"boost\" instead?"));
+
         }
     }
 

@@ -36,9 +36,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryParsingException;
+import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
+import org.elasticsearch.index.query.functionscore.factor.FactorParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  *
@@ -89,6 +92,7 @@ public class FunctionScoreQueryParser implements QueryParser {
         // For better readability of error message
         String singleFunctionName = null;
         final String errorMessagePrefix = "You can either define \"functions\":[...] or a single function, not both. ";
+        final String boostNameMessageSuffix = " Did you mean \"boost\" instead?";
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -105,8 +109,12 @@ public class FunctionScoreQueryParser implements QueryParser {
             } else if ("boost".equals(currentFieldName)) {
                 boost = parser.floatValue();
             } else if ("functions".equals(currentFieldName)) {
+                String errorString = errorMessagePrefix + "Found \"" + singleFunctionName + "\" already, now encountering \"functions\": [...].";
+                if (Arrays.asList(FactorParser.NAMES).contains(singleFunctionName)) {
+                    errorString += boostNameMessageSuffix;
+                }
                 if (singleFunctionFound) {
-                    throw new ElasticsearchParseException(errorMessagePrefix + "Found \"" + singleFunctionName + "\" already, now encountering \"functions\": [...");
+                    throw new ElasticsearchParseException(errorString);
                 }
                 currentFieldName = parseFiltersAndFunctions(parseContext, parser, filterFunctions, currentFieldName);
                 functionArrayFound = true;
@@ -116,9 +124,14 @@ public class FunctionScoreQueryParser implements QueryParser {
                 // function for the current field name,
                 // functionParserMapper.get() will throw an Exception.
                 ScoreFunctionParser currentFunctionParser =  funtionParserMapper.get(parseContext.index(), currentFieldName);
-                singleFunctionName = currentFunctionParser.getNames()[0];
+                singleFunctionName = currentFieldName;
                 if (functionArrayFound) {
-                    throw new ElasticsearchParseException(errorMessagePrefix + "Found \"functions\": [...] already, now encountering \""  + singleFunctionName + "\"");
+                    String errorString = errorMessagePrefix + "Found \"functions\": [...] already, now encountering \""  + currentFieldName + "\".";
+                    if (Arrays.asList(FactorParser.NAMES).contains(currentFieldName))
+                    {
+                        errorString += boostNameMessageSuffix;
+                    }
+                    throw new ElasticsearchParseException(errorString);
                 }
                 filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(null, currentFunctionParser.parse(parseContext, parser)));
                 singleFunctionFound = true;

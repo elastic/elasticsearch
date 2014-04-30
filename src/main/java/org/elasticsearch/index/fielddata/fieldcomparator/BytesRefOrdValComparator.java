@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import com.google.common.primitives.Longs;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
@@ -99,7 +100,7 @@ public final class BytesRefOrdValComparator extends NestedWrappableComparator<By
     @Override
     public int compare(int slot1, int slot2) {
         if (readerGen[slot1] == readerGen[slot2]) {
-            final int res = Long.compare(ords[slot1], ords[slot2]);
+            final int res = Longs.compare(ords[slot1], ords[slot2]);
             assert Integer.signum(res) == Integer.signum(compareValues(values[slot1], values[slot2])) : values[slot1] + " " + values[slot2] + " " + ords[slot1] + " " + ords[slot2];
             return res;
         }

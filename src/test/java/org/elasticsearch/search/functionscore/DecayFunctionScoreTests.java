@@ -821,7 +821,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
             client().search(
                     searchRequest().source(
                             searchSource().query(query))).actionGet();
-            assertFalse(true);
+            fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.shardFailures()[0].reason().contains("Found \"functions\": [...] already, now encountering \"boost_factor\""));
         }
@@ -833,7 +833,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
             client().search(
                     searchRequest().source(
                             searchSource().query(query))).actionGet();
-            assertFalse(true);
+            fail("Search should result in SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             logger.info(e.shardFailures()[0].reason());
             assertTrue(e.shardFailures()[0].reason().contains("Found \"boost_factor\" already, now encountering \"functions\": [...]"));

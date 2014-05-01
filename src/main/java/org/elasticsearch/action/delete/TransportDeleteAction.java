@@ -112,7 +112,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                     if (request.versionType() != VersionType.INTERNAL) {
                         // TODO: implement this feature
                         throw new ElasticsearchIllegalArgumentException("routing value is required for deleting documents of type [" + request.type()
-                                + "] while using version_type [" + request.versionType());
+                                + "] while using version_type [" + request.versionType() + "]");
                     }
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
                         @Override

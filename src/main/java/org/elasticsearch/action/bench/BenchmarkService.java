@@ -142,7 +142,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                             }
                         });
                     } else {
-                        listener.onResponse(new AbortBenchmarkResponse(benchmarkName, "Benchmark with name [" + benchmarkName + "] not found"));
+                        listener.onFailure(new BenchmarkMissingException("Benchmark with name [" + benchmarkName + "] not found"));
                     }
                 }
 
@@ -213,7 +213,8 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             public void onFailure(Throwable t) {
                 listener.onFailure(t);
             }
-        }, !benchmarkResponse.isAborted() && !benchmarkResponse.hasFailures()));
+        }, (benchmarkResponse.state() != BenchmarkResponse.State.ABORTED) &&
+           (benchmarkResponse.state() != BenchmarkResponse.State.FAILED)));
     }
 
     private final boolean isBenchmarkNode(DiscoveryNode node) {
@@ -298,7 +299,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public void messageReceived(NodeAbortRequest request, TransportChannel channel) throws Exception {
-            AbortBenchmarkNodeResponse nodeResponse = executor.abortBenchmark(request.benchmarkId);
+            AbortBenchmarkNodeResponse nodeResponse = executor.abortBenchmark(request.benchmarkName);
             nodeResponse.nodeName(clusterService.localNode().name());
             channel.sendResponse(nodeResponse);
         }
@@ -310,10 +311,10 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     }
 
     public static class NodeAbortRequest extends TransportRequest {
-        private String benchmarkId;
+        private String benchmarkName;
 
-        public NodeAbortRequest(String benchmarkId) {
-            this.benchmarkId = benchmarkId;
+        public NodeAbortRequest(String benchmarkName) {
+            this.benchmarkName = benchmarkName;
         }
 
         public NodeAbortRequest() {
@@ -323,13 +324,13 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            benchmarkId = in.readString();
+            benchmarkName = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(benchmarkId);
+            out.writeString(benchmarkName);
         }
     }
 
@@ -406,6 +407,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         @Override
         public void handleException(TransportException t) {
             failures.add(t);
+            logger.error(t.getMessage(), t);
             if (countDown.countDown()) {
                 sendResponse();
             }
@@ -505,6 +507,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                 response.benchmarkName(r.benchmarkName());
             }
             assert response.benchmarkName().equals(r.benchmarkName());
+            response.mergeState(r.state());
         }
 
         return response;
@@ -531,7 +534,6 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             BenchmarkResponse response = consolidateBenchmarkResponses(responses);
             response.benchmarkName(request.benchmarkName());
             response.verbose(request.verbose());
-            response.state(BenchmarkResponse.State.COMPLETE);
             finishBenchmark(response, request.benchmarkName(), listener);
         }
 
@@ -593,7 +595,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public void onFailure(String source, Throwable t) {
-            logger.warn("failed to start benchmark: [{}]", t, request.benchmarkName());
+            logger.warn("Failed to start benchmark: [{}]", t, request.benchmarkName());
             newBenchmark = null;
             stateListener.onFailure(t);
         }

@@ -37,9 +37,9 @@ import java.util.List;
 public class BenchmarkRequest extends MasterNodeOperationRequest<BenchmarkRequest> {
 
     private String benchmarkName;
-    private double[] percentiles;
     private boolean verbose;
     private int numExecutorNodes = 1;   // How many nodes to run the benchmark on
+    private double[] percentiles = BenchmarkSettings.DEFAULT_PERCENTILES;
 
     // Global settings which can be overwritten at the competitor level
     private BenchmarkSettings settings = new BenchmarkSettings();

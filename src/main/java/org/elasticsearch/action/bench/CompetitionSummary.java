@@ -39,22 +39,22 @@ public class CompetitionSummary implements ToXContent {
 
     private List<CompetitionNodeResult> nodeResults;
 
-    private long min = 0;
-    private long max = 0;
-    private long totalTime = 0;
-    private long sumTotalHits = 0;
-    private long totalIterations = 0;
-    private long completedIterations = 0;
-    private long totalQueries = 0;
-    private double avgWarmupTime = 0;
-    private int concurrency = 0;
-    private int multiplier = 0;
-    private double mean = 0;
-    private double millisPerHit = 0.0;
-    private double stdDeviation = 0.0;
-    private double queriesPerSecond = 0.0;
-    private double[] percentiles;
-    private Map<Double, Double> percentileValues = new TreeMap<>();
+    long min = 0;
+    long max = 0;
+    long totalTime = 0;
+    long sumTotalHits = 0;
+    long totalIterations = 0;
+    long completedIterations = 0;
+    long totalQueries = 0;
+    double avgWarmupTime = 0;
+    int concurrency = 0;
+    int multiplier = 0;
+    double mean = 0;
+    double millisPerHit = 0.0;
+    double stdDeviation = 0.0;
+    double queriesPerSecond = 0.0;
+    double[] percentiles;
+    Map<Double, Double> percentileValues = new TreeMap<>();
 
     List<Tuple<String, CompetitionIteration.SlowRequest>> slowest = new ArrayList<>();
 
@@ -67,7 +67,11 @@ public class CompetitionSummary implements ToXContent {
         this.percentiles = percentiles;
     }
 
-    private void computeSummaryStatistics() {
+    public List<CompetitionNodeResult> nodeResults() {
+        return nodeResults;
+    }
+
+    public void computeSummaryStatistics() {
 
         long totalWarmupTime = 0;
         SinglePassStatistics single = new SinglePassStatistics();
@@ -159,8 +163,8 @@ public class CompetitionSummary implements ToXContent {
 
         builder.endObject();
 
-        builder.startArray(Fields.SLOWEST);
         if (totalIterations > 0 && slowest.size() > 0) {
+            builder.startArray(Fields.SLOWEST);
             int n = (int) (slowest.size() / totalIterations);
             for (int i = 0; i < n; i++) {
                 builder.startObject();
@@ -168,8 +172,8 @@ public class CompetitionSummary implements ToXContent {
                 slowest.get(i).v2().toXContent(builder, params);
                 builder.endObject();
             }
+            builder.endArray();
         }
-        builder.endArray();
 
         builder.endObject();
         return builder;

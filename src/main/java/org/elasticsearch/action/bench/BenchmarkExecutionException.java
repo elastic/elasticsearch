@@ -22,17 +22,31 @@ package org.elasticsearch.action.bench;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
-/**
- * Indicates that a benchmark cannot be executed due to a lack of candidate nodes.
- */
-public class BenchmarkNodeMissingException extends ElasticsearchException {
+import java.util.ArrayList;
+import java.util.List;
 
-    public BenchmarkNodeMissingException(String msg) {
+/**
+ * Indicates a benchmark failure due to too many failures being encountered.
+ */
+public class BenchmarkExecutionException extends ElasticsearchException {
+
+    private List<String> errorMessages = new ArrayList<>();
+
+    public BenchmarkExecutionException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
+
+    public BenchmarkExecutionException(String msg, List<String> errorMessages) {
         super(msg);
+        this.errorMessages.addAll(errorMessages);
+    }
+
+    public List<String> errorMessages() {
+        return errorMessages;
     }
 
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        return RestStatus.INTERNAL_SERVER_ERROR;
     }
 }

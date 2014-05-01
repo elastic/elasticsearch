@@ -32,8 +32,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.*;
@@ -1536,7 +1534,8 @@ public class Strings {
                 }
 
             } catch (Exception uhe){
-                //This isn't good at all
+                //This isn't good at all, probably osx
+                //We will use the RandomUUID Generator instead
                 MAC_ADDRESS_XOR = null;
             }
         }
@@ -1556,7 +1555,6 @@ public class Strings {
      * as defined here: http://www.ietf.org/rfc/rfc4122.txt
      */
     public static String randomBase64UUID(Random random) {
-
         final byte[] randomBytes = new byte[16];
         random.nextBytes(randomBytes);
         /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
@@ -1583,11 +1581,14 @@ public class Strings {
         }
     }
 
-    public static String timestampBase64UUID(){
+    public static String timestampBase64UUID() {
+        if (MacAddressXORHolder.MAC_ADDRESS_XOR == null){
+            return randomBase64UUID(); //If we weren't able to get the mac address default back to the random uuid
+        }
         final byte[] uuidBytes = new byte[22];
         ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
         long timestamp = System.currentTimeMillis();
-        long sequence = SEQUENCE_NUMBER.addAndGet(1);
+
         if( timestamp < LAST_TIMESTAMP ){ //If time slips backward just inc time
             timestamp = LAST_TIMESTAMP + 1;
         }
@@ -1595,7 +1596,7 @@ public class Strings {
         LAST_TIMESTAMP = timestamp;
         buffer.putLong(timestamp); // 8 bytes
         buffer.put(MacAddressXORHolder.MAC_ADDRESS_XOR); // 6 bytes
-        buffer.putLong(sequence); // 8 bytes
+        buffer.putLong(SEQUENCE_NUMBER.incrementAndGet()); // 8 bytes
 
         try {
             byte[] encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
@@ -1607,6 +1608,7 @@ public class Strings {
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("should not be thrown");
         }
+
     }
 
     /**

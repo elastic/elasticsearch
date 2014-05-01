@@ -55,7 +55,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -71,7 +71,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
-
+        cluster().startNode();
         createIndex("test");
 
         logger.info("--> register a query");
@@ -111,7 +111,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     @Slow
     public void testRestartNodePercolator2() throws Exception {
-
+        cluster().startNode();
         createIndex("test");
 
         logger.info("--> register a query");
@@ -185,8 +185,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
-        cluster().ensureAtLeastNumDataNodes(2);
-        cluster().ensureAtMostNumDataNodes(2);
+        cluster().startNode();
+        cluster().startNode();
 
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
@@ -248,11 +248,9 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     // 3 nodes, 2 primary + 2 replicas per primary, so each node should have a copy of the data.
     // We only start and stop nodes 2 and 3, so all requests should succeed and never be partial.
     private void percolatorRecovery(final boolean multiPercolate) throws Exception {
-        logger.info("--> ensuring exactly 2 nodes");
-        cluster().ensureAtLeastNumDataNodes(2);
-        cluster().ensureAtMostNumDataNodes(2);
-        logger.info("--> Adding 3th node");
         cluster().startNode(settingsBuilder().put("node.stay", true));
+        cluster().startNode(settingsBuilder().put("node.stay", false));
+        cluster().startNode(settingsBuilder().put("node.stay", false));
         ensureGreen();
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -265,7 +263,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         final Client client = cluster().client(new Predicate<Settings>() {
             @Override
             public boolean apply(Settings input) {
-                return input.getAsBoolean("node.stay", false);
+                return input.getAsBoolean("node.stay", true);
             }
         });
         final int numQueries = randomIntBetween(50, 100);

@@ -161,7 +161,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("cluster.service:TRACE,discovery:TRACE")
+    @TestLogging("cluster.service:TRACE,discovery:TRACE,indices.cluster:TRACE")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")

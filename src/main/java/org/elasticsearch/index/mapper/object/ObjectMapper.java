@@ -28,6 +28,7 @@ import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -214,7 +215,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 } else if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.toString()));
                 } else if (fieldName.equals("properties")) {
-                    parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
+                    if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
+                        // nothing to do here, empty (to support "properties: []" case)
+                    } else if (!(fieldNode instanceof Map)) {
+                        throw new ElasticsearchParseException("properties must be a map type");
+                    } else {
+                        parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
+                    }
                 } else if (fieldName.equals("include_in_all")) {
                     builder.includeInAll(nodeBooleanValue(fieldNode));
                 } else {

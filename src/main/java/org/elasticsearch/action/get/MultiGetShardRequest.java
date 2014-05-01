@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -138,7 +139,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
             } else {
                 fields.add(null);
             }
-            versions.add(in.readVLong());
+            versions.add(Versions.readVersionWithVLongForBW(in));
             versionTypes.add(VersionType.fromValue(in.readByte()));
 
             fetchSourceContexts.add(FetchSourceContext.optionalReadFromStream(in));
@@ -175,7 +176,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
                     out.writeString(field);
                 }
             }
-            out.writeVLong(versions.get(i));
+            Versions.writeVersionWithVLongForBW(versions.get(i), out);
             out.writeByte(versionTypes.get(i).getValue());
             FetchSourceContext fetchSourceContext = fetchSourceContexts.get(i);
             FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);

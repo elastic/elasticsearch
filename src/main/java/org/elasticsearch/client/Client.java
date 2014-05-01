@@ -564,6 +564,11 @@ public interface Client {
     /**
      * Runs a benchmark on the server
      */
+    ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request);
+
+    /**
+     * Runs a benchmark on the server
+     */
     BenchmarkRequestBuilder prepareBench(String... indices);
 
     /**

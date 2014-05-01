@@ -56,11 +56,19 @@ public class AbortBenchmarkResponse extends ActionResponse implements Streamable
         nodeResponses.add(nodeResponse);
     }
 
+    public List<AbortBenchmarkNodeResponse> getNodeResponses() {
+        return nodeResponses;
+    }
+
+    public String getBenchmarkName() {
+        return benchmarkName;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         benchmarkName = in.readString();
-        errorMessage = in.readString();
+        errorMessage = in.readOptionalString();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             AbortBenchmarkNodeResponse nodeResponse = new AbortBenchmarkNodeResponse();
@@ -73,7 +81,7 @@ public class AbortBenchmarkResponse extends ActionResponse implements Streamable
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(benchmarkName);
-        out.writeString(errorMessage);
+        out.writeOptionalString(errorMessage);
         out.writeVInt(nodeResponses.size());
         for (AbortBenchmarkNodeResponse nodeResponse : nodeResponses) {
             nodeResponse.writeTo(out);

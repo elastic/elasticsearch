@@ -23,16 +23,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
- * Indicates that a benchmark cannot be executed due to a lack of candidate nodes.
+ * Thrown when a client tries to access a benchmark which does not exist
  */
-public class BenchmarkNodeMissingException extends ElasticsearchException {
+public class BenchmarkMissingException extends ElasticsearchException {
 
-    public BenchmarkNodeMissingException(String msg) {
+    public BenchmarkMissingException(String msg) {
         super(msg);
     }
 
     @Override
     public RestStatus status() {
-        return RestStatus.SERVICE_UNAVAILABLE;
+        return RestStatus.NOT_FOUND;
     }
 }

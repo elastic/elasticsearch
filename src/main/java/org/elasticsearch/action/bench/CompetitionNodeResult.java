@@ -20,7 +20,6 @@
 package org.elasticsearch.action.bench;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -40,11 +39,10 @@ public class CompetitionNodeResult extends ActionResponse implements Streamable 
     private int completedIterations = 0;
     private int totalExecutedQueries = 0;
     private long warmUpTime = 0;
-    private String[] failures = Strings.EMPTY_ARRAY;
     private List<CompetitionIteration> iterations;
 
     public CompetitionNodeResult() {
-        iterations = new ArrayList<CompetitionIteration>();
+        iterations = new ArrayList<>();
     }
 
     public CompetitionNodeResult(String competitionName, String nodeName, int totalIterations, List<CompetitionIteration> iterations) {
@@ -82,18 +80,6 @@ public class CompetitionNodeResult extends ActionResponse implements Streamable 
         this.warmUpTime = warmUpTime;
     }
 
-    public String[] failures() {
-        return this.failures;
-    }
-
-    public void failures(String[] failures) {
-        if (failures == null) {
-            this.failures = Strings.EMPTY_ARRAY;
-        } else {
-            this.failures = failures;
-        }
-    }
-
     public int totalExecutedQueries() {
         return totalExecutedQueries;
     }
@@ -115,7 +101,6 @@ public class CompetitionNodeResult extends ActionResponse implements Streamable 
         completedIterations = in.readVInt();
         totalExecutedQueries = in.readVInt();
         warmUpTime = in.readVLong();
-        failures = in.readStringArray();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             CompetitionIteration iteration = new CompetitionIteration();
@@ -133,7 +118,6 @@ public class CompetitionNodeResult extends ActionResponse implements Streamable 
         out.writeVInt(completedIterations);
         out.writeVInt(totalExecutedQueries);
         out.writeVLong(warmUpTime);
-        out.writeStringArray(failures);
         out.writeVInt(iterations.size());
         for (CompetitionIteration iteration : iterations) {
             iteration.writeTo(out);

@@ -22,7 +22,10 @@ package org.elasticsearch.common.lucene.uid;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
@@ -32,11 +35,55 @@ import java.util.List;
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
 public class Versions {
 
-    public static final long MATCH_ANY = 0L; // Version was not specified by the user
+    public static final long MATCH_ANY = -3L; // Version was not specified by the user
+    // the value for MATCH_ANY before ES 1.2.0 - will be removed
+    public static final long MATCH_ANY_PRE_1_2_0 = 0L;
     public static final long NOT_FOUND = -1L;
     public static final long NOT_SET = -2L;
 
-    private Versions() {}
+    public static void writeVersion(long version, StreamOutput out) throws IOException {
+        if (out.getVersion().before(Version.V_1_2_0) && version == MATCH_ANY) {
+            // we have to send out a value the node will understand
+            version = MATCH_ANY_PRE_1_2_0;
+        }
+        out.writeLong(version);
+    }
+
+    public static long readVersion(StreamInput in) throws IOException {
+        long version = in.readLong();
+        if (in.getVersion().before(Version.V_1_2_0) && version == MATCH_ANY_PRE_1_2_0) {
+            version = MATCH_ANY;
+        }
+        return version;
+    }
+
+    public static void writeVersionWithVLongForBW(long version, StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeLong(version);
+            return;
+        }
+
+        if (version == MATCH_ANY) {
+            // we have to send out a value the node will understand
+            version = MATCH_ANY_PRE_1_2_0;
+        }
+        out.writeVLong(version);
+    }
+
+    public static long readVersionWithVLongForBW(StreamInput in) throws IOException {
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            return in.readLong();
+        } else {
+            long version = in.readVLong();
+            if (version == MATCH_ANY_PRE_1_2_0) {
+                return MATCH_ANY;
+            }
+            return version;
+        }
+    }
+
+    private Versions() {
+    }
 
     /** Wraps an {@link AtomicReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
     public static class DocIdAndVersion {

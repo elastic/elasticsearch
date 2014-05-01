@@ -609,7 +609,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.readFrom(in);
         }
         docAsUpsert = in.readBoolean();
-        version = in.readLong();
+        version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
     }
 
@@ -655,7 +655,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.writeTo(out);
         }
         out.writeBoolean(docAsUpsert);
-        out.writeLong(version);
+        Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
     }
 

@@ -56,4 +56,12 @@ public class SimpleObjectMappingTests extends ElasticsearchTestCase {
             // all is well
         }
     }
+
+    @Test
+    public void testEmptyArrayProperties() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("properties").endArray()
+                .endObject().endObject().string();
+        MapperTestUtils.newParser().parse(mapping);
+    }
 }

@@ -187,10 +187,9 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     private void doRecovery(final StartRecoveryRequest request, final RecoveryStatus recoveryStatus, final RecoveryListener listener) {
-        if (request.sourceNode() == null) {
-            listener.onIgnoreRecovery(false, "No node to recover from, retry on next cluster state update");
-            return;
-        }
+
+        assert request.sourceNode() != null : "can't do a recovery without a source node";
+
         final InternalIndexShard shard = recoveryStatus.indexShard;
         if (shard == null) {
             listener.onIgnoreRecovery(false, "shard missing locally, stop recovery");

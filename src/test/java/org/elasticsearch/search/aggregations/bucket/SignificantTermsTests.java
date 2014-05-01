@@ -145,7 +145,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     }   
     
     @Test
-    public void filteredAnalysis() throws Exception {
+    public void badFilteredAnalysis() throws Exception {
         // Deliberately using a bad choice of filter here for the background context in order
         // to test robustness. 
         // We search for the name of a snowboarder but use music-related content (fact_category:1)
@@ -172,6 +172,27 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertTrue(hasMissingBackgroundTerms);
     }       
     
+    @Test
+    public void filteredAnalysis() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setFrom(0).setSize(60).setExplain(true)                
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(1).backgroundFilter(FilterBuilders.termsFilter("description",  "paul")))
+                .execute()
+                .actionGet();
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        HashSet<String> topWords = new HashSet<String>();
+        for (Bucket topTerm : topTerms) {
+            topWords.add(topTerm.getKey());
+        }
+        //The word "paul" should be a constant of all docs in the background set and therefore not seen as significant 
+        assertFalse(topWords.contains("paul"));
+        //"Weller" is the only Paul who was in The Jam and therefore this should be identified as a differentiator from the background of all other Pauls. 
+        assertTrue(topWords.contains("jam"));
+    }       
+
     @Test
     public void nestedAggs() throws Exception {
         String[][] expectedKeywordsByCategory={

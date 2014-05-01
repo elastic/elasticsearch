@@ -420,6 +420,11 @@ public class RandomizingClient implements InternalClient {
     }
 
     @Override
+    public ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request) {
+        return delegate.bench(request);
+    }
+
+    @Override
     public BenchmarkRequestBuilder prepareBench(String... indices) {
         return delegate.prepareBench(indices);
     }

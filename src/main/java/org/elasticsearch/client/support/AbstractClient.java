@@ -389,6 +389,11 @@ public abstract class AbstractClient implements InternalClient {
     }
 
     @Override
+    public ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request) {
+        return execute(BenchmarkAction.INSTANCE, request);
+    }
+
+    @Override
     public BenchmarkRequestBuilder prepareBench(String... indices) {
         return new BenchmarkRequestBuilder(this, indices);
     }

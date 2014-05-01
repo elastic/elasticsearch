@@ -45,18 +45,20 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         this.nodeName = nodeName;
     }
 
-    public AbortBenchmarkNodeResponse(String benchmarkName, String nodeName, boolean aborted, String errorMessage) {
-        this.benchmarkName = benchmarkName;
-        this.nodeName = nodeName;
-        this.errorMessage = errorMessage;
-    }
-
     public void nodeName(String nodeName) {
         this.nodeName = nodeName;
     }
 
     public String nodeName() {
         return nodeName;
+    }
+
+    public String benchmarkName() {
+        return benchmarkName;
+    }
+
+    public String errorMessage() {
+        return errorMessage;
     }
 
     @Override
@@ -72,7 +74,7 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         super.readFrom(in);
         benchmarkName = in.readString();
         nodeName = in.readString();
-        errorMessage = in.readString();
+        errorMessage = in.readOptionalString();
     }
 
     @Override
@@ -80,7 +82,7 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         super.writeTo(out);
         out.writeString(benchmarkName);
         out.writeString(nodeName);
-        out.writeString(errorMessage);
+        out.writeOptionalString(errorMessage);
     }
 
     static final class Fields {

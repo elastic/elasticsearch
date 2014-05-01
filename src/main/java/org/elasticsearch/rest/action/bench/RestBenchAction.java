@@ -48,7 +48,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
-import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.contentBuilder;
 
 /**
@@ -276,19 +275,23 @@ public class RestBenchAction extends BaseRestHandler {
                         }
                     } else if ("indices".equals(fieldName)) {
                         List<String> perCompetitorIndices = new ArrayList<>();
-                        List<String> perCompetitorTypes = new ArrayList<>();
                         while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
-                                String[] parts = parseIndexNameAndType(p.text());
-                                perCompetitorIndices.add(parts[0]);
-                                if (parts.length == 2) {
-                                    perCompetitorTypes.add(parts[1]);
-                                }
+                                perCompetitorIndices.add(p.text());
                             } else {
-                                throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] expected string values but got: "  + token);
+                                throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] expected string values but got: " + token);
                             }
                         }
                         builder.setIndices(perCompetitorIndices.toArray(new String[perCompetitorIndices.size()]));
+                    } else if ("types".equals(fieldName)) {
+                        List<String> perCompetitorTypes = new ArrayList<>();
+                        while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                perCompetitorTypes.add(p.text());
+                            } else {
+                                throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] expected string values but got: " + token);
+                            }
+                        }
                         builder.setTypes(perCompetitorTypes.toArray(new String[perCompetitorTypes.size()]));
                     } else {
                         throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] field is not recognized");
@@ -388,12 +391,5 @@ public class RestBenchAction extends BaseRestHandler {
                     throw new ElasticsearchParseException("Failed parsing " + token.name() + " field [" + fieldName + "] field is not recognized");
             }
         }
-    }
-
-    // We allow users to specify competitor index lists as "index_name/index_type"
-    private static String[] parseIndexNameAndType(String indexName) {
-        String[] parts = indexName.split("/", 2);
-        assert parts.length >= 1;
-        return parts;
     }
 }

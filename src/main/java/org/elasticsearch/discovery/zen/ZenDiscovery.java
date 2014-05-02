@@ -327,7 +327,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // update the fact that we are the master...
                         latestDiscoNodes = builder.build();
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
-                        return ClusterState.builder(currentState).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
+                        currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
+
+                        // eagerly run reroute to remove dead nodes from routing table
+                        RoutingAllocation.Result result = allocationService.reroute(currentState);
+                        return ClusterState.builder(currentState).routingResult(result).build();
                     }
 
                     @Override

@@ -32,9 +32,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
@@ -64,7 +61,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -329,17 +325,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // update the fact that we are the master...
                         latestDiscoNodes = builder.build();
                         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
+                        currentState = ClusterState.builder(currentState).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
 
-                        List<ShardRouting> failedShardRoutings = new ArrayList<>();
-                        for (RoutingNode routingNode : currentState.getRoutingNodes()) {
-                            if (!latestDiscoNodes.nodeExists(routingNode.nodeId())) {
-                                for (MutableShardRouting shardRouting : routingNode) {
-                                    failedShardRoutings.add(shardRouting);
-                                }
-                            }
-                        }
-                        RoutingAllocation.Result result = allocationService.applyFailedShards(currentState, failedShardRoutings);
-                        return ClusterState.builder(currentState).routingResult(result).nodes(latestDiscoNodes).blocks(clusterBlocks).build();
+                        // eagerly run reroute to remove dead nodes from routing table
+                        RoutingAllocation.Result result = allocationService.reroute(currentState);
+                        return ClusterState.builder(currentState).routingResult(result).build();
                     }
 
                     @Override

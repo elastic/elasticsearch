@@ -5,7 +5,7 @@
         help: true
 
   - match:
-      $body: >
+      $body: |
                /^  shards           .+   \n
                    disk.used        .+   \n
                    disk.avail       .+   \n
@@ -23,7 +23,7 @@
       cat.allocation: {}
 
   - match:
-      $body: >
+      $body: |
             /^
               ( 0                      \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
@@ -53,7 +53,7 @@
         cat.allocation: {}
 
   - match:
-      $body: >
+      $body: |
             /^
               ( \d+                    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
@@ -80,7 +80,7 @@
             node_id: _master
 
   - match:
-      $body: >
+      $body: |
             /^
               ( 0                      \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
@@ -99,7 +99,7 @@
             node_id: non_existent
 
   - match:
-      $body: >
+      $body: |
             /^
             $/
 
@@ -111,7 +111,7 @@
             v: true
   - match:
 
-      $body: >
+      $body: |
            /^  shards                  \s+
                disk.used               \s+
                disk.avail              \s+
@@ -142,7 +142,7 @@
             h: [disk.percent, node]
 
   - match:
-      $body: >
+      $body: |
             /^
               ( \d*                 \s+
                 \w.*
@@ -156,7 +156,7 @@
             v: true
 
   - match:
-      $body: >
+      $body: |
             /^
               disk.percent          \s+
               node                  \s+
@@ -178,7 +178,7 @@
         bytes: g
 
   - match:
-      $body: >
+      $body: |
             /^
               ( 0                   \s+
                 \d+                 \s+

@@ -5,7 +5,7 @@
       cat.recovery: {}
 
   - match:
-      $body: >
+      $body: |
                /^$/
 
   - do:
@@ -21,7 +21,7 @@
   - do:
       cat.recovery: {}
   - match:
-      $body: >
+      $body: |
               /^(index1 \s+ \d+ \s+ \d+ \s+
                  (gateway|replica|snapshot|relocating) \s+
                  (init|index|start|translog|finalize|done) \s+

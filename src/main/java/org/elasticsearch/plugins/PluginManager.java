@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
@@ -104,6 +105,9 @@ public class PluginManager {
     }
 
     public void downloadAndExtract(String name) throws IOException {
+        if (name == null) {
+            throw new ElasticsearchIllegalArgumentException("plugin name must be supplied with --install [name].");
+        }
         HttpDownloadHelper downloadHelper = new HttpDownloadHelper();
         boolean downloaded = false;
         HttpDownloadHelper.DownloadProgress progress;
@@ -123,7 +127,7 @@ public class PluginManager {
         // extract the plugin
         File extractLocation = pluginHandle.extractedDir(environment);
         if (extractLocation.exists()) {
-            throw new IOException("plugin directory " + extractLocation.getAbsolutePath() + " already exists. To update the plugin, uninstall it first using -remove " + name + " command");
+            throw new IOException("plugin directory " + extractLocation.getAbsolutePath() + " already exists. To update the plugin, uninstall it first using --remove " + name + " command");
         }
 
         // first, try directly from the URL provided
@@ -158,7 +162,7 @@ public class PluginManager {
         }
 
         if (!downloaded) {
-            throw new IOException("failed to download out of all possible locations..., use -verbose to get detailed information");
+            throw new IOException("failed to download out of all possible locations..., use --verbose to get detailed information");
         }
 
         ZipFile zipFile = null;
@@ -231,6 +235,9 @@ public class PluginManager {
     }
 
     public void removePlugin(String name) throws IOException {
+        if (name == null) {
+            throw new ElasticsearchIllegalArgumentException("plugin name must be supplied with --remove [name].");
+        }
         PluginHandle pluginHandle = PluginHandle.parse(name);
         boolean removed = false;
 
@@ -329,38 +336,68 @@ public class PluginManager {
         try {
             for (int c = 0; c < args.length; c++) {
                 String command = args[c];
-                if ("-u".equals(command) || "--url".equals(command)
-                        // Deprecated commands
-                        || "url".equals(command) || "-url".equals(command)) {
-                    url = args[++c];
-                } else if ("-v".equals(command) || "--verbose".equals(command)
-                        || "verbose".equals(command) || "-verbose".equals(command)) {
-                    outputMode = OutputMode.VERBOSE;
-                } else if ("-s".equals(command) || "--silent".equals(command)
-                        || "silent".equals(command) || "-silent".equals(command)) {
-                    outputMode = OutputMode.SILENT;
-                } else if (command.equals("-i") || command.equals("--install")
-                        // Deprecated commands
-                        || command.equals("install") || command.equals("-install")) {
-                    pluginName = args[++c];
-                    action = ACTION.INSTALL;
-                } else if (command.equals("-t") || command.equals("--timeout")
-                        || command.equals("timeout") || command.equals("-timeout")) {
-                    timeout = TimeValue.parseTimeValue(args[++c], DEFAULT_TIMEOUT);
-                } else if (command.equals("-r") || command.equals("--remove")
-                        // Deprecated commands
-                        || command.equals("remove") || command.equals("-remove")) {
-                    pluginName = args[++c];
-
-                    action = ACTION.REMOVE;
-                } else if (command.equals("-l") || command.equals("--list")) {
-                    action = ACTION.LIST;
-                } else if (command.equals("-h") || command.equals("--help")) {
-                    displayHelp(null);
-                } else {
-                    displayHelp("Command [" + args[c] + "] unknown.");
-                    // Unknown command. We break...
-                    System.exit(EXIT_CODE_CMD_USAGE);
+                switch (command) {
+                    case "-u":
+                    case "--url":
+                    // deprecated versions:
+                    case "url":
+                    case "-url":
+                        url = getCommandValue(args, ++c, "--url");
+                        // Until update is supported, then supplying a URL implies installing
+                        // By specifying this action, we also avoid silently failing without
+                        //  dubious checks.
+                        action = ACTION.INSTALL;
+                        break;
+                    case "-v":
+                    case "--verbose":
+                    // deprecated versions:
+                    case "verbose":
+                    case "-verbose":
+                        outputMode = OutputMode.VERBOSE;
+                        break;
+                    case "-s":
+                    case "--silent":
+                    // deprecated versions:
+                    case "silent":
+                    case "-silent":
+                        outputMode = OutputMode.SILENT;
+                        break;
+                    case "-i":
+                    case "--install":
+                    // deprecated versions:
+                    case "install":
+                    case "-install":
+                        pluginName = getCommandValue(args, ++c, "--install");
+                        action = ACTION.INSTALL;
+                        break;
+                    case "-r":
+                    case "--remove":
+                    // deprecated versions:
+                    case "remove":
+                    case "-remove":
+                        pluginName = getCommandValue(args, ++c, "--remove");
+                        action = ACTION.REMOVE;
+                        break;
+                    case "-t":
+                    case "--timeout":
+                    // deprecated versions:
+                    case "timeout":
+                    case "-timeout":
+                        String timeoutValue = getCommandValue(args, ++c, "--timeout");
+                        timeout = TimeValue.parseTimeValue(timeoutValue, DEFAULT_TIMEOUT);
+                        break;
+                    case "-l":
+                    case "--list":
+                        action = ACTION.LIST;
+                        break;
+                    case "-h":
+                    case "--help":
+                        displayHelp(null);
+                        break;
+                    default:
+                        displayHelp("Command [" + command + "] unknown.");
+                        // Unknown command. We break...
+                        System.exit(EXIT_CODE_CMD_USAGE);
                 }
             }
         } catch (Throwable e) {
@@ -375,7 +412,7 @@ public class PluginManager {
             switch (action) {
                 case ACTION.INSTALL:
                     try {
-                        pluginManager.log("-> Installing " + pluginName + "...");
+                        pluginManager.log("-> Installing " + Strings.nullToEmpty(pluginName) + "...");
                         pluginManager.downloadAndExtract(pluginName);
                         exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {
@@ -389,7 +426,7 @@ public class PluginManager {
                     break;
                 case ACTION.REMOVE:
                     try {
-                        pluginManager.log("-> Removing " + pluginName + " ");
+                        pluginManager.log("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
                         pluginManager.removePlugin(pluginName);
                         exitCode = EXIT_CODE_OK;
                     } catch (ElasticsearchIllegalArgumentException e) {
@@ -421,6 +458,36 @@ public class PluginManager {
             }
             System.exit(exitCode); // exit here!
         }
+    }
+
+    /**
+     * Get the value for the {@code flag} at the specified {@code arg} of the command line {@code args}.
+     * <p />
+     * This is useful to avoid having to check for multiple forms of unset (e.g., "   " versus "" versus {@code null}).
+     * @param args Incoming command line arguments.
+     * @param arg Expected argument containing the value.
+     * @param flag The flag whose value is being retrieved.
+     * @return Never {@code null}. The trimmed value.
+     * @throws NullPointerException if {@code args} is {@code null}.
+     * @throws ArrayIndexOutOfBoundsException if {@code arg} is negative.
+     * @throws ElasticsearchIllegalStateException if {@code arg} is &gt;= {@code args.length}.
+     * @throws ElasticsearchIllegalArgumentException if the value evaluates to blank ({@code null} or only whitespace)
+     */
+    private static String getCommandValue(String[] args, int arg, String flag) {
+        if (arg >= args.length) {
+            throw new ElasticsearchIllegalStateException("missing value for " + flag + ". Usage: " + flag + " [value]");
+        }
+
+        // avoid having to interpret multiple forms of unset
+        String trimmedValue = Strings.emptyToNull(args[arg].trim());
+
+        // If we had a value that is blank, then fail immediately
+        if (trimmedValue == null) {
+            throw new ElasticsearchIllegalArgumentException(
+                    "value for " + flag + "('" + args[arg] + "') must be set. Usage: " + flag + " [value]");
+        }
+
+        return trimmedValue;
     }
 
     private static void displayHelp(String message) {

@@ -82,3 +82,6 @@
 
 * https://github.com/kzwang/elasticsearch-osem[elasticsearch-osem]:
   A Java Object Search Engine Mapping (OSEM) for Elasticsearch
+
+* https://github.com/twitter/storehaus[Twitter Storehaus]:
+  Thin asynchronous scala client for storehaus.

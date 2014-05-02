@@ -40,18 +40,16 @@ import java.util.Collections;
  */
 public class DoubleTermsAggregator extends TermsAggregator {
 
-    private final InternalOrder order;
     private final ValuesSource.Numeric valuesSource;
     private final ValueFormatter formatter;
     private final LongHash bucketOrds;
     private DoubleValues values;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds);
+                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, collectionMode);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
-        this.order = InternalOrder.validate(order, this);
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
 
@@ -117,12 +115,22 @@ public class DoubleTermsAggregator extends TermsAggregator {
             }
         }
 
+        // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final DoubleTerms.Bucket bucket = (DoubleTerms.Bucket) ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
+        // replay any deferred collections
+        runDeferredCollections(survivingBucketOrds);    
+        // Now build the aggs
+        for (int i = 0; i < list.length; i++) {
+          list[i].aggregations = bucketAggregations(list[i].bucketOrd);
+        }        
+        
+        
         return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 

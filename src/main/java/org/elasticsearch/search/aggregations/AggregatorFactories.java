@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
@@ -53,6 +54,10 @@ public class AggregatorFactories {
         if (aggregator.shouldCollect()) {
             context.registerReaderContextAware(aggregator);
         }
+        // Once the aggregator is fully constructed perform any initialisation -
+        // can't do everything in constructors if Aggregator base class needs 
+        // to delegate to subclasses as part of construction.
+        aggregator.preCollection();
         return aggregator;
     }
 
@@ -115,13 +120,7 @@ public class AggregatorFactories {
 
                 @Override
                 public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-                    // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
-                    // the filter matches no document in the highest buckets of the first terms agg
-                    if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
-                        return first.buildEmptyAggregation();
-                    } else {
-                        return aggregators.get(owningBucketOrdinal).buildAggregation(0);
-                    }
+                    throw new ElasticsearchIllegalStateException("Invalid context - aggregation must use addResults() to collect child results");
                 }
 
                 @Override
@@ -133,7 +132,20 @@ public class AggregatorFactories {
                 public void doClose() {
                     Releasables.close(aggregators);
                 }
+
+                @Override
+                public void gatherAnalysis(BucketAnalysisCollector results, long owningBucketOrdinal) {
+                    // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
+                    // the filter matches no document in the highest buckets of the first terms agg
+                    if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
+                        results.add(first.buildEmptyAggregation());
+                    } else {
+                        aggregators.get(owningBucketOrdinal).gatherAnalysis(results,0);
+                    }                 
+                }
             };
+            
+            aggregators[i].preCollection();
         }
         return aggregators;
     }

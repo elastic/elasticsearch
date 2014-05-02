@@ -237,6 +237,25 @@ public class OrderPath {
         }
         return aggregator;
     }
+    
+    /**
+     * Resolves the topmost aggregator pointed by this path using the given root as a point of reference.
+     *
+     * @param root      The point of reference of this path
+     * @param validate  Indicates whether the path should be validated first over the given root aggregator
+     * @return          The first child aggregator of the root pointed by this path 
+     */
+    public Aggregator resolveTopmostAggregator(Aggregator root, boolean validate) {
+        if (validate) {
+            validate(root);
+        }
+        
+        OrderPath.Token token = tokens[0];
+        Aggregator aggregator = root.subAggregator(token.name);
+        assert (aggregator instanceof SingleBucketAggregator )
+                || (aggregator instanceof NumericMetricsAggregator) : "this should be picked up before aggregation execution - on validate";
+        return aggregator;
+    }    
 
     /**
      * Validates this path over the given aggregator as a point of reference.

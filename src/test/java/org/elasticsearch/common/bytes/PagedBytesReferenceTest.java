@@ -24,9 +24,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BigArraysImpl;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +45,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        bigarrays = new BigArrays(ImmutableSettings.EMPTY, null);
+        bigarrays = new BigArraysImpl(ImmutableSettings.EMPTY, null);
     }
 
     @After

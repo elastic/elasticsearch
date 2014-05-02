@@ -26,14 +26,11 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class DefaultBigArraysModule extends AbstractModule {
 
-    private final Settings settings;
-
     public DefaultBigArraysModule(Settings settings) {
-        this.settings = settings;
     }
 
     @Override
     protected void configure() {
-        bind(BigArrays.class).asEagerSingleton();
+        bind(BigArrays.class).to(BigArraysImpl.class).asEagerSingleton();
     }
 }

@@ -73,6 +73,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.monitor.MonitorService;
@@ -176,6 +177,7 @@ public class TransportClient extends AbstractClient {
         ModulesBuilder modules = new ModulesBuilder();
         modules.add(new Version.Module(version));
         modules.add(new CacheRecyclerModule(settings));
+        modules.add(new BigArraysModule(settings)); // required by NettyTransport
         modules.add(new PluginsModule(this.settings, pluginsService));
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(this.settings));

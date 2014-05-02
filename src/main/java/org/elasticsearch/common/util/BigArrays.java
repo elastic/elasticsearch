@@ -23,9 +23,7 @@ import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -35,9 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Arrays;
 
 /** Utility class to work with arrays. */
-public class BigArrays extends AbstractComponent {
+public abstract class BigArrays extends AbstractComponent {
 
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArraysImpl(ImmutableSettings.EMPTY, null);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -102,7 +100,7 @@ public class BigArrays extends AbstractComponent {
 
     }
 
-    private static class ByteArrayWrapper extends AbstractArrayWrapper implements ByteArray {
+    static class ByteArrayWrapper extends AbstractArrayWrapper implements ByteArray {
 
         private final byte[] array;
 
@@ -148,7 +146,7 @@ public class BigArrays extends AbstractComponent {
         }
     }
 
-    private static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
+    static class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
 
         private final int[] array;
 
@@ -186,7 +184,7 @@ public class BigArrays extends AbstractComponent {
 
     }
 
-    private static class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {
+    static class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {
 
         private final long[] array;
 
@@ -223,7 +221,7 @@ public class BigArrays extends AbstractComponent {
         }
     }
 
-    private static class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
+    static class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
 
         private final double[] array;
 
@@ -261,7 +259,7 @@ public class BigArrays extends AbstractComponent {
 
     }
 
-    private static class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
+    static class FloatArrayWrapper extends AbstractArrayWrapper implements FloatArray {
 
         private final float[] array;
 
@@ -299,7 +297,7 @@ public class BigArrays extends AbstractComponent {
 
     }
 
-    private static class ObjectArrayWrapper<T> extends AbstractArrayWrapper implements ObjectArray<T> {
+    static class ObjectArrayWrapper<T> extends AbstractArrayWrapper implements ObjectArray<T> {
 
         private final Object[] array;
 
@@ -326,12 +324,8 @@ public class BigArrays extends AbstractComponent {
 
     }
 
-    final PageCacheRecycler recycler;
-
-    @Inject
-    public BigArrays(Settings settings, PageCacheRecycler recycler) {
+    BigArrays(Settings settings) {
         super(settings);
-        this.recycler = recycler;
     }
 
     /**
@@ -339,16 +333,7 @@ public class BigArrays extends AbstractComponent {
      * @param size          the initial length of the array
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
-    public ByteArray newByteArray(long size, boolean clearOnResize) {
-        if (size > BYTE_PAGE_SIZE) {
-            return new BigByteArray(size, recycler, clearOnResize);
-        } else if (size >= BYTE_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<byte[]> page = recycler.bytePage(clearOnResize);
-            return new ByteArrayWrapper(page.v(), size, page, clearOnResize);
-        } else {
-            return new ByteArrayWrapper(new byte[(int) size], size, null, clearOnResize);
-        }
-    }
+    public abstract ByteArray newByteArray(long size, boolean clearOnResize);
 
     /**
      * Allocate a new {@link ByteArray} initialized with zeros.
@@ -420,16 +405,7 @@ public class BigArrays extends AbstractComponent {
      * @param size          the initial length of the array
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
-    public IntArray newIntArray(long size, boolean clearOnResize) {
-        if (size > INT_PAGE_SIZE) {
-            return new BigIntArray(size, recycler, clearOnResize);
-        } else if (size >= INT_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<int[]> page = recycler.intPage(clearOnResize);
-            return new IntArrayWrapper(page.v(), size, page, clearOnResize);
-        } else {
-            return new IntArrayWrapper(new int[(int) size], size, null, clearOnResize);
-        }
-    }
+    public abstract IntArray newIntArray(long size, boolean clearOnResize);
 
     /**
      * Allocate a new {@link IntArray}.
@@ -469,16 +445,7 @@ public class BigArrays extends AbstractComponent {
      * @param size          the initial length of the array
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
-    public LongArray newLongArray(long size, boolean clearOnResize) {
-        if (size > LONG_PAGE_SIZE) {
-            return new BigLongArray(size, recycler, clearOnResize);
-        } else if (size >= LONG_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<long[]> page = recycler.longPage(clearOnResize);
-            return new LongArrayWrapper(page.v(), size, page, clearOnResize);
-        } else {
-            return new LongArrayWrapper(new long[(int) size], size, null, clearOnResize);
-        }
-    }
+    public abstract LongArray newLongArray(long size, boolean clearOnResize);
 
     /**
      * Allocate a new {@link LongArray}.
@@ -518,16 +485,7 @@ public class BigArrays extends AbstractComponent {
      * @param size          the initial length of the array
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
-    public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
-        if (size > DOUBLE_PAGE_SIZE) {
-            return new BigDoubleArray(size, recycler, clearOnResize);
-        } else if (size >= DOUBLE_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<double[]> page = recycler.doublePage(clearOnResize);
-            return new DoubleArrayWrapper(page.v(), size, page, clearOnResize);
-        } else {
-            return new DoubleArrayWrapper(new double[(int) size], size, null, clearOnResize);
-        }
-    }
+    public abstract DoubleArray newDoubleArray(long size, boolean clearOnResize);
 
     /** Allocate a new {@link DoubleArray} of the given capacity. */
     public DoubleArray newDoubleArray(long size) {
@@ -564,16 +522,7 @@ public class BigArrays extends AbstractComponent {
      * @param size          the initial length of the array
      * @param clearOnResize whether values should be set to 0 on initialization and resize
      */
-    public FloatArray newFloatArray(long size, boolean clearOnResize) {
-        if (size > FLOAT_PAGE_SIZE) {
-            return new BigFloatArray(size, recycler, clearOnResize);
-        } else if (size >= FLOAT_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<float[]> page = recycler.floatPage(clearOnResize);
-            return new FloatArrayWrapper(page.v(), size, page, clearOnResize);
-        } else {
-            return new FloatArrayWrapper(new float[(int) size], size, null, clearOnResize);
-        }
-    }
+    public abstract FloatArray newFloatArray(long size, boolean clearOnResize);
 
     /** Allocate a new {@link FloatArray} of the given capacity. */
     public FloatArray newFloatArray(long size) {
@@ -608,16 +557,7 @@ public class BigArrays extends AbstractComponent {
      * Allocate a new {@link ObjectArray}.
      * @param size          the initial length of the array
      */
-    public <T> ObjectArray<T> newObjectArray(long size) {
-        if (size > OBJECT_PAGE_SIZE) {
-            return new BigObjectArray<>(size, recycler);
-        } else if (size >= OBJECT_PAGE_SIZE / 2 && recycler != null) {
-            final Recycler.V<Object[]> page = recycler.objectPage();
-            return new ObjectArrayWrapper<>(page.v(), size, page);
-        } else {
-            return new ObjectArrayWrapper<>(new Object[(int) size], size, null);
-        }
-    }
+    public abstract <T> ObjectArray<T> newObjectArray(long size);
 
     /** Resize the array to the exact provided size. */
     public <T> ObjectArray<T> resize(ObjectArray<T> array, long size) {

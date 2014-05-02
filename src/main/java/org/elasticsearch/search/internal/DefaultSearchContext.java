@@ -25,12 +25,14 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteTrackingBigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -95,7 +98,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private final PageCacheRecycler pageCacheRecycler;
 
-    private final BigArrays bigArrays;
+    private final ByteTrackingBigArrays bigArrays;
 
     private final IndexShard indexShard;
 
@@ -190,7 +193,7 @@ public class DefaultSearchContext extends SearchContext {
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = new ByteTrackingBigArrays(bigArrays, Long.MAX_VALUE); // TODO: configure a limit?
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);
@@ -205,11 +208,15 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() throws ElasticsearchException {
-        if (scanContext != null) {
-            scanContext.clear();
+        try {
+            Loggers.getLogger(getClass()).debug("Current request allocated a total of {}", RamUsageEstimator.humanReadableUnits(bigArrays.ramBytesAllocated()));
+        } finally {
+            if (scanContext != null) {
+                scanContext.clear();
+            }
+            // clear and scope phase we  have
+            Releasables.close(searcher, engineSearcher);
         }
-        // clear and scope phase we  have
-        Releasables.close(searcher, engineSearcher);
     }
 
     /**

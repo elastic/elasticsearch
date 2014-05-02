@@ -37,7 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MockBigArrays extends BigArrays {
+public class MockBigArrays extends BigArraysImpl {
 
     /**
      * Tracking allocations is useful when debugging a leak but shouldn't be enabled by default as this would also be very costly

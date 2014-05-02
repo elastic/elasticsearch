@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BigArraysImpl;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.engine.Engine;
@@ -350,7 +351,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final CacheRecycler cacheRecycler = new CacheRecycler(ImmutableSettings.EMPTY);
         ThreadPool threadPool = new ThreadPool();
         final PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(ImmutableSettings.EMPTY, threadPool);
-        final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
+        final BigArrays bigArrays = new BigArraysImpl(ImmutableSettings.EMPTY, pageCacheRecycler);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new DummyCircuitBreakerService());

@@ -90,11 +90,6 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
         return this;
     }
 
-    public ClusterStateRequestBuilder setIndexTemplates(String... templates) {
-        request.indexTemplates(templates);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<ClusterStateResponse> listener) {
         ((ClusterAdminClient) client).state(request, listener);

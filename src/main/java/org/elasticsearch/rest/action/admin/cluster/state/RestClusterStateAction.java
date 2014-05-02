@@ -74,7 +74,6 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.routingTable(metrics.contains("routing_table"));
             clusterStateRequest.metaData(metrics.contains("metadata"));
             clusterStateRequest.blocks(metrics.contains("blocks"));
-            clusterStateRequest.indexTemplates(request.paramAsStringArray("index_templates", Strings.EMPTY_ARRAY));
         }
 
         client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {

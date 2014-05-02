@@ -32,6 +32,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -328,6 +330,28 @@ public class ElasticsearchAssertions {
         for (int i = 0; i < text.length; i++) {
             assertSuggestion(searchSuggest, entry, i, key, text[i]);
         }
+    }
+
+    /**
+     * Assert that an index template is missing
+     */
+    public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
+        List<String> templateNames = new ArrayList<>();
+        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetaData.name());
+        }
+        assertThat(templateNames, not(hasItem(name)));
+    }
+
+    /**
+     * Assert that an index template exists
+     */
+    public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
+        List<String> templateNames = new ArrayList<>();
+        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetaData.name());
+        }
+        assertThat(templateNames, hasItem(name));
     }
 
     /*

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
@@ -96,7 +97,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
         }
         if (request.metaData()) {
             MetaData.Builder mdBuilder;
-            if (request.indices().length == 0 && request.indexTemplates().length == 0) {
+            if (request.indices().length == 0) {
                 mdBuilder = MetaData.builder(currentState.metaData());
             } else {
                 mdBuilder = MetaData.builder();
@@ -108,15 +109,6 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {
                         mdBuilder.put(indexMetaData, false);
-                    }
-                }
-            }
-
-            if (request.indexTemplates().length > 0) {
-                for (String templateName : request.indexTemplates()) {
-                    IndexTemplateMetaData indexTemplateMetaData = currentState.metaData().templates().get(templateName);
-                    if (indexTemplateMetaData != null) {
-                        mdBuilder.put(indexTemplateMetaData);
                     }
                 }
             }

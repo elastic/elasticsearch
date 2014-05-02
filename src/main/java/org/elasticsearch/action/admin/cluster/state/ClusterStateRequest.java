@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.Strings;
@@ -37,7 +38,6 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
     private boolean metaData = true;
     private boolean blocks = true;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private String[] indexTemplates = Strings.EMPTY_ARRAY;
 
     public ClusterStateRequest() {
     }
@@ -53,7 +53,6 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         metaData = true;
         blocks = true;
         indices = Strings.EMPTY_ARRAY;
-        indexTemplates = Strings.EMPTY_ARRAY;
         return this;
     }
     
@@ -63,7 +62,6 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         metaData = false;
         blocks = false;
         indices = Strings.EMPTY_ARRAY;
-        indexTemplates = Strings.EMPTY_ARRAY;
         return this;
     }
 
@@ -112,15 +110,6 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         return this;
     }
 
-    public String[] indexTemplates() {
-        return this.indexTemplates;
-    }
-
-    public ClusterStateRequest indexTemplates(String... indexTemplates) {
-        this.indexTemplates = indexTemplates;
-        return this;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -129,7 +118,10 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         metaData = in.readBoolean();
         blocks = in.readBoolean();
         indices = in.readStringArray();
-        indexTemplates = in.readStringArray();
+        // fake support for indices in pre 1.2.0 versions
+        if (in.getVersion().before(Version.V_1_2_0)) {
+            in.readStringArray();
+        }
         readLocal(in);
     }
 
@@ -141,7 +133,10 @@ public class ClusterStateRequest extends MasterNodeReadOperationRequest<ClusterS
         out.writeBoolean(metaData);
         out.writeBoolean(blocks);
         out.writeStringArray(indices);
-        out.writeStringArray(indexTemplates);
+        // fake support for indices in pre 1.2.0 versions
+        if (out.getVersion().before(Version.V_1_2_0)) {
+            out.writeStringArray(Strings.EMPTY_ARRAY);
+        }
         writeLocal(out);
     }
 }

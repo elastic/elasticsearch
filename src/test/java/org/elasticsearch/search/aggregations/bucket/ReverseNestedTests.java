@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -119,6 +120,7 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                                 reverseNested("nested1_to_field1")
                                                         .subAggregation(
                                                                 terms("field1").field("field1")
+                                                                .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                         )
                                         )
                         )
@@ -133,10 +135,12 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                 .addAggregation(nested("nested1").path("nested1.nested2")
                         .subAggregation(
                                 terms("field2").field("nested1.nested2.field2")
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
                                         .subAggregation(
                                                 reverseNested("nested1_to_field1").path("nested1")
                                                         .subAggregation(
                                                                 terms("field1").field("nested1.field1")
+                                                                .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                         )
                                         )
                         )
@@ -148,10 +152,12 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
     public void testReverseNestedAggWithoutNestedAgg() throws Exception {
         client().prepareSearch("idx")
                 .addAggregation(terms("field2").field("nested1.nested2.field2")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                                 .subAggregation(
                                         reverseNested("nested1_to_field1")
                                                 .subAggregation(
                                                         terms("field1").field("nested1.field1")
+                                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                                                 )
                                 )
                 ).get();

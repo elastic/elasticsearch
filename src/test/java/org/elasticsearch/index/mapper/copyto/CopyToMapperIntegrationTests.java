@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -54,10 +55,14 @@ public class CopyToMapperIntegrationTests extends ElasticsearchIntegrationTest {
         }
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
 
+        SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
+        
         SearchResponse response = client().prepareSearch("test-idx")
                 .setQuery(QueryBuilders.termQuery("even", true))
-                .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2))
-                .addAggregation(AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2))
+                .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2)
+                        .collectMode(aggCollectionMode))
+                .addAggregation(AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2)
+                        .collectMode(aggCollectionMode))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) recordCount));

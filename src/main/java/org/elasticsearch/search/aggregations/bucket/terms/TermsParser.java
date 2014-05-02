@@ -32,6 +32,7 @@ import java.io.IOException;
  */
 public class TermsParser implements Aggregator.Parser {
 
+    
     @Override
     public String type() {
         return StringTerms.TYPE.name();
@@ -52,7 +53,7 @@ public class TermsParser implements Aggregator.Parser {
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
         bucketCountThresholds.ensureValidity();
         InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint());
+        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode());
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

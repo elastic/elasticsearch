@@ -28,13 +28,11 @@ import java.util.Collections;
 
 abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
-    protected final InternalOrder order;
 
     public AbstractStringTermsAggregator(String name, AggregatorFactories factories,
             long estimatedBucketsCount, AggregationContext context, Aggregator parent,
-            InternalOrder order, BucketCountThresholds bucketCountThresholds) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketsCount, context, parent, bucketCountThresholds);
-        this.order = InternalOrder.validate(order, this);
+            InternalOrder order, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode) {
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketsCount, context, parent, bucketCountThresholds, order, subAggCollectMode);
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -79,7 +80,9 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
 
             boolean useAggs = randomBoolean();
             if (useAggs) {
-                percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2"));
+                SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
+                percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2")
+                        .collectMode(aggCollectionMode ));
             } else {
                 percolateRequestBuilder.addFacet(FacetBuilders.termsFacet("a").field("field2"));
 

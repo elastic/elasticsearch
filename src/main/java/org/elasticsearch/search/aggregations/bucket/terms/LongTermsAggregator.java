@@ -41,20 +41,20 @@ import java.util.Collections;
  */
 public class LongTermsAggregator extends TermsAggregator {
 
-    private final InternalOrder order;
     protected final ValuesSource.Numeric valuesSource;
     protected final @Nullable ValueFormatter formatter;
     protected final LongHash bucketOrds;
     private LongValues values;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds);
+                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, subAggCollectMode);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
-        this.order = InternalOrder.validate(order, this);
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
+    
+    
 
     @Override
     public boolean shouldCollect() {
@@ -77,6 +77,7 @@ public class LongTermsAggregator extends TermsAggregator {
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;
                 collectExistingBucket(doc, bucketOrdinal);
+                
             } else {
                 collectBucket(doc, bucketOrdinal);
             }
@@ -116,16 +117,28 @@ public class LongTermsAggregator extends TermsAggregator {
                 spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
-
+        
+        
+        
+        // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
+        }
+      
+        runDeferredCollections(survivingBucketOrds);
+
+        //Now build the aggs
+        for (int i = 0; i < list.length; i++) {
+          list[i].aggregations = bucketAggregations(list[i].bucketOrd);
         }
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
-
+    
+    
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());

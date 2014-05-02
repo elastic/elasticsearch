@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -63,8 +64,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
                                                long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds,
-                                               IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, factories, maxOrd, aggregationContext, parent, order, bucketCountThresholds);
+                                               IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+        super(name, factories, maxOrd, aggregationContext, parent, order, bucketCountThresholds, collectionMode);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
     }
@@ -143,12 +144,23 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
         }
 
+        // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
-            bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
+        //replay any deferred collections
+        runDeferredCollections(survivingBucketOrds);    
+        //Now build the aggs
+        for (int i = 0; i < list.length; i++) {
+          Bucket bucket = list[i];
+          bucket.aggregations = bucket.docCount == 0 ? bucketEmptyAggregations() : bucketAggregations(bucket.bucketOrd);
+        }        
+        
+        
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
@@ -163,9 +175,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
                         long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext,
-                        Aggregator parent) {
+                        Aggregator parent, SubAggCollectionMode collectionMode) {
             // Set maxOrd to estimatedBucketCount! To be conservative with memory.
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, bucketCountThresholds, includeExclude, aggregationContext, parent);
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -209,8 +221,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private LongArray current;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, null, aggregationContext, parent);
+                              long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode);
             this.segmentDocCounts = bigArrays.newLongArray(maxOrd, true);
         }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.tophits.TopHits;
@@ -409,6 +410,30 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
+    
+    @Test
+    public void testFailDeferred() throws Exception {
+        
+        try {
+            client().prepareSearch("idx")
+                    .setTypes("type")
+                    .addAggregation(
+                            terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
+                                    .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                                    .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
+                    .get();
+            fail();
+        } catch (Exception e) {
+            // It is considered a parse failure if the search request asks for top_hits
+            // under an aggregation with collect_mode set to breadth_first as this would
+            // require the buffering of scores alongside each document ID and that is a
+            // a RAM cost we are not willing to pay 
+            assertThat(e.getMessage(), containsString("ElasticsearchParseException"));
+        }
+    }
+    
+    
+    
 
     @Test
     public void testEmptyIndex() throws Exception {

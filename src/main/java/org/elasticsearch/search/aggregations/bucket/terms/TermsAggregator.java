@@ -26,7 +26,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.io.IOException;
 
@@ -125,9 +127,25 @@ public abstract class TermsAggregator extends BucketsAggregator {
     }
 
     protected final BucketCountThresholds bucketCountThresholds;
+    protected InternalOrder order;
+    protected Aggregator aggUsedForSorting;
+    protected SubAggCollectionMode subAggCollectMode;
 
-    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds) {
+    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, InternalOrder order, SubAggCollectionMode subAggCollectMode) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
         this.bucketCountThresholds = bucketCountThresholds;
+        this.order = InternalOrder.validate(order, this);
+        this.subAggCollectMode = subAggCollectMode;
+        // Don't defer any child agg if we are dependent on it for pruning results
+        if (order instanceof Aggregation){
+            OrderPath path = ((Aggregation) order).path();
+            aggUsedForSorting = path.resolveTopmostAggregator(this, false);
+        }
     }
+
+    @Override
+    protected boolean shouldDefer(Aggregator aggregator) {
+        return (subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST) && (aggregator != aggUsedForSorting);
+    }
+    
 }

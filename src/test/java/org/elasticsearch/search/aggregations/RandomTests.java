@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
@@ -214,12 +215,12 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         };
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("long").field("long_values").size(maxNumTerms).subAggregation(min("min").field("num")))
-                .addAggregation(terms("double").field("double_values").size(maxNumTerms).subAggregation(max("max").field("num")))
-                .addAggregation(terms("string_map").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
-                .addAggregation(terms("string_ordinals").field("string_values").executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
-                .addAggregation(terms("string_global_ordinals").field("string_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
-                .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
+                .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
+                .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
+                .addAggregation(terms("string_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
+                .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
         assertAllSuccessful(resp);
         assertEquals(numDocs, resp.getHits().getTotalHits());
@@ -274,7 +275,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("values").script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
+                .addAggregation(terms("terms").field("values").collectMode(randomFrom(SubAggCollectionMode.values())).script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
                 .addAggregation(histogram("histo").field("values").interval(interval))
                 .execute().actionGet();
 
@@ -304,7 +305,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, indexingRequests);
 
-        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
+        SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits());
     }

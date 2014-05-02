@@ -594,7 +594,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         // generate id if not already provided and id generation is allowed
         if (allowIdGeneration) {
             if (id == null) {
-                id(Strings.timestampBase64UUID());
+                id(Strings.base64UUID());
                 // since we generate the id, change it to CREATE
                 opType(IndexRequest.OpType.CREATE);
             }

@@ -24,18 +24,11 @@ import com.google.common.collect.Iterables;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.BufferedReader;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.nio.ByteBuffer;
-import java.security.SecureRandom;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
@@ -54,9 +47,8 @@ public class Strings {
 
     private static final char EXTENSION_SEPARATOR = '.';
 
-    private static volatile long LAST_TIMESTAMP = 0;
-
-    private static AtomicLong SEQUENCE_NUMBER = new AtomicLong();
+    private static final RandomBasedUUID RANDOM_UUID_GENERATOR = new RandomBasedUUID();
+    private static final UUIDGenerator TIME_UUID_GENERATOR = new TimeBasedUUID();
 
     public static void tabify(int tabs, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -1508,108 +1500,6 @@ public class Strings {
         return bytes;
     }
 
-    private static class SecureRandomHolder {
-        // class loading is atomic - this is a lazy & safe singleton
-        private static final SecureRandom INSTANCE = new SecureRandom();
-    }
-
-    private static class MacAddressXORHolder {
-
-        private static byte[] MAC_ADDRESS_XOR = null;
-
-        static {
-            final byte[] randomBytes = new byte[6];
-            SecureRandomHolder.INSTANCE.nextBytes(randomBytes);
-            try {
-                InetAddress ip = InetAddress.getLocalHost();
-                NetworkInterface ni = NetworkInterface.getByInetAddress(ip);
-                byte[] MAC_ADDRESS = ni.getHardwareAddress();
-                MAC_ADDRESS_XOR = new byte[6]; //Use 48 MSB even on ipv6 which uses EUI-64
-                for (int i=0; i < 6; ++i) {
-                    if( i >= MAC_ADDRESS.length ) {
-                        MAC_ADDRESS_XOR[i] = randomBytes[i];
-                    } else {
-                        MAC_ADDRESS_XOR[i] = (byte)( 0xff & (randomBytes[i] ^ MAC_ADDRESS[i]));
-                    }
-                }
-
-            } catch (Exception uhe){
-                //This isn't good at all, probably osx
-                //We will use the RandomUUID Generator instead
-                MAC_ADDRESS_XOR = null;
-            }
-        }
-    }
-
-    /**
-     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
-     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
-     */
-    public static String randomBase64UUID() {
-        return randomBase64UUID(SecureRandomHolder.INSTANCE);
-    }
-    
-    /**
-     * Returns a Base64 encoded version of a Version 4.0 compatible UUID
-     * randomly initialized by the given {@link Random} instance
-     * as defined here: http://www.ietf.org/rfc/rfc4122.txt
-     */
-    public static String randomBase64UUID(Random random) {
-        final byte[] randomBytes = new byte[16];
-        random.nextBytes(randomBytes);
-        /* Set the version to version 4 (see http://www.ietf.org/rfc/rfc4122.txt)
-         * The randomly or pseudo-randomly generated version.
-         * The version number is in the most significant 4 bits of the time
-         * stamp (bits 4 through 7 of the time_hi_and_version field).*/
-        randomBytes[6] &= 0x0f;  /* clear the 4 most significant bits for the version  */
-        randomBytes[6] |= 0x40;  /* set the version to 0100 / 0x40 */
-        
-        /* Set the variant: 
-         * The high field of th clock sequence multiplexed with the variant.
-         * We set only the MSB of the variant*/
-        randomBytes[8] &= 0x3f;  /* clear the 2 most significant bits */
-        randomBytes[8] |= 0x80;  /* set the variant (MSB is set)*/
-        try {
-            byte[] encoded = Base64.encodeBytesToBytes(randomBytes, 0, randomBytes.length, Base64.URL_SAFE);
-            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
-            assert encoded[encoded.length - 1] == '=';
-            assert encoded[encoded.length - 2] == '=';
-            // we always have padding of two at the end, encode it differently
-            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("should not be thrown");
-        }
-    }
-
-    public static String timestampBase64UUID() {
-        if (MacAddressXORHolder.MAC_ADDRESS_XOR == null){
-            return randomBase64UUID(); //If we weren't able to get the mac address default back to the random uuid
-        }
-        final byte[] uuidBytes = new byte[22];
-        ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
-        long timestamp = System.currentTimeMillis();
-
-        if( timestamp < LAST_TIMESTAMP ){ //If time slips backward just inc time
-            timestamp = LAST_TIMESTAMP + 1;
-        }
-
-        LAST_TIMESTAMP = timestamp;
-        buffer.putLong(timestamp); // 8 bytes
-        buffer.put(MacAddressXORHolder.MAC_ADDRESS_XOR); // 6 bytes
-        buffer.putLong(SEQUENCE_NUMBER.incrementAndGet()); // 8 bytes
-
-        try {
-            byte[] encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
-            // we know the bytes are 16, and not a multi of 3, so remove the 2 padding chars that are added
-            assert encoded[encoded.length - 1] == '=';
-            assert encoded[encoded.length - 2] == '=';
-            // we always have padding of two at the end, encode it differently
-            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalStateException("should not be thrown");
-        }
-
-    }
 
     /**
      * Return substring(beginIndex, endIndex) that is impervious to string length.
@@ -1635,6 +1525,19 @@ public class Strings {
     public static boolean isAllOrWildcard(String[] data) {
         return CollectionUtils.isEmpty(data) ||
                data.length == 1 && ("_all".equals(data[0]) || "*".equals(data[0]));
+    }
+
+    public static String randomBase64UUID(){
+        return RANDOM_UUID_GENERATOR.getBase64UUID(RandomBasedUUID.SecureRandomHolder.INSTANCE);
+    }
+
+
+    public static String randomBase64UUID(Random random){
+        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
+    }
+
+    public static String base64UUID(){
+        return TIME_UUID_GENERATOR.getBase64UUID();
     }
 
 }

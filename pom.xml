@@ -282,7 +282,7 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>3.3.0</version>
+            <version>4.1.0</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>

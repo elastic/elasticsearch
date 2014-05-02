@@ -52,21 +52,36 @@ curl localhost:9200/_nodes/process?pretty
 [[setup-configuration-memory]]
 ==== Memory Settings
 
-There is an option to use
+The Linux kernel tries to use as much memory as possible for file system
+caches, and eagerly swaps out unused application memory, possibly resulting
+in the elasticsearch process being swapped out and suffer from low
+performance then.
+
+The first option is to ensure that the sysctl value `vm.swappiness` is set
+to `0`. This reduces the kernel's tendency to swap and should not lead to
+swapping under normal circumstances, while still allowing the whole system
+to swap in emergency conditions.
+
+In the above case there is an option to use
 http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] to
-try to lock the process address space so it won't be swapped. For this
-to work, the `bootstrap.mlockall` should be set to `true` and it is
-recommended to set both the min and max memory allocation to be the
-same. Note: This option is only available on Linux/Unix operating
-systems.
+try to lock the process address space so it won't be swapped by configuring
+the `bootstrap.mlockall` setting to `true`.
+Note: This option is only available on Linux/Unix operating systems.
 
-In order to see if this works or not, set the `common.jna` logging to
-DEBUG level. A solution to "Unknown mlockall error 0" can be to set
-`ulimit -l unlimited`.
+After starting Elasticsearch can check the process part of the nodes
+info API to find out if the `mlockall` setting has been applied successfully.
 
-Note, `mlockall` might cause the JVM or shell
-session to exit if it fails to allocate the memory (because not enough
-memory is available on the machine).
+If the setting has not been applied, you can try to execute
+`ulimit -l unlimited` to allow memory locking.
+
+Another possible reason why `mlockall` can fail is when the directory pointed
+to by the `java.io.tmpdir` JVM system property - typically `/tmp` - is mounted
+with the `noexec` option. In this case you can specify an additional directory
+using the `jna.tmpdir` system property to use for loading the native library.
+
+Note, that `mlockall` might cause the JVM or shell session to exit if it fails
+to allocate the memory, possibly due to not enough memory being available on
+the machine.
 
 [float]
 [[settings]]

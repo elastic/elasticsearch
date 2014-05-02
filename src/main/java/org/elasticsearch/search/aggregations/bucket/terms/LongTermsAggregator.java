@@ -26,8 +26,10 @@ import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.OrderPath;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -46,15 +48,25 @@ public class LongTermsAggregator extends TermsAggregator {
     protected final @Nullable ValueFormatter formatter;
     protected final LongHash bucketOrds;
     private LongValues values;
+    private Aggregator aggUsedForSorting;
+    private SubAggCollectionMode subAggCollectMode;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
+                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
         this.order = InternalOrder.validate(order, this);
+        this.subAggCollectMode = subAggCollectMode;
+        //Don't defer any child agg if we are dependent on it for pruning results
+        if (order instanceof Aggregation){
+            OrderPath path = ((Aggregation) order).path();
+            aggUsedForSorting = path.resolveTopmostAggregator(this, false);
+        }
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
+    
+    
 
     @Override
     public boolean shouldCollect() {
@@ -77,6 +89,7 @@ public class LongTermsAggregator extends TermsAggregator {
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;
                 collectExistingBucket(doc, bucketOrdinal);
+                
             } else {
                 collectBucket(doc, bucketOrdinal);
             }
@@ -116,14 +129,32 @@ public class LongTermsAggregator extends TermsAggregator {
                 spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
-
+        
+        
+        
+        // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final LongTerms.Bucket bucket = (LongTerms.Bucket) ordered.pop();
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
+      
+        runDeferredCollections(survivingBucketOrds);
+
+        //Now build the aggs
+        for (int i = 0; i < list.length; i++) {
+          list[i].aggregations = bucketAggregations(list[i].bucketOrd);
+        }
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+    }
+    
+    
+
+    @Override
+    protected boolean shouldDefer(Aggregator aggregator) {
+        return (subAggCollectMode == SubAggCollectionMode.PRUNE_FIRST) && (aggregator != aggUsedForSorting);
     }
 
     @Override

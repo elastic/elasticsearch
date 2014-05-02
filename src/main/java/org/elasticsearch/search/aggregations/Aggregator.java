@@ -20,12 +20,18 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.*;
@@ -67,6 +73,47 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          */
         MULTI_BUCKETS
     }
+    
+    public enum SubAggCollectionMode {
+
+        /**
+         * Creates buckets and delegates to child aggregators in a single pass over
+         * the matching documents
+         */
+        SINGLE_PASS(new ParseField("single_pass")),
+
+        /**
+         * Creates buckets for all matching docs and then prunes to top-scoring buckets
+         * before a second pass over the data when child aggregators are called
+         * but only for docs from the top-scoring buckets
+         */
+        PRUNE_FIRST(new ParseField("prune_first"));
+
+        private final ParseField parseField;
+
+        SubAggCollectionMode(ParseField parseField) {
+            this.parseField = parseField;
+        }
+
+        public ParseField parseField() {
+            return parseField;
+        }
+
+        public static SubAggCollectionMode parse(String value) {
+            return parse(value, ParseField.EMPTY_FLAGS);
+        }
+
+        public static SubAggCollectionMode parse(String value, EnumSet<ParseField.Flag> flags) {
+            SubAggCollectionMode[] modes = SubAggCollectionMode.values();
+            for (SubAggCollectionMode mode : modes) {
+                if (mode.parseField.match(value, flags)) {
+                    return mode;
+                }
+            }
+            throw new ElasticsearchParseException("No collectionMode found for value [" + value + "]");
+        }
+    }
+    
 
     protected final String name;
     protected final Aggregator parent;
@@ -78,9 +125,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     protected final BucketAggregationMode bucketAggregationMode;
     protected final AggregatorFactories factories;
     protected final Aggregator[] subAggregators;
-    protected final BucketCollector collectableSugAggregators;
+    protected BucketCollector collectableSubAggregators;
 
     private Map<String, Aggregator> subAggregatorbyName;
+    private DeferringBucketCollector recordingWrapper;
 
     /**
      * Constructs a new Aggregator.
@@ -103,8 +151,64 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.factories = factories;
         this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
-        collectableSugAggregators = BucketCollector.wrap(Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR));
         context.searchContext().addReleasable(this, Lifetime.PHASE);
+        // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent initialize call)
+        collectableSubAggregators = new BucketCollector() {
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
+                        "Initialize not called on new Aggregator before use", null);
+            }
+
+            @Override
+            public void postCollection() throws IOException {
+                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
+                        "Initialize not called on new Aggregator before use", null);
+            }
+
+            @Override
+            public void collect(int docId, long bucketOrdinal) throws IOException {
+                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
+                        "Initialize not called on new Aggregator before use", null);
+            }
+        };
+    }
+    protected void initialize() {
+        Iterable<Aggregator> collectables = Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR);
+        List<BucketCollector> nextPassCollectors=new ArrayList<>();
+        List<BucketCollector> thisPassCollectors=new ArrayList<>();
+        for (Aggregator aggregator : collectables) {
+            if(shouldDefer(aggregator)){
+                nextPassCollectors.add(aggregator);
+            }else{
+                thisPassCollectors.add(aggregator);
+            }
+        }
+        if(nextPassCollectors.size()>0){
+            BucketCollector deferreds=BucketCollector.wrap(nextPassCollectors);
+            recordingWrapper=new DeferringBucketCollector(deferreds, context);
+//          //TODO. Without line below we are dependent on subclass aggs delegating setNextReader calls on to child aggs
+//          // which they don't seem to do as a matter of course? Is there a cleaner way around this?             
+            context.registerReaderContextAware(recordingWrapper);
+            thisPassCollectors.add(recordingWrapper);            
+        }
+        collectableSubAggregators=BucketCollector.wrap(thisPassCollectors);
+    }
+    /*
+     * Subclasses can return true if the aggregator should be deferred
+     * until a first pass at collection has completed. Deferring collection
+     * will require the recording of all doc/bucketIds in a first pass and
+     * then the sub class should call runDeferred() for the selected set of buckets
+     */
+    protected boolean shouldDefer(Aggregator aggregator) {
+        return false;
+    }
+    
+    protected void runDeferredCollections(long... bucketOrds){
+        //Being lenient here - ignore calls where there are no deferred collections to playback
+        if (recordingWrapper != null) {
+            recordingWrapper.prepareSelectedBuckets(bucketOrds);
+        } 
     }
 
     /**
@@ -174,13 +278,14 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Called after collection of all document is done.
      */
     public final void postCollection() throws IOException {
-        collectableSugAggregators.postCollection();
+        collectableSubAggregators.postCollection();
         doPostCollection();
     }
 
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
+        Releasables.close(recordingWrapper);
         doClose();
     }
 
@@ -233,4 +338,5 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException;
 
     }
+
 }

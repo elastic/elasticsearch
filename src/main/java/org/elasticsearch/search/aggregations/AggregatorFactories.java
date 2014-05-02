@@ -53,6 +53,9 @@ public class AggregatorFactories {
         if (aggregator.shouldCollect()) {
             context.registerReaderContextAware(aggregator);
         }
+        //Once the aggregator is fully constructed perform any initialisation - can't do everything in constructors
+        //if Aggregator base class needs to delegate to subclasses as part of construction.
+        aggregator.initialize();
         return aggregator;
     }
 
@@ -134,6 +137,8 @@ public class AggregatorFactories {
                     Releasables.close(aggregators);
                 }
             };
+            
+            aggregators[i].initialize();
         }
         return aggregators;
     }

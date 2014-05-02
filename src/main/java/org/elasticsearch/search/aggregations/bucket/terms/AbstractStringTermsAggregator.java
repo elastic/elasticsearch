@@ -22,19 +22,29 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.util.Collections;
 
 abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     protected final InternalOrder order;
+    final SubAggCollectionMode subAggCollectMode;
+    private Aggregator aggUsedForSorting;
 
     public AbstractStringTermsAggregator(String name, AggregatorFactories factories,
             long estimatedBucketsCount, AggregationContext context, Aggregator parent,
-            InternalOrder order, BucketCountThresholds bucketCountThresholds) {
+            InternalOrder order, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode subAggCollectMode) {
         super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketsCount, context, parent, bucketCountThresholds);
         this.order = InternalOrder.validate(order, this);
+        this.subAggCollectMode = subAggCollectMode;
+        //Don't defer any child agg if we are dependent on it for pruning results
+        if (order instanceof Aggregation){
+            OrderPath path = ((Aggregation) order).path();
+            aggUsedForSorting = path.resolveTopmostAggregator(this, false);
+        }
     }
 
     @Override
@@ -46,5 +56,10 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
     public InternalAggregation buildEmptyAggregation() {
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
     }
+    
+    @Override
+    protected boolean shouldDefer(Aggregator aggregator) {
+        return (subAggCollectMode == SubAggCollectionMode.PRUNE_FIRST) && (aggregator != aggUsedForSorting);
+    }    
 
 }

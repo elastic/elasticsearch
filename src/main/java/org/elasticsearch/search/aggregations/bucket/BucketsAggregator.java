@@ -73,7 +73,7 @@ public abstract class BucketsAggregator extends Aggregator {
      * Utility method to collect the given doc in the given bucket but not to update the doc counts of the bucket
      */
     protected final void collectBucketNoCounts(int doc, long bucketOrd) throws IOException {
-        collectableSugAggregators.collect(doc, bucketOrd);
+        collectableSubAggregators.collect(doc, bucketOrd);
     }
 
     /**

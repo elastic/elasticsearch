@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,11 +35,16 @@ public abstract class AbstractTermsParametersParser {
     public static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
+    public static final ParseField COLLECT_MODE = new ParseField("collect_mode");
+    
 
     //These are the results of the parsing.
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds();
 
     private String executionHint = null;
+    
+    private SubAggCollectionMode collectMode = SubAggCollectionMode.SINGLE_PASS;
+
 
     IncludeExclude includeExclude;
 
@@ -53,6 +59,11 @@ public abstract class AbstractTermsParametersParser {
     public IncludeExclude getIncludeExclude() {
         return includeExclude;
     }
+    
+    public SubAggCollectionMode getCollectionMode() {
+        return collectMode;
+    }
+
 
     public void parse(String aggregationName, XContentParser parser, SearchContext context, ValuesSourceParser vsParser, IncludeExclude.Parser incExcParser) throws IOException {
         bucketCountThresholds = getDefaultBucketCountThresholds();
@@ -69,6 +80,8 @@ public abstract class AbstractTermsParametersParser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (EXECUTION_HINT_FIELD_NAME.match(currentFieldName)) {
                     executionHint = parser.text();
+                } else if(COLLECT_MODE.match(currentFieldName)){
+                    collectMode=SubAggCollectionMode.parse(parser.text());
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }

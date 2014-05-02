@@ -19,7 +19,6 @@
 
 package org.elasticsearch.recovery;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -31,7 +30,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
@@ -55,8 +54,7 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("indices.cluster:TRACE,cluster.service:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/tree/feature/improve_zen")
+    @TestLogging("indices.cluster:TRACE,cluster.service:TRACE,action.search:TRACE,indices.recovery:TRACE")
     public void testFullRollingRestart() throws Exception {
         internalCluster().startNode();
         createIndex("test");

@@ -121,10 +121,10 @@ The following parameters are supported:
     A positive integer, which defines a weight and allows you to
     rank your suggestions. This field is optional.
 
-NOTE: Even though you are losing most of the features of the
-completion suggest, you can opt in for the shortest form, which even
-allows you to use inside of multi fields. But keep in mind, that you will
-not be able to use several inputs, an output, payloads or weights.
+NOTE: Even though you will lose most of the features of the
+completion suggest, you can choose to use the following shorthand form.
+Keep in mind that you will not be able to use several inputs, an output, 
+payloads or weights. This form does still work inside of multi fields.
 
 [source,js]
 --------------------------------------------------

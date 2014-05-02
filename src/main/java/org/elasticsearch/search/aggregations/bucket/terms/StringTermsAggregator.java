@@ -54,9 +54,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                                  InternalOrder order, BucketCountThresholds bucketCountThresholds,
-                                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
+                                 IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
 
-        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds);
+        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds, collectionMode);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
@@ -226,15 +226,24 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             }
         }
 
+        // Get the top buckets
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
+        long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
             final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
-            // the terms are owned by the BytesRefHash, we need to pull a copy since the BytesRef hash data may be recycled at some point
-            bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
-            bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+            survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
-
+        // replay any deferred collections
+        runDeferredCollections(survivingBucketOrds);    
+        // Now build the aggs
+        for (int i = 0; i < list.length; i++) {
+          final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
+          bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
+          bucket.aggregations = bucketAggregations(bucket.bucketOrd);
+        }        
+        
+        
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
@@ -259,8 +268,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         private LongArray ordinalToBucket;
 
         public WithOrdinals(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, long esitmatedBucketCount,
-                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, esitmatedBucketCount, order, bucketCountThresholds, null, aggregationContext, parent);
+                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
+            super(name, factories, valuesSource, esitmatedBucketCount, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode);
             this.valuesSource = valuesSource;
         }
 

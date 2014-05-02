@@ -48,7 +48,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                                                     IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
                                                     SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent);
+        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST);
         this.termsAggFactory = termsAggFactory;
     }
 

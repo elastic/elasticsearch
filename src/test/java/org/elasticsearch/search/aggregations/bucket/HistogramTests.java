@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -608,7 +609,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).script("_value + 1").interval(interval)
-                        .subAggregation(terms(MULTI_VALUED_FIELD_NAME).order(Terms.Order.term(true))))
+                        .subAggregation(terms(MULTI_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values())).order(Terms.Order.term(true))))
                 .execute().actionGet();
 
         assertSearchResponse(response);

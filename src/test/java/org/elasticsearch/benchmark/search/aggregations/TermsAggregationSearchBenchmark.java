@@ -41,6 +41,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 
 import java.util.List;
 import java.util.Locale;
@@ -94,6 +95,17 @@ public class TermsAggregationSearchBenchmark {
             @Override
             SearchRequestBuilder addTermsStatsAgg(SearchRequestBuilder builder, String name, String keyField, String valueField) {
                 return builder.addAggregation(AggregationBuilders.terms(name).field(keyField).subAggregation(AggregationBuilders.stats("stats").field(valueField)));
+            }
+        },
+        AGGREGATION_DEFERRED {
+            @Override
+            SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint) {
+                return builder.addAggregation(AggregationBuilders.terms(name).executionHint(executionHint).field(field).collectMode(SubAggCollectionMode.BREADTH_FIRST));
+            }
+
+            @Override
+            SearchRequestBuilder addTermsStatsAgg(SearchRequestBuilder builder, String name, String keyField, String valueField) {
+                return builder.addAggregation(AggregationBuilders.terms(name).field(keyField).collectMode(SubAggCollectionMode.BREADTH_FIRST).subAggregation(AggregationBuilders.stats("stats").field(valueField)));
             }
         };
         abstract SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint);
@@ -251,10 +263,18 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_agg_s_dv_local_ordinals", Method.AGGREGATION, "s_value_dv", "ordinals"));
         stats.add(terms("terms_agg_map_s", Method.AGGREGATION, "s_value", "map"));
         stats.add(terms("terms_agg_map_s_dv", Method.AGGREGATION, "s_value_dv", "map"));
+        stats.add(terms("terms_agg_def_s", Method.AGGREGATION_DEFERRED, "s_value", null));
+        stats.add(terms("terms_agg_def_s_local_ordinals", Method.AGGREGATION_DEFERRED, "s_value", "ordinals"));
+        stats.add(terms("terms_agg_def_s_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", null));
+        stats.add(terms("terms_agg_def_s_dv_local_ordinals", Method.AGGREGATION_DEFERRED, "s_value_dv", "ordinals"));
+        stats.add(terms("terms_agg_def_map_s", Method.AGGREGATION_DEFERRED, "s_value", "map"));
+        stats.add(terms("terms_agg_def_map_s_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "map"));
         stats.add(terms("terms_facet_l", Method.FACET, "l_value", null));
         stats.add(terms("terms_facet_l_dv", Method.FACET, "l_value_dv", null));
         stats.add(terms("terms_agg_l", Method.AGGREGATION, "l_value", null));
         stats.add(terms("terms_agg_l_dv", Method.AGGREGATION, "l_value_dv", null));
+        stats.add(terms("terms_agg_def_l", Method.AGGREGATION_DEFERRED, "l_value", null));
+        stats.add(terms("terms_agg_def_l_dv", Method.AGGREGATION_DEFERRED, "l_value_dv", null));
         stats.add(terms("terms_facet_sm", Method.FACET, "sm_value", null));
         stats.add(terms("terms_facet_sm_dv", Method.FACET, "sm_value_dv", null));
         stats.add(terms("terms_facet_map_sm", Method.FACET, "sm_value", "map"));
@@ -265,36 +285,56 @@ public class TermsAggregationSearchBenchmark {
         stats.add(terms("terms_agg_sm_dv_local_ordinals", Method.AGGREGATION, "sm_value_dv", "ordinals"));
         stats.add(terms("terms_agg_map_sm", Method.AGGREGATION, "sm_value", "map"));
         stats.add(terms("terms_agg_map_sm_dv", Method.AGGREGATION, "sm_value_dv", "map"));
+        stats.add(terms("terms_agg_def_sm", Method.AGGREGATION_DEFERRED, "sm_value", null));
+        stats.add(terms("terms_agg_def_sm_local_ordinals", Method.AGGREGATION_DEFERRED, "sm_value", "ordinals"));
+        stats.add(terms("terms_agg_def_sm_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", null));
+        stats.add(terms("terms_agg_def_sm_dv_local_ordinals", Method.AGGREGATION_DEFERRED, "sm_value_dv", "ordinals"));
+        stats.add(terms("terms_agg_def_map_sm", Method.AGGREGATION_DEFERRED, "sm_value", "map"));
+        stats.add(terms("terms_agg_def_map_sm_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "map"));
         stats.add(terms("terms_facet_lm", Method.FACET, "lm_value", null));
         stats.add(terms("terms_facet_lm_dv", Method.FACET, "lm_value_dv", null));
         stats.add(terms("terms_agg_lm", Method.AGGREGATION, "lm_value", null));
         stats.add(terms("terms_agg_lm_dv", Method.AGGREGATION, "lm_value_dv", null));
+        stats.add(terms("terms_agg_def_lm", Method.AGGREGATION_DEFERRED, "lm_value", null));
+        stats.add(terms("terms_agg_def_lm_dv", Method.AGGREGATION_DEFERRED, "lm_value_dv", null));
 
         stats.add(termsStats("terms_stats_facet_s_l", Method.FACET, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_facet_s_l_dv", Method.FACET, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_l", Method.AGGREGATION, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_s_l_dv", Method.AGGREGATION, "s_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_def_s_l", Method.AGGREGATION_DEFERRED, "s_value", "l_value", null));
+        stats.add(termsStats("terms_stats_agg_def_s_l_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_facet_s_lm", Method.FACET, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_facet_s_lm_dv", Method.FACET, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_lm", Method.AGGREGATION, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_agg_s_lm_dv", Method.AGGREGATION, "s_value_dv", "lm_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_def_s_lm", Method.AGGREGATION_DEFERRED, "s_value", "lm_value", null));
+        stats.add(termsStats("terms_stats_agg_def_s_lm_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_facet_sm_l", Method.FACET, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_facet_sm_l_dv", Method.FACET, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_sm_l", Method.AGGREGATION, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_def_sm_l", Method.AGGREGATION_DEFERRED, "sm_value", "l_value", null));
+        stats.add(termsStats("terms_stats_agg_def_sm_l_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "l_value_dv", null));
 
         stats.add(termsStats("terms_stats_facet_s_l", Method.FACET, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_facet_s_l_dv", Method.FACET, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_l", Method.AGGREGATION, "s_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_s_l_dv", Method.AGGREGATION, "s_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_def_s_l", Method.AGGREGATION_DEFERRED, "s_value", "l_value", null));
+        stats.add(termsStats("terms_stats_agg_def_s_l_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_facet_s_lm", Method.FACET, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_facet_s_lm_dv", Method.FACET, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_agg_s_lm", Method.AGGREGATION, "s_value", "lm_value", null));
         stats.add(termsStats("terms_stats_agg_s_lm_dv", Method.AGGREGATION, "s_value_dv", "lm_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_def_s_lm", Method.AGGREGATION_DEFERRED, "s_value", "lm_value", null));
+        stats.add(termsStats("terms_stats_agg_def_s_lm_dv", Method.AGGREGATION_DEFERRED, "s_value_dv", "lm_value_dv", null));
         stats.add(termsStats("terms_stats_facet_sm_l", Method.FACET, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_facet_sm_l_dv", Method.FACET, "sm_value_dv", "l_value_dv", null));
         stats.add(termsStats("terms_stats_agg_sm_l", Method.AGGREGATION, "sm_value", "l_value", null));
         stats.add(termsStats("terms_stats_agg_sm_l_dv", Method.AGGREGATION, "sm_value_dv", "l_value_dv", null));
+        stats.add(termsStats("terms_stats_agg_def_sm_l", Method.AGGREGATION_DEFERRED, "sm_value", "l_value", null));
+        stats.add(termsStats("terms_stats_agg_def_sm_l_dv", Method.AGGREGATION_DEFERRED, "sm_value_dv", "l_value_dv", null));
         
         System.out.println("------------------ SUMMARY ----------------------------------------------");
         System.out.format(Locale.ENGLISH, "%35s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");

@@ -446,7 +446,7 @@ image::https://f.cloud.github.com/assets/4320215/768165/19d8b1aa-e899-11e2-91bc-
 Only single valued numeric fields, including time and geo locations,
 are supported.
 
-==== What is a field is missing?
+==== What if a field is missing?
 
 If the numeric field is missing in the document, the function will
 return 1.

@@ -29,10 +29,6 @@
           "type": "time",
           "description": "Specify timeout for connection to master"
         },
-        "index_templates": {
-          "type": "list",
-          "description": "A comma separated list to return specific index templates when returning metadata"
-        },
         "flat_settings": {
           "type": "boolean",
           "description": "Return settings in flat format (default: false)"

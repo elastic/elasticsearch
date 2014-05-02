@@ -205,7 +205,8 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         int topN = firstResult.queryResult().size();
-        TopDocs[] shardTopDocs = new TopDocs[sortedResults.length];
+        // Need to use the length of the resultsArr array, since the slots will be based on the position in the resultsArr array
+        TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
         if (firstResult.includeFetch()) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
             // this is also important since we shortcut and fetch only docs from "from" and up to "size"
@@ -213,7 +214,14 @@ public class SearchPhaseController extends AbstractComponent {
         }
         for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
             TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+            // the 'index' field is the position in the resultsArr atomic array
             shardTopDocs[sortedResult.index] = topDocs;
+        }
+        // TopDocs#merge can't deal with empty shard TopDocs
+        for (int i = 0; i < shardTopDocs.length; i++) {
+            if (shardTopDocs[i] == null) {
+                shardTopDocs[i] = new TopDocs(0, EMPTY_DOCS, 0.0f);
+            }
         }
         TopDocs mergedTopDocs = TopDocs.merge(sort, topN, shardTopDocs);
         return mergedTopDocs.scoreDocs;

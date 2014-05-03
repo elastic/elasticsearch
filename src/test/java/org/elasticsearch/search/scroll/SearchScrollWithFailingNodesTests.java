@@ -19,42 +19,53 @@
 
 package org.elasticsearch.search.scroll;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 2)
 public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected int numberOfShards() {
+        // We need at least 2 primary shards, otherwise a stopping a node isn't going to result into shard failures.
+        return between(2, 6);
+    }
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
+
     @Test
     @TestLogging("action.search:TRACE")
     public void testScanScrollWithShardExceptions() throws Exception {
-        int numPrimaryShards = between(2, 6); // We need at least 2 shards.
         assertAcked(
-                client().admin().indices().prepareCreate("test")
-                        .setSettings(
-                                ImmutableSettings.settingsBuilder()
-                                        .put("index.number_of_shards", numPrimaryShards)
-                                        .put("index.number_of_replicas", 0)
-                        )
+                prepareCreate("test")
         );
 
+        List<IndexRequestBuilder> writes = new ArrayList<>();
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource(jsonBuilder().startObject().field("field", i).endObject())
-                    .get();
+            writes.add(
+                    client().prepareIndex("test", "type1")
+                            .setSource(jsonBuilder().startObject().field("field", i).endObject())
+            );
         }
+        indexRandom(false, writes);
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -62,29 +73,34 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
                 .setSize(10)
                 .setScroll(TimeValue.timeValueMinutes(1))
                 .get();
+        assertAllSuccessful(searchResponse);
         long numHits = 0;
         do {
             numHits += searchResponse.getHits().hits().length;
             searchResponse = client()
                     .prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1))
                     .get();
+            assertAllSuccessful(searchResponse);
         } while (searchResponse.getHits().hits().length > 0);
         assertThat(numHits, equalTo(100l));
         clearScroll("_all");
 
-        cluster().stopRandomNonMasterNode();
+        cluster().stopRandomDataNode();
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .setScroll(TimeValue.timeValueMinutes(1))
                 .get();
+        assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
         numHits = 0;
+        int numberOfSuccessfulShards = searchResponse.getSuccessfulShards();
         do {
             numHits += searchResponse.getHits().hits().length;
             searchResponse = client()
                     .prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1))
                     .get();
+            assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
         } while (searchResponse.getHits().hits().length > 0);
         assertThat(numHits, greaterThan(0l));
         clearScroll("_all");

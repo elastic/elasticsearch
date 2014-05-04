@@ -25,9 +25,15 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
 
     public void test() throws Exception {
         createIndex("test");
@@ -45,7 +51,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         // try to run something that relies on field data and make sure that it fails
         try {
             resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();
-            assertTrue(resp.toString(), resp.getFailedShards() > 0);
+            assertFailures(resp);
         } catch (SearchPhaseExecutionException e) {
             // expected
         }
@@ -69,7 +75,7 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         refresh();
         try {
             resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();
-            assertTrue(resp.toString(), resp.getFailedShards() > 0);
+            assertFailures(resp);
         } catch (SearchPhaseExecutionException e) {
             // expected
         }

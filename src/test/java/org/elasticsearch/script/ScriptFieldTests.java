@@ -32,9 +32,10 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 3)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 3)
 public class ScriptFieldTests extends ElasticsearchIntegrationTest {
 
     @Override

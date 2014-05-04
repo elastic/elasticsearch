@@ -20,11 +20,11 @@ package org.elasticsearch.search.child;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -58,7 +58,6 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
-import static org.elasticsearch.test.TestCluster.DEFAULT_MAX_NUM_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -564,10 +563,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
         assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1_updated\""));
-    }
-
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47 : "See comments in testDfsSearchType";
     }
 
     @Test
@@ -1250,13 +1245,18 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertHitCount(searchResponse, 2l);
 
-        client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
+        // Delete by query doesn't support p/c queries. If the delete by query has a different execution mode
+        // that doesn't rely on IW#deleteByQuery() then this test can be changed.
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
+        assertThat(deleteByQueryResponse.getIndex("test").getSuccessfulShards(), equalTo(0));
+        assertThat(deleteByQueryResponse.getIndex("test").getFailedShards(), equalTo(getNumShards("test").numPrimaries));
+        assertThat(deleteByQueryResponse.getIndex("test").getFailures()[0].reason(), containsString("[has_child] unsupported in delete_by_query api"));
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomHasChild("child", "c_field", "blue"))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 3l);
     }
 
     @Test
@@ -1292,13 +1292,16 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertHitCount(searchResponse, 3l);
 
-        client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
+        assertThat(deleteByQueryResponse.getIndex("test").getSuccessfulShards(), equalTo(0));
+        assertThat(deleteByQueryResponse.getIndex("test").getFailedShards(), equalTo(getNumShards("test").numPrimaries));
+        assertThat(deleteByQueryResponse.getIndex("test").getFailures()[0].reason(), containsString("[has_child] unsupported in delete_by_query api"));
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomHasChild("child", "c_field", "blue"))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 3l);
     }
 
     private QueryBuilder randomHasChild(String type, String field, String value) {
@@ -1340,9 +1343,12 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .get();
         assertHitCount(searchResponse, 2l);
 
-        client().prepareDeleteByQuery("test")
+        DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test")
                 .setQuery(randomHasParent("parent", "p_field", "p_value2"))
                 .get();
+        assertThat(deleteByQueryResponse.getIndex("test").getSuccessfulShards(), equalTo(0));
+        assertThat(deleteByQueryResponse.getIndex("test").getFailedShards(), equalTo(getNumShards("test").numPrimaries));
+        assertThat(deleteByQueryResponse.getIndex("test").getFailures()[0].reason(), containsString("[has_parent] unsupported in delete_by_query api"));
         client().admin().indices().prepareRefresh("test").get();
         client().admin().indices().prepareRefresh("test").get();
         client().admin().indices().prepareRefresh("test").get();
@@ -1350,7 +1356,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test")
                 .setQuery(randomHasParent("parent", "p_field", "p_value2"))
                 .get();
-        assertHitCount(searchResponse, 0l);
+        assertHitCount(searchResponse, 2l);
     }
 
     private QueryBuilder randomHasParent(String type, String field, String value) {
@@ -1382,7 +1388,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("grandissue", "child_type_two", "4").setParent("2").setRouting("1")
                 .setSource("name", "Kate")
                 .get();
-        client().admin().indices().prepareRefresh("grandissue").get();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("grandissue").setQuery(
                 boolQuery().must(

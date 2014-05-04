@@ -35,11 +35,10 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
  */
 public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
-    public static PagedBytesAtomicFieldData empty(int numDocs) {
-        return new Empty(numDocs);
+    public static PagedBytesAtomicFieldData empty() {
+        return new Empty();
     }
 
-    // 0 ordinal in values means no value (its null)
     private final PagedBytes.Reader bytes;
     private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
     protected final Ordinals ordinals;
@@ -65,13 +64,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
-    public int getNumDocs() {
-        return ordinals.getNumDocs();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
-        return ordinals.getNumOrds();
+        return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
     }
 
     @Override
@@ -179,8 +173,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     private final static class Empty extends PagedBytesAtomicFieldData {
 
-        Empty(int numDocs) {
-            super(emptyBytes(), 0, new MonotonicAppendingLongBuffer(), new EmptyOrdinals(numDocs));
+        Empty() {
+            super(emptyBytes(), 0, new MonotonicAppendingLongBuffer(), EmptyOrdinals.INSTANCE);
         }
 
         static PagedBytes.Reader emptyBytes() {
@@ -192,11 +186,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         @Override
         public boolean isMultiValued() {
             return false;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return ordinals.getNumDocs();
         }
 
         @Override

@@ -91,7 +91,7 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
      * multiple threads, only one merge may run at a time.
      */
     @Override
-    synchronized public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
+    synchronized public void merge(IndexWriter writer, MergeTrigger trigger, boolean newMergesFound) throws CorruptIndexException, IOException {
         int cycle = 0;
         while (cycle++ < maxMergeAtOnce) {
             MergePolicy.OneMerge merge = writer.getNextMerge();

@@ -27,6 +27,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
@@ -701,6 +703,157 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                                 functionScoreQuery().add(new MatchAllFilterBuilder(), linearDecayFunction("num", 1, 0.5)).scoreMode(
                                         "multiply"))));
         response.actionGet();
+    }
+
+    @Test
+    public void testMultiFieldOptions() throws Exception {
+        assertAcked(prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("loc").field("type", "geo_point").endObject().startObject("num").field("type", "float").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+
+        // Index for testing MIN and MAX
+        IndexRequestBuilder doc1 = client().prepareIndex()
+                .setType("type1")
+                .setId("1")
+                .setIndex("test")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value").startArray("loc").startObject().field("lat", 10).field("lon", 20).endObject().startObject().field("lat", 12).field("lon", 23).endObject().endArray()
+                                .endObject());
+        IndexRequestBuilder doc2 = client().prepareIndex()
+                .setType("type1")
+                .setId("2")
+                .setIndex("test")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 22).endObject()
+                                .endObject());
+
+        indexRandom(true, doc1, doc2);
+
+        ActionFuture<SearchResponse> response = client().search(
+                searchRequest().source(
+                        searchSource().query(constantScoreQuery(termQuery("test", "value")))));
+        SearchResponse sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
+        SearchHits sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+
+        List<Float> lonlat = new ArrayList<>();
+        lonlat.add(20f);
+        lonlat.add(10f);
+        response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode("min")))));
+        sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
+        sh = sr.getHits();
+
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat(sh.getAt(1).getId(), equalTo("2"));
+        response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), gaussDecayFunction("loc", lonlat, "1000km").setMultiValueMode("max")))));
+        sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
+        sh = sr.getHits();
+
+        assertThat(sh.getAt(0).getId(), equalTo("2"));
+        assertThat(sh.getAt(1).getId(), equalTo("1"));
+
+        // Now test AVG and SUM
+
+        doc1 = client().prepareIndex()
+                .setType("type1")
+                .setId("1")
+                .setIndex("test")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value").startArray("num").value(0.0).value(1.0).value(2.0).endArray()
+                                .endObject());
+        doc2 = client().prepareIndex()
+                .setType("type1")
+                .setId("2")
+                .setIndex("test")
+                .setSource(
+                        jsonBuilder().startObject().field("test", "value").field("num", 1.0)
+                                .endObject());
+
+        indexRandom(true, doc1, doc2);
+        response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("num", "0", "10").setMultiValueMode("sum")))));
+        sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
+        sh = sr.getHits();
+
+        assertThat(sh.getAt(0).getId(), equalTo("2"));
+        assertThat(sh.getAt(1).getId(), equalTo("1"));
+        assertThat((double)(1.0 - sh.getAt(0).getScore()), closeTo((double)((1.0 - sh.getAt(1).getScore())/3.0), 1.e-6d));
+        response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(constantScoreQuery(termQuery("test", "value")), linearDecayFunction("num", "0", "10").setMultiValueMode("avg")))));
+        sr = response.actionGet();
+        assertSearchHits(sr, "1", "2");
+        sh = sr.getHits();
+        assertThat((double) (sh.getAt(0).getScore()), closeTo((double) (sh.getAt(1).getScore()), 1.e-6d));
+    }
+
+    @Test
+    public void errorMessageForFaultyFunctionScoreBody() throws Exception {
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                        .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+        client().index(
+                indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
+                .actionGet();
+        refresh();
+
+        XContentBuilder query = XContentFactory.jsonBuilder();
+        // query that contains a functions[] array but also a single function
+        query.startObject().startObject("function_score").startArray("functions").startObject().field("boost_factor", "1.3").endObject().endArray().field("boost_factor", "1").endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"functions\": [...] already, now encountering \"boost_factor\". Did you mean \"boost\" instead?"));
+        }
+
+        query = XContentFactory.jsonBuilder();
+        // query that contains a single function and a functions[] array
+        query.startObject().startObject("function_score").field("boost_factor", "1").startArray("functions").startObject().field("boost_factor", "1.3").endObject().endArray().endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"boost_factor\" already, now encountering \"functions\": [...]. Did you mean \"boost\" instead?"));
+        }
+
+        query = XContentFactory.jsonBuilder();
+        // query that contains a single function (but not boost factor) and a functions[] array
+        query.startObject().startObject("function_score").startObject("random_score").field("seed", 3).endObject().startArray("functions").startObject().startObject("random_score").field("seed", 3).endObject().endObject().endArray().endObject().endObject();
+        try {
+            client().search(
+                    searchRequest().source(
+                            searchSource().query(query))).actionGet();
+            fail("Search should result in SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            logger.info(e.shardFailures()[0].reason());
+            assertTrue(e.shardFailures()[0].reason().contains("Found \"random_score\" already, now encountering \"functions\": [...]."));
+            assertFalse(e.shardFailures()[0].reason().contains("Did you mean \"boost\" instead?"));
+
+        }
     }
 
 }

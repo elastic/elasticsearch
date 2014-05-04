@@ -43,14 +43,15 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class PluginManagerTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
             .put("discovery.zen.ping.multicast.enabled", false)
@@ -72,8 +73,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginInstallSingleFolder() throws Exception {
         //When we have only a folder in top-level (no files either) we remove that folder while extracting
         String pluginName = "plugin-test";
-        URL url = PluginManagerTests.class.getResource("plugin_single_folder.zip");
-        downloadAndExtract(pluginName, "file://" + url.getFile());
+        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_single_folder.zip").toString());
+        downloadAndExtract(pluginName, "file://" + uri.getPath());
 
         cluster().startNode(SETTINGS);
 
@@ -86,8 +87,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         //When we have only a folder in top-level (no files either) but it's called _site, we make it work
         //we can either remove the folder while extracting and then re-add it manually or just leave it as it is
         String pluginName = "plugin-test";
-        URL url = PluginManagerTests.class.getResource("plugin_folder_site.zip");
-        downloadAndExtract(pluginName, "file://" + url.getFile());
+        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_folder_site.zip").toString());
+        downloadAndExtract(pluginName, "file://" + uri.getPath());
 
         String nodeName = cluster().startNode(SETTINGS);
 
@@ -99,8 +100,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginWithoutFolders() throws Exception {
         //When we don't have folders at all in the top-level, but only files, we don't modify anything
         String pluginName = "plugin-test";
-        URL url = PluginManagerTests.class.getResource("plugin_without_folders.zip");
-        downloadAndExtract(pluginName, "file://" + url.getFile());
+        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString());
+        downloadAndExtract(pluginName, "file://" + uri.getPath());
 
         cluster().startNode(SETTINGS);
 
@@ -112,8 +113,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     public void testLocalPluginFolderAndFile() throws Exception {
         //When we have a single top-level folder but also files in the top-level, we don't modify anything
         String pluginName = "plugin-test";
-        URL url = PluginManagerTests.class.getResource("plugin_folder_file.zip");
-        downloadAndExtract(pluginName, "file://" + url.getFile());
+        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_folder_file.zip").toString());
+        downloadAndExtract(pluginName, "file://" + uri.getPath());
 
         cluster().startNode(SETTINGS);
 
@@ -124,8 +125,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test(expected = IllegalArgumentException.class)
     public void testSitePluginWithSourceThrows() throws Exception {
         String pluginName = "plugin-with-source";
-        URL url = PluginManagerTests.class.getResource("plugin_with_sourcefiles.zip");
-        downloadAndExtract(pluginName, "file://" + url.getFile());
+        URI uri = URI.create(PluginManagerTests.class.getResource("plugin_with_sourcefiles.zip").toString());
+        downloadAndExtract(pluginName, "file://" + uri.getPath());
     }
 
     /**
@@ -196,7 +197,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testInstallPlugin() throws IOException {
-        PluginManager pluginManager = pluginManager("file://".concat(PluginManagerTests.class.getResource("plugin_with_classfile.zip").getFile()));
+        PluginManager pluginManager = pluginManager("file://".concat(
+                URI.create(PluginManagerTests.class.getResource("plugin_with_classfile.zip").toString()).getPath()));
 
         pluginManager.downloadAndExtract("plugin");
         File[] plugins = pluginManager.getListInstalledPlugins();
@@ -206,7 +208,8 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testInstallSitePlugin() throws IOException {
-        PluginManager pluginManager = pluginManager("file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        PluginManager pluginManager = pluginManager("file://".concat(
+                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
 
         pluginManager.downloadAndExtract("plugin-site");
         File[] plugins = pluginManager.getListInstalledPlugins();
@@ -300,13 +303,16 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testRemovePlugin() throws Exception {
         // We want to remove plugin with plugin short name
-        singlePluginInstallAndRemove("plugintest", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        singlePluginInstallAndRemove("plugintest", "file://".concat(
+                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
 
         // We want to remove plugin with groupid/artifactid/version form
-        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", "file://".concat(
+                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
 
         // We want to remove plugin with groupid/artifactid form
-        singlePluginInstallAndRemove("groupid/plugintest", "file://".concat(PluginManagerTests.class.getResource("plugin_without_folders.zip").getFile()));
+        singlePluginInstallAndRemove("groupid/plugintest", "file://".concat(
+                URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString()).getPath()));
     }
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)

@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.7.2</lucene.version>
+        <lucene.version>4.8.0</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -188,7 +188,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>16.0</version>
+            <version>17.0</version>
             <scope>compile</scope>
         </dependency>
 
@@ -223,28 +223,28 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
@@ -282,7 +282,7 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>3.3.0</version>
+            <version>4.1.0</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -486,6 +486,7 @@
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <tests.security.manager>${tests.security.manager}</tests.security.manager>
+                                <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
                                 <!-- everything below is for security manager / test.policy -->
                                 <junit4.tempDir>${project.build.directory}</junit4.tempDir>
@@ -1058,7 +1059,6 @@
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
-                                <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
                                 <!-- start excludes for Unsafe -->
@@ -1077,6 +1077,7 @@
                             </bundledSignatures>
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -1098,6 +1099,10 @@
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>test-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
                         <phase>test-compile</phase>

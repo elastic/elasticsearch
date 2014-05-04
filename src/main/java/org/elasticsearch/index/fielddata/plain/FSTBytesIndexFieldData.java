@@ -69,7 +69,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = FSTBytesAtomicFieldData.empty(reader.maxDoc());
+            data = FSTBytesAtomicFieldData.empty();
             estimator.afterLoad(null, data.getMemorySizeInBytes());
             return data;
         }
@@ -93,7 +93,6 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final long termOrd = builder.nextOrdinal();
-                assert termOrd > 0;
                 fstBuilder.add(Util.toIntsRef(term, scratch), (long) termOrd);
                 docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {

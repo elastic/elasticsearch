@@ -58,7 +58,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.TestCluster.DEFAULT_MAX_NUM_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -2154,6 +2153,19 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
+    }
+
+    @Test
+    public void testDateProvidedAsNumber() {
+        createIndex("test");
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date").get());
+        client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L).get();
+        client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L).get();
+        client().prepareIndex("test", "type", "3").setSource("field", -999999999999L).get();
+        refresh();
+
+        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
+        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
     }
 
     @Test

@@ -28,11 +28,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=2)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =2)
 public class ClusterSearchShardsTests extends ElasticsearchIntegrationTest {
     
     @Override

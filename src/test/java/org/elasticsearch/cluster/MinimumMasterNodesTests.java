@@ -30,15 +30,17 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope = Scope.TEST, numDataNodes =0)
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -159,6 +161,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("cluster.service:TRACE,discovery:TRACE,indices.cluster:TRACE")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
@@ -276,7 +279,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("--> stopping a node");
-        cluster().stopRandomNode();
+        cluster().stopRandomDataNode();
         logger.info("--> verifying min master node has effect");
         assertNoMasterBlockOnAllNodes();
 

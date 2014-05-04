@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -48,11 +49,6 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public int getNumDocs() {
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
         // probably not accurate, but a good upper limit
         return reader.maxDoc();
@@ -74,7 +70,7 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
             final BinaryDocValues v = reader.getBinaryDocValues(field);
             if (v == null) {
                 // segment has no value
-                values = BinaryDocValues.EMPTY;
+                values = DocValues.EMPTY_BINARY;
                 docsWithField = new Bits.MatchNoBits(reader.maxDoc());
             } else {
                 values = v;

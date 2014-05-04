@@ -25,12 +25,6 @@ org.apache.lucene.index.IndexReader#decRef()
 org.apache.lucene.index.IndexReader#incRef()
 org.apache.lucene.index.IndexReader#tryIncRef()
 
-org.apache.lucene.index.IndexWriter#maybeMerge() @ use Merges#maybeMerge
-org.apache.lucene.index.IndexWriter#forceMerge(int) @ use Merges#forceMerge
-org.apache.lucene.index.IndexWriter#forceMerge(int,boolean) @ use Merges#forceMerge
-org.apache.lucene.index.IndexWriter#forceMergeDeletes() @ use Merges#forceMergeDeletes
-org.apache.lucene.index.IndexWriter#forceMergeDeletes(boolean) @ use Merges#forceMergeDeletes
-
 @defaultMessage QueryWrapperFilter is cachable by default - use Queries#wrap instead
 org.apache.lucene.search.QueryWrapperFilter#<init>(org.apache.lucene.search.Query)
 
@@ -57,3 +51,6 @@ java.lang.Math#abs(long)
 
 @defaultMessage Use Long.compare instead we are on Java7
 com.google.common.primitives.Longs#compare(long,long)
+
+@defaultMessage we have an optimized XStringField to reduce analysis creation overhead
+org.apache.lucene.document.Field#<init>(java.lang.String,java.lang.String,org.apache.lucene.document.FieldType)

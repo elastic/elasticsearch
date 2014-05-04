@@ -121,7 +121,7 @@ public abstract class FacetExecutor {
         }
 
         @Override
-        public abstract void postCollection();
+        public abstract void postCollection() throws IOException;
     }
 
     /**

@@ -165,6 +165,14 @@ including:
                 Support `_source` to return the full updated 
                 source.
 
+`version` & `version_type`:: the Update API uses the Elasticsearch's versioning
+                support internally to make sure the document doesn't change
+                during the update. You can use the `version` parameter to specify that the
+                document should only be updated if it's version matches the one specified.
+                By setting version type to `force` you can force the new version of the document
+                after update (use with care! with `force` there is no guaranty the document
+                didn't change).Version types `external` & `external_gte` are not supported.
+
                 
 And also support `retry_on_conflict` which controls how many times to
 retry if there is a version conflict between getting the document and

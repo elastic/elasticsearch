@@ -48,12 +48,13 @@ import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
 
     static final class Fields {

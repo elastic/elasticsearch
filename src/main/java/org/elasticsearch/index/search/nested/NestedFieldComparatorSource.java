@@ -29,7 +29,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.NestedWrappableComparator;
 import org.elasticsearch.index.fielddata.fieldcomparator.NumberComparatorBase;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,12 +38,12 @@ import java.util.Locale;
  */
 public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final SortMode sortMode;
+    private final MultiValueMode sortMode;
     private final IndexFieldData.XFieldComparatorSource wrappedSource;
     private final Filter rootDocumentsFilter;
     private final Filter innerDocumentsFilter;
 
-    public NestedFieldComparatorSource(SortMode sortMode, IndexFieldData.XFieldComparatorSource wrappedSource, Filter rootDocumentsFilter, Filter innerDocumentsFilter) {
+    public NestedFieldComparatorSource(MultiValueMode sortMode, IndexFieldData.XFieldComparatorSource wrappedSource, Filter rootDocumentsFilter, Filter innerDocumentsFilter) {
         this.sortMode = sortMode;
         this.wrappedSource = wrappedSource;
         this.rootDocumentsFilter = rootDocumentsFilter;

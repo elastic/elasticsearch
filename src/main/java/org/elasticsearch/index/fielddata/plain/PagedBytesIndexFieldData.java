@@ -26,8 +26,10 @@ import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
-import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
@@ -66,7 +68,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(), getFieldNames().fullName());
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            PagedBytesAtomicFieldData emptyData = PagedBytesAtomicFieldData.empty(reader.maxDoc());
+            PagedBytesAtomicFieldData emptyData = PagedBytesAtomicFieldData.empty();
             estimator.adjustForNoTerms(emptyData.getMemorySizeInBytes());
             return emptyData;
         }
@@ -74,7 +76,6 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         final PagedBytes bytes = new PagedBytes(15);
 
         final MonotonicAppendingLongBuffer termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
-        termOrdToBytesOffset.add(0); // first ord is reserved for missing values
         final long numTerms;
         if (regex == null && frequency == null) {
             numTerms = terms.size();

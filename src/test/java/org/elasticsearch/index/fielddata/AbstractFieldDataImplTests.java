@@ -26,7 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
@@ -67,7 +67,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         BytesValues values = fieldData.getBytesValues(randomBoolean());
-        for (int i = 0; i < fieldData.getNumDocs(); ++i) {
+        for (int i = 0; i < readerContext.reader().maxDoc(); ++i) {
             assertThat(values.setDocument(i), greaterThanOrEqualTo(1));
         }
     }
@@ -79,8 +79,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
@@ -110,7 +108,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         TopFieldDocs topDocs;
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN))));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
@@ -120,7 +118,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat(toString(((FieldDoc) topDocs.scoreDocs[2]).fields[0]), equalTo(three()));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX), true)));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
@@ -177,8 +175,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         BytesValues bytesValues = fieldData
                 .getBytesValues(randomBoolean());
 
@@ -209,8 +205,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(true));
@@ -229,14 +223,14 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertHashedValues(hashedBytesValues, 0, two(), four());
         
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN))));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
         assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
 
-        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX), true)));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs.length, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
@@ -252,8 +246,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
-
-        assertThat(fieldData.getNumDocs(), equalTo(3));
 
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
@@ -286,8 +278,6 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
         assertThat(fieldData.getMemorySizeInBytes(), greaterThanOrEqualTo(0l));
 
-        assertThat(fieldData.getNumDocs(), equalTo(3));
-
         BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
 
         assertThat(bytesValues.isMultiValued(), equalTo(false));
@@ -311,7 +301,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
 
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN))));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
@@ -332,7 +322,7 @@ public abstract class AbstractFieldDataImplTests extends AbstractFieldDataTests 
         assertThat((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(BytesRefFieldComparatorSource.MAX_TERM));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
-                new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MAX), true)));
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MAX), true)));
         assertThat(topDocs.totalHits, equalTo(8));
         assertThat(topDocs.scoreDocs.length, equalTo(8));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(6));

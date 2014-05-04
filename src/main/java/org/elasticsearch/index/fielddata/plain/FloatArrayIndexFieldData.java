@@ -28,7 +28,7 @@ import org.elasticsearch.common.util.BigFloatArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
@@ -79,14 +79,12 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = FloatArrayAtomicFieldData.empty(reader.maxDoc());
+            data = FloatArrayAtomicFieldData.empty();
             estimator.afterLoad(null, data.getMemorySizeInBytes());
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final BigFloatArrayList values = new BigFloatArrayList();
-
-        values.add(0); // first "t" indicates null value
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
@@ -98,7 +96,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
-                data = new FloatArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                data = new FloatArrayAtomicFieldData.WithOrdinals(values, build);
             } else {
                 Docs ordinals = build.ordinals();
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
@@ -108,7 +106,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 long uniqueValuesArraySize = values.sizeInBytes();
                 long ordinalsSize = build.getMemorySizeInBytes();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
-                    data = new FloatArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
+                    data = new FloatArrayAtomicFieldData.WithOrdinals(values, build);
                     success = true;
                     return data;
                 }
@@ -116,13 +114,18 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 int maxDoc = reader.maxDoc();
                 BigFloatArrayList sValues = new BigFloatArrayList(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    sValues.add(values.get(ordinals.getOrd(i)));
+                    final long ordinal = ordinals.getOrd(i);
+                    if (ordinal == Ordinals.MISSING_ORDINAL) {
+                        sValues.add(0);
+                    } else {
+                        sValues.add(values.get(ordinal));
+                    }
                 }
                 assert sValues.size() == maxDoc;
                 if (set == null) {
-                    data = new FloatArrayAtomicFieldData.Single(sValues, maxDoc, ordinals.getNumOrds());
+                    data = new FloatArrayAtomicFieldData.Single(sValues, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 } else {
-                    data = new FloatArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set, ordinals.getNumOrds());
+                    data = new FloatArrayAtomicFieldData.SingleFixedSet(sValues, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 }
             }
             success = true;
@@ -137,7 +140,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         return new FloatValuesComparatorSource(this, missingValue, sortMode);
     }
 }

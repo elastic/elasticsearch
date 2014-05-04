@@ -36,6 +36,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private int requiredSize = SignificantTermsParser.DEFAULT_REQUIRED_SIZE;
     private int shardSize = SignificantTermsParser.DEFAULT_SHARD_SIZE;
     private int minDocCount = SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
+    private String executionHint;
 
     public SignificantTermsBuilder(String name) {
         super(name, SignificantStringTerms.TYPE.name());
@@ -61,6 +62,11 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         return this;
     }
 
+    public SignificantTermsBuilder executionHint(String executionHint) {
+        this.executionHint = executionHint;
+        return this;
+    }
+
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -75,6 +81,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         if (shardSize != SignificantTermsParser.DEFAULT_SHARD_SIZE) {
             builder.field("shard_size", shardSize);
+        }
+        if (executionHint != null) {
+            builder.field("execution_hint", executionHint);
         }
 
         return builder.endObject();

@@ -35,7 +35,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ImmutableTestCluster;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -153,7 +152,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             }
 
         }
-        NumShards test = getNumShards("test");
+        NumShards numShards = getNumShards("test");
         logger.info("Start Refresh");
         final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().get(); // don't assert on failures here
         final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
@@ -166,20 +165,20 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                 long expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
                 SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery))).get();
-                logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
+                logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
+                if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
                     assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(expectedResults));
                 }
                 // check match all
                 searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery()).get();
-                logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
-                if (searchResponse.getSuccessfulShards() == test.numPrimaries && !refreshFailed) {
+                logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
+                if (searchResponse.getSuccessfulShards() == numShards.numPrimaries && !refreshFailed) {
                     assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(numCreated));
                 }
             } catch (SearchPhaseExecutionException ex) {
-                if (expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0) {
-                    logger.info("expected SearchPhaseException: [{}]", ex.getMessage());
-                } else {
+                logger.info("SearchPhaseException: [{}]", ex.getMessage());
+                // if a scheduled refresh or flush fails all shards we see all shards failed here
+                if (!(expectAllShardsFailed || refreshResponse.getSuccessfulShards() == 0 || ex.getMessage().contains("all shards failed"))) {
                     throw ex;
                 }
             }
@@ -301,7 +300,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(ImmutableTestCluster.SETTING_INDEX_SEED, 0l);
+                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

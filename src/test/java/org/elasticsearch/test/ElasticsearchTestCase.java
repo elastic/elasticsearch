@@ -163,8 +163,12 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         });
         defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
-        Requests.CONTENT_TYPE = randomFrom(XContentType.values());
-        Requests.INDEX_CONTENT_TYPE = randomFrom(XContentType.values());
+        Requests.CONTENT_TYPE = randomXContentType();
+        Requests.INDEX_CONTENT_TYPE = randomXContentType();
+    }
+
+    private static XContentType randomXContentType() {
+        return randomFrom(XContentType.values());
     }
 
     @AfterClass

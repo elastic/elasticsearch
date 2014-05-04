@@ -33,10 +33,11 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=1)
+@ClusterScope(scope= Scope.TEST, numDataNodes =1)
 public class IndexTemplateFileLoadingTests extends ElasticsearchIntegrationTest {
 
     @Override

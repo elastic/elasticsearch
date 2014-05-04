@@ -30,17 +30,19 @@ import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.AbstractFieldDataTests;
-import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -54,6 +56,61 @@ public class NestedSortingTests extends AbstractFieldDataTests {
     @Override
     protected FieldDataType getFieldDataType() {
         return new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"));
+    }
+
+    @Test
+    public void testDuel() throws Exception {
+        final int numDocs = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < numDocs; ++i) {
+            final int numChildren = randomInt(2);
+            List<Document> docs = new ArrayList<>(numChildren + 1);
+            for (int j = 0; j < numChildren; ++j) {
+                Document doc = new Document();
+                doc.add(new StringField("f", TestUtil.randomSimpleString(getRandom(), 2), Field.Store.NO));
+                doc.add(new StringField("__type", "child", Field.Store.NO));
+                docs.add(doc);
+            }
+            if (randomBoolean()) {
+                docs.add(new Document());
+            }
+            Document parent = new Document();
+            parent.add(new StringField("__type", "parent", Field.Store.NO));
+            docs.add(parent);
+            writer.addDocuments(docs);
+            if (rarely()) { // we need to have a bit more segments than what RandomIndexWriter would do by default
+                DirectoryReader.open(writer, false).close();
+            }
+        }
+        writer.commit();
+
+        MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
+        PagedBytesIndexFieldData indexFieldData1 = getForField("f");
+        IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
+        final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(getRandom(), 2);
+        final int n = randomIntBetween(1, numDocs + 2);
+        final boolean reverse = randomBoolean();
+
+        final TopDocs topDocs1 = getTopDocs(searcher, indexFieldData1, missingValue, sortMode, n, reverse);
+        final TopDocs topDocs2 = getTopDocs(searcher, indexFieldData2, missingValue, sortMode, n, reverse);
+        for (int i = 0; i < topDocs1.scoreDocs.length; ++i) {
+            final FieldDoc fieldDoc1 = (FieldDoc) topDocs1.scoreDocs[i];
+            final FieldDoc fieldDoc2 = (FieldDoc) topDocs2.scoreDocs[i];
+            assertEquals(fieldDoc1.doc, fieldDoc2.doc);
+            assertArrayEquals(fieldDoc1.fields, fieldDoc2.fields);
+        }
+
+        searcher.getIndexReader().close();
+    }
+
+    private TopDocs getTopDocs(IndexSearcher searcher, IndexFieldData<?> indexFieldData, String missingValue, MultiValueMode sortMode, int n, boolean reverse) throws IOException {
+        Filter parentFilter = new TermFilter(new Term("__type", "parent"));
+        Filter childFilter = new TermFilter(new Term("__type", "child"));
+        XFieldComparatorSource innerSource = indexFieldData.comparatorSource(missingValue, sortMode);
+        NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);
+        Query query = new ConstantScoreQuery(parentFilter);
+        Sort sort = new Sort(new SortField("f", nestedComparatorSource, reverse));
+        return searcher.search(query, n, sort);
     }
 
     @Test
@@ -211,7 +268,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         document.add(new StringField("fieldXXX", "x", Field.Store.NO));
         writer.addDocument(document);
 
-        SortMode sortMode = SortMode.MIN;
+        MultiValueMode sortMode = MultiValueMode.MIN;
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         BytesRefFieldComparatorSource innerSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode);
@@ -235,7 +292,7 @@ public class NestedSortingTests extends AbstractFieldDataTests {
         assertThat(topDocs.scoreDocs[4].doc, equalTo(19));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("i"));
 
-        sortMode = SortMode.MAX;
+        sortMode = MultiValueMode.MAX;
         nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerSource, parentFilter, childFilter);
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(query, 5, sort);

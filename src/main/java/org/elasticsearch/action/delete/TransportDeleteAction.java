@@ -185,15 +185,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     protected PrimaryResponse<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
-                .versionType(request.versionType())
-                .origin(Engine.Operation.Origin.PRIMARY);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the request with teh version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 
-        assert request.versionType().validateVersion(request.version());
+        assert request.versionType().validateVersionForWrites(request.version());
 
         if (request.refresh()) {
             try {
@@ -211,8 +209,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version()).versionType(request.versionType())
-                .origin(Engine.Operation.Origin.REPLICA);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
 
         indexShard.delete(delete);
 

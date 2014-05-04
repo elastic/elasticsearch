@@ -17,40 +17,35 @@
  * under the License.
  */
 
-package org.apache.lucene.analysis.miscellaneous;
+package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.apache.lucene.analysis.TokenFilter;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.io.IOException;
 
 /**
- * A token filter that truncates tokens.
+ *
  */
-public class TruncateTokenFilter extends TokenFilter {
+public class ReverseNestedBuilder extends AggregationBuilder<ReverseNestedBuilder> {
 
-    private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
+    private String path;
 
-    private final int size;
+    public ReverseNestedBuilder(String name) {
+        super(name, InternalReverseNested.TYPE.name());
+    }
 
-    public TruncateTokenFilter(TokenStream in, int size) {
-        super(in);
-        this.size = size;
+    public ReverseNestedBuilder path(String path) {
+        this.path = path;
+        return this;
     }
 
     @Override
-    public final boolean incrementToken() throws IOException {
-        if (input.incrementToken()) {
-            final int length = termAttribute.length();
-            if (length > size) {
-                termAttribute.setLength(size);
-            }
-            return true;
-        } else {
-            return false;
+    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (path != null) {
+            builder.field("path", path);
         }
+        return builder.endObject();
     }
 }
-
-

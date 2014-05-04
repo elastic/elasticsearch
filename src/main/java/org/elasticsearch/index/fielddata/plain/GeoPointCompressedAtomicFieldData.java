@@ -33,21 +33,10 @@ import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
  */
 public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
 
-    private final int numDocs;
-
     protected long size = -1;
-
-    public GeoPointCompressedAtomicFieldData(int numDocs) {
-        this.numDocs = numDocs;
-    }
 
     @Override
     public void close() {
-    }
-
-    @Override
-    public int getNumDocs() {
-        return numDocs;
     }
 
     @Override
@@ -61,8 +50,8 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         private final PagedMutable lon, lat;
         private final Ordinals ordinals;
 
-        public WithOrdinals(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, int numDocs, Ordinals ordinals) {
-            super(numDocs);
+        public WithOrdinals(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, Ordinals ordinals) {
+            super();
             this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
@@ -76,13 +65,13 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
 
         @Override
         public long getNumberUniqueValues() {
-            return ordinals.getNumOrds();
+            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
         }
 
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
             }
             return size;
         }
@@ -111,7 +100,6 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
             @Override
             public GeoPoint nextValue() {
                 final long ord = ordinals.nextOrd();
-                assert ord > 0;
                 return encoding.decode(lat.get(ord), lon.get(ord), scratch);
             }
 
@@ -133,8 +121,8 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         private final FixedBitSet set;
         private final long numOrds;
 
-        public SingleFixedSet(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, int numDocs, FixedBitSet set, long numOrds) {
-            super(numDocs);
+        public SingleFixedSet(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, FixedBitSet set, long numOrds) {
+            super();
             this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
@@ -155,7 +143,7 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + RamUsageEstimator.sizeOf(set.getBits());
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + RamUsageEstimator.sizeOf(set.getBits());
             }
             return size;
         }
@@ -204,8 +192,8 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         private final PagedMutable lon, lat;
         private final long numOrds;
 
-        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, int numDocs, long numOrds) {
-            super(numDocs);
+        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, long numOrds) {
+            super();
             this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
@@ -225,7 +213,7 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + RamUsageEstimator.NUM_BYTES_INT/*numDocs*/ + (lon.ramBytesUsed() + lat.ramBytesUsed());
+                size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + (lon.ramBytesUsed() + lat.ramBytesUsed());
             }
             return size;
         }

@@ -21,12 +21,14 @@ package org.elasticsearch.index.mapper.object;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
@@ -213,7 +215,13 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 } else if (fieldName.equals("path")) {
                     builder.pathType(parsePathType(name, fieldNode.toString()));
                 } else if (fieldName.equals("properties")) {
-                    parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
+                    if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
+                        // nothing to do here, empty (to support "properties: []" case)
+                    } else if (!(fieldNode instanceof Map)) {
+                        throw new ElasticsearchParseException("properties must be a map type");
+                    } else {
+                        parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
+                    }
                 } else if (fieldName.equals("include_in_all")) {
                     builder.includeInAll(nodeBooleanValue(fieldNode));
                 } else {
@@ -432,12 +440,12 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we also rely on this for UidField#loadVersion
 
                 // this is a deeply nested field
-                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                nestedDoc.add(new XStringField(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
             }
             // the type of the nested doc starts with __, so we can identify that its a nested one in filters
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
             // across types (for example, with similar nested objects)
-            nestedDoc.add(new Field(TypeFieldMapper.NAME, nestedTypePathAsString, TypeFieldMapper.Defaults.FIELD_TYPE));
+            nestedDoc.add(new XStringField(TypeFieldMapper.NAME, nestedTypePathAsString, TypeFieldMapper.Defaults.FIELD_TYPE));
             restoreDoc = context.switchDoc(nestedDoc);
             context.addDoc(nestedDoc);
         }

@@ -100,6 +100,9 @@ public class ChildrenQuery extends Query {
         if (getBoost() != that.getBoost()) {
             return false;
         }
+        if (minimumShouldMatch != that.minimumShouldMatch) {
+            return false;
+        }
         return true;
     }
 
@@ -108,13 +111,14 @@ public class ChildrenQuery extends Query {
         int result = originalChildQuery.hashCode();
         result = 31 * result + childType.hashCode();
         result = 31 * result + Float.floatToIntBits(getBoost());
+        result = 31 * result + minimumShouldMatch;
         return result;
     }
 
     @Override
     public String toString(String field) {
-        return "ChildrenQuery[" + childType + "/" + parentType + "](" + originalChildQuery
-                .toString(field) + ')' + ToStringUtils.boost(getBoost());
+        return "ChildrenQuery[min(" + Integer.toString(minimumShouldMatch) + ") of " + childType + "/" + parentType + "]("
+                + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override

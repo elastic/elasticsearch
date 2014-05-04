@@ -19,7 +19,9 @@
 
 package org.apache.lucene.search.suggest.analyzing;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Set;
 
 import org.apache.lucene.util.ArrayUtil;
@@ -61,8 +63,8 @@ class XSpecialOperations {
       this.state = state;
       transition = 0;
       Transition t = state.transitionsArray[transition];
-      label = t.min;
-      to = t.to;
+      label = t.getMin();
+      to = t.getDest();
     }
 
     /** Returns next label of current transition, or
@@ -70,7 +72,7 @@ class XSpecialOperations {
      *  label, if current one is exhausted.  If there are
      *  no more transitions, returns -1. */
     public int nextLabel() {
-      if (label > state.transitionsArray[transition].max) {
+      if (label > state.transitionsArray[transition].getMax()) {
         // We've exhaused the current transition's labels;
         // move to next transitions:
         transition++;
@@ -79,8 +81,8 @@ class XSpecialOperations {
           return -1;
         }
         Transition t = state.transitionsArray[transition];
-        label = t.min;
-        to = t.to;
+        label = t.getMin();
+        to = t.getDest();
       }
       return label++;
     }
@@ -114,17 +116,17 @@ class XSpecialOperations {
       throw new IllegalArgumentException("limit must be -1 (which means no limit), or > 0; got: " + limit);
     }
 
-    if (a.isSingleton()) {
+    if (a.getSingleton() != null) {
       // Easy case: automaton accepts only 1 string
-      results.add(Util.toUTF32(a.singleton, new IntsRef()));
+      results.add(Util.toUTF32(a.getSingleton(), new IntsRef()));
     } else {
 
-      if (a.initial.accept) {
+      if (a.getInitialState().isAccept()) {
         // Special case the empty string, as usual:
         results.add(new IntsRef());
       }
 
-      if (a.initial.numTransitions() > 0 && (limit == -1 || results.size() < limit)) {
+      if (a.getInitialState().numTransitions() > 0 && (limit == -1 || results.size() < limit)) {
 
         // TODO: we could use state numbers here and just
         // alloc array, but asking for states array can be
@@ -138,9 +140,9 @@ class XSpecialOperations {
         // recursion/iteration:
         PathNode[] nodes = new PathNode[4];
 
-        pathStates.add(a.initial);
+        pathStates.add(a.getInitialState());
         PathNode root = getNode(nodes, 0);
-        root.resetState(a.initial);
+        root.resetState(a.getInitialState());
 
         IntsRef string = new IntsRef(1);
         string.length = 1;
@@ -155,7 +157,7 @@ class XSpecialOperations {
           if (label != -1) {
             string.ints[string.length-1] = label;
 
-            if (node.to.accept) {
+            if (node.to.isAccept()) {
               // This transition leads to an accept state,
               // so we save the current string:
               results.add(IntsRef.deepCopyOf(string));

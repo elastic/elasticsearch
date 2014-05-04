@@ -912,7 +912,7 @@ public class XAnalyzingSuggester extends Lookup {
       // TODO: we could walk & add simultaneously, so we
       // don't have to alloc [possibly biggish]
       // intermediate HashSet in RAM:
-      return SpecialOperations.getFiniteStrings(automaton, maxGraphExpansions);
+      return XSpecialOperations.getFiniteStrings(automaton, maxGraphExpansions);
   }
 
   final Automaton toLookupAutomaton(final CharSequence key) throws IOException {

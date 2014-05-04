@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridBuilder;
@@ -104,6 +105,10 @@ public class AggregationBuilders {
 
     public static ReverseNestedBuilder reverseNested(String name) {
         return new ReverseNestedBuilder(name);
+    }
+
+    public static ChildrenBuilder children(String name) {
+        return new ChildrenBuilder(name);
     }
 
     public static GeoDistanceBuilder geoDistance(String name) {

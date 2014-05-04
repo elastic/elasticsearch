@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
@@ -95,5 +96,6 @@ public class TransportAggregationModule extends AbstractModule {
         InternalReverseNested.registerStream();
         InternalTopHits.registerStreams();
         InternalGeoBounds.registerStream();
+        InternalChildren.registerStream();
     }
 }

@@ -25,6 +25,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.plain.ParentChildAtomicFieldData;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric.WithScript.DoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
@@ -287,7 +289,63 @@ public abstract class ValuesSource {
                     }
                 }
             }
+        }
 
+        public static class ParentChild extends Bytes implements ReaderContextAware, TopReaderContextAware {
+
+            protected final ParentChildIndexFieldData indexFieldData;
+            protected final MetaData metaData;
+
+            protected AtomicParentChildFieldData atomicFieldData;
+            protected IndexParentChildFieldData globalFieldData;
+
+            private long maxOrd = -1;
+
+            public ParentChild(ParentChildIndexFieldData indexFieldData, MetaData metaData) {
+                this.indexFieldData = indexFieldData;
+                this.metaData = metaData;
+            }
+
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                atomicFieldData = globalFieldData.load(reader);
+            }
+
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                globalFieldData = indexFieldData.loadGlobal(reader.reader());
+            }
+
+            public SortedDocValues globalOrdinalsValues(String type) {
+                return atomicFieldData.getOrdinalsValues(type);
+            }
+
+            public long globalMaxOrd(IndexSearcher indexSearcher, String type) {
+                if (maxOrd != -1) {
+                    return maxOrd;
+                }
+
+                IndexReader indexReader = indexSearcher.getIndexReader();
+                if (indexReader.leaves().isEmpty()) {
+                    return maxOrd = 0;
+                } else {
+                    AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+                    IndexParentChildFieldData globalFieldData = indexFieldData.loadGlobal(indexReader);
+                    AtomicParentChildFieldData afd = globalFieldData.load(atomicReaderContext);
+                    SortedDocValues values = afd.getOrdinalsValues(type);
+                    return maxOrd = values.getValueCount();
+                }
+            }
+
+            @Override
+            public SortedBinaryDocValues bytesValues() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MetaData metaData() {
+                return metaData;
+            }
         }
 
         public static class FieldData extends Bytes implements ReaderContextAware {

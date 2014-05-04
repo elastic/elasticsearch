@@ -28,9 +28,9 @@ import java.io.IOException;
  * A scorer that wraps a {@link DocIdSetIterator} and emits a constant score.
  */
 // Borrowed from ConstantScoreQuery
-class ConstantScorer extends Scorer {
+public class ConstantScorer extends Scorer {
 
-    static ConstantScorer create(DocIdSetIterator iterator, Weight weight, float constantScore) throws IOException {
+    public static ConstantScorer create(DocIdSetIterator iterator, Weight weight, float constantScore) throws IOException {
         return new ConstantScorer(iterator, weight, constantScore);
     }
 

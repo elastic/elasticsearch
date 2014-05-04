@@ -64,6 +64,7 @@ public class HasChildQueryParser implements QueryParser {
         float boost = 1.0f;
         String childType = null;
         ScoreType scoreType = null;
+        int minimumShouldMatch = 0;
         int shortCircuitParentDocSet = 8192;
         String queryName = null;
 
@@ -101,6 +102,8 @@ public class HasChildQueryParser implements QueryParser {
                     }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("minimum_should_match".equals(currentFieldName)|| "minimumShouldMatch".equals(currentFieldName)) {
+                    minimumShouldMatch = parser.intValue(true);
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
@@ -155,7 +158,7 @@ public class HasChildQueryParser implements QueryParser {
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
         if (scoreType != null) {
-            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minimumShouldMatch,shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
             query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
         }

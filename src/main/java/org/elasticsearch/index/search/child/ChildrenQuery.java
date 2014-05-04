@@ -62,21 +62,21 @@ public class ChildrenQuery extends Query {
     private final Filter parentFilter;
     private final ScoreType scoreType;
     private Query originalChildQuery;
-    private final int minimumShouldMatch;
+    private final int minimumChildren;
     private final int shortCircuitParentDocSet;
     private final Filter nonNestedDocsFilter;
 
     private Query rewrittenChildQuery;
     private IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minimumShouldMatch, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minimumChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = parentFilter;
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
-        this.minimumShouldMatch = minimumShouldMatch;
+        this.minimumChildren = minimumChildren;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
     }
@@ -100,7 +100,7 @@ public class ChildrenQuery extends Query {
         if (getBoost() != that.getBoost()) {
             return false;
         }
-        if (minimumShouldMatch != that.minimumShouldMatch) {
+        if (minimumChildren != that.minimumChildren) {
             return false;
         }
         return true;
@@ -111,13 +111,13 @@ public class ChildrenQuery extends Query {
         int result = originalChildQuery.hashCode();
         result = 31 * result + childType.hashCode();
         result = 31 * result + Float.floatToIntBits(getBoost());
-        result = 31 * result + minimumShouldMatch;
+        result = 31 * result + minimumChildren;
         return result;
     }
 
     @Override
     public String toString(String field) {
-        return "ChildrenQuery[min(" + Integer.toString(minimumShouldMatch) + ") of " + childType + "/" + parentType + "]("
+        return "ChildrenQuery[min(" + Integer.toString(minimumChildren) + ") of " + childType + "/" + parentType + "]("
                 + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
@@ -167,13 +167,13 @@ public class ChildrenQuery extends Query {
         try {
             switch (scoreType) {
             case MAX:
-                collector = new MaxCollector(globalIfd, sc, minimumShouldMatch);
+                collector = new MaxCollector(globalIfd, sc, minimumChildren);
                 break;
             case SUM:
-                collector = new SumCollector(globalIfd, sc, minimumShouldMatch);
+                collector = new SumCollector(globalIfd, sc, minimumChildren);
                 break;
             case AVG:
-                collector = new AvgCollector(globalIfd, sc, minimumShouldMatch);
+                collector = new AvgCollector(globalIfd, sc, minimumChildren);
                 break;
             default:
                 throw new RuntimeException("Are we missing a score type here? -- " + scoreType);
@@ -199,7 +199,7 @@ public class ChildrenQuery extends Query {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
         return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector,
-                minimumShouldMatch);
+                minimumChildren);
     }
 
     private final class ParentWeight extends Weight {
@@ -207,16 +207,16 @@ public class ChildrenQuery extends Query {
         private final Weight childWeight;
         private final Filter parentFilter;
         private final ParentOrdAndScoreCollector collector;
-        private final int minimumShouldMatch;
+        private final int minimumChildren;
 
         private long remaining;
 
-        private ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentOrdAndScoreCollector collector, int minimumShouldMatch) {
+        private ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentOrdAndScoreCollector collector, int minimumChildren) {
             this.childWeight = childWeight;
             this.parentFilter = parentFilter;
             this.remaining = remaining;
             this.collector = collector;
-            this.minimumShouldMatch = minimumShouldMatch;
+            this.minimumChildren = minimumChildren;
         }
 
         @Override
@@ -256,9 +256,9 @@ public class ChildrenQuery extends Query {
             }
             switch (scoreType) {
             case AVG:
-                return new AvgParentScorer(this, parents, collector, bytesValues.ordinals(), minimumShouldMatch);
+                return new AvgParentScorer(this, parents, collector, bytesValues.ordinals(), minimumChildren);
             default:
-                return new ParentScorer(this, parents, collector, bytesValues.ordinals(), minimumShouldMatch);
+                return new ParentScorer(this, parents, collector, bytesValues.ordinals(), minimumChildren);
             }
         }
     }
@@ -276,13 +276,13 @@ public class ChildrenQuery extends Query {
         protected BytesValues.WithOrdinals values;
         protected Scorer scorer;
 
-        private ParentOrdAndScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumShouldMatch) {
+        private ParentOrdAndScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumChildren) {
             this.globalIfd = globalIfd;
             this.bigArrays = searchContext.bigArrays();
             this.parentIdxs = new LongHash(512, bigArrays);
             this.scores = bigArrays.newFloatArray(512, false);
             this.searchContext = searchContext;
-            if (minimumShouldMatch > 0) {
+            if (minimumChildren > 0) {
                 this.occurrences = bigArrays.newIntArray(512, false);
             }
         }
@@ -341,8 +341,8 @@ public class ChildrenQuery extends Query {
 
     private final static class SumCollector extends ParentOrdAndScoreCollector {
 
-        private SumCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumShouldMatch) {
-            super(globalIfd, searchContext, minimumShouldMatch);
+        private SumCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumChildren) {
+            super(globalIfd, searchContext, minimumChildren);
         }
 
         @Override
@@ -353,8 +353,8 @@ public class ChildrenQuery extends Query {
 
     private final static class MaxCollector extends ParentOrdAndScoreCollector {
 
-        private MaxCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumShouldMatch) {
-            super(globalIfd, searchContext, minimumShouldMatch);
+        private MaxCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumChildren) {
+            super(globalIfd, searchContext, minimumChildren);
         }
 
         @Override
@@ -368,8 +368,8 @@ public class ChildrenQuery extends Query {
 
     private final static class AvgCollector extends ParentOrdAndScoreCollector {
 
-        AvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumShouldMatch) {
-            super(globalIfd, searchContext, minimumShouldMatch == 0 ? 1 : minimumShouldMatch);
+        AvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext, int minimumChildren) {
+            super(globalIfd, searchContext, minimumChildren == 0 ? 1 : minimumChildren);
         }
 
         @Override
@@ -385,7 +385,7 @@ public class ChildrenQuery extends Query {
         final LongHash parentIds;
         final FloatArray scores;
         protected final IntArray occurrences;
-        private final int minimumShouldMatch;
+        private final int minimumChildren;
 
         final Ordinals.Docs globalOrdinals;
         final DocIdSetIterator parentsIterator;
@@ -400,7 +400,7 @@ public class ChildrenQuery extends Query {
             this.parentsIterator = parentsIterator;
             this.parentIds = collector.parentIdxs;
             this.scores = collector.scores;
-            this.minimumShouldMatch = mininumShouldMatch;
+            this.minimumChildren = mininumShouldMatch;
             this.occurrences = collector.occurrences;
         }
 
@@ -445,7 +445,7 @@ public class ChildrenQuery extends Query {
                 final long parentIdx = parentIds.find(globalOrdinal);
                 if (parentIdx != -1) {
                     parentWeight.remaining--;
-                    if (occurrences != null && occurrences.get(parentIdx) < minimumShouldMatch) {
+                    if (occurrences != null && occurrences.get(parentIdx) < minimumChildren) {
                         continue;
                     }
                     doScore(parentIdx);
@@ -473,7 +473,7 @@ public class ChildrenQuery extends Query {
             final long parentIdx = parentIds.find(globalOrdinal);
             if (parentIdx != -1) {
                 parentWeight.remaining--;
-                if (occurrences != null && occurrences.get(parentIdx) < minimumShouldMatch) {
+                if (occurrences != null && occurrences.get(parentIdx) < minimumChildren) {
                     return nextDoc();
                 }
                 doScore(parentIdx);

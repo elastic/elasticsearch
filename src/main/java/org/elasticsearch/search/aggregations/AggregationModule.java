@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.search.aggregations.bucket.children.ChildrenParser;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
@@ -87,6 +88,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(ReverseNestedParser.class);
         parsers.add(TopHitsParser.class);
         parsers.add(GeoBoundsParser.class);
+        parsers.add(ChildrenParser.class);
     }
 
     /**

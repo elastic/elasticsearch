@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -51,6 +52,7 @@ import java.util.Set;
 //tests distribution disabled for now since it causes reporting problems,
 // due to the non unique suite name
 //@ReplicateOnEachVm
+@AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/issues/6033")
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     /**

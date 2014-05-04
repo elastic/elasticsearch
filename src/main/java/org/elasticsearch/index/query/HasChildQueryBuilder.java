@@ -35,6 +35,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private String scoreType;
 
+    private int minimumChildren = 0;
+
     private Integer shortCircuitCutoff;
 
     private String queryName;
@@ -58,6 +60,14 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
      */
     public HasChildQueryBuilder scoreType(String scoreType) {
         this.scoreType = scoreType;
+        return this;
+    }
+
+    /**
+     * Defines the minimum number of children that are required to match for the parent to be considered a match.
+     */
+    public HasChildQueryBuilder minimumChildren(int minimumChildren) {
+        this.minimumChildren = minimumChildren;
         return this;
     }
 
@@ -90,6 +100,7 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         if (scoreType != null) {
             builder.field("score_type", scoreType);
         }
+        builder.field("minimum_children", minimumChildren);
         if (shortCircuitCutoff != null) {
             builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }

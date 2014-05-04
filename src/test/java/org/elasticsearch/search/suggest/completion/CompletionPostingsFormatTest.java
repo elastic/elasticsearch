@@ -126,13 +126,6 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         final boolean usePayloads = getRandom().nextBoolean();
         final int options = preserveSeparators ? AnalyzingSuggester.PRESERVE_SEP : 0;
 
-        // NOTE: remove once we fix getFiniteStrings to not
-        // recurse; this is just a stopgap to mute the test: 
-        // This test fails on Java8, I think because that
-        // version allocates less stack in the Jenkins envs
-        // where we run tests
-        assumeFalse(Constants.JRE_IS_MINIMUM_JAVA8);
-
         XAnalyzingSuggester reference = new XAnalyzingSuggester(new StandardAnalyzer(TEST_VERSION_CURRENT), null, new StandardAnalyzer(
                 TEST_VERSION_CURRENT), options, 256, -1, preservePositionIncrements, null, false, 1, XAnalyzingSuggester.SEP_LABEL, XAnalyzingSuggester.PAYLOAD_SEP, XAnalyzingSuggester.END_BYTE, XAnalyzingSuggester.HOLE_CHARACTER);
         LineFileDocs docs = new LineFileDocs(getRandom());

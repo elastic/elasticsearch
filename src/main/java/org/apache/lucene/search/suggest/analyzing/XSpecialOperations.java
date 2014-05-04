@@ -33,13 +33,13 @@ import org.apache.lucene.util.automaton.Transition;
 import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.Version;
 
-// TODO Lucene 4.9: remove this once we upgrade; see
-// LUCENE-5628
-
 class XSpecialOperations {
 
+  // TODO Lucene 4.9: remove this once we upgrade; see
+  // LUCENE-5628
+
   static {
-    assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_47: "Remove this code once we upgrade to a Lucene version where LUCENE-5628 is fixed (likely 4.9)";
+    assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48: "Remove this code once we upgrade to Lucene 4.9 where LUCENE-5628 is fixed";
   }
 
   private static class PathNode {

@@ -440,11 +440,11 @@ public class ChildrenQuery extends Query {
 
                 final long parentIdx = parentIds.find(globalOrdinal);
                 if (parentIdx != -1) {
+                    parentWeight.remaining--;
                     if (occurrences != null && occurrences.get(parentIdx) < minimumShouldMatch) {
                         continue;
                     }
                     doScore(parentIdx);
-                    parentWeight.remaining--;
                     return currentDocId;
                 }
             }
@@ -468,11 +468,11 @@ public class ChildrenQuery extends Query {
 
             final long parentIdx = parentIds.find(globalOrdinal);
             if (parentIdx != -1) {
+                parentWeight.remaining--;
                 if (occurrences != null && occurrences.get(parentIdx) < minimumShouldMatch) {
                     return nextDoc();
                 }
                 doScore(parentIdx);
-                parentWeight.remaining--;
                 return currentDocId;
             } else {
                 return nextDoc();

@@ -101,6 +101,12 @@ See the {client}/net-api/current/index.html[official Elasticsearch .NET client].
   .NET client.
 
 
+[[community-haskell]]
+=== Haskell
+* https://github.com/bitemyapp/bloodhound[bloodhound]:
+  Haskell client and DSL.
+
+
 [[community-scala]]
 === Scala
 

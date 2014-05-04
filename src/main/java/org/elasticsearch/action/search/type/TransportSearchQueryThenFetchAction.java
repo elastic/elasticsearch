@@ -141,6 +141,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                                     executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
                                 }
                             } catch (Throwable t) {
+                                docIdsToLoad.set(entry.index, null); // clear it, we didn't manage to do anything with it
                                 onFetchFailure(t, fetchSearchRequest, entry.index, queryResult.shardTarget(), counter);
                             }
                         }
@@ -162,6 +163,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
                 @Override
                 public void onFailure(Throwable t) {
+                    // the failure might happen without managing to clear the search context..., potentially need to clear its context (for example)
+                    docIdsToLoad.set(shardIndex, null);
                     onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }
             });

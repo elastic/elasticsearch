@@ -46,6 +46,9 @@ class XSpecialOperations {
      *  transitions we are enumerating. */
     public State state;
 
+    /** Which state the current transition leads to. */
+    public State to;
+
     /** Which transition we are on. */
     public int transition;
 
@@ -57,18 +60,29 @@ class XSpecialOperations {
       assert state.numTransitions() != 0;
       this.state = state;
       transition = 0;
-      label = state.transitionsArray[0].getMin();
+      Transition t = state.transitionsArray[transition];
+      label = t.min;
+      to = t.to;
     }
 
-    /** Returns true if there is another transition. */
-    public boolean nextTransition() {
-      transition++;
-      if (transition < state.numTransitions()) {
-        label = state.transitionsArray[transition].getMin();
-        return true;
-      } else {
-        return false;
+    /** Returns next label of current transition, or
+     *  advances to next transition and returns its first
+     *  label, if current one is exhausted.  If there are
+     *  no more transitions, returns -1. */
+    public int nextLabel() {
+      if (label > state.transitionsArray[transition].max) {
+        // We've exhaused the current transition's labels;
+        // move to next transitions:
+        transition++;
+        if (transition >= state.numTransitions()) {
+          // We're done iterating transitions leaving this state
+          return -1;
+        }
+        Transition t = state.transitionsArray[transition];
+        label = t.min;
+        to = t.to;
       }
+      return label++;
     }
   }
 
@@ -80,31 +94,37 @@ class XSpecialOperations {
     return nodes[index];
   }
 
+  // TODO: this is a dangerous method ... Automaton could be
+  // huge ... and it's better in general for caller to
+  // enumerate & process in a single walk:
+
   /** Returns the set of accepted strings, up to at most
    *  <code>limit</code> strings. If more than <code>limit</code> 
-   *  strings are accepted, the first limit strings found are returned. If <code>limit</code>&lt;0, then 
+   *  strings are accepted, the first limit strings found are returned. If <code>limit</code> == -1, then 
    *  the limit is infinite.  If the {@link Automaton} has
    *  cycles then this method might throw {@code
    *  IllegalArgumentException} but that is not guaranteed
-   *  when the limit is not 0. */
+   *  when the limit is set. */
   public static Set<IntsRef> getFiniteStrings(Automaton a, int limit) {
-    Set<IntsRef> strings = new HashSet<>();
+    Set<IntsRef> results = new HashSet<>();
 
-    if (a.getSingleton() != null) {
+    if (limit == -1 || limit > 0) {
+      // OK
+    } else {
+      throw new IllegalArgumentException("limit must be -1 (which means no limit), or > 0; got: " + limit);
+    }
+
+    if (a.isSingleton()) {
       // Easy case: automaton accepts only 1 string
-      if (limit > 0) {
-        strings.add(Util.toUTF32(a.getSingleton(), new IntsRef()));
-      }
+      results.add(Util.toUTF32(a.singleton, new IntsRef()));
     } else {
 
-      if (a.getInitialState().isAccept()) {
+      if (a.initial.accept) {
         // Special case the empty string, as usual:
-        strings.add(new IntsRef());
+        results.add(new IntsRef());
       }
 
-      // a.getNumberedStates();
-
-      if (a.getInitialState().numTransitions() > 0 && (limit <= 0 || strings.size() < limit)) {
+      if (a.initial.numTransitions() > 0 && (limit == -1 || results.size() < limit)) {
 
         // TODO: we could use state numbers here and just
         // alloc array, but asking for states array can be
@@ -112,84 +132,67 @@ class XSpecialOperations {
 
         // Tracks which states are in the current path, for
         // cycle detection:
-        Set<State> pathStates = new HashSet<>();
+        Set<State> pathStates = Collections.newSetFromMap(new IdentityHashMap<State,Boolean>());
 
         // Stack to hold our current state in the
         // recursion/iteration:
         PathNode[] nodes = new PathNode[4];
 
-        pathStates.add(a.getInitialState());
+        pathStates.add(a.initial);
         PathNode root = getNode(nodes, 0);
-        root.resetState(a.getInitialState());
+        root.resetState(a.initial);
 
-        IntsRef string = new IntsRef(4);
+        IntsRef string = new IntsRef(1);
         string.length = 1;
 
-        while (true) {
+        while (string.length > 0) {
 
           PathNode node = nodes[string.length-1];
-          if (node.transition < node.state.numTransitions()) {
-            // This node still has more transitions to
-            // iterate
-            Transition t = node.state.transitionsArray[node.transition];
-            if (node.label <= t.getMax()) {
-              // This transition still has more labels to
-              // iterate
-              string.ints[string.length-1] = node.label++;
 
-              if (t.getDest().isAccept()) {
-                // This transition leads to an accept state,
-                // so we save the current string:
-                strings.add(IntsRef.deepCopyOf(string));
-                if (strings.size() == limit) {
-                  break;
-                }
-              }
+          // Get next label leaving the current node:
+          int label = node.nextLabel();
 
-              if (t.getDest().numTransitions() != 0) {
-                // The destination of this transition has
-                // outgoing transitions, so we recurse:
-                if (pathStates.contains(t.getDest())) {
-                  throw new IllegalArgumentException("automaton has cycles");
-                }
-                if (nodes.length == string.length) {
-                  PathNode[] newNodes = new PathNode[ArrayUtil.oversize(nodes.length+1, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
-                  System.arraycopy(nodes, 0, newNodes, 0, nodes.length);
-                  nodes = newNodes;
-                }
-                pathStates.add(t.getDest());
-                getNode(nodes, string.length).resetState(t.getDest());
-                string.length++;
-                string.grow(string.length);
-                continue;
-              } else if (node.label <= t.getMax()) {
-                // Cycle to next label for this transition
-                continue;
-              } else if (node.nextTransition()) {
-                // Cycle to next transition leaving the
-                // current state
-                continue;
+          if (label != -1) {
+            string.ints[string.length-1] = label;
+
+            if (node.to.accept) {
+              // This transition leads to an accept state,
+              // so we save the current string:
+              results.add(IntsRef.deepCopyOf(string));
+              if (results.size() == limit) {
+                break;
               }
-            } else if (node.nextTransition()) {
-              // We used up the min-max of the current
-              // transition; move to the next transition
-              continue;
             }
-          }
 
-          // No more transitions leaving this state,
-          // pop/return back to previous state:
-          assert pathStates.contains(node.state);
-          pathStates.remove(node.state);
-          string.length--;
-          if (string.length == 0) {
-            // Done
-            break;
+            if (node.to.numTransitions() != 0) {
+              // Now recurse: the destination of this transition has
+              // outgoing transitions:
+              if (pathStates.contains(node.to)) {
+                throw new IllegalArgumentException("automaton has cycles");
+              }
+              pathStates.add(node.to);
+
+              // Push node onto stack:
+              if (nodes.length == string.length) {
+                PathNode[] newNodes = new PathNode[ArrayUtil.oversize(nodes.length+1, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                System.arraycopy(nodes, 0, newNodes, 0, nodes.length);
+                nodes = newNodes;
+              }
+              getNode(nodes, string.length).resetState(node.to);
+              string.length++;
+              string.grow(string.length);
+            }
+          } else {
+            // No more transitions leaving this state,
+            // pop/return back to previous state:
+            assert pathStates.contains(node.state);
+            pathStates.remove(node.state);
+            string.length--;
           }
         }
       }
     }
 
-    return strings;
+    return results;
   }
 }

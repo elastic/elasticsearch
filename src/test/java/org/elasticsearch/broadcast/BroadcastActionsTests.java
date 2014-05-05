@@ -22,7 +22,6 @@ package org.elasticsearch.broadcast;
 import com.google.common.base.Charsets;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -64,27 +63,7 @@ public class BroadcastActionsTests extends ElasticsearchIntegrationTest {
             // test successful
             CountResponse countResponse = client().prepareCount("test")
                     .setQuery(termQuery("_type", "type1"))
-                    .setOperationThreading(BroadcastOperationThreading.NO_THREADS).get();
-            assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
-        }
-
-        for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client().prepareCount("test")
-                    .setQuery(termQuery("_type", "type1"))
-                    .setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD).get();
-            assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
-        }
-
-        for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client().prepareCount("test")
-                    .setQuery(termQuery("_type", "type1"))
-                    .setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD).get();
+                    .get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));

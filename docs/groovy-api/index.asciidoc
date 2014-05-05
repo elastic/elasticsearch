@@ -5,6 +5,8 @@
 [preface]
 == Preface
 
+*This client does not currently work with the 1.x versions of elasticsearch*
+
 This section describes the http://groovy.codehaus.org/[Groovy] API
 elasticsearch provides. All elasticsearch APIs are executed using a
 <<client,GClient>>, and are completely

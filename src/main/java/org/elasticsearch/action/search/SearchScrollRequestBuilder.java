@@ -40,14 +40,6 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
     }
 
     /**
-     * Controls the the search operation threading model.
-     */
-    public SearchScrollRequestBuilder setOperationThreading(SearchOperationThreading operationThreading) {
-        request.operationThreading(operationThreading);
-        return this;
-    }
-
-    /**
      * Should the listener be called on a separate thread if needed.
      */
     public SearchScrollRequestBuilder listenerThreaded(boolean threadedListener) {

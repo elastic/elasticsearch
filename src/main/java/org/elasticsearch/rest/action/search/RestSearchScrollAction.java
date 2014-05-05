@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +28,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -63,6 +62,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         if (scroll != null) {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
-        client.searchScroll(searchScrollRequest, new RestToXContentListener<SearchResponse>(channel));
+
+        client.searchScroll(searchScrollRequest, new RestStatusToXContentListener(channel));
     }
 }

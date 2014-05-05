@@ -133,6 +133,11 @@ public class SignificantTermsParser implements Aggregator.Parser {
             shardSize = requiredSize;
         }
 
+        // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
+        if (shardMinDocCount > minDocCount) {
+            shardMinDocCount = minDocCount;
+        }
+
         IncludeExclude includeExclude = incExcParser.includeExclude();
         return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, executionHint, filter);
     }

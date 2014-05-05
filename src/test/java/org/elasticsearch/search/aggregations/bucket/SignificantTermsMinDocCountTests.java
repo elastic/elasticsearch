@@ -47,6 +47,8 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
+
+    // see https://github.com/elasticsearch/elasticsearch/issues/5998
     @Test
     public void shardMinDocCountTest() throws Exception {
 
@@ -66,7 +68,22 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
         addTermsDocs("6", 3, 1, indexBuilders);
         addTermsDocs("7", 0, 3, indexBuilders);// make sure the terms all get score > 0 except for this one
         indexRandom(true, indexBuilders);
+
+        // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
         SearchResponse response = client().prepareSearch(index)
+                .addAggregation(
+                        (new FilterAggregationBuilder("inclass").filter(FilterBuilders.termFilter("class", true)))
+                                .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()))
+                )
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        InternalFilter filteredBucket = response.getAggregations().get("inclass");
+        SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
+        assertThat(sigterms.getBuckets().size(), equalTo(0));
+
+
+        response = client().prepareSearch(index)
                 .addAggregation(
                         (new FilterAggregationBuilder("inclass").filter(FilterBuilders.termFilter("class", true)))
                                 .subAggregation(new SignificantTermsBuilder("mySignificantTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()))
@@ -74,8 +91,8 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
-        InternalFilter filteredBucket = response.getAggregations().get("inclass");
-        SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
+        filteredBucket = response.getAggregations().get("inclass");
+        sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));
 
     }

@@ -118,3 +118,4 @@ include::cat/shards.asciidoc[]
 
 include::cat/plugins.asciidoc[]
 
+include::cat/fielddata.asciidoc[]

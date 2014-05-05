@@ -1,7 +1,6 @@
 language: java
 jdk:
   - openjdk7
-  - oraclejdk7
 
 env:
   - ES_TEST_LOCAL=true

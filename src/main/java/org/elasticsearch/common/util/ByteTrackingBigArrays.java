@@ -48,7 +48,7 @@ public class ByteTrackingBigArrays extends BigArrays {
         allocatedBytes = new AtomicLong();
     }
 
-    private long ramBytesAllocated(int instances, long bytes) {
+    private static long ramBytesAllocated(int instances, long bytes) {
         return PER_INSTANCE_OVERHEAD * instances + bytes;
     }
 
@@ -151,7 +151,7 @@ public class ByteTrackingBigArrays extends BigArrays {
     }
 
     /**
-     * Return the total number of allocated array instances.
+     * Return the total number of allocated bytes. Please note that released bytes are not taken into account.
      */
     public long ramBytesAllocated() {
         return ramBytesAllocated(allocatedInstances.get(), allocatedBytes.get());

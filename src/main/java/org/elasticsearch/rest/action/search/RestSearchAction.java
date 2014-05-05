@@ -33,6 +33,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,7 +72,7 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest;
         searchRequest = RestSearchAction.parseSearchRequest(request);
         searchRequest.listenerThreaded(false);
-        client.search(searchRequest, new RestToXContentListener<SearchResponse>(channel));
+        client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
     public static SearchRequest parseSearchRequest(RestRequest request) {

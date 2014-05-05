@@ -44,6 +44,7 @@ import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.Profile;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
@@ -538,9 +539,20 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
+        Profile finalProfile = null;
+        if (!queryResults.isEmpty()) {
+            if (firstResult.profile() != null) {
+                List<Profile> profileList = new ArrayList<Profile>(queryResults.size());
+                for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
+                    profileList.add(entry.value.queryResult().profile());
+                }
+                finalProfile = Profile.merge(profileList);   //TODO technically we can merge directly and skip the list
+            }
+        }
+
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, facets, aggregations, suggest, timedOut);
+        return new InternalSearchResponse(searchHits, facets, aggregations, suggest, finalProfile, timedOut);
     }
 
 }

@@ -78,6 +78,7 @@ public class ShardSearchRequest extends TransportRequest {
     private long nowInMillis;
 
     private boolean useSlowScroll;
+    private boolean profile;
 
     public ShardSearchRequest() {
     }
@@ -96,6 +97,7 @@ public class ShardSearchRequest extends TransportRequest {
         this.scroll = searchRequest.scroll();
         this.types = searchRequest.types();
         this.useSlowScroll = useSlowScroll;
+        this.profile = searchRequest.profile();
     }
 
     public ShardSearchRequest(ShardRouting shardRouting, int numberOfShards, SearchType searchType) {
@@ -170,6 +172,15 @@ public class ShardSearchRequest extends TransportRequest {
 
     public ShardSearchRequest scroll(Scroll scroll) {
         this.scroll = scroll;
+        return this;
+    }
+
+    public boolean profile() {
+        return profile;
+    }
+
+    public ShardSearchRequest profile(boolean profile) {
+        this.profile = profile;
         return this;
     }
 

@@ -85,6 +85,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private IndicesOptions indicesOptions = IndicesOptions.strict();
 
+    private boolean profile;
+
     public SearchRequest() {
     }
 
@@ -209,6 +211,18 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     public String preference() {
         return this.preference;
+    }
+
+    /**
+     *
+     */
+    public SearchRequest profile(boolean profile) {
+        this.profile = profile;
+        return this;
+    }
+
+    public boolean profile() {
+        return this.profile;
     }
 
     /**

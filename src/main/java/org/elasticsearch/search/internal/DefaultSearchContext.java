@@ -178,6 +178,8 @@ public class DefaultSearchContext extends SearchContext {
 
     private volatile boolean useSlowScroll;
 
+    private boolean profileQuery;
+
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
                          ScriptService scriptService, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler,
@@ -520,6 +522,15 @@ public class DefaultSearchContext extends SearchContext {
 
     public ParsedQuery parsedQuery() {
         return this.originalQuery;
+    }
+
+    public SearchContext profiledQuery(boolean profile) {
+        this.profileQuery = profile;
+        return this;
+    }
+
+    public boolean profiledQuery() {
+        return this.profileQuery;
     }
 
     /**

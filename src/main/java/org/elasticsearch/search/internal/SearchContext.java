@@ -234,6 +234,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract ParsedQuery parsedQuery();
 
+    public abstract SearchContext profiledQuery(boolean profile);
+
+    public abstract boolean profiledQuery();
+
     /**
      * The query to execute, might be rewritten.
      */

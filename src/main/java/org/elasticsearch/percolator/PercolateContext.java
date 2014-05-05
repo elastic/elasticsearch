@@ -703,4 +703,8 @@ public class PercolateContext extends SearchContext {
     public SearchContext useSlowScroll(boolean useSlowScroll) {
         throw new UnsupportedOperationException();
     }
+
+    public boolean profiledQuery() {
+        throw new UnsupportedOperationException();
+    }
 }

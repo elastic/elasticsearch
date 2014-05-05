@@ -589,4 +589,12 @@ public class TestSearchContext extends SearchContext {
     public SearchContext useSlowScroll(boolean useSlowScroll) {
         return null;
     }
+
+    public SearchContext profiledQuery(boolean profile) {
+        return null;
+    }
+
+    public boolean profiledQuery() {
+        return false;
+    }
 }

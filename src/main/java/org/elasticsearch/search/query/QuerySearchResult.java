@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.query;
 
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.search.profile.Profile;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -48,6 +50,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private InternalFacets facets;
     private InternalAggregations aggregations;
     private Suggest suggest;
+    private Profile profile;
     private boolean searchTimedOut;
 
     public QuerySearchResult() {
@@ -96,6 +99,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
 
     public void topDocs(TopDocs topDocs) {
         this.topDocs = topDocs;
+    }
+
+    public Profile profile() {
+        return profile;
+    }
+
+    public void profile(Profile profile) {
+        this.profile = profile;
     }
 
     public Facets facets() {

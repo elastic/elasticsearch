@@ -39,6 +39,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.profile.ProfileQuery;
+import org.elasticsearch.common.lucene.search.profile.ProfileQueryVisitor;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -56,6 +58,8 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -524,6 +528,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
 
+            // Check if we need to profile this query
+            parseProfile(context);
+
             // compute the context keep alive
             long keepAlive = defaultKeepAlive;
             if (request.scroll() != null && request.scroll().keepAlive() != null) {
@@ -650,6 +657,22 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (parser != null) {
                 parser.close();
             }
+        }
+    }
+
+    /**
+     * If the query needs to be profiled, we need to re-parse the query and wrap
+     * components in ProfileQuery queries.  The ParsedQuery is then replaced
+     * and a Profile flag is flipped in the search context
+     */
+    private void parseProfile(SearchContext context)  {
+
+        // TODO generalize this to other profiling parameters/methods, not just URI
+        if (context.request().profile()) {
+            ProfileQueryVisitor walker = new ProfileQueryVisitor();
+            ProfileQuery pQuery = walker.apply(context.query());
+            context.parsedQuery(new ParsedQuery(pQuery, context.parsedQuery().namedFilters()));
+            context.profiledQuery(context.request().profile());
         }
     }
 

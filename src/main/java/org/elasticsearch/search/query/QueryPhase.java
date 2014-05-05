@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.Profile;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
@@ -158,6 +159,12 @@ public class QueryPhase implements SearchPhase {
                 }
             }
             searchContext.queryResult().topDocs(topDocs);
+
+            if (searchContext.profiledQuery()) {
+                searchContext.queryResult().profile(Profile.collapse(searchContext.parsedQuery().query()));
+            }
+
+
         } catch (Throwable e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         } finally {

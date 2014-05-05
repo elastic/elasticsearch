@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.search.profile.Profile;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -52,17 +53,22 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Suggest suggest;
 
+    private Profile profile;
+
     private boolean timedOut;
+
+    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, null, null, false);
 
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalAggregations aggregations, Suggest suggest, boolean timedOut) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, InternalAggregations aggregations, Suggest suggest, Profile profile, boolean timedOut) {
         this.hits = hits;
         this.facets = facets;
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.timedOut = timedOut;
+        this.profile = profile;
     }
 
     public boolean timedOut() {
@@ -85,6 +91,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return suggest;
     }
 
+    public Profile profile() {
+        return profile;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
@@ -96,6 +106,11 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         }
         if (suggest != null) {
             suggest.toXContent(builder, params);
+        }
+        if (profile != null) {
+            builder.startArray("profile");
+            profile.toXContent(builder, params);
+            builder.endArray();
         }
         return builder;
     }

@@ -19,19 +19,21 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.lease.Releasable;
 
-abstract class AbstractArray implements Releasable {
+abstract class AbstractArray implements BigArray {
 
+    private final BigArrays bigArrays;
     public final boolean clearOnResize;
     private boolean released = false;
 
-    AbstractArray(boolean clearOnResize) {
+    AbstractArray(BigArrays bigArrays, boolean clearOnResize) {
+        this.bigArrays = bigArrays;
         this.clearOnResize = clearOnResize;
     }
 
     @Override
     public void close() {
+        bigArrays.ramBytesUsed.addAndGet(-sizeInBytes());
         assert !released : "double release";
         released = true;
     }

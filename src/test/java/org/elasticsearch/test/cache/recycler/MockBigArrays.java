@@ -45,6 +45,7 @@ public class MockBigArrays extends BigArrays {
      */
     private static final boolean TRACK_ALLOCATIONS = false;
 
+    private static volatile BigArrays INSTANCE = null;
     private static ConcurrentMap<Object, Object> ACQUIRED_ARRAYS = new ConcurrentHashMap<>();
 
     public static void ensureAllArraysAreReleased() throws Exception {
@@ -68,6 +69,12 @@ public class MockBigArrays extends BigArrays {
                 }
             }
         }
+        if (INSTANCE != null) {
+            final long sizeInBytes = INSTANCE.sizeInBytes();
+            if (sizeInBytes != 0) {
+                throw new AssertionError("Expected 0 bytes, got " + sizeInBytes);
+            }
+        }
     }
 
     private final Random random;
@@ -82,6 +89,7 @@ public class MockBigArrays extends BigArrays {
             seed = 0;
         }
         random = new Random(seed);
+        INSTANCE = this;
     }
 
     @Override
@@ -234,11 +242,13 @@ public class MockBigArrays extends BigArrays {
 
     private static abstract class AbstractArrayWrapper {
 
+        final BigArray in;
         boolean clearOnResize;
         AtomicBoolean released;
 
-        AbstractArrayWrapper(boolean clearOnResize) {
+        AbstractArrayWrapper(BigArray in, boolean clearOnResize) {
             ACQUIRED_ARRAYS.put(this, TRACK_ALLOCATIONS ? new RuntimeException() : Boolean.TRUE);
+            this.in = in;
             this.clearOnResize = clearOnResize;
             released = new AtomicBoolean(false);
         }
@@ -249,6 +259,10 @@ public class MockBigArrays extends BigArrays {
 
         public long size() {
             return getDelegate().size();
+        }
+
+        public long sizeInBytes() {
+            return in.sizeInBytes();
         }
 
         public void close() {
@@ -267,7 +281,7 @@ public class MockBigArrays extends BigArrays {
         private final ByteArray in;
 
         ByteArrayWrapper(ByteArray in, boolean clearOnResize) {
-            super(clearOnResize);
+            super(in, clearOnResize);
             this.in = in;
         }
 
@@ -313,7 +327,7 @@ public class MockBigArrays extends BigArrays {
         private final IntArray in;
 
         IntArrayWrapper(IntArray in, boolean clearOnResize) {
-            super(clearOnResize);
+            super(in, clearOnResize);
             this.in = in;
         }
 
@@ -354,7 +368,7 @@ public class MockBigArrays extends BigArrays {
         private final LongArray in;
 
         LongArrayWrapper(LongArray in, boolean clearOnResize) {
-            super(clearOnResize);
+            super(in, clearOnResize);
             this.in = in;
         }
 
@@ -395,7 +409,7 @@ public class MockBigArrays extends BigArrays {
         private final FloatArray in;
 
         FloatArrayWrapper(FloatArray in, boolean clearOnResize) {
-            super(clearOnResize);
+            super(in, clearOnResize);
             this.in = in;
         }
 
@@ -436,7 +450,7 @@ public class MockBigArrays extends BigArrays {
         private final DoubleArray in;
 
         DoubleArrayWrapper(DoubleArray in, boolean clearOnResize) {
-            super(clearOnResize);
+            super(in, clearOnResize);
             this.in = in;
         }
 
@@ -477,7 +491,7 @@ public class MockBigArrays extends BigArrays {
         private final ObjectArray<T> in;
 
         ObjectArrayWrapper(ObjectArray<T> in) {
-            super(false);
+            super(in, false);
             this.in = in;
         }
 

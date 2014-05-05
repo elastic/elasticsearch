@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 2)
+@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class RejectionActionTests extends ElasticsearchIntegrationTest {
 
     @Override

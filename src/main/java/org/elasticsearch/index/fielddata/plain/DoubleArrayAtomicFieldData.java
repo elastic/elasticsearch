@@ -21,7 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.BigDoubleArrayList;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
@@ -87,10 +87,10 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
     public static class WithOrdinals extends DoubleArrayAtomicFieldData {
 
-        private final BigDoubleArrayList values;
+        private final DoubleArray values;
         private final Ordinals ordinals;
 
-        public WithOrdinals(BigDoubleArrayList values, Ordinals ordinals) {
+        public WithOrdinals(DoubleArray values, Ordinals ordinals) {
             super();
             this.values = values;
             this.ordinals = ordinals;
@@ -128,9 +128,9 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues.WithOrdinals {
 
-            private final BigDoubleArrayList values;
+            private final DoubleArray values;
 
-            LongValues(BigDoubleArrayList values, Ordinals.Docs ordinals) {
+            LongValues(DoubleArray values, Ordinals.Docs ordinals) {
                 super(ordinals);
                 this.values = values;
             }
@@ -144,9 +144,9 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.WithOrdinals {
 
-            private final BigDoubleArrayList values;
+            private final DoubleArray values;
 
-            DoubleValues(BigDoubleArrayList values, Ordinals.Docs ordinals) {
+            DoubleValues(DoubleArray values, Ordinals.Docs ordinals) {
                 super(ordinals);
                 this.values = values;
             }
@@ -165,11 +165,11 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
      */
     public static class SingleFixedSet extends DoubleArrayAtomicFieldData {
 
-        private final BigDoubleArrayList values;
+        private final DoubleArray values;
         private final FixedBitSet set;
         private final long numOrds;
 
-        public SingleFixedSet(BigDoubleArrayList values, FixedBitSet set, long numOrds) {
+        public SingleFixedSet(DoubleArray values, FixedBitSet set, long numOrds) {
             super();
             this.values = values;
             this.set = set;
@@ -206,10 +206,10 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
 
-            private final BigDoubleArrayList values;
+            private final DoubleArray values;
             private final FixedBitSet set;
 
-            LongValues(BigDoubleArrayList values, FixedBitSet set) {
+            LongValues(DoubleArray values, FixedBitSet set) {
                 super(false);
                 this.values = values;
                 this.set = set;
@@ -229,10 +229,10 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final BigDoubleArrayList values;
+            private final DoubleArray values;
             private final FixedBitSet set;
 
-            DoubleValues(BigDoubleArrayList values, FixedBitSet set) {
+            DoubleValues(DoubleArray values, FixedBitSet set) {
                 super(false);
                 this.values = values;
                 this.set = set;
@@ -256,14 +256,14 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
      */
     public static class Single extends DoubleArrayAtomicFieldData {
 
-        private final BigDoubleArrayList values;
+        private final DoubleArray values;
         private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(BigDoubleArrayList values, long numOrds) {
+        public Single(DoubleArray values, long numOrds) {
             super();
             this.values = values;
             this.numOrds = numOrds;
@@ -299,9 +299,9 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static final class LongValues extends DenseLongValues {
 
-            private final BigDoubleArrayList values;
+            private final DoubleArray values;
 
-            LongValues(BigDoubleArrayList values) {
+            LongValues(DoubleArray values) {
                 super(false);
                 this.values = values;
             }
@@ -314,9 +314,9 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         static final class DoubleValues extends DenseDoubleValues {
 
-            private final BigDoubleArrayList values;
+            private final DoubleArray values;
 
-            DoubleValues(BigDoubleArrayList values) {
+            DoubleValues(DoubleArray values) {
                 super(false);
                 this.values = values;
             }

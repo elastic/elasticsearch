@@ -27,4 +27,9 @@ public interface BigArray extends Releasable {
     /** Return the length of this array. */
     public long size();
 
+    /**
+     * Return an estimated memory usage of this instance.
+     */
+    public long sizeInBytes();
+
 }

@@ -24,11 +24,11 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigFloatArrayList;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 /**
  */
@@ -84,16 +85,19 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final BigFloatArrayList values = new BigFloatArrayList();
+        FloatArray values = BigArrays.NON_RECYCLING_INSTANCE.newFloatArray(128);
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio)) {
             BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
+            long numTerms = 0;
             while ((term = iter.next()) != null) {
-                values.add(NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));
+                values = BigArrays.NON_RECYCLING_INSTANCE.grow(values, numTerms + 1);
+                values.set(numTerms++, NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));
             }
+            values = BigArrays.NON_RECYCLING_INSTANCE.resize(values, numTerms);
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
                 data = new FloatArrayAtomicFieldData.WithOrdinals(values, build);
@@ -112,13 +116,11 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 }
 
                 int maxDoc = reader.maxDoc();
-                BigFloatArrayList sValues = new BigFloatArrayList(maxDoc);
+                FloatArray sValues = BigArrays.NON_RECYCLING_INSTANCE.newFloatArray(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
                     final long ordinal = ordinals.getOrd(i);
-                    if (ordinal == Ordinals.MISSING_ORDINAL) {
-                        sValues.add(0);
-                    } else {
-                        sValues.add(values.get(ordinal));
+                    if (ordinal != Ordinals.MISSING_ORDINAL) {
+                        sValues.set(i, values.get(ordinal));
                     }
                 }
                 assert sValues.size() == maxDoc;

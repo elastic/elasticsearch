@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 
 import java.util.Arrays;
 
@@ -36,8 +35,8 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
     private Object[][] pages;
 
     /** Constructor. */
-    public BigObjectArray(long size, PageCacheRecycler recycler) {
-        super(OBJECT_PAGE_SIZE, recycler, true);
+    public BigObjectArray(long size, BigArrays bigArrays) {
+        super(OBJECT_PAGE_SIZE, bigArrays, true);
         this.size = size;
         pages = new Object[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {

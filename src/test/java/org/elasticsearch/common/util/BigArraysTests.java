@@ -20,14 +20,17 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
+import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 
 public class BigArraysTests extends ElasticsearchTestCase {
@@ -324,6 +327,61 @@ public class BigArraysTests extends ElasticsearchTestCase {
             bytearray.set(i, bytes[i]);
         }
         return bytearray;
+    }
+
+    public void testByteAccounting() throws Exception {
+        for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
+            BigArrays bigArrays = new BigArrays(ImmutableSettings.builder().put(BigArrays.MAX_SIZE_IN_BYTES_SETTING, Long.MAX_VALUE).build(), null);
+            Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
+            final int size = scaledRandomIntBetween(5, 1 << 16);
+            BigArray array = (BigArray) create.invoke(bigArrays, size);
+            assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+            Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
+            int newSize = scaledRandomIntBetween(5, 1 << 16);
+            array = (BigArray) resize.invoke(bigArrays, array, newSize);
+            assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+            array.close();
+            assertEquals(0, bigArrays.sizeInBytes());
+        }
+    }
+
+    public void testMaxSizeExceededOnNew() throws Exception {
+        final int size = scaledRandomIntBetween(5, 1 << 22);
+        for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
+            BigArrays bigArrays = new BigArrays(ImmutableSettings.builder().put(BigArrays.MAX_SIZE_IN_BYTES_SETTING, randomIntBetween(1, size)).build(), null);
+            Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
+            try {
+                create.invoke(bigArrays, size);
+                fail("expected an exception on " + create);
+            } catch (InvocationTargetException e) {
+                assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
+            }
+            assertEquals(0, bigArrays.sizeInBytes());
+        }
+    }
+
+    public void testMaxSizeExceededOnResize() throws Exception {
+        for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
+            final long maxSize = randomIntBetween(1 << 10, 1 << 22);
+            BigArrays bigArrays = new BigArrays(ImmutableSettings.builder().put(BigArrays.MAX_SIZE_IN_BYTES_SETTING, maxSize).build(), null);
+            Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
+            final int size = scaledRandomIntBetween(1, 20);
+            BigArray array = (BigArray) create.invoke(bigArrays, size);
+            Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
+            while (true) {
+                long newSize = array.size() * 2;
+                assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+                try {
+                    array = (BigArray) resize.invoke(bigArrays, array, newSize);
+                } catch (InvocationTargetException e) {
+                    assertTrue(e.getCause() instanceof ElasticsearchIllegalStateException);
+                    break;
+                }
+            }
+            assertEquals(array.sizeInBytes(), bigArrays.sizeInBytes());
+            array.close();
+            assertEquals(0, bigArrays.sizeInBytes());
+        }
     }
 
 }

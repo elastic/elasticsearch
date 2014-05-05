@@ -32,6 +32,7 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private String childType;
     private String filterName;
     private Integer shortCircuitCutoff;
+    private int minimumChildren = 0;
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -50,6 +51,15 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
      */
     public HasChildFilterBuilder filterName(String filterName) {
         this.filterName = filterName;
+        return this;
+    }
+
+    /**
+     * Defines the minimum number of children that are required to match for the
+     * parent to be considered a match.
+     */
+    public HasChildFilterBuilder minimumChildren(int minimumChildren) {
+        this.minimumChildren = minimumChildren;
         return this;
     }
 
@@ -87,6 +97,7 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
             filterBuilder.toXContent(builder, params);
         }
         builder.field("child_type", childType);
+        builder.field("minimum_children", minimumChildren);
         if (filterName != null) {
             builder.field("_name", filterName);
         }

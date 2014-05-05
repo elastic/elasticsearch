@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
+import org.elasticsearch.index.search.child.CountChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
@@ -61,6 +62,7 @@ public class HasChildFilterParser implements FilterParser {
         boolean filterFound = false;
         String childType = null;
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
+        int minimumChildren = 0;
 
         String filterName = null;
         String currentFieldName = null;
@@ -97,6 +99,8 @@ public class HasChildFilterParser implements FilterParser {
                     // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
+                } else if ("minimum_children".equals(currentFieldName) || "minimumChildren".equals(currentFieldName)) {
+                    minimumChildren = parser.intValue(true);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -145,12 +149,20 @@ public class HasChildFilterParser implements FilterParser {
 
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
-        Query childrenConstantScoreQuery = new ChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
 
-        if (filterName != null) {
-            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenConstantScoreQuery));
+        Query childrenQuery;
+        if (minimumChildren > 1) {
+            childrenQuery = new CountChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter,
+                    shortCircuitParentDocSet, nonNestedDocsFilter, minimumChildren);
+
+        } else {
+            childrenQuery = new ChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter,
+                    shortCircuitParentDocSet, nonNestedDocsFilter);
         }
-        return new CustomQueryWrappingFilter(childrenConstantScoreQuery);
+        if (filterName != null) {
+            parseContext.addNamedFilter(filterName, new CustomQueryWrappingFilter(childrenQuery));
+        }
+        return new CustomQueryWrappingFilter(childrenQuery);
     }
 
 }

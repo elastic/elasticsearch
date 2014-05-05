@@ -76,7 +76,7 @@ public class ChildrenQuery extends Query {
         this.parentFilter = parentFilter;
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
-        this.minimumChildren = minimumChildren;
+        this.minimumChildren = minimumChildren > 1 ? minimumChildren : 0;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
     }

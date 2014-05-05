@@ -29,10 +29,7 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
-import org.elasticsearch.index.search.child.ChildrenQuery;
-import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
-import org.elasticsearch.index.search.child.ScoreType;
+import org.elasticsearch.index.search.child.*;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
@@ -158,9 +155,14 @@ public class HasChildQueryParser implements QueryParser {
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
         if (scoreType != null) {
-            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minimumChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType,
+                    minimumChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
+        } else if (minimumChildren > 1) {
+            query = new CountChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
+                    shortCircuitParentDocSet, nonNestedDocsFilter, minimumChildren);
         } else {
-            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
+                    shortCircuitParentDocSet, nonNestedDocsFilter);
         }
         if (queryName != null) {
             parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));

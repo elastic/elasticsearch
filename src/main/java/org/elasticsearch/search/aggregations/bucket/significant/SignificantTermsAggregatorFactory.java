@@ -50,6 +50,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         MAP(new ParseField("map")) {
 
+            @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {

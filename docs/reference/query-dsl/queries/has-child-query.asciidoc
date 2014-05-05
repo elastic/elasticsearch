@@ -35,7 +35,7 @@ supported score types are `max`, `sum`, `avg` or `none`. The default is
 `none` and yields the same behaviour as in previous versions. If the
 score type is set to another value than `none`, the scores of all the
 matching child documents are aggregated into the associated parent
-documents. The score type can be specified with the `score_type` field
+documents. The score type can be specified with the `score_mode` field
 inside the `has_child` query:
 
 [source,js]
@@ -43,7 +43,7 @@ inside the `has_child` query:
 {
     "has_child" : {
         "type" : "blog_tag",
-        "score_type" : "sum",
+        "score_mode" : "sum",
         "query" : {
             "term" : {
                 "tag" : "something"

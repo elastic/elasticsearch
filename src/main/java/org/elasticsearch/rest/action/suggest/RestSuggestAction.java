@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -57,12 +56,6 @@ public class RestSuggestAction extends BaseRestHandler {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         suggestRequest.listenerThreaded(false);
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-            // since we don't spawn, don't allow no_threads, but change it to a single thread
-            operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-        }
-        suggestRequest.operationThreading(operationThreading);
         if (request.hasContent()) {
             suggestRequest.suggest(request.content(), request.contentUnsafe());
         } else {

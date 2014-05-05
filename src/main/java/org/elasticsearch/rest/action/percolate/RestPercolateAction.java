@@ -18,27 +18,21 @@
  */
 package org.elasticsearch.rest.action.percolate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
@@ -102,16 +96,6 @@ public class RestPercolateAction extends BaseRestHandler {
     void executePercolate(final PercolateRequest percolateRequest, final RestRequest restRequest, final RestChannel restChannel) {
         // we just send a response, no need to fork
         percolateRequest.listenerThreaded(false);
-
-        if (restRequest.hasParam("operation_threading")) {
-            BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(restRequest.param("operation_threading"), null);
-            if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-                // don't do work on the network thread
-                operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-            }
-            percolateRequest.operationThreading(operationThreading);
-        }
-
         client.percolate(percolateRequest, new RestToXContentListener<PercolateResponse>(restChannel));
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices.optimize;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -61,14 +60,6 @@ public class RestOptimizeAction extends BaseRestHandler {
         optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
         optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
         optimizeRequest.force(request.paramAsBoolean("force", optimizeRequest.force()));
-
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-            // since we don't spawn, don't allow no_threads, but change it to a single thread
-            operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
-        }
-        optimizeRequest.operationThreading(operationThreading);
-
         client.admin().indices().optimize(optimizeRequest, new RestBuilderListener<OptimizeResponse>(channel) {
             @Override
             public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {

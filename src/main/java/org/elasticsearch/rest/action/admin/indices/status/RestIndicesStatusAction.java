@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices.status;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -62,12 +61,6 @@ public class RestIndicesStatusAction extends BaseRestHandler {
         indicesStatusRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatusRequest.indicesOptions()));
         indicesStatusRequest.recovery(request.paramAsBoolean("recovery", indicesStatusRequest.recovery()));
         indicesStatusRequest.snapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.snapshot()));
-        BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.THREAD_PER_SHARD);
-        if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
-            // since we don't spawn, don't allow no_threads, but change it to a single thread
-            operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
-        }
-        indicesStatusRequest.operationThreading(operationThreading);
         client.admin().indices().status(indicesStatusRequest, new RestBuilderListener<IndicesStatusResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesStatusResponse response, XContentBuilder builder) throws Exception {

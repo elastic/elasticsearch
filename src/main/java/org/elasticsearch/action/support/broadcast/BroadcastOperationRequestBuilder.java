@@ -38,24 +38,6 @@ public abstract class BroadcastOperationRequestBuilder<Request extends Broadcast
         return (RequestBuilder) this;
     }
 
-    /**
-     * Controls the operation threading model.
-     */
-    @SuppressWarnings("unchecked")
-    public final RequestBuilder setOperationThreading(BroadcastOperationThreading operationThreading) {
-        request.operationThreading(operationThreading);
-        return (RequestBuilder) this;
-    }
-
-    /**
-     * Controls the operation threading model.
-     */
-    @SuppressWarnings("unchecked")
-    public RequestBuilder setOperationThreading(String operationThreading) {
-        request.operationThreading(operationThreading);
-        return (RequestBuilder) this;
-    }
-
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);

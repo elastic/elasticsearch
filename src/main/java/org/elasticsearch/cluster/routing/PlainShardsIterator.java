@@ -49,14 +49,6 @@ public class PlainShardsIterator implements ShardsIterator {
     }
 
     @Override
-    public ShardRouting firstOrNull() {
-        if (shards.isEmpty()) {
-            return null;
-        }
-        return shards.get(0);
-    }
-
-    @Override
     public ShardRouting nextOrNull() {
         if (index == shards.size()) {
             return null;

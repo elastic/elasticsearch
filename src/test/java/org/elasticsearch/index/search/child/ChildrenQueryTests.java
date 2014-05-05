@@ -78,7 +78,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
         ParentFieldMapper parentFieldMapper = SearchContext.current().mapperService().documentMapper("child").parentFieldMapper();
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
-        Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, 12, NonNestedDocsFilter.INSTANCE);
+        Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType,0, 12, NonNestedDocsFilter.INSTANCE);
         QueryUtils.check(query);
     }
 
@@ -219,7 +219,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
             int shortCircuitParentDocSet = random().nextInt(numParentDocs);
             ScoreType scoreType = ScoreType.values()[random().nextInt(ScoreType.values().length)];
             Filter nonNestedDocsFilter = random().nextBoolean() ? NonNestedDocsFilter.INSTANCE : null;
-            Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
+            Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, 0,shortCircuitParentDocSet, nonNestedDocsFilter);
             query = new XFilteredQuery(query, filterMe);
             BitSetCollector collector = new BitSetCollector(indexReader.maxDoc());
             int numHits = 1 + random().nextInt(25);

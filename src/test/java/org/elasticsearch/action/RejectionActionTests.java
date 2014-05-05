@@ -102,7 +102,9 @@ public class RejectionActionTests extends ElasticsearchIntegrationTest {
                         assertTrue("got unexpected reason..." + failure.reason(), failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                     }
                 } else {
-                    throw new AssertionError("unexpected failure", (Throwable) response);
+                    final AssertionError e = new AssertionError("unexpected failure");
+                    e.initCause(t);
+                    throw e;
                 }
             }
         }

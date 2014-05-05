@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -72,14 +71,6 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest;
         searchRequest = RestSearchAction.parseSearchRequest(request);
         searchRequest.listenerThreaded(false);
-        SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
-        if (operationThreading != null) {
-            if (operationThreading == SearchOperationThreading.NO_THREADS) {
-                // since we don't spawn, don't allow no_threads, but change it to a single thread
-                operationThreading = SearchOperationThreading.SINGLE_THREAD;
-            }
-            searchRequest.operationThreading(operationThreading);
-        }
         client.search(searchRequest, new RestToXContentListener<SearchResponse>(channel));
     }
 

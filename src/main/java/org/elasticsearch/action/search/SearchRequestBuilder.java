@@ -156,23 +156,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Controls the the search operation threading model.
-     */
-    public SearchRequestBuilder setOperationThreading(SearchOperationThreading operationThreading) {
-        request.operationThreading(operationThreading);
-        return this;
-    }
-
-    /**
-     * Sets the string representation of the operation threading model. Can be one of
-     * "no_threads", "single_thread" and "thread_per_shard".
-     */
-    public SearchRequestBuilder setOperationThreading(String operationThreading) {
-        request.operationThreading(operationThreading);
-        return this;
-    }
-
-    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
      *
      * For example indices that don't exist.

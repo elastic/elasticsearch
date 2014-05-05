@@ -68,37 +68,16 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private static <T> void execute(Callable<? extends T> callable, SearchServiceListener<T> listener) {
-        // Listeners typically do counting on errors and successes, and the decision to move to second phase, etc. is based on
-        // these counts so we need to be careful here to never propagate exceptions thrown by onResult to onFailure
-        T result = null;
-        Throwable error = null;
-        try {
-            result = callable.call();
-        } catch (Throwable t) {
-            error = t;
-        } finally {
-            if (result == null) {
-                assert error != null;
-                listener.onFailure(error);
-            } else {
-                assert error == null : error;
-                listener.onResult(result);
-            }
-        }
-    }
-
+    private final ThreadPool threadPool;
     private final TransportService transportService;
-
     private final ClusterService clusterService;
-
     private final SearchService searchService;
-
     private final FreeContextResponseHandler freeContextResponseHandler = new FreeContextResponseHandler(logger);
 
     @Inject
-    public SearchServiceTransportAction(Settings settings, TransportService transportService, ClusterService clusterService, SearchService searchService) {
+    public SearchServiceTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterService clusterService, SearchService searchService) {
         super(settings);
+        this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.searchService = searchService;
@@ -520,6 +499,35 @@ public class SearchServiceTransportAction extends AbstractComponent {
                     return ThreadPool.Names.SAME;
                 }
             });
+        }
+    }
+
+    private <T> void execute(final Callable<? extends T> callable, final SearchServiceListener<T> listener) {
+        try {
+            threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
+                @Override
+                public void run() {
+                    // Listeners typically do counting on errors and successes, and the decision to move to second phase, etc. is based on
+                    // these counts so we need to be careful here to never propagate exceptions thrown by onResult to onFailure
+                    T result = null;
+                    Throwable error = null;
+                    try {
+                        result = callable.call();
+                    } catch (Throwable t) {
+                        error = t;
+                    } finally {
+                        if (result == null) {
+                            assert error != null;
+                            listener.onFailure(error);
+                        } else {
+                            assert error == null : error;
+                            listener.onResult(result);
+                        }
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            listener.onFailure(t);
         }
     }
 

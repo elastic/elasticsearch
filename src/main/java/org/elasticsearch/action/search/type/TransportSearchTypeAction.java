@@ -145,73 +145,15 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 return;
             }
             request.beforeStart();
-            // count the local operations, and perform the non local ones
-            int localOperations = 0;
             int shardIndex = -1;
             for (final ShardIterator shardIt : shardsIts) {
                 shardIndex++;
-                final ShardRouting shard = shardIt.firstOrNull();
+                final ShardRouting shard = shardIt.nextOrNull();
                 if (shard != null) {
-                    if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                        localOperations++;
-                    } else {
-                        // do the remote operation here, the localAsync flag is not relevant
-                        performFirstPhase(shardIndex, shardIt, shardIt.nextOrNull());
-                    }
+                    performFirstPhase(shardIndex, shardIt, shard);
                 } else {
                     // really, no shards active in this group
                     onFirstPhaseResult(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
-                }
-            }
-            // we have local operations, perform them now
-            if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    request.beforeLocalFork();
-                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            int shardIndex = -1;
-                            for (final ShardIterator shardIt : shardsIts) {
-                                shardIndex++;
-                                final ShardRouting shard = shardIt.firstOrNull();
-                                if (shard != null) {
-                                    if (shard.currentNodeId().equals(nodes.localNodeId())) {
-                                        performFirstPhase(shardIndex, shardIt, shardIt.nextOrNull());
-                                    }
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    if (localAsync) {
-                        request.beforeLocalFork();
-                    }
-                    shardIndex = -1;
-                    for (final ShardIterator shardIt : shardsIts) {
-                        shardIndex++;
-                        final int fShardIndex = shardIndex;
-                        ShardRouting first = shardIt.firstOrNull();
-                        if (first != null) {
-                            if (first.currentNodeId().equals(nodes.localNodeId())) {
-                                final ShardRouting shard = shardIt.nextOrNull();
-                                if (localAsync) {
-                                    try {
-                                        threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                performFirstPhase(fShardIndex, shardIt, shard);
-                                            }
-                                        });
-                                    } catch (Throwable t) {
-                                        onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, t);
-                                    }
-                                } else {
-                                    performFirstPhase(fShardIndex, shardIt, shard);
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -305,12 +247,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 }
                 if (!lastShard) {
                     try {
-                        threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                performFirstPhase(shardIndex, shardIt, nextShard);
-                            }
-                        });
+                        performFirstPhase(shardIndex, shardIt, nextShard);
                     } catch (Throwable t1) {
                         onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, t1);
                     }

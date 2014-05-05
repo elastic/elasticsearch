@@ -43,19 +43,12 @@ import static org.elasticsearch.action.search.SearchType.*;
 public class TransportSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
     private final ClusterService clusterService;
-
     private final TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction;
-
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
-
     private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
-
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
-
     private final TransportSearchScanAction scanAction;
-
     private final TransportSearchCountAction countAction;
-
     private final boolean optimizeSingleShard;
 
     @Inject
@@ -128,10 +121,6 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
             request.listenerThreaded(false);
-            // we don't spawn, so if we get a request with no threading, change it to single threaded
-            if (request.operationThreading() == SearchOperationThreading.NO_THREADS) {
-                request.operationThreading(SearchOperationThreading.SINGLE_THREAD);
-            }
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

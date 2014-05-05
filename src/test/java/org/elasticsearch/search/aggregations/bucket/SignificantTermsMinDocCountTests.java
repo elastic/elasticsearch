@@ -18,26 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -63,14 +56,16 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
         }
         assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));
         ensureYellow(index);
-        indexTermsDocs("1", 1, 0);//high score but low doc freq
-        indexTermsDocs("2", 1, 0);
-        indexTermsDocs("3", 1, 0);
-        indexTermsDocs("4", 1, 0);
-        indexTermsDocs("5", 3, 1);//low score but high doc freq
-        indexTermsDocs("6", 3, 1);
-        indexTermsDocs("7", 0, 3);// make sure the terms all get score > 0 except for this one
-        refresh();
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
+
+        addTermsDocs("1", 1, 0, indexBuilders);//high score but low doc freq
+        addTermsDocs("2", 1, 0, indexBuilders);
+        addTermsDocs("3", 1, 0, indexBuilders);
+        addTermsDocs("4", 1, 0, indexBuilders);
+        addTermsDocs("5", 3, 1, indexBuilders);//low score but high doc freq
+        addTermsDocs("6", 3, 1, indexBuilders);
+        addTermsDocs("7", 0, 3, indexBuilders);// make sure the terms all get score > 0 except for this one
+        indexRandom(true, indexBuilders);
         SearchResponse response = client().prepareSearch(index)
                 .addAggregation(
                         (new FilterAggregationBuilder("inclass").filter(FilterBuilders.termFilter("class", true)))
@@ -85,14 +80,14 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
 
     }
 
-    private void indexTermsDocs(String term, int numInClass, int numNotInClass) {
+    private void addTermsDocs(String term, int numInClass, int numNotInClass, List<IndexRequestBuilder> builders) {
         String sourceClass = "{\"text\": \"" + term + "\", \"class\":" + "true" + "}";
         String sourceNotClass = "{\"text\": \"" + term + "\", \"class\":" + "false" + "}";
         for (int i = 0; i < numInClass; i++) {
-            client().prepareIndex(index, type).setSource(sourceClass).execute().actionGet();
+            builders.add(client().prepareIndex(index, type).setSource(sourceClass));
         }
         for (int i = 0; i < numNotInClass; i++) {
-            client().prepareIndex(index, type).setSource(sourceNotClass).execute().actionGet();
+            builders.add(client().prepareIndex(index, type).setSource(sourceNotClass));
         }
     }
 

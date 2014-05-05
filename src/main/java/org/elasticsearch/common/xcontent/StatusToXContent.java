@@ -16,30 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.xcontent;
 
-package org.elasticsearch.search;
-
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 
 /**
  *
  */
-public class SearchContextMissingException extends ElasticsearchException {
+public interface StatusToXContent extends ToXContent {
 
-    private final long id;
-
-    public SearchContextMissingException(long id) {
-        super("No search context found for id [" + id + "]");
-        this.id = id;
-    }
-
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.NOT_FOUND;
-    }
+    /**
+     * Returns the REST status to make sure it is returned correctly
+     */
+    RestStatus status();
 }

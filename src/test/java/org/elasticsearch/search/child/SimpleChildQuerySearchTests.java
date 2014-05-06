@@ -33,6 +33,9 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.search.child.ScoreType;
@@ -241,8 +244,18 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testClearIdCacheBug() throws Exception {
+        // enforce lazy loading to make sure that p/c stats are not counted as part of field data
         assertAcked(prepareCreate("test")
-                .addMapping("parent"));
+                .addMapping("parent", XContentFactory.jsonBuilder().startObject().startObject("parent")
+                        .startObject("properties")
+                            .startObject("p_field")
+                                .field("type", "string")
+                                .startObject("fielddata")
+                                    .field(FieldDataType.FORMAT_KEY, Loading.LAZY)
+                                .endObject()
+                            .endObject()
+                        .endObject().endObject().endObject()));
+
         ensureGreen();
 
         client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").get();
@@ -256,7 +269,18 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // Now add mapping + children
         client().admin().indices().preparePutMapping("test").setType("child")
-                .setSource("_parent", "type=parent")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("child")
+                        .startObject("_parent")
+                            .field("type", "parent")
+                        .endObject()
+                        .startObject("properties")
+                            .startObject("c_field")
+                                .field("type", "string")
+                                .startObject("fielddata")
+                                    .field(FieldDataType.FORMAT_KEY, Loading.LAZY)
+                                .endObject()
+                            .endObject()
+                        .endObject().endObject().endObject())
                 .get();
 
         // index simple data
@@ -1460,7 +1484,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         Map<String, Object> mapping = getMappingsResponse.getMappings().get("test").get("child").getSourceAsMap();
-        assertThat(mapping.size(), equalTo(1));
+        assertThat(mapping.size(), greaterThanOrEqualTo(1)); // there are potentially some meta fields configured randomly
         assertThat(mapping.get("properties"), notNullValue());
 
         try {

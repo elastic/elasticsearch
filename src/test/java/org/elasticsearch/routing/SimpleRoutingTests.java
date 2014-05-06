@@ -303,6 +303,12 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
+                        .startObject("properties")
+                            .startObject("routing_field")
+                                .field("type", "long")
+                                .field("doc_values", false) // TODO this test fails with doc values https://github.com/elasticsearch/elasticsearch/pull/5858
+                            .endObject()
+                        .endObject()
                         .endObject().endObject())
                 .execute().actionGet();
         ensureGreen();

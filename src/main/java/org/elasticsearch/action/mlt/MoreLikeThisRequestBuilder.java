@@ -141,6 +141,14 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
     }
 
     /**
+     * Whether to include the queried document. Defaults to <tt>false</tt>.
+     */
+    public MoreLikeThisRequestBuilder setInclude(boolean include) {
+        request.include(include);
+        return this;
+    }
+
+    /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */

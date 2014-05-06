@@ -25,5 +25,8 @@ Rest parameters relating to search are also allowed, including
 When no `mlt_fields` are specified, all the fields of the document will
 be used in the `more_like_this` query generated.
 
+By default, the queried document is excluded from the response (`include`
+set to false).
+
 Note: In order to use the `mlt` feature a `mlt_field` needs to be either
 be `stored`, store `term_vector` or `source` needs to be enabled.

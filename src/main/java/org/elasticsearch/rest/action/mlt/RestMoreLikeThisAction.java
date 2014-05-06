@@ -70,6 +70,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         mltRequest.minWordLength(request.paramAsInt("min_word_len", request.paramAsInt("min_word_length", -1)));
         mltRequest.maxWordLength(request.paramAsInt("max_word_len", request.paramAsInt("max_word_length", -1)));
         mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
+        mltRequest.include(request.paramAsBoolean("include", false));
 
         mltRequest.searchType(SearchType.fromString(request.param("search_type")));
         mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));

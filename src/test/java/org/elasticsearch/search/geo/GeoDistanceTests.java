@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -36,6 +38,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
@@ -632,5 +637,45 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
 
         assertHitCount(result, 1);
     } 
+
+    private double randomLon() {
+        return randomDouble() * 360 - 180;
+    }
+
+    private double randomLat() {
+        return randomDouble() * 180 - 90;
+    }
+
+    public void testDuelOptimizations() throws Exception {
+        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point,lat_lon=true"));
+        final int numDocs = scaledRandomIntBetween(3000, 10000);
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; ++i) {
+            docs.add(client().prepareIndex("index", "type").setSource(jsonBuilder().startObject().startObject("location").field("lat", randomLat()).field("lon", randomLon()).endObject().endObject()));
+        }
+        indexRandom(true, docs);
+        ensureSearchable();
+
+        for (int i = 0; i < 10; ++i) {
+            final double originLat = randomLat();
+            final double originLon = randomLon();
+            final String distance = DistanceUnit.KILOMETERS.toString(randomInt(10000));
+            for (GeoDistance geoDistance : Arrays.asList(GeoDistance.ARC, GeoDistance.SLOPPY_ARC)) {
+                logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, originLat, originLon);
+                long matches = -1;
+                for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
+                    SearchResponse resp = client().prepareSearch("index").setSearchType(SearchType.COUNT).setQuery(QueryBuilders.constantScoreQuery(
+                            FilterBuilders.geoDistanceFilter("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance).optimizeBbox(optimizeBbox))).execute().actionGet();
+                    assertSearchResponse(resp);
+                    logger.info("{} -> {} hits", optimizeBbox, resp.getHits().totalHits());
+                    if (matches < 0) {
+                        matches = resp.getHits().totalHits();
+                    } else {
+                        assertEquals(matches, resp.getHits().totalHits());
+                    }
+                }
+            }
+        }
+    }
 
 }

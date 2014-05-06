@@ -17,38 +17,42 @@
  * under the License.
  */
 
-package org.elasticsearch.search.timeout;
+package org.elasticsearch.script;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
+ * Test that a system where the sandbox is disabled while dynamic scripting is
+ * also disabled does not allow a script to be sent
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
-public class SearchTimeoutTests extends ElasticsearchIntegrationTest {
+public class SandboxDisabledTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, true)
+                .build();
     }
 
     @Test
-    public void simpleTimeoutTest() throws Exception {
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setTimeout("10ms")
-                .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(100); return true;")))
-                .execute().actionGet();
-        assertThat(searchResponse.isTimedOut(), equalTo(true));
+    public void testScriptingDisabledWhileSandboxDisabled() {
+        client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
+        try {
+            client().prepareSearch("test")
+                    .setSource("{\"query\": {\"match_all\": {}}," +
+                            "\"sort\":{\"_script\": {\"script\": \"doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
+            fail("shards should fail because the sandbox and dynamic scripting are disabled");
+        } catch (Exception e) {
+            assertThat(e.getMessage().contains("dynamic scripting for [groovy] disabled"), equalTo(true));
+        }
     }
+
 }

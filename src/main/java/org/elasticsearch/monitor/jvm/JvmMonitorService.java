@@ -27,8 +27,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.monitor.dump.DumpGenerator;
-import org.elasticsearch.monitor.dump.DumpMonitorService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashSet;
@@ -37,8 +35,6 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
-import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.SUMMARY;
-import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.THREAD_DUMP;
 import static org.elasticsearch.monitor.jvm.DeadlockAnalyzer.deadlockAnalyzer;
 import static org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import static org.elasticsearch.monitor.jvm.JvmStats.jvmStats;
@@ -49,13 +45,8 @@ import static org.elasticsearch.monitor.jvm.JvmStats.jvmStats;
 public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorService> {
 
     private final ThreadPool threadPool;
-
-    private final DumpMonitorService dumpMonitorService;
-
     private final boolean enabled;
-
     private final TimeValue interval;
-
     private final ImmutableMap<String, GcThreshold> gcThresholds;
 
     private volatile ScheduledFuture scheduledFuture;
@@ -85,10 +76,9 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
     }
 
     @Inject
-    public JvmMonitorService(Settings settings, ThreadPool threadPool, DumpMonitorService dumpMonitorService) {
+    public JvmMonitorService(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
-        this.dumpMonitorService = dumpMonitorService;
 
         this.enabled = componentSettings.getAsBoolean("enabled", true);
         this.interval = componentSettings.getAsTime("interval", timeValueSeconds(1));
@@ -237,26 +227,6 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
                         .append("] [").append(prevPool == null ? "?" : prevPool.used()).append("]->[").append(currentPool.used()).append("]/[").append(currentPool.getMax()).append("]}");
             }
             return sb.toString();
-        }
-
-        private void monitorDeadlock() {
-            DeadlockAnalyzer.Deadlock[] deadlocks = deadlockAnalyzer().findDeadlocks();
-            if (deadlocks != null && deadlocks.length > 0) {
-                ImmutableSet<DeadlockAnalyzer.Deadlock> asSet = new ImmutableSet.Builder<DeadlockAnalyzer.Deadlock>().add(deadlocks).build();
-                if (!asSet.equals(lastSeenDeadlocks)) {
-                    DumpGenerator.Result genResult = dumpMonitorService.generateDump("deadlock", null, SUMMARY, THREAD_DUMP);
-                    StringBuilder sb = new StringBuilder("Detected Deadlock(s)");
-                    for (DeadlockAnalyzer.Deadlock deadlock : asSet) {
-                        sb.append("\n   ----> ").append(deadlock);
-                    }
-                    sb.append("\nDump generated [").append(genResult.location()).append("]");
-                    logger.error(sb.toString());
-                    lastSeenDeadlocks.clear();
-                    lastSeenDeadlocks.addAll(asSet);
-                }
-            } else {
-                lastSeenDeadlocks.clear();
-            }
         }
     }
 }

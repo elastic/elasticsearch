@@ -37,6 +37,7 @@ rpm --import http://packages.elasticsearch.org/GPG-KEY-elasticsearch
 --------------------------------------------------
 
 Add the following in your /etc/yum.repos.d/ directory
+in a file named (for ewample) elasticsearch.repo 
 
 [source,sh]
 --------------------------------------------------
@@ -49,4 +50,8 @@ enabled=1
 --------------------------------------------------
 
 And your repository is ready for use.
-
+You can install it via : 
+[source,sh]
+--------------------------------------------------
+yum install elasticsearch
+--------------------------------------------------

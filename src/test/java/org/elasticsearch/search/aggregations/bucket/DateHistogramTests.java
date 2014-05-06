@@ -710,7 +710,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script("new DateTime(_value, DateTimeZone.UTC).plusMonths(1).getMillis()")
+                        .script("new DateTime((long)_value, DateTimeZone.UTC).plusMonths(1).getMillis()")
                         .interval(DateHistogram.Interval.MONTH)
                         .subAggregation(max("max")))
                 .execute().actionGet();

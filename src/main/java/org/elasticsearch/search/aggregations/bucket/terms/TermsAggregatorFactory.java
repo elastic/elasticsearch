@@ -196,7 +196,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         // And that all values are not necessarily visited by the matches.
         estimatedBucketCount = Math.min(estimatedBucketCount, 512);
 
-        if (hasParentBucketAggregator(parent)) {
+        if (Aggregator.hasParentBucketAggregator(parent)) {
             // There is a parent that creates buckets, potentially with a very long tail of buckets with few documents
             // Let's be conservative with memory in that case
             estimatedBucketCount = Math.min(estimatedBucketCount, 8);
@@ -239,7 +239,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 // if there is a parent bucket aggregator the number of instances of this aggregator is going
                 // to be unbounded and most instances may only aggregate few documents, so use hashed based
                 // global ordinals to keep the bucket ords dense.
-                if (hasParentBucketAggregator(parent)) {
+                if (Aggregator.hasParentBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     if (factories == AggregatorFactories.EMPTY) {

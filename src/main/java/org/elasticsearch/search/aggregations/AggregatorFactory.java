@@ -18,23 +18,12 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
 public abstract class AggregatorFactory {
-
-    protected static boolean hasParentBucketAggregator(Aggregator parent) {
-        if (parent == null) {
-            return false;
-        } else if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
-            return true;
-        } else {
-            return hasParentBucketAggregator(parent.parent());
-        }
-    }
 
     protected String name;
     protected String type;

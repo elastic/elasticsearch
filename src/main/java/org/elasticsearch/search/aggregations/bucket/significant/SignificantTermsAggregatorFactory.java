@@ -203,7 +203,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                if (hasParentBucketAggregator(parent)) {
+                if (Aggregator.hasParentBucketAggregator(parent)) {
                     execution = ExecutionMode.GLOBAL_ORDINALS_HASH;
                 } else {
                     execution = ExecutionMode.GLOBAL_ORDINALS;

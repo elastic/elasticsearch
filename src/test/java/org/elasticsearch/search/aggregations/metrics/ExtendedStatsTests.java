@@ -366,7 +366,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script("new double[] { doc['value'].value, doc['value'].value - dec }").param("dec", 1))
+                .addAggregation(extendedStats("stats").script("[ doc['value'].value, doc['value'].value - dec ]").param("dec", 1))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));

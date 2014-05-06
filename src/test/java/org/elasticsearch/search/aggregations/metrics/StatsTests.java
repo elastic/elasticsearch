@@ -339,7 +339,7 @@ public class StatsTests extends AbstractNumericTests {
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").script("new double[] { doc['value'].value, doc['value'].value - dec }").param("dec", 1))
+                .addAggregation(stats("stats").script("[ doc['value'].value, doc['value'].value - dec ]").param("dec", 1))
                 .execute().actionGet();
 
         assertShardExecutionState(searchResponse, 0);

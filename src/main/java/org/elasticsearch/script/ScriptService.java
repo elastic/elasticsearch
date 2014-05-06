@@ -74,7 +74,7 @@ public class ScriptService extends AbstractComponent {
         TimeValue cacheExpire = componentSettings.getAsTime("cache.expire", null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
-        this.defaultLang = componentSettings.get("default_lang", "mvel");
+        this.defaultLang = componentSettings.get("default_lang", "groovy");
         this.disableDynamic = componentSettings.getAsBoolean("disable_dynamic", true);
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();

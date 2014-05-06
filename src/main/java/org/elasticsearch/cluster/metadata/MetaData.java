@@ -626,20 +626,6 @@ public class MetaData implements Iterable<IndexMetaData> {
     /**
      * Translates the provided indices (possibly aliased) into actual indices.
      */
-    public String[] concreteIndices(String[] indices) throws IndexMissingException {
-        return concreteIndices(indices, IndicesOptions.fromOptions(false, true, true, true));
-    }
-
-    /**
-     * Translates the provided indices (possibly aliased) into actual indices.
-     */
-    public String[] concreteIndicesIgnoreMissing(String[] indices) {
-        return concreteIndices(indices, IndicesOptions.fromOptions(true, true, true, false));
-    }
-
-    /**
-     * Translates the provided indices (possibly aliased) into actual indices.
-     */
     public String[] concreteIndices(String[] aliasesOrIndices, IndicesOptions indicesOptions) throws IndexMissingException {
         if (isAllIndices(aliasesOrIndices)) {
             String[] concreteIndices;

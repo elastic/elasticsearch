@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
+@ClusterScope(randomDynamicTemplates = false)
 public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
     @Test

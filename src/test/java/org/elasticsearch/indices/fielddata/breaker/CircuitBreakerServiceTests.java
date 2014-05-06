@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -31,7 +32,6 @@ import java.util.Arrays;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -40,7 +40,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 /**
  * Integration tests for InternalCircuitBreakerService
  */
-@ClusterScope(scope = TEST)
+@ClusterScope(scope = TEST, randomDynamicTemplates = false)
 public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
 
     private String randomRidiculouslySmallLimit() {

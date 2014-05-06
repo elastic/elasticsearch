@@ -85,7 +85,8 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
         }
 
         private void innerFinishHim() throws IOException {
-            sortedShardList = searchPhaseController.sortDocs(request, useSlowScroll, firstResults);
+            boolean useScroll = !useSlowScroll && request.scroll() != null;
+            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults, firstResults);
             String scrollId = null;
             if (request.scroll() != null) {

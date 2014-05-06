@@ -41,6 +41,9 @@ import org.elasticsearch.search.rescore.RescoreBuilder.QueryRescorer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Arrays;
+import java.util.Comparator;
+
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -192,6 +195,23 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         assertThirdHit(searchResponse, hasId("3"));
     }
 
+    // Comparator that sorts hits and rescored hits in the same way.
+    // The rescore uses the docId as tie, while regular search uses the slot the hit is in as a tie if score
+    // and shard id are equal during merging shard results.
+    // This comparator uses a custom tie in case the scores are equal, so that both regular hits and rescored hits
+    // are sorted equally. This is fine since tests only care about the fact the scores should be equal, not ordering.
+    private final static Comparator<SearchHit> searchHitsComparator = new Comparator<SearchHit>() {
+        @Override
+        public int compare(SearchHit hit1, SearchHit hit2) {
+            int cmp = Float.compare(hit2.getScore(), hit1.getScore());
+            if (cmp == 0) {
+                return hit1.id().compareTo(hit2.id());
+            } else {
+                return cmp;
+            }
+        }
+    };
+
     private static void assertEquivalent(String query, SearchResponse plain, SearchResponse rescored) {
         assertNoFailures(plain);
         assertNoFailures(rescored);
@@ -201,6 +221,8 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
+        Arrays.sort(hits, searchHitsComparator);
+        Arrays.sort(rHits, searchHitsComparator);
         for (int i = 0; i < hits.length; i++) {
             assertThat("query: " + query, hits[i].getScore(), equalTo(rHits[i].getScore()));
         }
@@ -213,6 +235,8 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     private static void assertEquivalentOrSubstringMatch(String query, SearchResponse plain, SearchResponse rescored) {
+        assertNoFailures(plain);
+        assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
         assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
@@ -222,6 +246,8 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
         if (!hits[0].getId().equals(otherHits[0].getId())) {
             assertThat(((String) otherHits[0].sourceAsMap().get("field1")).contains(query), equalTo(true));
         } else {
+            Arrays.sort(hits, searchHitsComparator);
+            Arrays.sort(otherHits, searchHitsComparator);
             for (int i = 0; i < hits.length; i++) {
                 if (hits[i].getScore() == hits[hits.length-1].getScore()) {
                     return; // we need to cut off here since this is the tail of the queue and we might not have fetched enough docs
@@ -239,7 +265,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
         final int iters = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < iters; i++) {
-            int resultSize = between(5, 30);
+            int resultSize = numDocs;
             int rescoreWindow = between(1, 3) * resultSize;
             String intToEnglish = English.intToEnglish(between(0, numDocs-1));
             String query = intToEnglish.split(" ")[0];

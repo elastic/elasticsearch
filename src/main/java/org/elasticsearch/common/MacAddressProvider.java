@@ -50,13 +50,12 @@ public class MacAddressProvider {
         if (address == null || address.length != 6) {
             return false;
         }
-        boolean allEmpty = true;
         for (byte b : address){
             if (b != 0x00){
-                allEmpty = false;
+                return true; //If any of the bytes are non zero assume a good address
             }
         }
-        return !allEmpty;
+        return false;
     }
 
     public static byte[] getSecureMungedAddress() {

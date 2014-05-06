@@ -42,6 +42,16 @@ public class IndicesOptions {
         }
     }
 
+    /**
+     * Indices option that ignores unavailable indices, allows no indices and expand wildcards to open only indices
+     */
+    public static IndicesOptions IGNORE_UNAVAILABLE_EXPAND_OPEN_ONLY = fromOptions(true, true, true, false);
+    /**
+     * Indices option that doesn't ignore unavailable indices, allows no indices and expand wildcards to both open and closed indices
+     */
+    public static IndicesOptions ERROR_UNAVAILABLE_EXPAND_OPEN_CLOSE = fromOptions(false, true, true, true);
+
+
     private final byte id;
 
     private IndicesOptions(byte id) {

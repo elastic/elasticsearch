@@ -319,12 +319,20 @@ It is possible to only return terms that match more than a configured number of 
 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
-In addition, you can also set a `shard_min_doc_count` parameter that will make sure that terms occuring with a low frequency will be sorted out on a shard level already. This parameter can be useful if the document collection contains many rare words resulting, for example, from misspellings. In this case setting the `shard_size` parameter to a correct value can be hard.
+
+         
+         
+Low frequent terms that score high will be collected on a shard level and merged with the terms collected from other shards in a second step. The `min_doc_count` criterion is only applied after the merge which might cause many high frequent terms to be missing in the final result if low frequent but high scoring terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased. However, this increases memory consumption and network traffic. If your dictionary contains many low frequent words which you are not interested in, for example misspellings, then it can be more convenient to filter out low frequent candidate terms on a shard level. To do so, you can set the `shard_min_doc_count` (default `1`) parameter. This will make sure terms with a frequency (on the shard) lower than `shard_min_doc_count` will not be considered at all.
+
+
 
 WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to return terms that
          are typos or other bizarre curiosities. Finding more than one instance of a term helps
          reinforce that, while still rare, the term was not the result of a one-off accident. The
          default value of 3 is used to provide a minimum weight-of-evidence.
+         Setting `shard_min_doc_count` too high will cause significant candidate terms to be filtered out on a shard level. This value should be set much lower than `min_doc_count/#shards`.
+
+
 
 
 ===== Filtering Values

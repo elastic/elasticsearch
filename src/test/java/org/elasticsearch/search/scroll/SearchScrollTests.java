@@ -291,8 +291,8 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertThat(clearResponse.isSucceeded(), equalTo(true));
 
-        assertThrows(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), SearchContextMissingException.class);
-        assertThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), SearchContextMissingException.class);
+        assertThrows(client().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
+        assertThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
     @Test
@@ -397,8 +397,8 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
         assertThat(clearResponse.isSucceeded(), equalTo(true));
 
-        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), SearchContextMissingException.class);
-        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), SearchContextMissingException.class);
+        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
+        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
     @Test
@@ -436,17 +436,12 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("index", "type", "1").setSource("field", "value").execute().get();
         refresh();
 
-        try {
-            SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
-            assertThat(searchResponse.getScrollId(), is(notNullValue()));
+        SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
+        assertThat(searchResponse.getScrollId(), is(notNullValue()));
 
-            ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
-            assertThat(clearScrollResponse.isSucceeded(), is(true));
+        ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+        assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-            cluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()).get();
-            fail("Expected exception to happen due to non-existing scroll id");
-        } catch (ElasticsearchException e) {
-            assertThat(e.status(), is(RestStatus.NOT_FOUND));
-        }
+        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 }

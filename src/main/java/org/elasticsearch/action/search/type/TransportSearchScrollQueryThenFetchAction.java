@@ -174,12 +174,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
                 @Override
                 public void onFailure(Throwable t) {
-                    Throwable cause = ExceptionsHelper.unwrapCause(t);
-                    if (cause instanceof SearchContextMissingException) {
-                        listener.onFailure(t);
-                    } else {
-                        onQueryPhaseFailure(shardIndex, counter, searchId, t);
-                    }
+                    onQueryPhaseFailure(shardIndex, counter, searchId, t);
                 }
             });
         }
@@ -191,10 +186,14 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             addShardFailure(shardIndex, new ShardSearchFailure(t));
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
-                try {
-                    executeFetchPhase();
-                } catch (Throwable e) {
-                    listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, null));
+                if (successfulOps.get() == 0) {
+                    listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", buildShardFailures()));
+                } else {
+                    try {
+                        executeFetchPhase();
+                    } catch (Throwable e) {
+                        listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, null));
+                    }
                 }
             }
         }

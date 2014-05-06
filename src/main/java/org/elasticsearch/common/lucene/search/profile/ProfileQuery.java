@@ -103,6 +103,8 @@ public class ProfileQuery extends Query implements ProfileComponent {
             return this;
         }
 
+        // The rewriting process can potentially add many new nested components
+        // Perform a walk of the rewritten query to wrap all the new parts
         ProfileQueryVisitor walker = new ProfileQueryVisitor();
         rewrittenQuery = (ProfileQuery) walker.apply(rewrittenQuery);
 
@@ -193,6 +195,7 @@ public class ProfileQuery extends Query implements ProfileComponent {
         public void addTime(long time) {
             this.profileWeight.addTime(time);
         }
+
         @Override
         public int docID() {
             return scorer.docID();
@@ -241,9 +244,8 @@ public class ProfileQuery extends Query implements ProfileComponent {
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        //sb.append("Profile Query (").append(subQuery.toString(field)).append(')');
 
-        // Currently only outputing the subquery's string.  This makes the ProfileQuery "invisible"
+        // Currently only outputting the subquery's string.  This makes the ProfileQuery "invisible"
         // in explains/analyze, but makes the output much nicer for profiling
         sb.append(subQuery.toString(field));
         return sb.toString();

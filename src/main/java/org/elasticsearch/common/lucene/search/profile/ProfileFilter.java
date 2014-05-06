@@ -9,7 +9,14 @@ import org.apache.lucene.util.Bits;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-
+/**
+ * This class times the execution of the subfilter that it wraps.  Timing includes:
+ *
+ *  - ProfileFilter.getDocIdSet
+ *
+ *  A ProfileFilter maintains it's own timing independent of the rest of the query.
+ *  It must be later aggregated together using Profile.collapse
+ */
 public class ProfileFilter extends Filter implements ProfileComponent {
 
     private Filter subFilter;

@@ -14,8 +14,8 @@ import java.util.ArrayList;
 
 
 /**
- * This Visitor will take an input Query (presumably one that contains one or more ProfileQuery)
- * and return a single Profile Object.
+ * This Visitor will take an input Query (presumably one that contains one or
+ * more ProfileQuery/ProfileFilter) and return a single Profile Object.
  */
 public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
 
@@ -169,9 +169,11 @@ public class ProfileCollapsingVisitor extends Visitor<Object, ArrayList> {
         return null;
     }
 
+    /**
+     * Utility method to merge the timings of an array of components into the parent Profile
+     */
     private ArrayList<Profile> compileResults(Profile p, ArrayList<Profile> components, long extraTime) {
         long time = 0;
-
 
         if (components != null && components.size() != 0) {
             for (Profile component : components) {

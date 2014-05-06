@@ -37,6 +37,7 @@ public class Profile implements Streamable, ToXContent {
     // Aggregate time for this Profile.  Includes timing of children components
     private long time;
 
+    // Total time of the entire Profile tree.  Provided by the parent, used to calculate relative timing
     private long totalTime;
 
     public Profile(ProfileQuery pQuery) {
@@ -122,8 +123,8 @@ public class Profile implements Streamable, ToXContent {
 
     /**
      * Merge two or more Profile objects into a single Profile.  This combines the timing scores.
-     * Profiles *must* have identical structure or else results will be bizarre...possibly throw
-     * exceptions too.
+     * Profiles *must* have identical structure or else results will potentially omit paths
+     * through the three
      *
      * @param profiles list of profiles to merge
      * @return         Single Profile object representing the merged set

@@ -1,6 +1,10 @@
 package org.elasticsearch.common.lucene.search.profile;
 
 
+/**
+ * ProfileComponent interface provides a common interface for
+ * ProfileQuery and ProfileFilter.  Used by the walkers
+ */
 public interface ProfileComponent {
 
     public long time();

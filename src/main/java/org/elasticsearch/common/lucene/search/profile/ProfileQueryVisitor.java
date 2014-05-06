@@ -12,7 +12,8 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 
 /**
- * This class walks a query and wraps all applicable queries in ProfileQuery queries
+ * This class walks a query and wraps all applicable components in ProfileQuery
+ * or ProfileFilter
  */
 public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
 
@@ -73,7 +74,6 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
         return new ProfileQuery(newDis);
     }
 
-
     public ProfileFilter visit(XBooleanFilter boolFilter) {
         XBooleanFilter newFilter = new XBooleanFilter();
 
@@ -101,6 +101,10 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
         return new ProfileFilter(new OrFilter(pFilters));
     }
 
+    public ProfileFilter visit(NotFilter filter) {
+        return new ProfileFilter((ProfileFilter)apply(filter));
+    }
+
     public ProfileQuery visit(ToParentBlockJoinQuery query) throws NoSuchFieldException, IllegalAccessException {
         Field origChildQueryField = query.getClass().getDeclaredField("origChildQuery");
         origChildQueryField.setAccessible(true);
@@ -116,10 +120,6 @@ public class ProfileQueryVisitor extends Visitor<Object, ProfileComponent> {
         ScoreMode scoreMode = (ScoreMode) scoreModeField.get(query);
 
         return new ProfileQuery(new ToParentBlockJoinQuery(innerQuery, parentsFilter, scoreMode));
-    }
-
-    public ProfileFilter visit(NotFilter filter) {
-        return new ProfileFilter((ProfileFilter)apply(filter));
     }
 
     public ProfileQuery visit(Query query) {

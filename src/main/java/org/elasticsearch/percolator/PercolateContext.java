@@ -704,6 +704,11 @@ public class PercolateContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public SearchContext profiledQuery(boolean profile) {
+        throw new UnsupportedOperationException();
+    }
+
     public boolean profiledQuery() {
         throw new UnsupportedOperationException();
     }

@@ -123,7 +123,10 @@ public class Environment {
     }
 
     /**
-     * The work location.
+     * The work location, path to temp files.
+     *
+     * Note, currently, we don't use it in ES at all, we should strive to see if we can keep it like that,
+     * but if we do, we have the infra for it.
      */
     public File workFile() {
         return workFile;
@@ -131,6 +134,9 @@ public class Environment {
 
     /**
      * The work location with the cluster name as a sub directory.
+     *
+     * Note, currently, we don't use it in ES at all, we should strive to see if we can keep it like that,
+     * but if we do, we have the infra for it.
      */
     public File workWithClusterFile() {
         return workWithClusterFile;

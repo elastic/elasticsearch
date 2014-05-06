@@ -25,12 +25,6 @@ import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.monitor.dump.DumpContributorFactory;
-import org.elasticsearch.monitor.dump.DumpMonitorService;
-import org.elasticsearch.monitor.dump.cluster.ClusterDumpContributor;
-import org.elasticsearch.monitor.dump.heap.HeapDumpContributor;
-import org.elasticsearch.monitor.dump.summary.SummaryDumpContributor;
-import org.elasticsearch.monitor.dump.thread.ThreadDumpContributor;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.fs.FsService;
 import org.elasticsearch.monitor.fs.JmxFsProbe;
@@ -52,11 +46,6 @@ import org.elasticsearch.monitor.process.SigarProcessProbe;
 import org.elasticsearch.monitor.sigar.SigarService;
 
 import java.util.Map;
-
-import static org.elasticsearch.monitor.dump.cluster.ClusterDumpContributor.CLUSTER;
-import static org.elasticsearch.monitor.dump.heap.HeapDumpContributor.HEAP_DUMP;
-import static org.elasticsearch.monitor.dump.summary.SummaryDumpContributor.SUMMARY;
-import static org.elasticsearch.monitor.dump.thread.ThreadDumpContributor.THREAD_DUMP;
 
 /**
  *
@@ -106,36 +95,5 @@ public class MonitorModule extends AbstractModule {
         bind(FsService.class).asEagerSingleton();
 
         bind(JvmMonitorService.class).asEagerSingleton();
-
-        MapBinder<String, DumpContributorFactory> tokenFilterBinder
-                = MapBinder.newMapBinder(binder(), String.class, DumpContributorFactory.class);
-
-        Map<String, Settings> dumpContSettings = settings.getGroups("monitor.dump");
-        for (Map.Entry<String, Settings> entry : dumpContSettings.entrySet()) {
-            String dumpContributorName = entry.getKey();
-            Settings dumpContributorSettings = entry.getValue();
-
-            Class<? extends DumpContributorFactory> type = dumpContributorSettings.getAsClass("type", null, "org.elasticsearch.monitor.dump." + dumpContributorName + ".", "DumpContributor");
-            if (type == null) {
-                throw new IllegalArgumentException("Dump Contributor [" + dumpContributorName + "] must have a type associated with it");
-            }
-            tokenFilterBinder.addBinding(dumpContributorName).toProvider(FactoryProvider.newFactory(DumpContributorFactory.class, type)).in(Scopes.SINGLETON);
-        }
-        // add default
-        if (!dumpContSettings.containsKey(SUMMARY)) {
-            tokenFilterBinder.addBinding(SUMMARY).toProvider(FactoryProvider.newFactory(DumpContributorFactory.class, SummaryDumpContributor.class)).in(Scopes.SINGLETON);
-        }
-        if (!dumpContSettings.containsKey(THREAD_DUMP)) {
-            tokenFilterBinder.addBinding(THREAD_DUMP).toProvider(FactoryProvider.newFactory(DumpContributorFactory.class, ThreadDumpContributor.class)).in(Scopes.SINGLETON);
-        }
-        if (!dumpContSettings.containsKey(HEAP_DUMP)) {
-            tokenFilterBinder.addBinding(HEAP_DUMP).toProvider(FactoryProvider.newFactory(DumpContributorFactory.class, HeapDumpContributor.class)).in(Scopes.SINGLETON);
-        }
-        if (!dumpContSettings.containsKey(CLUSTER)) {
-            tokenFilterBinder.addBinding(CLUSTER).toProvider(FactoryProvider.newFactory(DumpContributorFactory.class, ClusterDumpContributor.class)).in(Scopes.SINGLETON);
-        }
-
-
-        bind(DumpMonitorService.class).asEagerSingleton();
     }
 }

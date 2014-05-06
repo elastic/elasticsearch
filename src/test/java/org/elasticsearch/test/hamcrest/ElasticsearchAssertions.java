@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
@@ -406,6 +407,35 @@ public class ElasticsearchAssertions {
             assertThat(extraInfo, esException.unwrapCause(), instanceOf(exceptionClass));
         } catch (Throwable e) {
             assertThat(extraInfo, e, instanceOf(exceptionClass));
+        }
+        // has to be outside catch clause to get a proper message
+        if (fail) {
+            throw new AssertionError(extraInfo);
+        }
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status) {
+        assertThrows(builder.execute(), status);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status, String extraInfo) {
+        assertThrows(builder.execute(), status, extraInfo);
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, RestStatus status) {
+        assertThrows(future, status, null);
+    }
+
+    public static void assertThrows(ActionFuture future, RestStatus status, String extraInfo) {
+        boolean fail = false;
+        extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
+        extraInfo += "expected a " + status + " status exception to be thrown";
+
+        try {
+            future.actionGet();
+            fail = true;
+        } catch (Throwable e) {
+            assertThat(extraInfo, ExceptionsHelper.status(e), equalTo(status));
         }
         // has to be outside catch clause to get a proper message
         if (fail) {

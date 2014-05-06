@@ -181,7 +181,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             addShardFailure(shardIndex, new ShardSearchFailure(t));
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
-                finishHim();
+                if (successfulOps.get() == 0) {
+                    listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", buildShardFailures()));
+                } else {
+                    finishHim();
+                }
             }
         }
 

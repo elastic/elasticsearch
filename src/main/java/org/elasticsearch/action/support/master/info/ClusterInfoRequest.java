@@ -34,7 +34,7 @@ public abstract class ClusterInfoRequest<T extends ClusterInfoRequest> extends M
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     @SuppressWarnings("unchecked")
     public T indices(String... indices) {

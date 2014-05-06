@@ -39,7 +39,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadOperationRequest<C
     @Nullable
     private String preference;
     private String[] types = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.lenient();
+    private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
 
     public ClusterSearchShardsRequest() {

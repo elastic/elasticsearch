@@ -103,7 +103,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadOperatio
             }
 
             if (request.indices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndices(request.indices(), IndicesOptions.IGNORE_UNAVAILABLE_EXPAND_OPEN_ONLY);
+                String[] indices = currentState.metaData().concreteIndices(request.indices(), IndicesOptions.lenientExpandOpen());
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {

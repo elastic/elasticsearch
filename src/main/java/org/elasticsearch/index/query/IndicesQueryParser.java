@@ -147,7 +147,7 @@ public class IndicesQueryParser implements QueryParser {
     }
 
     protected boolean matchesIndices(String currentIndex, String... indices) {
-        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(indices, IndicesOptions.IGNORE_UNAVAILABLE_EXPAND_OPEN_ONLY);
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(indices, IndicesOptions.lenientExpandOpen());
         for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, currentIndex)) {
                 return true;

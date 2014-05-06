@@ -48,7 +48,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
 
     private String[] indices;
     private String documentType;
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private List<PercolateRequest> requests = Lists.newArrayList();
 
     public MultiPercolateRequest add(PercolateRequestBuilder requestBuilder) {
@@ -62,7 +62,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         if (request.documentType() == null && documentType != null) {
             request.documentType(documentType);
         }
-        if (request.indicesOptions() == IndicesOptions.strict() && indicesOptions != IndicesOptions.strict()) {
+        if (request.indicesOptions() == IndicesOptions.strictExpandOpen() && indicesOptions != IndicesOptions.strictExpandOpen()) {
             request.indicesOptions(indicesOptions);
         }
         requests.add(request);
@@ -96,7 +96,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             if (documentType != null) {
                 percolateRequest.documentType(documentType);
             }
-            if (indicesOptions != IndicesOptions.strict()) {
+            if (indicesOptions != IndicesOptions.strictExpandOpen()) {
                 percolateRequest.indicesOptions(indicesOptions);
             }
 
@@ -165,10 +165,10 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             }
         }
 
-        boolean ignoreUnavailable = IndicesOptions.strict().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.strict().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.strict().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.strict().expandWildcardsClosed();
+        boolean ignoreUnavailable = IndicesOptions.strictExpandOpen().ignoreUnavailable();
+        boolean allowNoIndices = IndicesOptions.strictExpandOpen().allowNoIndices();
+        boolean expandWildcardsOpen = IndicesOptions.strictExpandOpen().expandWildcardsOpen();
+        boolean expandWildcardsClosed = IndicesOptions.strictExpandOpen().expandWildcardsClosed();
 
         if (header.containsKey("id")) {
             GetRequest getRequest = new GetRequest(globalIndex);

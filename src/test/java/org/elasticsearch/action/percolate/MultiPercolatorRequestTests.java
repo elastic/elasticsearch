@@ -44,7 +44,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
         assertThat(percolateRequest.routing(), equalTo("my-routing-1"));
         assertThat(percolateRequest.preference(), equalTo("_local"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strict()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strictExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
@@ -57,7 +57,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
         assertThat(percolateRequest.routing(), equalTo("my-routing-1"));
         assertThat(percolateRequest.preference(), equalTo("_local"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenient()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
@@ -96,7 +96,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
         assertThat(percolateRequest.routing(), equalTo("my-routing-1"));
         assertThat(percolateRequest.preference(), equalTo("_local"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strict()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strictExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(true));
         assertThat(percolateRequest.getRequest(), notNullValue());
         assertThat(percolateRequest.getRequest().id(), equalTo("2"));
@@ -110,7 +110,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
         assertThat(percolateRequest.routing(), equalTo("my-routing-1"));
         assertThat(percolateRequest.preference(), equalTo("primary"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strict()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strictExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
@@ -122,7 +122,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
     public void testParseBulkRequests_defaults() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/percolate/mpercolate2.json");
         MultiPercolateRequest request = new MultiPercolateRequest();
-        request.indices("my-index1").documentType("my-type1").indicesOptions(IndicesOptions.lenient());
+        request.indices("my-index1").documentType("my-type1").indicesOptions(IndicesOptions.lenientExpandOpen());
         request.add(data, 0, data.length, false);
 
         assertThat(request.requests().size(), equalTo(3));
@@ -131,7 +131,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
         assertThat(percolateRequest.routing(), equalTo("my-routing-1"));
         assertThat(percolateRequest.preference(), equalTo("_local"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenient()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
@@ -143,7 +143,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
         assertThat(percolateRequest.routing(), equalTo("my-routing-1"));
         assertThat(percolateRequest.preference(), equalTo("_local"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenient()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
@@ -153,7 +153,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         percolateRequest = request.requests().get(2);
         assertThat(percolateRequest.indices()[0], equalTo("my-index1"));
         assertThat(percolateRequest.documentType(), equalTo("my-type1"));
-        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenient()));
+        assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.lenientExpandOpen()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());

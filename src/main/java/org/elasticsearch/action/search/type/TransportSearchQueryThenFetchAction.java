@@ -82,7 +82,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
         @Override
         protected void moveToSecondPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(request, useSlowScroll, firstResults);
+            boolean useScroll = !useSlowScroll && request.scroll() != null;
+            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
             if (docIdsToLoad.asList().isEmpty()) {

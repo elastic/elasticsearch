@@ -57,7 +57,7 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
 
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     private String renamePattern;
 
@@ -382,10 +382,10 @@ public class RestoreSnapshotRequest extends MasterNodeOperationRequest<RestoreSn
      * @return this request
      */
     public RestoreSnapshotRequest source(Map source) {
-        boolean ignoreUnavailable = IndicesOptions.lenient().ignoreUnavailable();
-        boolean allowNoIndices = IndicesOptions.lenient().allowNoIndices();
-        boolean expandWildcardsOpen = IndicesOptions.lenient().expandWildcardsOpen();
-        boolean expandWildcardsClosed = IndicesOptions.lenient().expandWildcardsClosed();
+        boolean ignoreUnavailable = IndicesOptions.lenientExpandOpen().ignoreUnavailable();
+        boolean allowNoIndices = IndicesOptions.lenientExpandOpen().allowNoIndices();
+        boolean expandWildcardsOpen = IndicesOptions.lenientExpandOpen().expandWildcardsOpen();
+        boolean expandWildcardsClosed = IndicesOptions.lenientExpandOpen().expandWildcardsClosed();
 
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
             String name = entry.getKey();

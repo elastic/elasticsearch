@@ -96,7 +96,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getWarmer("test1", "test2"), true);
         verify(getSettings("test1", "test2"), true);
 
-        IndicesOptions options = IndicesOptions.strict();
+        IndicesOptions options = IndicesOptions.strictExpandOpen();
         verify(search("test1", "test2").setIndicesOptions(options), true);
         verify(msearch(options, "test1", "test2"), true);
         verify(count("test1", "test2").setIndicesOptions(options), true);
@@ -119,7 +119,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getWarmer("test1", "test2").setIndicesOptions(options), true);
         verify(getSettings("test1", "test2").setIndicesOptions(options), true);
 
-        options = IndicesOptions.lenient();
+        options = IndicesOptions.lenientExpandOpen();
         verify(search("test1", "test2").setIndicesOptions(options), false);
         verify(msearch(options, "test1", "test2").setIndicesOptions(options), false);
         verify(count("test1", "test2").setIndicesOptions(options), false);
@@ -142,7 +142,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(getWarmer("test1", "test2").setIndicesOptions(options), false);
         verify(getSettings("test1", "test2").setIndicesOptions(options), false);
 
-        options = IndicesOptions.strict();
+        options = IndicesOptions.strictExpandOpen();
         assertAcked(prepareCreate("test2"));
         ensureYellow();
         verify(search("test1", "test2").setIndicesOptions(options), false);
@@ -181,15 +181,15 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(snapshot("snap2", "test1", "test2"), true);
         verify(restore("snap1", "test1", "test2"), true);
 
-        IndicesOptions options = IndicesOptions.strict();
+        IndicesOptions options = IndicesOptions.strictExpandOpen();
         verify(snapshot("snap2", "test1", "test2").setIndicesOptions(options), true);
         verify(restore("snap1", "test1", "test2").setIndicesOptions(options), true);
 
-        options = IndicesOptions.lenient();
+        options = IndicesOptions.lenientExpandOpen();
         verify(snapshot("snap2", "test1", "test2").setIndicesOptions(options), false);
         verify(restore("snap2", "test1", "test2").setIndicesOptions(options), false);
 
-        options = IndicesOptions.strict();
+        options = IndicesOptions.strictExpandOpen();
         assertAcked(prepareCreate("test2"));
         //TODO: temporary work-around for #5531
         ensureGreen();
@@ -338,7 +338,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), true);
         verify(restore("snap1", "foo*", "bar*").setIndicesOptions(options), true);
 
-        options = IndicesOptions.strict();
+        options = IndicesOptions.strictExpandOpen();
         verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), false);
         verify(restore("snap2", "foo*", "bar*").setIndicesOptions(options), false);
 
@@ -360,19 +360,19 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
         createIndex("test1");
         client().prepareIndex("test1", "type", "1").setSource("k", "v").setRefresh(true).execute().actionGet();
         SearchResponse response = client().prepareSearch("test2")
-                .setIndicesOptions(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchAllQuery())
                 .execute().actionGet();
         assertHitCount(response, 0l);
 
         response = client().prepareSearch("test2","test3").setQuery(matchAllQuery())
-                .setIndicesOptions(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .execute().actionGet();
         assertHitCount(response, 0l);
         
         //you should still be able to run empty searches without things blowing up
         response  = client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchAllQuery())
                 .execute().actionGet();
         assertHitCount(response, 1l);
@@ -650,7 +650,7 @@ public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
     // Indices exists never throws IndexMissingException, the indices options control its behaviour (return true or false)
     public void testIndicesExists() throws Exception {
         assertThat(client().admin().indices().prepareExists("foo").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareExists("foo").setIndicesOptions(IndicesOptions.lenient()).get().isExists(), equalTo(true));
+        assertThat(client().admin().indices().prepareExists("foo").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareExists("foo*").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("foo*").setIndicesOptions(IndicesOptions.fromOptions(false, true, true, false)).get().isExists(), equalTo(true));
         assertThat(client().admin().indices().prepareExists("_all").get().isExists(), equalTo(false));

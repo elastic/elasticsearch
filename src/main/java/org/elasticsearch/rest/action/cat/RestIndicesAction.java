@@ -72,7 +72,7 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(indices, IndicesOptions.IGNORE_UNAVAILABLE_EXPAND_OPEN_ONLY);
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(indices, IndicesOptions.lenientExpandOpen());
                 ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(concreteIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {

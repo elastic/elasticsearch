@@ -25,6 +25,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -51,6 +52,7 @@ import java.util.Set;
 //tests distribution disabled for now since it causes reporting problems,
 // due to the non unique suite name
 //@ReplicateOnEachVm
+@ClusterScope(randomDynamicTemplates = false)
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     /**

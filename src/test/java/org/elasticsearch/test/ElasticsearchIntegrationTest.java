@@ -39,6 +39,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -65,8 +66,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
@@ -294,7 +299,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    private void randomIndexTemplate() {
+    private void randomIndexTemplate() throws IOException {
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (immutableCluster().size() > 0) {
             ImmutableSettings.Builder randomSettingsBuilder =
@@ -306,11 +311,72 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
                     .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : immutableCluster().numDataNodes() - 1));
             }
-            client().admin().indices().preparePutTemplate("random_index_template")
+            XContentBuilder mappings = null;
+            if (frequently() && randomDynamicTemplates()) {
+                mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
+                if (randomBoolean()) {
+                    mappings.startObject(IdFieldMapper.NAME)
+                            .field("index", randomFrom("not_analyzed", "no"))
+                        .endObject();
+                }
+                mappings.startArray("dynamic_templates")
+                        .startObject()
+                            .startObject("template-strings")
+                                .field("match_mapping_type", "string")
+                                .startObject("mapping")
+                                    .startObject("fielddata")
+                                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
+                                        .field(Loading.KEY, randomFrom(Loading.values()))
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject()
+                            .startObject("template-longs")
+                                .field("match_mapping_type", "long")
+                                .startObject("mapping")
+                                    .startObject("fielddata")
+                                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject()
+                            .startObject("template-doubles")
+                                .field("match_mapping_type", "double")
+                                .startObject("mapping")
+                                    .startObject("fielddata")
+                                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject()
+                            .startObject("template-geo_points")
+                                .field("match_mapping_type", "geo_point")
+                                .startObject("mapping")
+                                    .startObject("fielddata")
+                                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endArray();
+                mappings.endObject().endObject();
+            }
+
+            PutIndexTemplateRequestBuilder putTemplate = client().admin().indices()
+                    .preparePutTemplate("random_index_template")
                     .setTemplate("*")
                     .setOrder(0)
-                    .setSettings(randomSettingsBuilder)
-                    .execute().actionGet();
+                    .setSettings(randomSettingsBuilder);
+            if (mappings != null) {
+                putTemplate.addMapping("_default_", mappings);
+            }
+            assertAcked(putTemplate.execute().actionGet());
         }
     }
 
@@ -1057,6 +1123,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
          * ratio in the interval <code>[0..1]</code> is used.
          */
         double transportClientRatio() default -1;
+
+        /**
+         * Return whether or not to enable dynamic templates for the mappings.
+         */
+        boolean randomDynamicTemplates() default true;
     }
 
     private class LatchedActionListener<Response> implements ActionListener<Response> {
@@ -1146,6 +1217,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     private int getNumClientNodes() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? TestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
+    }
+
+    private boolean randomDynamicTemplates() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? true : annotation.randomDynamicTemplates();
     }
 
     /**

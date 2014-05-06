@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  */
 public class PaddedAtomicLong extends AtomicLong {
+    /*
+     * See http://mechanical-sympathy.blogspot.nl/2011/08/false-sharing-java-7.html
+     */
     public volatile long p1, p2, p3, p4, p5, p6 = 7L;
 
     public long sum(){

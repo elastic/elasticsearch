@@ -31,57 +31,67 @@ public class TimeBasedUUID implements UUIDGenerator{
 
     byte[] secureMungedAddress = MacAddressProvider.getSecureMungedAddress();
 
+    private static void putLong(byte[] array, long l, int pos, int numberOfLongBytes){
+        for (int i=0; i<numberOfLongBytes; ++i){
+            array[pos+numberOfLongBytes-i-1] = (byte)( l >> (i*8) & 0xff);
+        }
+    }
+
+    private static long getLong(byte[] array, int pos, int numberOfLongBytes){
+        byte[] longBytes = new byte[8];
+        for (int i = 0; i < numberOfLongBytes && i < 8; ++i){
+            longBytes[i+(8-numberOfLongBytes)] = array[i+pos];
+        }
+        return ByteBuffer.wrap(longBytes).getLong();
+    }
+
     @Override
     public String getBase64UUID()  {
-        long timestamp = System.currentTimeMillis();
+        long timestamp;
         long last;
-
-        final byte[] uuidBytes = new byte[22];
+        final byte[] uuidBytes = new byte[20];
         do {
             last = lastTimestamp.get();
-            if (lastTimestamp.compareAndSet(last, timestamp)) {
+            timestamp = System.currentTimeMillis();
+            if (last > timestamp){
+                timestamp = last; //If we inc here we risk running away but we
+                                  // have to be sure that we won't use all the sequence number space in a single slip
+            }
+            if (lastTimestamp.compareAndSet(last, timestamp)) { //Still do the set to make sure we haven't recovered
+                                                                //from the slip in a different thread
                 break;
             }
         } while(last < timestamp);
 
-        ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
-        buffer.putLong(timestamp);
-        buffer.put(secureMungedAddress);
-        buffer.putLong(sequenceNumber.incrementAndGet());
+        putLong(uuidBytes,timestamp,0,6); //Only use 6 bytes of the timestamp this will suffice beyond the year 10000
+        System.arraycopy(secureMungedAddress,0,uuidBytes,6,secureMungedAddress.length);
+        putLong(uuidBytes,sequenceNumber.incrementAndGet(),12,8);
 
         try {
             byte[] encoded = Base64.encodeBytesToBytes(uuidBytes, 0, uuidBytes.length, Base64.URL_SAFE);
-            // we know the bytes are 22, and not a multi of 3, so remove the 2 padding chars that are added
+            // we know the bytes are 20, which will add a padding to 21 so we can remove it
             assert encoded[encoded.length - 1] == '=';
-            assert encoded[encoded.length - 2] == '=';
-            // we always have padding of two at the end, encode it differently
-            return new String(encoded, 0, encoded.length - 2, Base64.PREFERRED_ENCODING);
+            // we always have padding of one at the end, encode it differently
+            return new String(encoded, 0, encoded.length - 1, Base64.PREFERRED_ENCODING);
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("should not be thrown");
         }
     }
 
     public static long getTimestampFromUUID(String uuid) throws IOException {
-        byte[] uuidBytes = Base64.decode(uuid+"==",Base64.URL_SAFE);
-        ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
-        return buffer.getLong();
+        byte[] uuidBytes = Base64.decode(uuid+"=",Base64.URL_SAFE);
+        return getLong(uuidBytes,0,6);
     }
 
     public static long getSequenceNumberFromUUID(String uuid) throws IOException {
-        byte[] uuidBytes = Base64.decode(uuid+"==",Base64.URL_SAFE);
-        ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
-        buffer.getLong();
-        byte[] mungedAddress = new byte[6];
-        buffer.get(mungedAddress);
-        return buffer.getLong();
+        byte[] uuidBytes = Base64.decode(uuid+"=",Base64.URL_SAFE);
+        return getLong(uuidBytes,12,8);
     }
 
     public static byte[] getAddressBytesFromUUID(String uuid) throws IOException {
-        byte[] uuidBytes = Base64.decode(uuid+"==",Base64.URL_SAFE);
-        ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
-        buffer.getLong();
+        byte[] uuidBytes = Base64.decode(uuid+"=",Base64.URL_SAFE);
         byte[] mungedAddress = new byte[6];
-        buffer.get(mungedAddress);
+        System.arraycopy(uuidBytes,6,mungedAddress,0,6);
         return mungedAddress;
     }
 

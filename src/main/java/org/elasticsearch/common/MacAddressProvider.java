@@ -46,12 +46,30 @@ public class MacAddressProvider {
         return null; //Could not find a mac address
     }
 
+    private static boolean isValidAddress(byte[] address){
+        if (address == null || address.length != 6) {
+            return false;
+        }
+        boolean allEmpty = true;
+        for (byte b : address){
+            if (b != 0x00){
+                allEmpty = false;
+            }
+        }
+        return !allEmpty;
+    }
+
     public static byte[] getSecureMungedAddress() {
         byte[] address = null;
         try {
-             address = getMacAddress();
+            address = getMacAddress();
         } catch( SocketException se ) {
             logger.warn("Unable to get mac address, will use a dummy address",se);
+            address = constructDummyMulticastAddress();
+        }
+
+        if (!isValidAddress(address)){
+            logger.warn("Unable to get a valid mac address, will use a dummy address");
             address = constructDummyMulticastAddress();
         }
 

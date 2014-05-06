@@ -21,6 +21,7 @@ package org.elasticsearch.action.mlt;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -72,6 +73,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     private int minWordLength = -1;
     private int maxWordLength = -1;
     private float boostTerms = -1;
+    private boolean include = false;
 
     private SearchType searchType = SearchType.DEFAULT;
     private int searchSize = 0;
@@ -311,6 +313,21 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      */
     public float boostTerms() {
         return this.boostTerms;
+    }
+
+    /**
+     * Whether to include the queried document. Defaults to <tt>false</tt>.
+     */
+    public MoreLikeThisRequest include(boolean include) {
+        this.include = include;
+        return this;
+    }
+
+    /**
+     * Whether to include the queried document. Defaults to <tt>false</tt>.
+     */
+    public boolean include() {
+        return this.include;
     }
 
     void beforeLocalFork() {
@@ -553,6 +570,12 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         minWordLength = in.readVInt();
         maxWordLength = in.readVInt();
         boostTerms = in.readFloat();
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            include = in.readBoolean();
+        } else {
+            include = false; // hard-coded behavior until Elasticsearch 1.2
+        }
+
         searchType = SearchType.fromId(in.readByte());
         if (in.readBoolean()) {
             searchQueryHint = in.readString();
@@ -622,6 +645,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         out.writeVInt(minWordLength);
         out.writeVInt(maxWordLength);
         out.writeFloat(boostTerms);
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeBoolean(include);
+        }
 
         out.writeByte(searchType.id());
         if (searchQueryHint == null) {

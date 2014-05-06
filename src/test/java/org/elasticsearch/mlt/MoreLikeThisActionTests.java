@@ -252,4 +252,40 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 0l);
     }
 
+    @Test
+    public void testSimpleMoreLikeInclude() throws Exception {
+        logger.info("Creating index test");
+        assertAcked(prepareCreate("test").addMapping("type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("text").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        client().index(indexRequest("test").type("type1").id("1").source(
+                jsonBuilder().startObject()
+                        .field("text", "Apache Lucene is a free/open source information retrieval software library").endObject()))
+                .actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(
+                jsonBuilder().startObject()
+                        .field("text", "Lucene has been ported to other programming languages").endObject()))
+                .actionGet();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        logger.info("Running More Like This with include true");
+        SearchResponse mltResponse = client().moreLikeThis(
+                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).include(true)).actionGet();
+        assertOrderedSearchHits(mltResponse, "1", "2");
+
+        mltResponse = client().moreLikeThis(
+                moreLikeThisRequest("test").type("type1").id("2").minTermFreq(1).minDocFreq(1).include(true)).actionGet();
+        assertOrderedSearchHits(mltResponse, "2", "1");
+
+        logger.info("Running More Like This with include false");
+        mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        assertSearchHits(mltResponse, "2");
+    }
+
 }

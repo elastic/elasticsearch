@@ -199,11 +199,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         private void executeFetchPhase() throws Exception {
-            if (useSlowScroll) {
-                sortedShardList = searchPhaseController.sortDocs(queryResults);
-            } else {
-                sortedShardList = searchPhaseController.sortDocsForScroll(queryResults);
-            }
+            sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryResults);
             AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 

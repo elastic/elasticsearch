@@ -198,12 +198,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() throws Exception {
-            ScoreDoc[] sortedShardList;
-            if (useSlowScroll) {
-                sortedShardList = searchPhaseController.sortDocs(queryFetchResults);
-            } else {
-                sortedShardList = searchPhaseController.sortDocsForScroll(queryFetchResults);
-            }
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

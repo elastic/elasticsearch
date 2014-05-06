@@ -53,10 +53,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}", this);
 
         controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}", this);
-        controller.registerHandler(GET, "/_nodes/stats/{metric}/{indexMetric}/{fields}", this);
 
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}", this);
-        controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{indexMetric}/{fields}", this);
     }
 
     @Override

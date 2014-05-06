@@ -54,7 +54,7 @@ ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar
         aws:
             access_key: AKVAIQBF2RECL7FJWGJQ
             secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
-    
+
     discovery:
         type: ec2
 
@@ -109,6 +109,77 @@ The S3 repositories are using the same credentials as the rest of the S3 service
 
 
 Multiple S3 repositories can be created. If the buckets require different credentials, then define them as part of the repository settings.
+
+## Recommended S3 Permissions
+
+In order to restrict the Elasticsearch snapshot process to the minimum required resources, we recommend using Amazon IAM in conjunction with pre-existing S3 buckets. Here is an example policy which will allow the snapshot access to an S3 bucket named "snaps.example.com". This may be configured through the AWS IAM console, by creating a Custom Policy, and using a Policy Document similar to this (changing snaps.example.com to your bucket name).
+
+```js
+{
+    "Statement": [
+        {
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::snaps.example.com"
+            ]
+        },
+        {
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::snaps.example.com/*"
+            ]
+        }
+    ],
+    "Version": "2012-10-17"
+}
+
+```
+
+You may further restrict the permissions by specifying a prefix within the bucket, in this example, named "foo".
+
+```js
+{
+    "Statement": [
+        {
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": [
+                        "foo/*"
+                    ]
+                }
+            },
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::snaps.example.com"
+            ]
+        },
+        {
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Effect": "Allow",
+            "Resource": [
+                "arn:aws:s3:::snaps.example.com/foo/*"
+            ]
+        }
+    ],
+    "Version": "2012-10-17"
+}
+
+```
 
 ## Testing
 

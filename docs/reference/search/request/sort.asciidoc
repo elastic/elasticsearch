@@ -317,3 +317,20 @@ them. For string based types, the field sorted on should not be analyzed
 / tokenized. For numeric types, if possible, it is recommended to
 explicitly set the type to six_hun types (like `short`, `integer` and
 `float`).
+
+=== Lucene Field Type/Mapping Considerations for Integer/Long
+
+Lucene being java based needs to know data types, but ES is setup to receive JSON data which is typeless.
+ES/Lucene internally "guesses" data types which is why it's important to always create explicit mappings 
+(this way if your first number is a zero - it won't accidentally guess it's a boolean).
+However Lucene does not appear to use those mappings when performing a sort. 
+How can this be? well Lucene stores numbers in documents as raw data (therefore typeless json). 
+This is particularly critical when a field is mapped type 'integer' and then tries to subsequently sort.
+Lucene will incorporate the "guessed" type which will be long (causing a mismatch in the mapping)
+and resulting in a nasty and ambiguous error:
+org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource]: Query Failed [Failed to execute main query]]; nested: ElasticsearchException[java.lang.NumberFormatException: Invalid shift value in prefixCoded bytes (is encoded value really an INT?)]; nested: UncheckedExecutionException[java.lang.NumberFormatException: Invalid shift value in prefixCoded bytes (is encoded value really an INT?)]; nested: NumberFormatException[Invalid shift value in prefixCoded bytes (is encoded value really an INT?)]; }]
+
+TL;DR: if you plan to use sort, and mapped fields - use long types, not integers as they won't work reliably since there is no
+way to force a sort to treat all numbers like ints.  
+
+

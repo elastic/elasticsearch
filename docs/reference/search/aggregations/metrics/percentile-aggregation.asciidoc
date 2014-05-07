@@ -57,22 +57,27 @@ percentiles: `[ 1, 5, 25, 50, 75, 95, 99 ]`.  The response will look like this:
 
    "aggregations": {
       "load_time_outlier": {
-         "1.0": 15,
-         "5.0": 20,
-         "25.0": 23,
-         "50.0": 25,
-         "75.0": 29,
-         "95.0": 60,
-         "99.0": 150
+         "values" : {
+            "1.0": 15,
+            "5.0": 20,
+            "25.0": 23,
+            "50.0": 25,
+            "75.0": 29,
+            "95.0": 60,
+            "99.0": 150
+         }
       }
    }
 }
 --------------------------------------------------
 
+WARNING: added[1.2.0] The above response structure applies for `1.2.0` and above. Pre `1.2.0` release, the `values` object was
+         missing and all the percentiles where placed directly under the aggregation name object
+
 As you can see, the aggregation will return a calculated value for each percentile
 in the default range.  If we assume response times are in milliseconds, it is 
 immediately obvious that the webpage normally loads in 15-30ms, but occasionally
-spikes to 60-150ms.  
+spikes to 60-150ms.
 
 Often, administrators are only interested in outliers -- the extreme percentiles.
 We can specify just the percents we are interested in (requested percentiles 

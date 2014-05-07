@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -73,6 +74,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("long", new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
                 .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
                 .put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder())
+                .put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder())
                 .put("binary", new DisabledIndexFieldData.Builder())
                 .immutableMap();
 

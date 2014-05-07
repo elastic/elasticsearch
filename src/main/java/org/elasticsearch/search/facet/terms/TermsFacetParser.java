@@ -34,7 +34,6 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.terms.doubles.TermsDoubleFacetExecutor;
-import org.elasticsearch.search.facet.terms.index.IndexNameFacetExecutor;
 import org.elasticsearch.search.facet.terms.longs.TermsLongFacetExecutor;
 import org.elasticsearch.search.facet.terms.strings.FieldsTermsStringFacetExecutor;
 import org.elasticsearch.search.facet.terms.strings.ScriptTermsStringFieldFacetExecutor;
@@ -149,10 +148,6 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     throw new ElasticsearchParseException("unknown parameter [" + currentFieldName + "] while parsing terms facet [" + facetName + "]");
                 }
             }
-        }
-
-        if ("_index".equals(field)) {
-            return new IndexNameFacetExecutor(context.shardTarget().index(), comparatorType, size);
         }
 
         if (fieldsNames != null && fieldsNames.length == 1) {

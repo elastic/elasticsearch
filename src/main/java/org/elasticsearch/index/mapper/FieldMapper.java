@@ -290,4 +290,5 @@ public interface FieldMapper<T> extends Mapper {
     boolean hasDocValues();
 
     Loading normsLoading(Loading defaultLoading);
+
 }

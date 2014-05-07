@@ -136,7 +136,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     @Override
     public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
+        return new FieldDataType(IndexFieldMapper.NAME);
     }
 
     @Override
@@ -225,4 +225,5 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             }
         }
     }
+
 }

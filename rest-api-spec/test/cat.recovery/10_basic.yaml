@@ -22,13 +22,13 @@
       cat.recovery: {}
   - match:
       $body: |
-              /^(index1 \s+ \d+ \s+ \d+ \s+
-                 (gateway|replica|snapshot|relocating) \s+
-                 (init|index|start|translog|finalize|done) \s+
-                 ([\w/.-])+ \s+ 
-                 ([\w/.-])+ \s+ 
-                 ([\w/.-])+ \s+
-                 ([\w/.-])+ \s+
-                 \d+ \s+ \d+\.\d+\% \s+ \d+ \s+ \d+\.\d+\% \s+ \n?)
-               {1,}$/
+              /(?m)^(index1 \s+ \d+ \s+ \d+ \s+
+                     (gateway|replica|snapshot|relocating) \s+
+                     (init|index|start|translog|finalize|done) \s+
+                     ([-\w/.])+ \s+
+                     ([-\w/.])+ \s+
+                     ([-\w/.])+ \s+
+                     ([-\w/.])+ \s+
+                     \d+ \s+ \d+\.\d+\% \s+
+                     \d+ \s+ \d+\.\d+\% \s*)${1,}/
 

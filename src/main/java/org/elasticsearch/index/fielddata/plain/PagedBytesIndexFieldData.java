@@ -61,6 +61,10 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         super(index, indexSettings, fieldNames, fieldDataType, cache, globalOrdinalsBuilder, breakerService);
     }
 
+    protected TermsEnum wrapTermsEnum(TermsEnum in) {
+        return in;
+    }
+
     @Override
     public PagedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
@@ -89,7 +93,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         // the entire set, or wrap the TermsEnum so it can be calculated
         // per-term
         PagedBytesAtomicFieldData data = null;
-        TermsEnum termsEnum = estimator.beforeLoad(terms);
+        TermsEnum termsEnum = wrapTermsEnum(estimator.beforeLoad(terms));
         boolean success = false;
 
         try (OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio)) {

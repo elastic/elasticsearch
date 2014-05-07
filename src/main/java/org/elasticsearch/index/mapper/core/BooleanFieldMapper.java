@@ -135,8 +135,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     @Override
     public FieldDataType defaultFieldDataType() {
-        // TODO have a special boolean type?
-        return new FieldDataType("string");
+        return new FieldDataType(CONTENT_TYPE);
     }
 
     @Override

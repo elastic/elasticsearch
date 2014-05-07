@@ -64,6 +64,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     static {
         buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
+                .put("boolean", new BooleanIndexFieldData.Builder())
                 .put("string", new PagedBytesIndexFieldData.Builder())
                 .put("float", new FloatArrayIndexFieldData.Builder())
                 .put("double", new DoubleArrayIndexFieldData.Builder())

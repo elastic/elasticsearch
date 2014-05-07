@@ -78,6 +78,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                     .startObject()
                     .field(SINGLE_VALUED_FIELD_NAME, "val" + i)
                     .field("i", i)
+                    .field("i_is_even", i%2 == 0)
                     .field("tag", i < 5/2 + 1 ? "more" : "less")
                     .startArray(MULTI_VALUED_FIELD_NAME).value("val" + i).value("val" + (i + 1)).endArray()
                     .endObject()));
@@ -147,6 +148,30 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
+        }
+    }
+
+    @Test
+    public void singleValueBooleanField() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field("i_is_even"))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(2));
+
+        int i = 0;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo(Boolean.valueOf(i == 0).toString()));
+            assertThat(bucket.getDocCount(), equalTo(i == 0 ? 3L : 2L));
+            ++i;
         }
     }
 

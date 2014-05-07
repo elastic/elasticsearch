@@ -20,9 +20,8 @@
 package org.elasticsearch.gateway.local;
 
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-import org.elasticsearch.action.admin.indices.status.ShardStatus;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.TestCluster.RestartCallback;
@@ -375,17 +375,17 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         logger.info("Running Cluster Health");
         ensureGreen();
 
-        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus("test").setRecovery(true).execute().actionGet();
-        for (IndexShardStatus indexShardStatus : statusResponse.getIndex("test")) {
-            for (ShardStatus shardStatus : indexShardStatus) {
-                if (!shardStatus.getShardRouting().primary()) {
-                    logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.getShardId(), shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize(), shardStatus.getPeerRecoveryStatus().getReusedIndexSize());
-                    assertThat(shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize().bytes(), greaterThan(0l));
-                    assertThat(shardStatus.getPeerRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(0l));
-                    assertThat(shardStatus.getPeerRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize().bytes()));
-                }
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
+            RecoveryState recoveryState = response.recoveryState();
+            if (!recoveryState.getPrimary()) {
+                logger.info("--> shard {}, recovered {}, reuse {}", response.getShardId(), recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
+                assertThat(recoveryState.getIndex().recoveredByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
             }
         }
+
     }
 
     @Test

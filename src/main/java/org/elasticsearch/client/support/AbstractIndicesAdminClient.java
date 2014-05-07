@@ -105,10 +105,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusAction;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -418,21 +414,6 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public IndicesStatsRequestBuilder prepareStats(String... indices) {
         return new IndicesStatsRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
-        return execute(IndicesStatusAction.INSTANCE, request);
-    }
-
-    @Override
-    public void status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
-        execute(IndicesStatusAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public IndicesStatusRequestBuilder prepareStatus(String... indices) {
-        return new IndicesStatusRequestBuilder(this).setIndices(indices);
     }
 
     @Override

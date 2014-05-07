@@ -185,12 +185,13 @@ public class Requests {
     }
 
     /**
-     * Creates an indices status request.
+     * Creates an indices status request. Use the Recovery API instead
      *
      * @param indices The indices to query status about. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
      * @return The indices status request
      * @see org.elasticsearch.client.IndicesAdminClient#status(org.elasticsearch.action.admin.indices.status.IndicesStatusRequest)
      */
+    @Deprecated
     public static IndicesStatusRequest indicesStatusRequest(String... indices) {
         return new IndicesStatusRequest(indices);
     }

@@ -32,8 +32,10 @@ import java.util.Map;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class IndexStatus implements Iterable<IndexShardStatus> {
 
     private final String index;

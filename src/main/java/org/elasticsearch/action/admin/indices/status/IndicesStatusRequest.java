@@ -27,8 +27,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class IndicesStatusRequest extends BroadcastOperationRequest<IndicesStatusRequest> {
 
     private boolean recovery = false;

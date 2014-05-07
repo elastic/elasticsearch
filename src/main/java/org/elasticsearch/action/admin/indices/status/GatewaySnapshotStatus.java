@@ -24,8 +24,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class GatewaySnapshotStatus {
 
     public static enum Stage {

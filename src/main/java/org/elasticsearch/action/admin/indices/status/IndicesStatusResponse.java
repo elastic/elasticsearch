@@ -44,8 +44,10 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.admin.indices.status.ShardStatus.readIndexShardStatus;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class IndicesStatusResponse extends BroadcastOperationResponse implements ToXContent {
 
     protected ShardStatus[] shards;

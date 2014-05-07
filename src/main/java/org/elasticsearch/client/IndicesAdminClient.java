@@ -200,26 +200,29 @@ public interface IndicesAdminClient {
     RecoveryRequestBuilder prepareRecoveries(String... indices);
 
     /**
-     * The status of one or more indices.
+     * The status of one or more indices. Use the recovery API instead
      *
      * @param request The indices status request
      * @return The result future
      * @see Requests#indicesStatusRequest(String...)
      */
+    @Deprecated
     ActionFuture<IndicesStatusResponse> status(IndicesStatusRequest request);
 
     /**
-     * The status of one or more indices.
+     * The status of one or more indices. Use the recovery API instead.
      *
      * @param request  The indices status request
      * @param listener A listener to be notified with a result
      * @see Requests#indicesStatusRequest(String...)
      */
+    @Deprecated
     void status(IndicesStatusRequest request, ActionListener<IndicesStatusResponse> listener);
 
     /**
-     * The status of one or more indices.
+     * The status of one or more indices. Use the recovery API instead
      */
+    @Deprecated
     IndicesStatusRequestBuilder prepareStatus(String... indices);
 
     /**

@@ -25,8 +25,10 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class IndicesStatusRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatusRequest, IndicesStatusResponse, IndicesStatusRequestBuilder> {
 
     public IndicesStatusRequestBuilder(IndicesAdminClient indicesClient) {

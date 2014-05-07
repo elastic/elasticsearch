@@ -20,8 +20,10 @@
 package org.elasticsearch.action.admin.indices.status;
 
 /**
- *
+ * This class will be removed in future versions
+ * Use the recovery API instead
  */
+@Deprecated
 public class DocsStatus {
 
     long numDocs = 0;

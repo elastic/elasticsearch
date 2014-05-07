@@ -165,8 +165,7 @@ abstract class AbstractBigArray extends AbstractArray {
     }
 
     @Override
-    public final void close() {
-        super.close();
+    protected final void doClose() {
         if (recycler != null) {
             Releasables.close(cache);
             cache = null;

@@ -32,10 +32,13 @@ abstract class AbstractArray implements BigArray {
     }
 
     @Override
-    public void close() {
+    public final void close() {
         bigArrays.ramBytesUsed.addAndGet(-sizeInBytes());
         assert !released : "double release";
         released = true;
+        doClose();
     }
+
+    protected abstract void doClose();
 
 }

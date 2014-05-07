@@ -137,8 +137,9 @@ public class InternalPercentiles extends MetricsAggregation.MultiValue implement
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
         if (keyed) {
-            builder.startObject(name);
+            builder.startObject(CommonFields.VALUES);
             for(int i = 0; i < percents.length; ++i) {
                 String key = String.valueOf(percents[i]);
                 double value = percentile(percents[i]);
@@ -149,7 +150,7 @@ public class InternalPercentiles extends MetricsAggregation.MultiValue implement
             }
             builder.endObject();
         } else {
-            builder.startArray(name);
+            builder.startArray(CommonFields.VALUES);
             for (int i = 0; i < percents.length; i++) {
                 double value = percentile(percents[i]);
                 builder.startObject();
@@ -162,6 +163,7 @@ public class InternalPercentiles extends MetricsAggregation.MultiValue implement
             }
             builder.endArray();
         }
+        builder.endObject();
         return builder;
     }
 

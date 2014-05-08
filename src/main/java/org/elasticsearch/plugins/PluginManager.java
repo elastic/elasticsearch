@@ -67,10 +67,10 @@ public class PluginManager {
 
     private final Environment environment;
 
-    private String url;
-    private OutputMode outputMode;
-    private Logger logger;
-    private TimeValue timeout;
+    private final String url;
+    private final OutputMode outputMode;
+    private final Logger logger;
+    private final TimeValue timeout;
 
     public PluginManager(Environment environment, String url, OutputMode outputMode, TimeValue timeout) {
         this.environment = environment;
@@ -137,9 +137,9 @@ public class PluginManager {
 
         boolean removed = plugin.remove();
         if (removed) {
-            log("Removed " + name);
+            logger.log("Removed " + name);
         } else {
-            log("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
+            logger.log("Plugin " + name + " not found. Run plugin --list to get list of installed plugins.");
         }
     }
 
@@ -154,12 +154,12 @@ public class PluginManager {
 
     public void listInstalledPlugins() {
         File[] plugins = getListInstalledPlugins();
-        log("Installed plugins:");
+        logger.log("Installed plugins:");
         if (plugins == null || plugins.length == 0) {
-            log("    - No plugin detected in " + environment.pluginsFile().getAbsolutePath());
+            logger.log("    - No plugin detected in " + environment.pluginsFile().getAbsolutePath());
         } else {
             for (File plugin : plugins) {
-                log("    - " + plugin.getName());
+                logger.log("    - " + plugin.getName());
             }
         }
     }
@@ -234,12 +234,12 @@ public class PluginManager {
             switch (action) {
                 case ACTION.INSTALL:
                     try {
-                        pluginManager.log("-> Installing " + pluginName + "...");
+                        pluginManager.logger.log("-> Installing " + pluginName + "...");
                         pluginManager.downloadAndExtract(pluginName);
                         exitCode = EXIT_CODE_OK;
                     } catch (IOException e) {
                         exitCode = EXIT_CODE_IO_ERROR;
-                        pluginManager.log("Failed to install " + pluginName + ", reason: " + e.getMessage());
+                        pluginManager.logger.log("Failed to install " + pluginName + ", reason: " + e.getMessage());
                     } catch (Throwable e) {
                         exitCode = EXIT_CODE_ERROR;
                         displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -247,15 +247,15 @@ public class PluginManager {
                     break;
                 case ACTION.REMOVE:
                     try {
-                        pluginManager.log("-> Removing " + pluginName + " ");
+                        pluginManager.logger.log("-> Removing " + pluginName + " ");
                         pluginManager.removePlugin(pluginName);
                         exitCode = EXIT_CODE_OK;
                     } catch (ElasticsearchIllegalArgumentException e) {
                         exitCode = EXIT_CODE_CMD_USAGE;
-                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
+                        pluginManager.logger.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                     } catch (IOException e) {
                         exitCode = EXIT_CODE_IO_ERROR;
-                        pluginManager.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
+                        pluginManager.logger.log("Failed to remove " + pluginName + ", reason: " + e.getMessage());
                     } catch (Throwable e) {
                         exitCode = EXIT_CODE_ERROR;
                         displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() + ": " + e.getMessage());
@@ -271,7 +271,7 @@ public class PluginManager {
                     break;
 
                 default:
-                    pluginManager.log("Unknown Action [" + action + "]");
+                    pluginManager.logger.log("Unknown Action [" + action + "]");
                     exitCode = EXIT_CODE_ERROR;
 
             }
@@ -317,14 +317,6 @@ public class PluginManager {
         private void log(String line) {
             if (outputMode != OutputMode.SILENT) System.out.println(line);
         }
-    }
-
-    private void debug(String line) {
-        logger.debug(line);
-    }
-
-    private void log(String line) {
-        logger.log(line);
     }
 
     /**

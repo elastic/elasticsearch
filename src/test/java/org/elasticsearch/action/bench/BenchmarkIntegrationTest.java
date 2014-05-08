@@ -79,7 +79,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
         final BenchmarkRequest request =
                 BenchmarkTestUtil.randomRequest(client(),indices, numExecutorNodes, competitionSettingsMap);
-        logger.info("--> submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
+        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
         final BenchmarkResponse response = client().bench(request).actionGet();
 
@@ -100,7 +100,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
         final BenchmarkRequest request =
                 BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap);
-        logger.info("--> submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
+        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
 
         final CountDownLatch countdown = new CountDownLatch(1);
@@ -132,7 +132,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             assertFalse(benchmarkResponse.hasErrors());
 
             for (CompetitionResult result : benchmarkResponse.competitionResults().values()) {
-                assertThat(result.nodeResults().size(), equalTo(numExecutorNodes));
+                assertThat(result.nodeResults().size(), lessThanOrEqualTo(numExecutorNodes));
                 validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), false);
             }
         }
@@ -155,7 +155,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
         final BenchmarkRequest request =
                 BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap);
-        logger.info("--> submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
+        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
 
         final CountDownLatch countdown = new CountDownLatch(1);
@@ -179,7 +179,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         Thread.sleep(1000);
 
         final AbortBenchmarkResponse response = client().prepareAbortBench(BENCHMARK_NAME).execute().actionGet();
-        assertThat(response.getNodeResponses().size(), equalTo(numExecutorNodes));
+        assertThat(response.getNodeResponses().size(), lessThanOrEqualTo(numExecutorNodes));
         assertThat(response.getBenchmarkName(), equalTo(BENCHMARK_NAME));
 
         for (AbortBenchmarkNodeResponse nodeResponse : response.getNodeResponses()) {
@@ -251,18 +251,18 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         final CompetitionSummary summary = result.competitionSummary();
         summary.computeSummaryStatistics();
         assertThat(summary, notNullValue());
-        assertThat(summary.min, greaterThanOrEqualTo(0L));
-        assertThat(summary.max, greaterThanOrEqualTo(summary.min));
-        assertThat(summary.mean, greaterThanOrEqualTo((double) summary.min));
-        assertThat(summary.mean, lessThanOrEqualTo((double) summary.max));
-        assertThat(summary.totalTime, greaterThanOrEqualTo(0L));
-        assertThat(summary.queriesPerSecond, greaterThanOrEqualTo(0.0));
-        assertThat(summary.millisPerHit, greaterThanOrEqualTo(0.0));
-        assertThat(summary.avgWarmupTime, greaterThanOrEqualTo(0.0));
+        assertThat(summary.getMin(), greaterThanOrEqualTo(0L));
+        assertThat(summary.getMax(), greaterThanOrEqualTo(summary.getMin()));
+        assertThat(summary.getMean(), greaterThanOrEqualTo((double) summary.getMin()));
+        assertThat(summary.getMean(), lessThanOrEqualTo((double) summary.getMax()));
+        assertThat(summary.getTotalTime(), greaterThanOrEqualTo(0L));
+        assertThat(summary.getQueriesPerSecond(), greaterThanOrEqualTo(0.0));
+        assertThat(summary.getMillisPerHit(), greaterThanOrEqualTo(0.0));
+        assertThat(summary.getAvgWarmupTime(), greaterThanOrEqualTo(0.0));
         if (strict) {
-            assertThat((int) summary.totalIterations, equalTo(requestedSettings.iterations() * summary.nodeResults().size()));
-            assertThat((int) summary.completedIterations, equalTo(requestedSettings.iterations() * summary.nodeResults().size()));
-            assertThat((int) summary.totalQueries, equalTo(requestedSettings.iterations() * requestedSettings.multiplier() *
+            assertThat((int) summary.getTotalIterations(), equalTo(requestedSettings.iterations() * summary.nodeResults().size()));
+            assertThat((int) summary.getCompletedIterations(), equalTo(requestedSettings.iterations() * summary.nodeResults().size()));
+            assertThat((int) summary.getTotalQueries(), equalTo(requestedSettings.iterations() * requestedSettings.multiplier() *
                     requestedSettings.searchRequests().size() * summary.nodeResults().size()));
             validatePercentiles(summary.percentileValues);
         }

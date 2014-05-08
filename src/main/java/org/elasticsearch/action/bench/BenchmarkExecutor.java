@@ -76,12 +76,12 @@ public class BenchmarkExecutor {
 
         BenchmarkState state = activeBenchmarks.get(benchmarkName);
         if (state == null) {
-            throw new ElasticsearchException("Benchmark [" + benchmarkName + "] not found");
+            throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
         }
         state.semaphore.stop();
         activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(benchmarkName).build();
-        logger.debug("Aborted benchmark [{}]", benchmarkName);
-        return new AbortBenchmarkNodeResponse(benchmarkName, nodeName);
+        logger.debug("Aborted benchmark [{}] on [{}]", benchmarkName, nodeName());
+        return new AbortBenchmarkNodeResponse(benchmarkName, nodeName());
     }
 
     /**
@@ -99,6 +99,8 @@ public class BenchmarkExecutor {
             BenchmarkState state = activeBenchmarks.get(id);
             response.addBenchResponse(state.response);
         }
+
+        logger.debug("Reporting [{}] active benchmarks on [{}]", response.activeBenchmarks(), nodeName());
         return response;
     }
 
@@ -115,13 +117,9 @@ public class BenchmarkExecutor {
         final Map<String, CompetitionResult> competitionResults = new HashMap<String, CompetitionResult>();
         final BenchmarkResponse benchmarkResponse = new BenchmarkResponse(request.benchmarkName(), competitionResults);
 
-        if (this.nodeName == null) {
-            this.nodeName = clusterService.localNode().name();
-        }
-
         synchronized (lock) {
             if (activeBenchmarks.containsKey(request.benchmarkName())) {
-                throw new ElasticsearchException("Benchmark with id [" + request.benchmarkName() + "] is already running");
+                throw new ElasticsearchException("Benchmark [" + request.benchmarkName() + "] is already running on [" + nodeName() + "]");
             }
 
             activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fPut(
@@ -133,13 +131,14 @@ public class BenchmarkExecutor {
 
                 final BenchmarkSettings settings = competitor.settings();
                 final int iterations = settings.iterations();
-                logger.debug("Executing [{}] iterations for benchmark [{}][{}] ", iterations, request.benchmarkName(), competitor.name());
+                logger.debug("Executing [iterations: {}] [multiplier: {}] for [{}] on [{}]",
+                        iterations, settings.multiplier(), request.benchmarkName(), nodeName());
 
                 final List<CompetitionIteration> competitionIterations = new ArrayList<>(iterations);
                 final CompetitionResult competitionResult =
                         new CompetitionResult(competitor.name(), settings.concurrency(), settings.multiplier(), request.percentiles());
                 final CompetitionNodeResult competitionNodeResult =
-                        new CompetitionNodeResult(competitor.name(), nodeName, iterations, competitionIterations);
+                        new CompetitionNodeResult(competitor.name(), nodeName(), iterations, competitionIterations);
 
                 competitionResult.addCompetitionNodeResult(competitionNodeResult);
                 benchmarkResponse.competitionResults.put(competitor.name(), competitionResult);
@@ -244,9 +243,6 @@ public class BenchmarkExecutor {
             throw new BenchmarkExecutionException("Too many execution failures", errorMessages);
         }
 
-        assert assertBuckets(timeBuckets); // make sure they are all set
-        assert assertBuckets(docBuckets);  // make sure they are all set
-
         final long totalTime = TimeUnit.MILLISECONDS.convert(afterRun - beforeRun, TimeUnit.NANOSECONDS);
 
         CompetitionIterationData iterationData = new CompetitionIterationData(timeBuckets);
@@ -260,7 +256,6 @@ public class BenchmarkExecutor {
 
         CompetitionIteration round =
                 new CompetitionIteration(topN, totalTime, timeBuckets.length, sumDocs, iterationData);
-
         return round;
     }
 
@@ -417,6 +412,13 @@ public class BenchmarkExecutor {
         public void stop() {
             stopped = true;
         }
+    }
+
+    private String nodeName() {
+        if (nodeName == null) {
+            nodeName = clusterService.localNode().name();
+        }
+        return nodeName;
     }
 
     private final boolean assertBuckets(long[] buckets) {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -44,18 +45,23 @@ import java.util.concurrent.CopyOnWriteArraySet;
  */
 public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
 
-    private final int maxThreadCount;
-    private final int maxMergeCount;
+    private final IndexSettingsService indexSettingsService;
+    private final ApplySettings applySettings = new ApplySettings();
+
+    private volatile int maxThreadCount;
+    private volatile int maxMergeCount;
 
     private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<>();
 
     @Inject
-    public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
+    public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool, IndexSettingsService indexSettingsService) {
         super(shardId, indexSettings, threadPool);
-
+        this.indexSettingsService = indexSettingsService;
         this.maxThreadCount = componentSettings.getAsInt("max_thread_count", ConcurrentMergeScheduler.DEFAULT_MAX_THREAD_COUNT);
         this.maxMergeCount = componentSettings.getAsInt("max_merge_count", ConcurrentMergeScheduler.DEFAULT_MAX_MERGE_COUNT);
-        logger.debug("using [concurrent] merge scheduler with max_thread_count[{}]", maxThreadCount);
+        logger.debug("using [concurrent] merge scheduler with max_thread_count[{}], max_merge_count[{}]", maxThreadCount, maxMergeCount);
+
+        indexSettingsService.addListener(applySettings);
     }
 
     @Override
@@ -82,6 +88,11 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
             return scheduler.onGoingMerges();
         }
         return ImmutableSet.of();
+    }
+
+    @Override
+    public void close() {
+        indexSettingsService.removeListener(applySettings);
     }
 
     public static class CustomConcurrentMergeScheduler extends TrackingConcurrentMergeScheduler {
@@ -126,6 +137,29 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         protected void afterMerge(OnGoingMerge merge) {
             super.afterMerge(merge);
             provider.afterMerge(merge);
+        }
+    }
+
+    class ApplySettings implements IndexSettingsService.Listener {
+        @Override
+        public void onRefreshSettings(Settings settings) {
+            int maxThreadCount = settings.getAsInt("index.merge.scheduler.max_thread_count", ConcurrentMergeSchedulerProvider.this.maxThreadCount);
+            if (maxThreadCount != ConcurrentMergeSchedulerProvider.this.maxThreadCount) {
+                logger.info("updating [max_thread_count] from [{}] to [{}]", ConcurrentMergeSchedulerProvider.this.maxThreadCount, maxThreadCount);
+                ConcurrentMergeSchedulerProvider.this.maxThreadCount = maxThreadCount;
+                for (CustomConcurrentMergeScheduler scheduler : schedulers) {
+                    scheduler.setMaxMergesAndThreads(ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxThreadCount);
+                }
+            }
+
+            int maxMergeCount = settings.getAsInt("index.merge.scheduler.max_merge_count", ConcurrentMergeSchedulerProvider.this.maxMergeCount);
+            if (maxMergeCount != ConcurrentMergeSchedulerProvider.this.maxMergeCount) {
+                logger.info("updating [max_merge_count] from [{}] to [{}]", ConcurrentMergeSchedulerProvider.this.maxMergeCount, maxMergeCount);
+                ConcurrentMergeSchedulerProvider.this.maxMergeCount = maxMergeCount;
+                for (CustomConcurrentMergeScheduler scheduler : schedulers) {
+                    scheduler.setMaxMergesAndThreads(maxMergeCount, ConcurrentMergeSchedulerProvider.this.maxThreadCount);
+                }
+            }
         }
     }
 }

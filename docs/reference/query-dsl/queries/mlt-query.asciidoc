@@ -18,6 +18,19 @@ running it against one or more fields.
 
 `more_like_this` can be shortened to `mlt`.
 
+Under the hood, `more_like_this` simply creates multiple `should` clauses in a `bool` query of
+interesting terms extracted from some provided text. The interesting terms are
+selected with respect to their tf-idf scores. These are controlled by
+`min_term_freq`, `min_doc_freq`, and `max_doc_freq`. The number of interesting
+terms is controlled by `max_query_terms`. While the minimum number of clauses
+that must be satisfied is controlled by `percent_terms_to_match`. The terms
+are extracted from `like_text` which is analyzed by the analyzer associated
+with the field, unless specified by `analyzer`. There are other parameters,
+such as `min_word_length`, `max_word_length` or `stop_words`, to control what
+terms should be considered as interesting. In order to give more weight to
+more interesting terms, each boolean clause associated with a term could be
+boosted by the term tf-idf score times some boosting factor `boost_terms`.
+
 The `more_like_this` top level parameters include:
 
 [cols="<,<",options="header",]

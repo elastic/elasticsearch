@@ -14,7 +14,9 @@ The API simply results in executing a search request with
 parameters match the parameters to the `more_like_this` query). This
 means that the body of the request can optionally include all the
 request body options in the <<search-search,search
-API>> (facets, from/to and so on).
+API>> (aggs, from/to and so on). Internally, the more like this
+API is equivalent to performing a boolean query of `more_like_this_field`
+queries, with one query per specified `mlt_fields`.
 
 Rest parameters relating to search are also allowed, including
 `search_type`, `search_indices`, `search_types`, `search_scroll`,

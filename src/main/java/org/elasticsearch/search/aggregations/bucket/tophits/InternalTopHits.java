@@ -1,0 +1,123 @@
+package org.elasticsearch.search.aggregations.bucket.tophits;
+
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.internal.InternalSearchHits;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ */
+public class InternalTopHits extends InternalAggregation implements TopHits, ToXContent, Streamable {
+
+    public static final InternalAggregation.Type TYPE = new Type("top_hits");
+
+    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
+        @Override
+        public InternalTopHits readResult(StreamInput in) throws IOException {
+            InternalTopHits buckets = new InternalTopHits();
+            buckets.readFrom(in);
+            return buckets;
+        }
+    };
+
+    public static void registerStreams() {
+        AggregationStreams.registerStream(STREAM, TYPE.stream());
+    }
+
+    private int size;
+    private Sort sort;
+    private TopDocs topDocs;
+    private InternalSearchHits searchHits;
+
+    InternalTopHits() {
+    }
+
+    public InternalTopHits(String name, int size, Sort sort, TopDocs topDocs, InternalSearchHits searchHits) {
+        this.name = name;
+        this.size = size;
+        this.sort = sort;
+        this.topDocs = topDocs;
+        this.searchHits = searchHits;
+    }
+
+    public InternalTopHits(String name, InternalSearchHits searchHits) {
+        this.name = name;
+        this.searchHits = searchHits;
+    }
+
+
+        @Override
+    public Type type() {
+        return TYPE;
+    }
+
+    @Override
+    public SearchHits getHits() {
+        return searchHits;
+    }
+
+    @Override
+    public InternalAggregation reduce(ReduceContext reduceContext) {
+        List<InternalAggregation> aggregations = reduceContext.aggregations();
+        if (aggregations.size() == 1) {
+            return aggregations.get(0);
+        }
+
+        TopDocs[] shardDocs = new TopDocs[aggregations.size()];
+        InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];
+        for (int i = 0; i < shardDocs.length; i++) {
+            InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+            shardDocs[i] = topHitsAgg.topDocs;
+            shardHits[i] = topHitsAgg.searchHits;
+        }
+
+        try {
+            int[] counters = new int[shardHits.length];
+            TopDocs reducedTopDocs = TopDocs.merge(sort, size, shardDocs);
+            InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
+            for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
+                ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
+                hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(counters[scoreDoc.shardIndex]++);
+            }
+            return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        name = in.readString();
+        topDocs = Lucene.readTopDocs(in);
+        searchHits = InternalSearchHits.readSearchHits(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        Lucene.writeTopDocs(out, topDocs, 0);
+        searchHits.writeTo(out);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name);
+        searchHits.toXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+}

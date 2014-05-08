@@ -35,6 +35,7 @@ import java.util.ArrayList;
  */
 public class BenchmarkStatusResponse extends ActionResponse implements Streamable, ToXContent {
 
+    private int totalActiveBenchmarks = 0;
     private final List<BenchmarkResponse> benchmarkResponses = new ArrayList<>();
 
     public BenchmarkStatusResponse() { }
@@ -45,6 +46,14 @@ public class BenchmarkStatusResponse extends ActionResponse implements Streamabl
 
     public List<BenchmarkResponse> benchmarkResponses() {
         return benchmarkResponses;
+    }
+
+    public void totalActiveBenchmarks(int totalActiveBenchmarks) {
+        this.totalActiveBenchmarks = totalActiveBenchmarks;
+    }
+
+    public int totalActiveBenchmarks() {
+        return totalActiveBenchmarks;
     }
 
     @Override
@@ -66,6 +75,7 @@ public class BenchmarkStatusResponse extends ActionResponse implements Streamabl
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        totalActiveBenchmarks = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             BenchmarkResponse br = new BenchmarkResponse();
@@ -77,6 +87,7 @@ public class BenchmarkStatusResponse extends ActionResponse implements Streamabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVInt(totalActiveBenchmarks);
         out.writeVInt(benchmarkResponses.size());
         for (BenchmarkResponse br : benchmarkResponses) {
             br.writeTo(out);

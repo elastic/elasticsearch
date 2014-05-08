@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 
 import java.util.Map;
 
-import static org.junit.Assert.fail;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.between;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.randomFrom;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.randomBoolean;
@@ -43,6 +42,8 @@ public class BenchmarkTestUtil {
     public static final int MAX_MULTIPLIER = 500;
     public static final int MIN_SMALL_INTERVAL = 1;
     public static final int MAX_SMALL_INTERVAL = 3;
+    public static final int MIN_LARGE_INTERVAL = 11;
+    public static final int MAX_LARGE_INTERVAL = 19;
 
     public static final String BENCHMARK_NAME = "test_benchmark";
     public static final String COMPETITOR_PREFIX = "competitor_";
@@ -111,10 +112,11 @@ public class BenchmarkTestUtil {
     }
 
     public static BenchmarkRequest randomRequest(Client client, String[] indices, int numExecutorNodes,
-                                           Map<String, BenchmarkSettings> competitionSettingsMap) {
+                                                 Map<String, BenchmarkSettings> competitionSettingsMap,
+                                                 int lowRandomIntervalBound, int highRandomIntervalBound) {
 
         final BenchmarkRequestBuilder builder = new BenchmarkRequestBuilder(client, indices);
-        final BenchmarkSettings settings = randomSettings();
+        final BenchmarkSettings settings = randomSettings(lowRandomIntervalBound, highRandomIntervalBound);
 
         builder.setIterations(settings.iterations());
         builder.setConcurrency(settings.concurrency());
@@ -123,9 +125,10 @@ public class BenchmarkTestUtil {
         builder.setWarmup(settings.warmup());
         builder.setNumExecutorNodes(numExecutorNodes);
 
-        final int numCompetitors = between(MIN_SMALL_INTERVAL, MAX_SMALL_INTERVAL);
+        final int numCompetitors = between(lowRandomIntervalBound, highRandomIntervalBound);
         for (int i = 0; i < numCompetitors; i++) {
-            builder.addCompetitor(randomCompetitor(client, COMPETITOR_PREFIX + i, indices, competitionSettingsMap));
+            builder.addCompetitor(randomCompetitor(client, COMPETITOR_PREFIX + i, indices,
+                    competitionSettingsMap, lowRandomIntervalBound, highRandomIntervalBound));
         }
 
         final BenchmarkRequest request = builder.request();
@@ -134,6 +137,13 @@ public class BenchmarkTestUtil {
         request.applyLateBoundSettings(indices, new String[] { INDEX_TYPE });
 
         return request;
+    }
+
+    public static BenchmarkRequest randomRequest(Client client, String[] indices, int numExecutorNodes,
+                                           Map<String, BenchmarkSettings> competitionSettingsMap) {
+
+        return randomRequest(client, indices, numExecutorNodes,
+                competitionSettingsMap, MIN_SMALL_INTERVAL, MAX_SMALL_INTERVAL);
     }
 
     public static SearchRequest randomSearch(Client client, String[] indices) {
@@ -146,10 +156,11 @@ public class BenchmarkTestUtil {
     }
 
     public static BenchmarkCompetitor randomCompetitor(Client client, String name, String[] indices,
-                                                Map<String, BenchmarkSettings> competitionSettingsMap) {
+                                                Map<String, BenchmarkSettings> competitionSettingsMap,
+                                                int lowRandomIntervalBound, int highRandomIntervalBound) {
 
         final BenchmarkCompetitorBuilder builder = new BenchmarkCompetitorBuilder();
-        final BenchmarkSettings settings = randomSettings();
+        final BenchmarkSettings settings = randomSettings(lowRandomIntervalBound, highRandomIntervalBound);
 
         builder.setClearCachesSettings(randomCacheSettings());
         builder.setIterations(settings.iterations());
@@ -159,7 +170,7 @@ public class BenchmarkTestUtil {
         builder.setWarmup(settings.warmup());
         builder.setName(name);
 
-        final int numSearches = between(MIN_SMALL_INTERVAL, MAX_SMALL_INTERVAL);
+        final int numSearches = between(lowRandomIntervalBound, highRandomIntervalBound);
         for (int i = 0; i < numSearches; i++) {
             final SearchRequest searchRequest = randomSearch(client, indices);
             builder.addSearchRequest(searchRequest);
@@ -194,12 +205,12 @@ public class BenchmarkTestUtil {
         return settings;
     }
 
-    public static BenchmarkSettings randomSettings() {
+    public static BenchmarkSettings randomSettings(int lowRandomIntervalBound, int highRandomIntervalBound) {
 
         final BenchmarkSettings settings = new BenchmarkSettings();
 
-        settings.concurrency(between(MIN_SMALL_INTERVAL, MAX_SMALL_INTERVAL), true);
-        settings.iterations(between(MIN_SMALL_INTERVAL, MAX_SMALL_INTERVAL), true);
+        settings.concurrency(between(lowRandomIntervalBound, highRandomIntervalBound), true);
+        settings.iterations(between(lowRandomIntervalBound, highRandomIntervalBound), true);
         settings.multiplier(between(MIN_MULTIPLIER, MAX_MULTIPLIER), true);
         settings.warmup(randomBoolean(), true);
         settings.searchType(searchTypes[between(0, searchTypes.length - 1)], true);

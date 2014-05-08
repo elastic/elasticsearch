@@ -9,7 +9,6 @@ API. Here is an example:
 [source,js]
 --------------------------------------------------
 curl 'localhost:9200/_mtermvectors' -d '{
-{
    "docs": [
       {
          "_index": "testidx",

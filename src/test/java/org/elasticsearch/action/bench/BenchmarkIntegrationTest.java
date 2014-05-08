@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.bench;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -75,6 +76,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/6094")
     public void testSubmitBenchmark() throws Exception {
 
         final BenchmarkRequest request =
@@ -151,6 +153,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/6094")
     public void testAbortBenchmark() throws Exception {
 
         final BenchmarkRequest request =

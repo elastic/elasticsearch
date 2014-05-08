@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.*;
@@ -74,7 +75,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent) {
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+                LongBitSet includedTerms = ((ValuesSource.Bytes.WithOrdinals) valuesSource).includedTerms(aggregationContext.searchContext().searcher(), includeExclude);
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includedTerms, aggregationContext, parent);
             }
 
             @Override
@@ -89,7 +91,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent) {
-                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+                LongBitSet includedTerms = ((ValuesSource.Bytes.WithOrdinals) valuesSource).includedTerms(aggregationContext.searchContext().searcher(), includeExclude);
+                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includedTerms, aggregationContext, parent);
             }
 
             @Override

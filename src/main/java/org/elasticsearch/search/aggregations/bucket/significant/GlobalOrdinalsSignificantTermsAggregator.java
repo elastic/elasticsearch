@@ -20,13 +20,13 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -46,10 +46,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                                                     long estimatedBucketCount, long maxOrd, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount,
-                                                    IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
+                                                    LongBitSet includedTerms, AggregationContext aggregationContext, Aggregator parent,
                                                     SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+        super(name, factories, valuesSource, estimatedBucketCount, maxOrd, null, requiredSize, shardSize, minDocCount, includedTerms, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
         this.shardMinDocCount = shardMinDocCount;
     }
@@ -80,7 +80,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantStringTerms.Bucket spare = null;
         for (long globalTermOrd = Ordinals.MIN_ORDINAL; globalTermOrd < globalOrdinals.getMaxOrd(); ++globalTermOrd) {
-            if (includedGlobalOrdinals != null && !includedGlobalOrdinals.get(globalTermOrd)) {
+            if (includedTerms != null && !includedTerms.get(globalTermOrd)) {
                 continue;
             }
             final long bucketOrd = getBucketOrd(globalTermOrd);
@@ -138,8 +138,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, termsAggFactory);
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, LongBitSet includedTerms, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includedTerms, aggregationContext, parent, termsAggFactory);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -149,7 +149,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             final int numOrds = globalOrdinals.setDocument(doc);
             for (int i = 0; i < numOrds; i++) {
                 final long globalOrd = globalOrdinals.nextOrd();
-                if (includedGlobalOrdinals != null && !includedGlobalOrdinals.get(globalOrd)) {
+                if (includedTerms != null && !includedTerms.get(globalOrd)) {
                     continue;
                 }
                 long bucketOrd = bucketOrds.add(globalOrd);

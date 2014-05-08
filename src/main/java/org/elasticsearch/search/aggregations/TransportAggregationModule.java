@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.elasticsearch.search.aggregations.bucket.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
@@ -87,5 +88,6 @@ public class TransportAggregationModule extends AbstractModule {
         InternalGeoDistance.registerStream();
         InternalNested.registerStream();
         InternalReverseNested.registerStream();
+        InternalTopHits.registerStreams();
     }
 }

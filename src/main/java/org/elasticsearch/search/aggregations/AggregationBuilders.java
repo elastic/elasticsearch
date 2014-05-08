@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.tophits.TopHitsBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
@@ -140,5 +141,9 @@ public class AggregationBuilders {
 
     public static CardinalityBuilder cardinality(String name) {
         return new CardinalityBuilder(name);
+    }
+
+    public static TopHitsBuilder topHits(String name) {
+        return new TopHitsBuilder(name);
     }
 }

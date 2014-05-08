@@ -36,7 +36,8 @@ Download and install the Public Signing Key
 rpm --import http://packages.elasticsearch.org/GPG-KEY-elasticsearch
 --------------------------------------------------
 
-Add the following in your /etc/yum.repos.d/ directory
+Add the following in your `/etc/yum.repos.d/` directory
+in a file named (for example) `elasticsearch.repo`
 
 [source,sh]
 --------------------------------------------------
@@ -48,5 +49,9 @@ gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
 enabled=1
 --------------------------------------------------
 
-And your repository is ready for use.
+And your repository is ready for use. You can install it with :
 
+[source,sh]
+--------------------------------------------------
+yum install elasticsearch
+--------------------------------------------------

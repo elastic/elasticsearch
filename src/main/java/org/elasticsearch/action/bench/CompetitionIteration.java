@@ -67,7 +67,7 @@ public class CompetitionIteration implements Streamable {
 
     public void computeStatistics() {
 
-        SinglePassStatistics single = new SinglePassStatistics();
+        final SinglePassStatistics single = new SinglePassStatistics();
 
         for (long datum : iterationData.data()) {
             if (datum > -1) {   // ignore unset values in the underlying array

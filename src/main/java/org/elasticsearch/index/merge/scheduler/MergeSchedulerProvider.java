@@ -127,4 +127,6 @@ public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent
     public abstract MergeStats stats();
 
     public abstract Set<OnGoingMerge> onGoingMerges();
+
+    public abstract void close();
 }

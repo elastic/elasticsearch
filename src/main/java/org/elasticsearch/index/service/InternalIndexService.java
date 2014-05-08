@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
+import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.PercolatorShardModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -401,6 +402,12 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
             shardInjector.getInstance(Engine.class).close();
         } catch (Throwable e) {
             logger.debug("failed to close engine", e);
+            // ignore
+        }
+        try {
+            shardInjector.getInstance(MergeSchedulerProvider.class).close();
+        } catch (Throwable e) {
+            logger.debug("failed to close merge policy scheduler", e);
             // ignore
         }
         try {

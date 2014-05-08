@@ -56,7 +56,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final BenchmarkExecutor executor;
+    protected final BenchmarkExecutor executor;
 
     /**
      * Constructs a service component for running benchmarks
@@ -463,6 +463,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         protected void sendResponse() {
+            int activeBenchmarks = 0;
             BenchmarkStatusResponse consolidatedResponse = new BenchmarkStatusResponse();
             Map<String, List<BenchmarkResponse>> nameNodeResponseMap = new HashMap<>();
 
@@ -476,6 +477,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                     }
                     benchmarkResponses.add(benchmarkResponse);
                 }
+                activeBenchmarks += nodeResponse.activeBenchmarks();
             }
 
             for (Map.Entry<String, List<BenchmarkResponse>> entry : nameNodeResponseMap.entrySet()) {
@@ -483,6 +485,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                 consolidatedResponse.addBenchResponse(consolidated);
             }
 
+            consolidatedResponse.totalActiveBenchmarks(activeBenchmarks);
             listener.onResponse(consolidatedResponse);
         }
     }

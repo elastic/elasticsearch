@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.action.bench;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.action.ActionListener;
+import com.google.common.base.Predicate;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -33,11 +33,8 @@ import org.junit.Test;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.*;
@@ -57,7 +54,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     private static final int MAX_DOC_COUNT = 1000;
 
     private static final TimeUnit TIME_UNIT = TimeUnit.SECONDS;
-    private static final long TIMEOUT = 10;
+    private static final long TIMEOUT = 20;
 
     private int numExecutorNodes = 0;
     private Map<String, BenchmarkSettings> competitionSettingsMap;
@@ -66,6 +63,15 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder().put("node.bench", true).build();
     }
+
+    private final Predicate<Object> statusPredicate = new Predicate<Object>() {
+        @Override
+        public boolean apply(Object input) {
+            final BenchmarkStatusResponse status = client().prepareBenchStatus().execute().actionGet();
+            // We expect to have one active benchmark on each node
+            return (status.totalActiveBenchmarks() == numExecutorNodes);
+        }
+    };
 
     @Before
     public void beforeBenchmarkIntegrationTests() throws Exception {
@@ -76,7 +82,6 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/6094")
     public void testSubmitBenchmark() throws Exception {
 
         final BenchmarkRequest request =
@@ -101,33 +106,20 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     public void testListBenchmarks() throws Exception {
 
         final BenchmarkRequest request =
-                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap);
+                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap,
+                        BenchmarkTestUtil.MIN_LARGE_INTERVAL, BenchmarkTestUtil.MAX_LARGE_INTERVAL);
         logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
 
-        final CountDownLatch countdown = new CountDownLatch(1);
-        final List<Throwable> throwables = new ArrayList<>();
+        client().bench(request);
 
-        client().bench(request, new ActionListener<BenchmarkResponse>() {
-            @Override
-            public void onResponse(BenchmarkResponse benchmarkResponse) {
-                countdown.countDown();
-            }
-            @Override
-            public void onFailure(Throwable e) {
-                throwables.add(e);
-                countdown.countDown();
-            }
-        });
+        final boolean ret = awaitBusy(statusPredicate, TIMEOUT, TIME_UNIT);
+        assertTrue(ret);
 
-        // Attempt to 'yield' to the thread executing the benchmark; we want it to start executing, but not
-        // to finish so that we can 'capture' an in-progress state
-        Thread.sleep(1000);
+        final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
+        assertThat(statusResponse.benchmarkResponses().size(), greaterThanOrEqualTo(0));
 
-        final BenchmarkStatusResponse response = client().prepareBenchStatus().execute().actionGet();
-        assertThat(response.benchmarkResponses().size(), greaterThanOrEqualTo(0));
-
-        for (BenchmarkResponse benchmarkResponse : response.benchmarkResponses()) {
+        for (BenchmarkResponse benchmarkResponse : statusResponse.benchmarkResponses()) {
 
             assertThat(benchmarkResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
             assertThat(benchmarkResponse.state(), equalTo(BenchmarkResponse.State.RUNNING));
@@ -138,74 +130,41 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
                 validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), false);
             }
         }
-
-        // Wait for active benchmark to finish; not fatal if we timeout as the framework will tear down the cluster
-        if (!countdown.await(TIMEOUT, TIME_UNIT)) {
-            logger.warn("Timeout waiting to for benchmark to complete");
-        }
-
-        if (throwables.size() > 0) {
-            for (Throwable t : throwables) {
-                logger.error(t.getMessage(), t);
-            }
-            fail("Failed to execute benchmark");
-        }
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/6094")
     public void testAbortBenchmark() throws Exception {
 
         final BenchmarkRequest request =
-                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap);
+                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap,
+                        BenchmarkTestUtil.MIN_LARGE_INTERVAL, BenchmarkTestUtil.MAX_LARGE_INTERVAL);
         logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
 
-        final CountDownLatch countdown = new CountDownLatch(1);
-        final List<Throwable> throwables = new ArrayList<>();
+        final ActionFuture<BenchmarkResponse> benchmarkResponse = client().bench(request);
 
-        client().bench(request, new ActionListener<BenchmarkResponse>() {
-            @Override
-            public void onResponse(BenchmarkResponse benchmarkResponse) {
-                countdown.countDown();
-                assertThat(benchmarkResponse.state(), equalTo(BenchmarkResponse.State.ABORTED));
-            }
-            @Override
-            public void onFailure(Throwable e) {
-                throwables.add(e);
-                countdown.countDown();
-            }
-        });
+        final boolean ret = awaitBusy(statusPredicate, TIMEOUT, TIME_UNIT);
+        assertTrue(ret);
 
-        // Attempt to 'yield' to the thread executing the benchmark; we want it to start executing, but not
-        // to finish so that we can successfully execute an abort operation on it.
-        Thread.sleep(1000);
+        final AbortBenchmarkResponse abortResponse =
+                client().prepareAbortBench(BENCHMARK_NAME).execute().actionGet();
 
-        final AbortBenchmarkResponse response = client().prepareAbortBench(BENCHMARK_NAME).execute().actionGet();
-        assertThat(response.getNodeResponses().size(), lessThanOrEqualTo(numExecutorNodes));
-        assertThat(response.getBenchmarkName(), equalTo(BENCHMARK_NAME));
+        // Confirm that the benchmark was actually aborted and did not finish on its own
+        assertThat(abortResponse.getNodeResponses().size(), lessThanOrEqualTo(numExecutorNodes));
+        assertThat(abortResponse.getBenchmarkName(), equalTo(BENCHMARK_NAME));
 
-        for (AbortBenchmarkNodeResponse nodeResponse : response.getNodeResponses()) {
+        for (AbortBenchmarkNodeResponse nodeResponse : abortResponse.getNodeResponses()) {
             assertThat(nodeResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
             assertThat(nodeResponse.errorMessage(), nullValue());
             assertThat(nodeResponse.nodeName(), notNullValue());
         }
 
-        // Send a list request to make sure there are no active benchmarks
+        // Confirm that there are no active benchmarks in the cluster
         final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
-        assertThat(statusResponse.benchmarkResponses().size(), equalTo(0));
+        assertThat(statusResponse.totalActiveBenchmarks(), equalTo(0));
 
-        // Wait for active benchmark to finish; not fatal if we timeout as the framework will tear down the cluster
-        if (!countdown.await(TIMEOUT, TIME_UNIT)) {
-            logger.warn("Timeout waiting to for benchmark to complete");
-        }
-
-        if (throwables.size() > 0) {
-            for (Throwable t : throwables) {
-                logger.error(t.getMessage(), t);
-            }
-            fail("Failed to execute benchmark");
-        }
+        // Confirm that benchmark was indeed aborted
+        assertThat(benchmarkResponse.get().state(), equalTo(BenchmarkResponse.State.ABORTED));
     }
 
     @Test(expected = BenchmarkMissingException.class)
@@ -308,6 +267,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             indexRandom(true, docs);
         }
 
+        flushAndRefresh();
         return indices;
     }
 }

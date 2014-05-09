@@ -903,8 +903,6 @@ public class XAnalyzingSuggester extends Lookup {
 
       replaceSep(automaton, preserveSep, sepLabel);
 
-      assert SpecialOperations.isFinite(automaton);
-
       // Get all paths from the automaton (there can be
       // more than one path, eg if the analyzer created a
       // graph using SynFilter or WDF):

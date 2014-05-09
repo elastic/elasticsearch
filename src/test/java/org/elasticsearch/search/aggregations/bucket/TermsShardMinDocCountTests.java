@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -41,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTest {
+public class TermsShardMinDocCountTests extends ElasticsearchIntegrationTest {
     private static final String index = "someindex";
     private static final String type = "testtype";
     public String randomExecutionHint() {
@@ -50,7 +52,7 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
 
     // see https://github.com/elasticsearch/elasticsearch/issues/5998
     @Test
-    public void shardMinDocCountTest() throws Exception {
+    public void shardMinDocCountSignificantTermsTest() throws Exception {
 
         String termtype = "string";
         if (randomBoolean()) {
@@ -108,4 +110,53 @@ public class SignificantTermsMinDocCountTests extends ElasticsearchIntegrationTe
         }
     }
 
+    // see https://github.com/elasticsearch/elasticsearch/issues/5998
+    @Test
+    public void shardMinDocCountTermsTest() throws Exception {
+        final String [] termTypes = {"string", "long", "integer", "float", "double"};
+        String termtype = termTypes[randomInt(termTypes.length - 1)];
+
+        assertAcked(prepareCreate(index).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping(type, "{\"properties\":{\"text\": {\"type\": \"" + termtype + "\"}}}"));
+        ensureYellow(index);
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
+
+        addTermsDocs("1", 1, indexBuilders);//low doc freq but high score
+        addTermsDocs("2", 1, indexBuilders);
+        addTermsDocs("3", 1, indexBuilders);
+        addTermsDocs("4", 1, indexBuilders);
+        addTermsDocs("5", 3, indexBuilders);//low score but high doc freq
+        addTermsDocs("6", 3, indexBuilders);
+        indexRandom(true, indexBuilders);
+
+        // first, check that indeed when not setting the shardMinDocCount parameter 0 terms are returned
+        SearchResponse response = client().prepareSearch(index)
+                .addAggregation(
+                        new TermsBuilder("myTerms").field("text").minDocCount(2).size(2).executionHint(randomExecutionHint()).order(Terms.Order.term(true))
+                )
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        Terms sigterms = response.getAggregations().get("myTerms");
+        assertThat(sigterms.getBuckets().size(), equalTo(0));
+
+
+        response = client().prepareSearch(index)
+                .addAggregation(
+                        new TermsBuilder("myTerms").field("text").minDocCount(2).shardMinDocCount(2).size(2).executionHint(randomExecutionHint()).order(Terms.Order.term(true))
+                )
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        sigterms = response.getAggregations().get("myTerms");
+        assertThat(sigterms.getBuckets().size(), equalTo(2));
+
+    }
+
+    private void addTermsDocs(String term, int numDocs, List<IndexRequestBuilder> builders) {
+        String sourceClass = "{\"text\": \"" + term + "\"}";
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(client().prepareIndex(index, type).setSource(sourceClass));
+        }
+
+    }
 }

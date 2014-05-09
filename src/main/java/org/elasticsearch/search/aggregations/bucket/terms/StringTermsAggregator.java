@@ -221,7 +221,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             bucketOrds.get(i, spare.termBytes);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];

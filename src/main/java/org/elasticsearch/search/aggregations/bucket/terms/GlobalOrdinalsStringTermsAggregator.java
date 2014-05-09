@@ -138,7 +138,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
             copy(globalValues.getValueByOrd(globalTermOrd), spare.termBytes);
-            spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];

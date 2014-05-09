@@ -112,7 +112,9 @@ public class LongTermsAggregator extends TermsAggregator {
             spare.term = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];

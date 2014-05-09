@@ -47,6 +47,7 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     private final InetSocketAddress[] httpAddresses;
 
     private final int numDataNodes;
+    private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
         this.client = new TransportClient(ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true))
@@ -55,14 +56,19 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
         int dataNodes = 0;
+        int benchNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
             NodeInfo nodeInfo = nodeInfos.getNodes()[i];
             httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
             if (nodeInfo.getSettings().getAsBoolean("node.data", true)) {
                 dataNodes++;
             }
+            if (nodeInfo.getSettings().getAsBoolean("node.bench", false)) {
+                benchNodes++;
+            }
         }
         this.numDataNodes = dataNodes;
+        this.numBenchNodes = benchNodes;
         logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
 
@@ -84,6 +90,11 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     @Override
     public int numDataNodes() {
         return numDataNodes;
+    }
+
+    @Override
+    public int numBenchNodes() {
+        return numBenchNodes;
     }
 
     @Override

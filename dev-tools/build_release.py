@@ -399,7 +399,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     else:
       background = '-d'
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
-    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false %s'
+    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false -Des.node.bench=true %s'
          % (java_exe(), es_run_path, background))
     conn = HTTPConnection('127.0.0.1', 9200, 20);
     wait_for_node_startup()

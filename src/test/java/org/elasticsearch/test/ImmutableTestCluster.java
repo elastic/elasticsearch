@@ -101,6 +101,11 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     public abstract int numDataNodes();
 
     /**
+     * Returns the number of bench nodes in the cluster.
+     */
+    public abstract int numBenchNodes();
+
+    /**
      * Returns the http addresses of the nodes within the cluster.
      * Can be used to run REST tests against the test cluster.
      */

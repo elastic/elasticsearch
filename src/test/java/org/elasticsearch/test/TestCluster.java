@@ -82,6 +82,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
@@ -126,6 +127,8 @@ public final class TestCluster extends ImmutableTestCluster {
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
+    static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
+
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
@@ -148,19 +151,21 @@ public final class TestCluster extends ImmutableTestCluster {
 
     private final int numSharedClientNodes;
 
+    private final boolean enableRandomBenchNodes;
+
     private final NodeSettingsSource nodeSettingsSource;
 
     private final ExecutorService executor;
 
     public TestCluster(long clusterSeed, String clusterName) {
-        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES);
+        this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES, DEFAULT_ENABLE_RANDOM_BENCH_NODES);
     }
 
-    public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, NodeSettingsSource.EMPTY, numClientNodes);
+    public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, NodeSettingsSource.EMPTY, numClientNodes, enableRandomBenchNodes);
     }
 
-    public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeSettingsSource nodeSettingsSource, int numClientNodes) {
+    public TestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, NodeSettingsSource nodeSettingsSource, int numClientNodes, boolean enableRandomBenchNodes) {
         this.clusterName = clusterName;
 
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -187,6 +192,8 @@ public final class TestCluster extends ImmutableTestCluster {
             }
         }
         assert this.numSharedClientNodes >=0;
+
+        this.enableRandomBenchNodes = enableRandomBenchNodes;
 
         /*
          *  TODO
@@ -752,8 +759,12 @@ public final class TestCluster extends ImmutableTestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Settings clientSettings = ImmutableSettings.builder().put("node.data", "false").put("node.master", "false").build();
-                nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettings, Version.CURRENT);
+                Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.data", false).put("node.master", false);
+                if (enableRandomBenchNodes && frequently()) {
+                    //client nodes might also be bench nodes
+                    clientSettingsBuilder.put("node.bench", true);
+                }
+                nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
             }
@@ -1243,6 +1254,11 @@ public final class TestCluster extends ImmutableTestCluster {
         return dataNodeAndClients().size();
     }
 
+    @Override
+    public int numBenchNodes() {
+        return benchNodeAndClients().size();
+    }
+
     private synchronized Collection<NodeAndClient> dataNodeAndClients() {
         return Collections2.filter(nodes.values(), new DataNodePredicate());
     }
@@ -1271,6 +1287,17 @@ public final class TestCluster extends ImmutableTestCluster {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
             return nodeAndClient.node.settings().getAsBoolean("node.client", false);
+        }
+    }
+
+    private synchronized Collection<NodeAndClient> benchNodeAndClients() {
+        return Collections2.filter(nodes.values(), new BenchNodePredicate());
+    }
+
+    private static final class BenchNodePredicate implements Predicate<NodeAndClient> {
+        @Override
+        public boolean apply(NodeAndClient nodeAndClient) {
+            return nodeAndClient.node.settings().getAsBoolean("node.bench", false);
         }
     }
 

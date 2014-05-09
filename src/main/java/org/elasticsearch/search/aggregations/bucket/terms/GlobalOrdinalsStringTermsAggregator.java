@@ -62,9 +62,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected LongBitSet acceptedGlobalOrdinals;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount,
+                                               long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds,
                                                IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, factories, maxOrd, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
+        super(name, factories, maxOrd, aggregationContext, parent, order, bucketCountThresholds);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
     }
@@ -115,11 +115,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         final int size;
-        if (minDocCount == 0) {
+        if (bucketCountThresholds.getMinDocCount() == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = (int) Math.min(globalOrdinals.getMaxOrd(), shardSize);
+            size = (int) Math.min(globalOrdinals.getMaxOrd(), bucketCountThresholds.getShardSize());
         } else {
-            size = (int) Math.min(maxBucketOrd(), shardSize);
+            size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
@@ -129,7 +129,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
             final long bucketOrd = getBucketOrd(globalTermOrd);
             final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
-            if (minDocCount > 0 && bucketDocCount == 0) {
+            if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
             if (spare == null) {
@@ -148,7 +148,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             list[i] = bucket;
         }
 
-        return new StringTerms(name, order, requiredSize, minDocCount, Arrays.asList(list));
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
     /**
@@ -160,10 +160,10 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongHash bucketOrds;
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                        long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude, AggregationContext aggregationContext,
+                        long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext,
                         Aggregator parent) {
             // Set maxOrd to estimatedBucketCount! To be conservative with memory.
-            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
+            super(name, factories, valuesSource, estimatedBucketCount, estimatedBucketCount, order, bucketCountThresholds, includeExclude, aggregationContext, parent);
             bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
         }
 
@@ -207,8 +207,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private LongArray current;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, null, aggregationContext, parent);
+                              long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, null, aggregationContext, parent);
             this.segmentDocCounts = bigArrays.newLongArray(maxOrd, true);
         }
 

@@ -4,7 +4,7 @@
     "methods": ["GET"],
     "url": {
       "path": "/_cat/fielddata",
-      "paths": ["/_cat/fielddata", "/_cat/allocation/{fields}"],
+      "paths": ["/_cat/fielddata", "/_cat/fielddata/{fields}"],
       "parts": {
         "fields": {
           "type": "list",

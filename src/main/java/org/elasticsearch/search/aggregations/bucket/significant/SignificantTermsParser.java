@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
@@ -32,8 +33,6 @@ import java.io.IOException;
  *
  */
 public class SignificantTermsParser implements Aggregator.Parser {
-
-
 
     @Override
     public String type() {
@@ -51,8 +50,9 @@ public class SignificantTermsParser implements Aggregator.Parser {
                 .build();
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, SignificantStringTerms.TYPE, context);
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
-        int shardSize = aggParser.getShardSize();
-        if ( shardSize == aggParser.DEFAULT_SHARD_SIZE) {
+
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
+        if (bucketCountThresholds.getShardSize() == new SignificantTermsParametersParser().getDefaultBucketCountThresholds().getShardSize()) {
             //The user has not made a shardSize selection .
             //Use default heuristic to avoid any wrong-ranking caused by distributed counting
             //but request double the usual amount.
@@ -60,20 +60,10 @@ public class SignificantTermsParser implements Aggregator.Parser {
             //as the significance algorithm is in less of a position to down-select at shard-level -
             //some of the things we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms at that early stage.
-            shardSize = 2 * BucketUtils.suggestShardSideQueueSize(aggParser.getRequiredSize(), context.numberOfShards());
-
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(), context.numberOfShards()));
         }
 
-        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-        if (shardSize < aggParser.getRequiredSize()) {
-            shardSize = aggParser.getRequiredSize();
-        }
-
-        long shardMinDocCount = aggParser.getShardMinDocCount();
-        // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
-        if (shardMinDocCount > aggParser.getMinDocCount()) {
-            shardMinDocCount = aggParser.getMinDocCount();
-        }
-        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), aggParser.getRequiredSize(), shardSize, aggParser.getMinDocCount(), shardMinDocCount, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter());
+        bucketCountThresholds.ensureValidity();
+        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter());
     }
 }

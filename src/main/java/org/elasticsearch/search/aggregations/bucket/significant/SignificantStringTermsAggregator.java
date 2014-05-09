@@ -45,17 +45,14 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     protected long numCollectedDocs;
     protected final SignificantTermsAggregatorFactory termsAggFactory;
-    protected long shardMinDocCount;
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            long estimatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount,
+            long estimatedBucketCount, BucketCountThresholds bucketCountThresholds,
             IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
             SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, estimatedBucketCount, null, requiredSize, shardSize,
-                minDocCount, includeExclude, aggregationContext, parent);
+        super(name, factories, valuesSource, estimatedBucketCount, null, bucketCountThresholds, includeExclude, aggregationContext, parent);
         this.termsAggFactory = termsAggFactory;
-        this.shardMinDocCount = shardMinDocCount;
     }
 
     @Override
@@ -68,7 +65,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        final int size = (int) Math.min(bucketOrds.size(), shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
         long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
 
@@ -91,7 +88,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             spare.updateScore();
 
             spare.bucketOrd = i;
-            if (spare.subsetDf >= shardMinDocCount) {
+            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
                 spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
@@ -105,7 +102,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, requiredSize, minDocCount, Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
     @Override
@@ -114,7 +111,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, requiredSize, minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override
@@ -133,9 +130,9 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         private LongArray ordinalToBucket;
 
         public WithOrdinals(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                long esitmatedBucketCount, int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, AggregationContext aggregationContext,
+                long esitmatedBucketCount, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext,
                 Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, esitmatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, null, aggregationContext, parent, termsAggFactory);
+            super(name, factories, valuesSource, esitmatedBucketCount, bucketCountThresholds, null, aggregationContext, parent, termsAggFactory);
             this.valuesSource = valuesSource;
         }
 

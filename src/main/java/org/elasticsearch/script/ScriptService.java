@@ -212,7 +212,7 @@ public class ScriptService extends AbstractComponent {
                         if (s.equals(scriptNameExt.v2())) {
                             found = true;
                             try {
-                                logger.trace("compiling script file " + file.getAbsolutePath());
+                                logger.info("compiling script file [{}]", file.getAbsolutePath());
                                 String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
                                 staticCache.put(scriptNameExt.v1(), new CompiledScript(engineService.types()[0], engineService.compile(script)));
                             } catch (Throwable e) {
@@ -239,7 +239,7 @@ public class ScriptService extends AbstractComponent {
         @Override
         public void onFileDeleted(File file) {
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            logger.trace("removing script file " + file.getAbsolutePath());
+            logger.info("removing script file [{}]", file.getAbsolutePath());
             staticCache.remove(scriptNameExt.v1());
         }
 

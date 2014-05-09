@@ -27,8 +27,8 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 
 /**
- * Controls how to deal when concrete indices are unavailable (closed & missing), to what wildcard expression expand
- * (all, closed or open indices) and how to deal when a wildcard expression resolves into no concrete indices.
+ * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
+ * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
 public class IndicesOptions {
 
@@ -56,22 +56,22 @@ public class IndicesOptions {
     }
 
     /**
-     * @return Whether to ignore if a wildcard indices expression resolves into no concrete indices.
-     *         The `_all` string or when no indices have been specified also count as wildcard expressions.
+     * @return Whether to ignore if a wildcard expression resolves to no concrete indices.
+     *         The `_all` string or empty list of indices count as wildcard expressions too.
      */
     public boolean allowNoIndices() {
         return (id & 2) != 0;
     }
 
     /**
-     * @return Whether wildcard indices expressions should expanded into open indices should be
+     * @return Whether wildcard expressions should get expanded to open indices
      */
     public boolean expandWildcardsOpen() {
         return (id & 4) != 0;
     }
 
     /**
-     * @return Whether wildcard indices expressions should expanded into closed indices should be
+     * @return Whether wildcard expressions should get expanded to closed indices
      */
     public boolean expandWildcardsClosed() {
         return (id & 8) != 0;

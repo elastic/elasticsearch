@@ -53,10 +53,10 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     private BytesValues values;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                                 InternalOrder order, int requiredSize, int shardSize, long minDocCount,
+                                 InternalOrder order, BucketCountThresholds bucketCountThresholds,
                                  IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent) {
 
-        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, requiredSize, shardSize, minDocCount);
+        super(name, factories, estimatedBucketCount, aggregationContext, parent, order, bucketCountThresholds);
         this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
         bucketOrds = new BytesRefHash(estimatedBucketCount, aggregationContext.bigArrays());
@@ -138,7 +138,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
+        if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             List<BytesValues.WithOrdinals> valuesWithOrdinals = Lists.newArrayList();
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
@@ -186,19 +186,19 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                     // let's try to find `shardSize` terms that matched no hit
                     // this one needs shardSize and not requiredSize because even though terms have a count of 0 here,
                     // they might have higher counts on other shards
-                    for (int added = 0; added < shardSize && terms.hasNext(); ) {
+                    for (int added = 0; added < bucketCountThresholds.getShardSize() && terms.hasNext(); ) {
                         if (bucketOrds.add(terms.next()) >= 0) {
                             ++added;
                         }
                     }
                 } else if (order == InternalOrder.COUNT_DESC) {
                     // add terms until there are enough buckets
-                    while (bucketOrds.size() < requiredSize && terms.hasNext()) {
+                    while (bucketOrds.size() < bucketCountThresholds.getRequiredSize() && terms.hasNext()) {
                         bucketOrds.add(terms.next());
                     }
                 } else if (order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC) {
                     // add the `requiredSize` least terms
-                    for (int i = 0; i < requiredSize && terms.hasNext(); ++i) {
+                    for (int i = 0; i < bucketCountThresholds.getRequiredSize() && terms.hasNext(); ++i) {
                         bucketOrds.add(terms.next());
                     }
                 } else {
@@ -210,7 +210,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             }
         }
 
-        final int size = (int) Math.min(bucketOrds.size(), shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
@@ -233,12 +233,12 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             list[i] = bucket;
         }
 
-        return new StringTerms(name, order, requiredSize, minDocCount, Arrays.asList(list));
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override
@@ -257,8 +257,8 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         private LongArray ordinalToBucket;
 
         public WithOrdinals(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource, long esitmatedBucketCount,
-                InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-            super(name, factories, valuesSource, esitmatedBucketCount, order, requiredSize, shardSize, minDocCount, null, aggregationContext, parent);
+                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
+            super(name, factories, valuesSource, esitmatedBucketCount, order, bucketCountThresholds, null, aggregationContext, parent);
             this.valuesSource = valuesSource;
         }
 

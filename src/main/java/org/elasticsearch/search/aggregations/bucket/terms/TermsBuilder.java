@@ -30,10 +30,8 @@ import java.util.Locale;
  */
 public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
+    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(-1, -1, -1, -1);
 
-    private int size = -1;
-    private int shardSize = -1;
-    private long minDocCount = -1;
     private Terms.ValueType valueType;
     private Terms.Order order;
     private String includePattern;
@@ -50,7 +48,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Sets the size - indicating how many term buckets should be returned (defaults to 10)
      */
     public TermsBuilder size(int size) {
-        this.size = size;
+        bucketCountThresholds.setRequiredSize(size);
         return this;
     }
 
@@ -59,7 +57,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * node that coordinates the search execution). The higher the shard size is, the more accurate the results are.
      */
     public TermsBuilder shardSize(int shardSize) {
-        this.shardSize = shardSize;
+        bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
 
@@ -67,7 +65,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Set the minimum document count terms should have in order to appear in the response.
      */
     public TermsBuilder minDocCount(long minDocCount) {
-        this.minDocCount = minDocCount;
+        bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
 
@@ -138,14 +136,11 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
-        if (size >=0) {
-            builder.field("size", size);
-        }
-        if (shardSize >= 0) {
-            builder.field("shard_size", shardSize);
-        }
-        if (minDocCount >= 0) {
-            builder.field("min_doc_count", minDocCount);
+
+        bucketCountThresholds.toXContent(builder);
+
+        if (executionHint != null) {
+            builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
         if (valueType != null) {
             builder.field("value_type", valueType.name().toLowerCase(Locale.ROOT));
@@ -173,9 +168,6 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
                         .field("flags", excludeFlags)
                         .endObject();
             }
-        }
-        if (executionHint != null) {
-            builder.field("execution_hint", executionHint);
         }
         return builder;
     }

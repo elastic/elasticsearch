@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -39,26 +38,20 @@ import java.util.Collections;
 /**
  *
  */
-public class DoubleTermsAggregator extends BucketsAggregator {
+public class DoubleTermsAggregator extends TermsAggregator {
 
     private final InternalOrder order;
-    private final int requiredSize;
-    private final int shardSize;
-    private final long minDocCount;
     private final ValuesSource.Numeric valuesSource;
     private final ValueFormatter formatter;
     private final LongHash bucketOrds;
     private DoubleValues values;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
-                               InternalOrder order, int requiredSize, int shardSize, long minDocCount, AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent);
+                               InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent) {
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
         this.order = InternalOrder.validate(order, this);
-        this.requiredSize = requiredSize;
-        this.shardSize = shardSize;
-        this.minDocCount = minDocCount;
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
 
@@ -94,7 +87,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
     public DoubleTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        if (minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < requiredSize)) {
+        if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
@@ -108,7 +101,7 @@ public class DoubleTermsAggregator extends BucketsAggregator {
             }
         }
 
-        final int size = (int) Math.min(bucketOrds.size(), shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         DoubleTerms.Bucket spare = null;
@@ -128,12 +121,12 @@ public class DoubleTermsAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Arrays.asList(list));
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
     @Override
     public DoubleTerms buildEmptyAggregation() {
-        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, Collections.<InternalTerms.Bucket>emptyList());
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override

@@ -29,37 +29,19 @@ import java.io.IOException;
 
 public abstract class AbstractTermsParametersParser {
 
-    public static final int DEFAULT_REQUIRED_SIZE = 10;
-    public static final int DEFAULT_SHARD_SIZE = -1;
-
-    //Typically need more than one occurrence of something for it to be statistically significant
-    public static final int DEFAULT_MIN_DOC_COUNT = 1;
-    public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 1;
-
     static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
     static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
     static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
 
-    public int getRequiredSize() {
-        return requiredSize;
-    }
+    //These are the results of the parsing.
+    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds();
 
-    public int getShardSize() {
-        return shardSize;
-    }
+    private String executionHint = null;
 
-    public void setMinDocCount(long minDocCount) {
-        this.minDocCount = minDocCount;
-    }
+    IncludeExclude includeExclude;
 
-    public long getMinDocCount() {
-        return minDocCount;
-    }
-
-    public long getShardMinDocCount() {
-        return shardMinDocCount;
-    }
+    public TermsAggregator.BucketCountThresholds getBucketCountThresholds() {return bucketCountThresholds;}
 
     //These are the results of the parsing.
 
@@ -71,17 +53,10 @@ public abstract class AbstractTermsParametersParser {
         return includeExclude;
     }
 
-    private int requiredSize = DEFAULT_REQUIRED_SIZE;
-    private int shardSize = DEFAULT_SHARD_SIZE;
-    private long minDocCount = DEFAULT_MIN_DOC_COUNT;
-    private long shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
-    private String executionHint = null;
-    IncludeExclude includeExclude;
-
     public void parse(String aggregationName, XContentParser parser, SearchContext context, ValuesSourceParser vsParser, IncludeExclude.Parser incExcParser) throws IOException {
+        bucketCountThresholds = getDefaultBucketCountThresholds();
         XContentParser.Token token;
         String currentFieldName = null;
-        setDefaults();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -98,13 +73,13 @@ public abstract class AbstractTermsParametersParser {
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("size".equals(currentFieldName)) {
-                    requiredSize = parser.intValue();
+                    bucketCountThresholds.requiredSize = parser.intValue();
                 } else if (SHARD_SIZE_FIELD_NAME.match(currentFieldName)) {
-                    shardSize = parser.intValue();
+                    bucketCountThresholds.shardSize = parser.intValue();
                 } else if (MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)) {
-                    minDocCount = parser.intValue();
+                    bucketCountThresholds.minDocCount = parser.intValue();
                 } else if (SHARD_MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)) {
-                    shardMinDocCount = parser.longValue();
+                    bucketCountThresholds.shardMinDocCount = parser.longValue();
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }
@@ -117,5 +92,5 @@ public abstract class AbstractTermsParametersParser {
 
     public abstract void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException;
 
-    public abstract void setDefaults();
+    public abstract TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds();
 }

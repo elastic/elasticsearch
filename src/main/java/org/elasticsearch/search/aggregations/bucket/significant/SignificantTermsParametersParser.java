@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -32,16 +33,14 @@ import java.io.IOException;
 
 public class SignificantTermsParametersParser extends AbstractTermsParametersParser {
 
-
     public Filter getFilter() {
         return filter;
     }
 
     private Filter filter = null;
 
-    @Override
-    public void setDefaults() {
-        setMinDocCount(3);
+    public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
+        return SignificantTermsBuilder.getDefaultBucketCountThresholds();
     }
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");

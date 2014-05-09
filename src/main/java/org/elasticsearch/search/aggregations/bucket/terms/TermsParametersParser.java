@@ -41,10 +41,6 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
     boolean orderAsc = false;
 
     @Override
-    public void setDefaults() {
-    }
-
-    @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
             if ("order".equals(currentFieldName)) {
@@ -72,4 +68,8 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
         }
     }
 
+    @Override
+    public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
+        return TermsBuilder.getDefaultBucketCountThresholds();
+    }
 }

@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
 import java.io.IOException;
 
@@ -34,11 +34,10 @@ import java.io.IOException;
  */
 public class SignificantTermsBuilder extends AggregationBuilder<SignificantTermsBuilder> {
 
+    private TermsAggregator.BucketCountThresholds bucketCountThresholds = getDefaultBucketCountThresholds();
+    private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(3, 0, 10, -1);
+
     private String field;
-    private int requiredSize = AbstractTermsParametersParser.DEFAULT_REQUIRED_SIZE;
-    private int shardSize = AbstractTermsParametersParser.DEFAULT_SHARD_SIZE;
-    private int minDocCount = AbstractTermsParametersParser.DEFAULT_MIN_DOC_COUNT;
-    private int shardMinDocCount = AbstractTermsParametersParser.DEFAULT_SHARD_MIN_DOC_COUNT;
     private String executionHint;
     private String includePattern;
     private int includeFlags;
@@ -57,17 +56,17 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     }
 
     public SignificantTermsBuilder size(int requiredSize) {
-        this.requiredSize = requiredSize;
+        bucketCountThresholds.requiredSize = requiredSize;
         return this;
     }
 
     public SignificantTermsBuilder shardSize(int shardSize) {
-        this.shardSize = shardSize;
+        bucketCountThresholds.shardSize = shardSize;
         return this;
     }
 
     public SignificantTermsBuilder minDocCount(int minDocCount) {
-        this.minDocCount = minDocCount;
+        bucketCountThresholds.minDocCount = minDocCount;
         return this;
     }
     
@@ -78,7 +77,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     
 
     public SignificantTermsBuilder shardMinDocCount(int shardMinDocCount) {
-        this.shardMinDocCount = shardMinDocCount;
+        bucketCountThresholds.shardMinDocCount = shardMinDocCount;
         return this;
     }
 
@@ -137,17 +136,17 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (field != null) {
             builder.field("field", field);
         }
-        if (minDocCount != AbstractTermsParametersParser.DEFAULT_MIN_DOC_COUNT) {
-            builder.field("minDocCount", minDocCount);
+        if (bucketCountThresholds.minDocCount >= 0) {
+            builder.field("minDocCount", bucketCountThresholds.minDocCount);
         }
-        if (shardMinDocCount != AbstractTermsParametersParser.DEFAULT_SHARD_MIN_DOC_COUNT) {
-            builder.field("shardMinDocCount", shardMinDocCount);
+        if (bucketCountThresholds.shardMinDocCount >= 0) {
+            builder.field("shardMinDocCount", bucketCountThresholds.shardMinDocCount);
         }
-        if (requiredSize != AbstractTermsParametersParser.DEFAULT_REQUIRED_SIZE) {
-            builder.field("size", requiredSize);
+        if (bucketCountThresholds.requiredSize >= 0) {
+            builder.field("size", bucketCountThresholds.requiredSize);
         }
-        if (shardSize != AbstractTermsParametersParser.DEFAULT_SHARD_SIZE) {
-            builder.field("shard_size", shardSize);
+        if (bucketCountThresholds.shardSize >= 0) {
+            builder.field("shard_size", bucketCountThresholds.shardSize);
         }
         if (executionHint != null) {
             builder.field("execution_hint", executionHint);
@@ -181,4 +180,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         return builder.endObject();
     }
 
+    public static TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
+        return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
+    }
 }

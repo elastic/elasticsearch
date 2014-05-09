@@ -49,22 +49,19 @@ public class TermsParser implements Aggregator.Parser {
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
-        int shardSize = aggParser.getShardSize();
-        if (shardSize == 0) {
-            shardSize = Integer.MAX_VALUE;
+        TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
+        if (bucketCountThresholds.shardSize == 0) {
+            bucketCountThresholds.shardSize = Integer.MAX_VALUE;
         }
-
-        int requiredSize = aggParser.getRequiredSize();
-        if (requiredSize == 0) {
-            requiredSize = Integer.MAX_VALUE;
+        if (bucketCountThresholds.requiredSize == 0) {
+            bucketCountThresholds.requiredSize = Integer.MAX_VALUE;
         }
-
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-        if (shardSize < requiredSize) {
-            shardSize = requiredSize;
+        if (bucketCountThresholds.shardSize < bucketCountThresholds.requiredSize) {
+            bucketCountThresholds.shardSize = bucketCountThresholds.requiredSize;
         }
         InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
-        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, requiredSize, shardSize, aggParser.getMinDocCount(), aggParser.getIncludeExclude(), aggParser.getExecutionHint());
+        return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint());
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

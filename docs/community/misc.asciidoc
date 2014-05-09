@@ -7,6 +7,9 @@
 * http://github.com/elasticsearch/cookbook-elasticsearch[Chef]:
   Chef cookbook for Elasticsearch
 
+* https://github.com/medcl/salt-elasticsearch[SaltStack]:
+  SaltStack Module for Elasticsearch
+
 * http://www.github.com/neogenix/daikon[daikon]:
   Daikon Elasticsearch CLI
 

@@ -50,3 +50,14 @@
       $body: |
                /^   total \s+              foo \s+ \n
                     (\s*\d+(\.\d+)?[gmk]?b \s+ \d+(\.\d+)?[gmk]?b \s \n)+ \s*$/
+
+  - do:
+      cat.fielddata:
+        h: total,foo
+        fields: notfoo,foo
+        v: true
+
+  - match:
+      $body: |
+               /^   total \s+              foo \s+ \n
+                    (\s*\d+(\.\d+)?[gmk]?b \s+ \d+(\.\d+)?[gmk]?b \s \n)+ \s*$/

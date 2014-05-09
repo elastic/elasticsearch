@@ -25,10 +25,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import org.junit.Test;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+
 /**
  * Tests for negative situations where we cannot run benchmarks
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@ClusterScope(scope = Scope.SUITE, enableRandomBenchNodes = false)
 public class BenchmarkNegativeTest extends ElasticsearchIntegrationTest {
 
     private static final String INDEX_NAME = "test_index";

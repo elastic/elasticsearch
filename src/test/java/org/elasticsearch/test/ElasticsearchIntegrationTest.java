@@ -1119,6 +1119,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         int numClientNodes() default TestCluster.DEFAULT_NUM_CLIENT_NODES;
 
         /**
+         * Returns whether the ability to randomly have benchmark (client) nodes as part of the cluster needs to be enabled.
+         * Default is {@link org.elasticsearch.test.TestCluster#DEFAULT_ENABLE_RANDOM_BENCH_NODES}.
+         */
+        boolean enableRandomBenchNodes() default TestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
+
+        /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
          * ratio in the interval <code>[0..1]</code> is used.
          */
@@ -1219,6 +1225,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? TestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
+    private boolean enableRandomBenchNodes() {
+        ClusterScope annotation = getAnnotation(this.getClass());
+        return annotation == null ? TestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES : annotation.enableRandomBenchNodes();
+    }
+
     private boolean randomDynamicTemplates() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null ? true : annotation.randomDynamicTemplates();
@@ -1255,7 +1266,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         int numClientNodes = getNumClientNodes();
-        return new TestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes);
+        boolean enableRandomBenchNodes = enableRandomBenchNodes();
+        return new TestCluster(currentClusterSeed, minNumDataNodes, maxNumDataNodes, clusterName(scope.name(), ElasticsearchTestCase.CHILD_VM_ID, currentClusterSeed), nodeSettingsSource, numClientNodes, enableRandomBenchNodes);
     }
 
     /**

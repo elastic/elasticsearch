@@ -70,6 +70,14 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     }
 
     /**
+     * Set the minimum document count terms should have on the shard in order to appear in the response.
+     */
+    public TermsBuilder shardMinDocCount(long shardMinDocCount) {
+        bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
+        return this;
+    }
+
+    /**
      * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
      * on the {@link java.util.regex.Pattern} class.
      *

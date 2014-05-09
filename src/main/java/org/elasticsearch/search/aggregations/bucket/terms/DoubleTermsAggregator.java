@@ -112,7 +112,9 @@ public class DoubleTermsAggregator extends TermsAggregator {
             spare.term = Double.longBitsToDouble(bucketOrds.get(i));
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
+            if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
+                spare = (DoubleTerms.Bucket) ordered.insertWithOverflow(spare);
+            }
         }
 
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];

@@ -276,15 +276,19 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
 
         logger.info("Running More Like This with include true");
         SearchResponse mltResponse = client().moreLikeThis(
-                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).include(true)).actionGet();
+                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).include(true).percentTermsToMatch(0))
+                .actionGet();
         assertOrderedSearchHits(mltResponse, "1", "2");
 
         mltResponse = client().moreLikeThis(
-                moreLikeThisRequest("test").type("type1").id("2").minTermFreq(1).minDocFreq(1).include(true)).actionGet();
+                moreLikeThisRequest("test").type("type1").id("2").minTermFreq(1).minDocFreq(1).include(true).percentTermsToMatch(0))
+                .actionGet();
         assertOrderedSearchHits(mltResponse, "2", "1");
 
         logger.info("Running More Like This with include false");
-        mltResponse = client().moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        mltResponse = client().moreLikeThis(
+                moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).percentTermsToMatch(0))
+                .actionGet();
         assertSearchHits(mltResponse, "2");
     }
 

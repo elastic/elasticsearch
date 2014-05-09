@@ -18,13 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms.support;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.util.*;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,6 +41,8 @@ public class IncludeExclude {
     private final Matcher include;
     private final Matcher exclude;
     private final CharsRef scratch = new CharsRef();
+
+    private LongBitSet acceptedGlobalOrdinals;
 
     /**
      * @param include   The regular expression pattern for the terms to be included
@@ -69,6 +72,23 @@ public class IncludeExclude {
             return true;
         }
         return !exclude.reset(scratch).matches();
+    }
+
+    public Ordinals.Docs acceptedGlobalOrdinals(Ordinals.Docs globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
+        if (acceptedGlobalOrdinals == null) {
+            TermsEnum globalTermsEnum = valueSource.getGlobalTermsEnum();
+            acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getMaxOrd());
+            try {
+                for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
+                    if (accept(term)) {
+                        acceptedGlobalOrdinals.set(globalTermsEnum.ord());
+                    }
+                }
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+        }
+        return new FilteredOrdinals(globalOrdinals, acceptedGlobalOrdinals);
     }
 
     public static class Parser {
@@ -150,6 +170,68 @@ public class IncludeExclude {
             Pattern includePattern =  include != null ? Pattern.compile(include, includeFlags) : null;
             Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
             return new IncludeExclude(includePattern, excludePattern);
+        }
+    }
+
+    private static final class FilteredOrdinals implements Ordinals.Docs {
+
+        private final Ordinals.Docs inner;
+        private final LongBitSet accepted;
+
+        private long currentOrd;
+        private long[] buffer = new long[0];
+        private int bufferSlot;
+
+        private FilteredOrdinals(Ordinals.Docs inner, LongBitSet accepted) {
+            this.inner = inner;
+            this.accepted = accepted;
+        }
+
+        @Override
+        public long getMaxOrd() {
+            return inner.getMaxOrd();
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return inner.isMultiValued();
+        }
+
+        @Override
+        public long getOrd(int docId) {
+            long ord = inner.getOrd(docId);
+            if (accepted.get(ord)) {
+                return currentOrd = ord;
+            } else {
+                return currentOrd = Ordinals.MISSING_ORDINAL;
+            }
+        }
+
+        @Override
+        public long nextOrd() {
+            return currentOrd = buffer[bufferSlot++];
+        }
+
+        @Override
+        public int setDocument(int docId) {
+            int numDocs = inner.setDocument(docId);
+            buffer = ArrayUtil.grow(buffer, numDocs);
+            bufferSlot = 0;
+
+            int numAcceptedOrds = 0;
+            for (int slot = 0; slot < numDocs; slot++) {
+                long ord = inner.nextOrd();
+                if (accepted.get(ord)) {
+                    buffer[numAcceptedOrds] = ord;
+                    numAcceptedOrds++;
+                }
+            }
+            return numAcceptedOrds;
+        }
+
+        @Override
+        public long currentOrd() {
+            return currentOrd;
         }
     }
 }

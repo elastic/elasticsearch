@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
@@ -91,8 +90,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                 IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
                 long maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
-                LongBitSet includedTerms = ((ValuesSource.Bytes.WithOrdinals) valuesSource).includedTerms(indexSearcher, includeExclude);
-                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, requiredSize, shardSize, minDocCount, shardMinDocCount, includedTerms, aggregationContext, parent, termsAggregatorFactory);
+                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, termsAggregatorFactory);
             }
 
             @Override
@@ -107,9 +105,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
-                IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
-                LongBitSet includedTerms = ((ValuesSource.Bytes.WithOrdinals) valuesSource).includedTerms(indexSearcher, includeExclude);
-                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includedTerms, aggregationContext, parent, termsAggregatorFactory);
+                return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, termsAggregatorFactory);
             }
 
             @Override

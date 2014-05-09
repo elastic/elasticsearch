@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.*;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -33,14 +32,11 @@ import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
 
 public abstract class ValuesSource {
 
@@ -167,7 +163,7 @@ public abstract class ValuesSource {
 
             public abstract long globalMaxOrd(IndexSearcher indexSearcher);
 
-            public abstract LongBitSet includedTerms(IndexSearcher indexSearcher, IncludeExclude includeExclude);
+            public abstract TermsEnum getGlobalTermsEnum();
 
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
@@ -184,7 +180,6 @@ public abstract class ValuesSource {
                 private BytesValues.WithOrdinals globalBytesValues;
 
                 private long maxOrd = -1;
-                private LongBitSet includedTerms;
 
                 public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData, MetaData metaData) {
                     this.indexFieldData = indexFieldData;
@@ -263,35 +258,8 @@ public abstract class ValuesSource {
                 }
 
                 @Override
-                public LongBitSet includedTerms(IndexSearcher indexSearcher, IncludeExclude includeExclude) {
-                    if (includedTerms != null) {
-                        return includedTerms;
-                    }
-
-                    IndexReader indexReader = indexSearcher.getIndexReader();
-                    if (!indexReader.leaves().isEmpty() && includeExclude != null) {
-                        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
-                        IndexFieldData.WithOrdinals<?> globalFieldData = indexFieldData.loadGlobal(indexReader);
-                        AtomicFieldData.WithOrdinals afd = globalFieldData.load(atomicReaderContext);
-                        BytesValues.WithOrdinals values = afd.getBytesValues(false);
-                        Ordinals.Docs globalOrdinals = values.ordinals();
-
-
-                        TermsEnum globalTermsEnum = afd.getTermsEnum();
-                        includedTerms = new LongBitSet(globalOrdinals.getMaxOrd());
-                        try {
-                            for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
-                                if (includeExclude.accept(term)) {
-                                    includedTerms.set(globalTermsEnum.ord());
-                                }
-                            }
-                        } catch (IOException e) {
-                            throw ExceptionsHelper.convertToElastic(e);
-                        }
-                        return includedTerms;
-                    } else {
-                        return null;
-                    }
+                public TermsEnum getGlobalTermsEnum() {
+                    return globalAtomicFieldData.getTermsEnum();
                 }
             }
 

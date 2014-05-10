@@ -109,20 +109,20 @@ minimum value among all other values associated with the same document).
 
 The aggregations in this family compute metrics based on values extracted in one way or another from the documents that
 are being aggregated. The values are typically extracted from the fields of the document (using the field data), but
-can also be generated using scripts. 
+can also be generated using scripts.
 
 Numeric metrics aggregations are a special type of metrics aggregation which output numeric values. Some aggregations output
 a single numeric metric (e.g. `avg`) and are called `single-value numeric metrics aggregation`, others generate multiple 
 metrics (e.g. `stats`) and are called `multi-value numeric metrics aggregation`. The distinction between single-value and 
 multi-value numeric metrics aggregations plays a role when these aggregations serve as direct sub-aggregations of some 
-bucket aggregations (some bucket aggregation enable you to sort the returned buckets based on the numeric metrics in each bucket).
+bucket aggregations (some bucket aggregations enable you to sort the returned buckets based on the numeric metrics in each bucket).
 
 
 [float]
 === Bucket Aggregations
 
 Bucket aggregations don't calculate metrics over fields like the metrics aggregations do, but instead, they create
-buckets of documents. Each bucket is associated with a criteria (depending on the aggregation type) which determines
+buckets of documents. Each bucket is associated with a criterion (depending on the aggregation type) which determines
 whether or not a document in the current context "falls" into it. In other words, the buckets effectively define document
 sets. In addition to the buckets themselves, the `bucket` aggregations also compute and return the number of documents
 that "fell in" to each bucket.

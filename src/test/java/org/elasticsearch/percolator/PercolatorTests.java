@@ -1686,7 +1686,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .field("incude_in_all", false)
                 .endObject()
                 .endObject()
-                .startArray("dynamic_template")
+                .startArray("dynamic_templates")
                 .startObject()
                 .startObject("custom_fields")
                 .field("path_match", "custom.*")

@@ -22,7 +22,9 @@ package org.elasticsearch.index.mapper.all;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -33,18 +35,15 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -322,5 +321,56 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
         assertThat(allEntries.fields(), hasSize(1));
         assertThat(allEntries.fields(), hasItem("foo.bar"));
+    }
+
+    @Test(expected = MapperParsingException.class)
+    public void testMisplacedTypeInRoot() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_type_in_root.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // related to https://github.com/elasticsearch/elasticsearch/issues/5864
+    @Test(expected = MapperParsingException.class)
+    public void testMistypedTypeInRoot() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    @Test(expected = MapperParsingException.class)
+    public void testMisplacedMappingAsRoot() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/misplaced_mapping_key_in_root.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    // test that RootObjectMapping still works
+    @Test
+    public void testRootObjectMapperPropertiesDoNotCauseException() throws IOException {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_template_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_dynamic_date_formats_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_date_detection_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+        mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/type_numeric_detection_mapping.json");
+        MapperTestUtils.newParser().parse("test", mapping);
+    }
+
+    // issue https://github.com/elasticsearch/elasticsearch/issues/5864
+    @Test
+    public void testRootMappersStillWorking() {
+        String mapping = "{";
+        Map<String, String> rootTypes = new HashMap<>();
+        //just pick some example from DocumentMapperParser.rootTypeParsers
+        rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(IndexFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(SourceFieldMapper.NAME, "{\"enabled\" : true}");
+        rootTypes.put(TypeFieldMapper.NAME, "{\"store\" : true}");
+        for (String key : rootTypes.keySet()) {
+            mapping += "\"" + key+ "\"" + ":" + rootTypes.get(key) + ",\n";
+        }
+        mapping += "\"properties\":{}}" ;
+        MapperTestUtils.newParser().parse("test", mapping);
     }
 }

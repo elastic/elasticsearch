@@ -7,5 +7,5 @@
   - do:
         abort_benchmark:
             name: my_benchmark
-        catch: request
+        catch: missing
 

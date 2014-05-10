@@ -848,9 +848,6 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
                                 .startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject()
                             .endObject()
                         .endObject()
-                        .startObject("d_value")
-                        .field("type", "float")
-                        .endObject()
                         .endObject()
                         .endObject()));
         ensureGreen();

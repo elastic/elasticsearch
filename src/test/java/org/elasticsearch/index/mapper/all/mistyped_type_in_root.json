@@ -1,0 +1,9 @@
+{
+    "testX": {
+        "properties": {
+            "foo": {
+                "type": "string"
+            }
+        }
+    }
+}

@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterParser;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersParser;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridParser;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramParser;
@@ -72,6 +73,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(GlobalParser.class);
         parsers.add(MissingParser.class);
         parsers.add(FilterParser.class);
+        parsers.add(FiltersParser.class);
         parsers.add(TermsParser.class);
         parsers.add(SignificantTermsParser.class);
         parsers.add(RangeParser.class);

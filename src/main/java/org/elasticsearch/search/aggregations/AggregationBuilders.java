@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramBuilder;
@@ -83,6 +84,10 @@ public class AggregationBuilders {
 
     public static FilterAggregationBuilder filter(String name) {
         return new FilterAggregationBuilder(name);
+    }
+
+    public static FiltersAggregationBuilder filters(String name) {
+        return new FiltersAggregationBuilder(name);
     }
 
     public static GlobalBuilder global(String name) {

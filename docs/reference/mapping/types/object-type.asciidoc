@@ -174,7 +174,7 @@ In the above, `name` and its content will not be indexed at all.
 
 `include_in_all` can be set on the `object` type level. When set, it
 propagates down to all the inner mappings defined within the `object`
-that do no explicitly set it.
+that do not explicitly set it.
 
 [float]
 ==== path

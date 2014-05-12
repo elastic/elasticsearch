@@ -72,6 +72,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
 
         assertThat("no other exceptions were thrown", lastException.get(), equalTo(null));
         assertThat("breaker was tripped exactly once", tripped.get(), equalTo(true));
+        assertThat("breaker was tripped exactly once", breaker.getTrippedCount(), equalTo(1L));
     }
 
     @Test
@@ -102,6 +103,7 @@ public class MemoryCircuitBreakerTests extends ElasticsearchTestCase {
             breaker.addEstimateBytesAndMaybeBreak(0, field);
             fail("should never reach this");
         } catch (CircuitBreakingException cbe) {
+            assertThat("breaker was tripped exactly twice", breaker.getTrippedCount(), equalTo(2L));
             assertThat(cbe.getMessage().contains("field [" + field + "]"), equalTo(true));
         }
     }

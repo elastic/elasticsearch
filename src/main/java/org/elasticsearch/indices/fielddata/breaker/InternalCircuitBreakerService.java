@@ -105,7 +105,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
 
     @Override
     public FieldDataBreakerStats stats() {
-        return new FieldDataBreakerStats(breaker.getMaximum(), breaker.getUsed(), breaker.getOverhead());
+        return new FieldDataBreakerStats(breaker.getMaximum(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
     }
 
     @Override

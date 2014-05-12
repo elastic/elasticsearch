@@ -1597,6 +1597,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen("test1", "test2");
+
         assertAcked(client().admin().indices().prepareDeleteMapping("test1").setType(PercolatorService.TYPE_NAME));
         response = client().preparePercolate()
                 .setIndices("test1", "test2").setDocumentType("type").setOnlyCount(true)

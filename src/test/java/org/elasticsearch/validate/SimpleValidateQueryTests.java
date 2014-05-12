@@ -191,6 +191,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
     public void explainValidateQueryTwoNodes() throws IOException {
         createIndex("test");
         ensureGreen();

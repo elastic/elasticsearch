@@ -184,7 +184,7 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
 
 The above will sort the countries buckets based on the average height among the female population.
 
-==== Minimum document count
+==== Minimum document count 
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
@@ -204,6 +204,13 @@ It is possible to only return terms that match more than a configured number of 
 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `1`.
 
+
+Terms are collected and ordered on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global document count available. The decision if a term is added to a candidate list depends only on the order computed on the shard using local shard frequencies. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
+
+The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent terms and you are not interested in those (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a resonable certainty not reach the required `min_doc_count` even after merging the local counts. `shard_min_doc_count` is set to `0` per default and has no effect unless you explicitly set it.
+
+
+
 NOTE:    Setting `min_doc_count`=`0` will also return buckets for terms that didn't match any hit. However, some of
          the returned terms which have a document count of zero might only belong to deleted documents, so there is
          no warranty that a `match_all` query would find a positive document count for those terms.
@@ -211,6 +218,7 @@ NOTE:    Setting `min_doc_count`=`0` will also return buckets for terms that did
 WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_count` may return a number of buckets
          which is less than `size` because not enough data was gathered from the shards. Missing buckets can be
          back by increasing `shard_size`.
+         Setting `shard_min_doc_count` too high will cause terms to be filtered out on a shard level. This value should be set much lower than `min_doc_count/#shards`.
 
 ==== Script
 

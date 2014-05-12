@@ -19,15 +19,14 @@
 package org.elasticsearch.action.bench;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.English;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-
-import org.apache.lucene.util.English;
-
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -82,6 +81,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/6094")
     public void testSubmitBenchmark() throws Exception {
 
         final BenchmarkRequest request =

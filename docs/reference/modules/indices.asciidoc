@@ -59,7 +59,7 @@ The following settings can be set to manage the recovery policy:
     defaults to `true`.
 
 `indices.recovery.max_bytes_per_sec`::
-    defaults to `50mb`.
+    defaults to `20mb`.
 
 [float]
 [[throttling]]
@@ -72,5 +72,5 @@ The following settings can be set to control the store throttling:
     could be `merge` (default), `none` or `all`. See <<index-modules-store>>.
 
 `indices.store.throttle.max_bytes_per_sec`::
-    defaults to `50mb`.
+    defaults to `20mb`.
 

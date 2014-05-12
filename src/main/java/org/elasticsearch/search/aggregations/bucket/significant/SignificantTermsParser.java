@@ -42,7 +42,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
     //Typically need more than one occurrence of something for it to be statistically significant
     public static final int DEFAULT_MIN_DOC_COUNT = 3;
     
-    private static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
+    static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
 
     @Override
     public String type() {
@@ -95,6 +95,8 @@ public class SignificantTermsParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (BACKGROUND_FILTER.match(currentFieldName)) {
                     filter = context.queryParserService().parseInnerFilter(parser).filter();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");                    
                 }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");

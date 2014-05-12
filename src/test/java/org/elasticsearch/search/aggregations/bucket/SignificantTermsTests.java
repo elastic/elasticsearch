@@ -158,6 +158,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(2).backgroundFilter(FilterBuilders.termFilter("fact_category", 1)))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         // We expect at least one of the significant terms to have been selected on the basis
         // that it is present in the foreground selection but entirely missing from the filtered
@@ -182,6 +183,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                            .minDocCount(1).backgroundFilter(FilterBuilders.termsFilter("description",  "paul")))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         HashSet<String> topWords = new HashSet<String>();
         for (Bucket topTerm : topTerms) {

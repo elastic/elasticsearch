@@ -86,7 +86,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
             builder.field("shard_size", shardSize);
         }
         if (filterBuilder != null) {
-            builder.field("background_filter");
+            builder.field(SignificantTermsParser.BACKGROUND_FILTER.getPreferredName());
             filterBuilder.toXContent(builder, params); 
         }
 

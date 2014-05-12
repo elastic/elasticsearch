@@ -20,6 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
@@ -51,6 +53,7 @@ import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.io.File;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -1045,7 +1048,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(snapshotStatus.getState(), equalTo(SnapshotMetaData.State.STARTED));
         // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
         assertThat(snapshotStatus.getShardsStats().getStartedShards(), greaterThan(0));
-        for( SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
+        for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
             if (shardStatus.getStage() == SnapshotIndexShardStage.STARTED) {
                 assertThat(shardStatus.getNodeId(), notNullValue());
             }
@@ -1058,7 +1061,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(snapshotStatus.getState(), equalTo(SnapshotMetaData.State.STARTED));
         // We blocked the node during data write operation, so at least one shard snapshot should be in STARTED stage
         assertThat(snapshotStatus.getShardsStats().getStartedShards(), greaterThan(0));
-        for( SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
+        for (SnapshotIndexShardStatus shardStatus : snapshotStatus.getIndices().get("test-idx")) {
             if (shardStatus.getStage() == SnapshotIndexShardStage.STARTED) {
                 assertThat(shardStatus.getNodeId(), notNullValue());
             }
@@ -1093,17 +1096,72 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         } catch (SnapshotMissingException ex) {
             // Expected
         }
-
     }
 
-    private boolean waitForIndex(String index, TimeValue timeout) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() - start < timeout.millis()) {
-            if (client().admin().indices().prepareExists(index).execute().actionGet().isExists()) {
-                return true;
-            }
-            Thread.sleep(100);
+
+    @Test
+    public void snapshotRelocatingPrimary() throws Exception {
+        Client client = client();
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        // Create index on 1 nodes and make sure each node has a primary by setting no replicas
+        assertAcked(prepareCreate("test-idx", 1, ImmutableSettings.builder().put("number_of_replicas", 0)));
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 100; i++) {
+            index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
         }
-        return false;
+        refresh();
+        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+
+        // Update settings to make sure that relocation is slow so we can start snapshot before relocation is finished
+        assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
+                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, 100)
+        ));
+
+        logger.info("--> start relocations");
+        allowNodes("test-idx", cluster().numDataNodes());
+
+        logger.info("--> wait for relocations to start");
+
+        waitForRelocationsToStart("test-idx", TimeValue.timeValueMillis(300));
+
+        logger.info("--> snapshot");
+        client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
+
+        // Update settings to back to normal
+        assertAcked(client.admin().indices().prepareUpdateSettings("test-idx").setSettings(ImmutableSettings.builder()
+                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+        ));
+
+        logger.info("--> wait for snapshot to complete");
+        SnapshotInfo snapshotInfo = waitForCompletion("test-repo", "test-snap", TimeValue.timeValueSeconds(600));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.shardFailures().size(), equalTo(0));
+        logger.info("--> done");
+    }
+
+    private boolean waitForIndex(final String index, TimeValue timeout) throws InterruptedException {
+        return awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                return client().admin().indices().prepareExists(index).execute().actionGet().isExists();
+            }
+        }, timeout.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    private boolean waitForRelocationsToStart(final String index, TimeValue timeout) throws InterruptedException {
+        return awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                return client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0;
+            }
+        }, timeout.millis(), TimeUnit.MILLISECONDS);
     }
 }

@@ -20,22 +20,30 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -261,6 +269,145 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         ensureGreen("test-idx-2");
 
         assertThat(client().prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+    }
 
+    @Test
+    @TestLogging("snapshots:TRACE,repositories:TRACE")
+    @Ignore
+    public void chaosSnapshotTest() throws Exception {
+        final List<String> indices = new CopyOnWriteArrayList<>();
+        Settings settings = settingsBuilder().put("action.write_consistency", "one").build();
+        int initialNodes = between(1, 3);
+        logger.info("--> start {} nodes", initialNodes);
+        for (int i = 0; i < initialNodes; i++) {
+            cluster().startNode(settings);
+        }
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE))
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        int initialIndices = between(1, 3);
+        logger.info("--> create {} indices", initialIndices);
+        for (int i = 0; i < initialIndices; i++) {
+            createTestIndex("test-" + i);
+            indices.add("test-" + i);
+        }
+
+        int asyncNodes = between(0, 5);
+        logger.info("--> start {} additional nodes asynchronously", asyncNodes);
+        ListenableFuture<List<String>> asyncNodesFuture = cluster().startNodesAsync(asyncNodes, settings);
+
+        int asyncIndices = between(0, 10);
+        logger.info("--> create {} additional indices asynchronously", asyncIndices);
+        Thread[] asyncIndexThreads = new Thread[asyncIndices];
+        for (int i = 0; i < asyncIndices; i++) {
+            final int cur = i;
+            asyncIndexThreads[i] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    createTestIndex("test-async-" + cur);
+                    indices.add("test-async-" + cur);
+
+                }
+            });
+            asyncIndexThreads[i].start();
+        }
+
+        logger.info("--> snapshot");
+
+        ListenableActionFuture<CreateSnapshotResponse> snapshotResponseFuture = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-*").setPartial(true).execute();
+
+        long start = System.currentTimeMillis();
+        // Produce chaos for 30 sec or until snapshot is done whatever comes first
+        int randomIndices = 0;
+        while (System.currentTimeMillis() - start < 30000 && !snapshotIsDone("test-repo", "test-snap")) {
+            Thread.sleep(100);
+            int chaosType = randomInt(10);
+            if (chaosType < 4) {
+                // Randomly delete an index
+                if (indices.size() > 0) {
+                    String index = indices.remove(randomInt(indices.size() - 1));
+                    logger.info("--> deleting random index [{}]", index);
+                    cluster().wipeIndices(index);
+                }
+            } else if (chaosType < 6) {
+                // Randomly shutdown a node
+                if (cluster().size() > 1) {
+                    logger.info("--> shutting down random node");
+                    cluster().stopRandomDataNode();
+                }
+            } else if (chaosType < 8) {
+                // Randomly create an index
+                String index = "test-rand-" + randomIndices;
+                logger.info("--> creating random index [{}]", index);
+                createTestIndex(index);
+                randomIndices++;
+            } else {
+                // Take a break
+                logger.info("--> noop");
+            }
+        }
+
+        logger.info("--> waiting for async indices creation to finish");
+        for (int i = 0; i < asyncIndices; i++) {
+            asyncIndexThreads[i].join();
+        }
+
+        logger.info("--> update index settings to back to normal");
+        assertAcked(client().admin().indices().prepareUpdateSettings("test-*").setSettings(ImmutableSettings.builder()
+                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+        ));
+
+        // Make sure that snapshot finished - doesn't matter if it failed or succeeded
+        try {
+            CreateSnapshotResponse snapshotResponse = snapshotResponseFuture.get();
+            SnapshotInfo snapshotInfo = snapshotResponse.getSnapshotInfo();
+            assertNotNull(snapshotInfo);
+            logger.info("--> snapshot is done with state [{}], total shards [{}], successful shards [{}]", snapshotInfo.state(), snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        } catch (Exception ex) {
+            logger.info("--> snapshot didn't start properly", ex);
+        }
+
+        asyncNodesFuture.get();
+        logger.info("--> done");
+    }
+
+    private boolean snapshotIsDone(String repository, String snapshot) {
+        try {
+            SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus(repository).setSnapshots(snapshot).get();
+            if (snapshotsStatusResponse.getSnapshots().isEmpty()) {
+                return false;
+            }
+            for (SnapshotStatus snapshotStatus : snapshotsStatusResponse.getSnapshots()) {
+                if (snapshotStatus.getState().completed()) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (SnapshotMissingException ex) {
+            return false;
+        }
+    }
+
+    private void createTestIndex(String name) {
+        assertAcked(prepareCreate(name, 0, settingsBuilder().put("number_of_shards", between(1, 6))
+                .put("number_of_replicas", between(1, 6))
+                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
+
+        ensureYellow(name);
+
+        logger.info("--> indexing some data into {}", name);
+        for (int i = 0; i < between(10, 500); i++) {
+            index(name, "doc", Integer.toString(i), "foo", "bar" + i);
+        }
+
+        assertAcked(client().admin().indices().prepareUpdateSettings(name).setSettings(ImmutableSettings.builder()
+                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
+        ));
     }
 }

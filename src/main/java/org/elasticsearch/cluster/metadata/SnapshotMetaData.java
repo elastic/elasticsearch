@@ -32,6 +32,8 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Map;
 
+import static com.google.common.collect.Maps.newHashMap;
+
 /**
  * Meta data about snapshots that are currently executing
  */
@@ -63,6 +65,7 @@ public class SnapshotMetaData implements MetaData.Custom {
         private final boolean includeGlobalState;
         private final ImmutableMap<ShardId, ShardSnapshotStatus> shards;
         private final ImmutableList<String> indices;
+        private final ImmutableMap<String, ImmutableList<ShardId>> waitingIndices;
 
         public Entry(SnapshotId snapshotId, boolean includeGlobalState, State state, ImmutableList<String> indices, ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
@@ -71,8 +74,10 @@ public class SnapshotMetaData implements MetaData.Custom {
             this.indices = indices;
             if (shards == null) {
                 this.shards = ImmutableMap.of();
+                this.waitingIndices = ImmutableMap.of();
             } else {
                 this.shards = shards;
+                this.waitingIndices = findWaitingIndices(shards);
             }
         }
 
@@ -90,6 +95,10 @@ public class SnapshotMetaData implements MetaData.Custom {
 
         public ImmutableList<String> indices() {
             return indices;
+        }
+
+        public ImmutableMap<String, ImmutableList<ShardId>> waitingIndices() {
+            return waitingIndices;
         }
 
         public boolean includeGlobalState() {
@@ -121,6 +130,31 @@ public class SnapshotMetaData implements MetaData.Custom {
             result = 31 * result + indices.hashCode();
             return result;
         }
+
+        private ImmutableMap<String, ImmutableList<ShardId>> findWaitingIndices(ImmutableMap<ShardId, ShardSnapshotStatus> shards) {
+            Map<String, ImmutableList.Builder<ShardId>> waitingIndicesMap = newHashMap();
+            for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
+                if (entry.getValue().state() == State.WAITING) {
+                    ImmutableList.Builder<ShardId> waitingShards = waitingIndicesMap.get(entry.getKey().getIndex());
+                    if (waitingShards == null) {
+                        waitingShards = ImmutableList.builder();
+                        waitingIndicesMap.put(entry.getKey().getIndex(), waitingShards);
+                    }
+                    waitingShards.add(entry.getKey());
+                }
+            }
+            if (!waitingIndicesMap.isEmpty()) {
+                ImmutableMap.Builder<String, ImmutableList<ShardId>> waitingIndicesBuilder = ImmutableMap.builder();
+                for (Map.Entry<String, ImmutableList.Builder<ShardId>> entry : waitingIndicesMap.entrySet()) {
+                    waitingIndicesBuilder.put(entry.getKey(), entry.getValue().build());
+                }
+                return waitingIndicesBuilder.build();
+            } else {
+                return ImmutableMap.of();
+            }
+
+        }
+
     }
 
     public static class ShardSnapshotStatus {
@@ -199,17 +233,24 @@ public class SnapshotMetaData implements MetaData.Custom {
     }
 
     public static enum State {
-        INIT((byte) 0),
-        STARTED((byte) 1),
-        SUCCESS((byte) 2),
-        FAILED((byte) 3),
-        ABORTED((byte) 4),
-        MISSING((byte) 5);
+        INIT((byte) 0, false, false),
+        STARTED((byte) 1, false, false),
+        SUCCESS((byte) 2, true, false),
+        FAILED((byte) 3, true, true),
+        ABORTED((byte) 4, false, true),
+        MISSING((byte) 5, true, true),
+        WAITING((byte) 6, false, false);
 
         private byte value;
 
-        State(byte value) {
+        private boolean completed;
+
+        private boolean failed;
+
+        State(byte value, boolean completed, boolean failed) {
             this.value = value;
+            this.completed = completed;
+            this.failed = failed;
         }
 
         public byte value() {
@@ -217,43 +258,11 @@ public class SnapshotMetaData implements MetaData.Custom {
         }
 
         public boolean completed() {
-            switch (this) {
-                case INIT:
-                    return false;
-                case STARTED:
-                    return false;
-                case SUCCESS:
-                    return true;
-                case FAILED:
-                    return true;
-                case ABORTED:
-                    return false;
-                case MISSING:
-                    return true;
-                default:
-                    assert false;
-                    return true;
-            }
+            return completed;
         }
 
         public boolean failed() {
-            switch (this) {
-                case INIT:
-                    return false;
-                case STARTED:
-                    return false;
-                case SUCCESS:
-                    return false;
-                case FAILED:
-                    return true;
-                case ABORTED:
-                    return true;
-                case MISSING:
-                    return true;
-                default:
-                    assert false;
-                    return false;
-            }
+            return failed;
         }
 
         public static State fromValue(byte value) {
@@ -270,6 +279,8 @@ public class SnapshotMetaData implements MetaData.Custom {
                     return ABORTED;
                 case 5:
                     return MISSING;
+                case 6:
+                    return WAITING;
                 default:
                     throw new ElasticsearchIllegalArgumentException("No snapshot state for value [" + value + "]");
             }

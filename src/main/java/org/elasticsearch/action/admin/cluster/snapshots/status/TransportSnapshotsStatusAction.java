@@ -111,9 +111,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                     snapshotIds, request.masterNodeTimeout(), new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
                 @Override
                 public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                    ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
-                            snapshotsService.currentSnapshots(request.repository(), request.snapshots());
-                    listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                    try {
+                        ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
+                                snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+                        listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                    } catch (Throwable e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override
@@ -169,6 +173,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                             stage = SnapshotIndexShardStage.FAILURE;
                             break;
                         case INIT:
+                        case WAITING:
                         case STARTED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;

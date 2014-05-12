@@ -128,6 +128,17 @@ public class IndicesOptions {
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     * @deprecated in favor of {@link #strictExpandOpen()} whose name makes it clearer what the method actually does.
+     */
+    @Deprecated
+    public static IndicesOptions strict() {
+        return strictExpandOpen();
+    }
+
+
+    /**
+     * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
+     *         allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandOpen() {
         return VALUES[6];
@@ -140,6 +151,16 @@ public class IndicesOptions {
      */
     public static IndicesOptions strictExpand() {
         return VALUES[14];
+    }
+
+    /**
+     * @return indices options that ignores unavailable indices, expands wildcards only to open indices and
+     *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     * @deprecated in favor of {@link #lenientExpandOpen()} whose name makes it clearer what the method actually does.
+     */
+    @Deprecated
+    public static IndicesOptions lenient() {
+        return lenientExpandOpen();
     }
 
     /**

@@ -30,8 +30,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -232,17 +230,14 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
     private void validatePercentiles(Map<Double, Double> percentiles) {
         int i = 0;
-        Double last = null;
+        double last = Double.NEGATIVE_INFINITY;
         for (Map.Entry<Double, Double> entry : percentiles.entrySet()) {
             assertThat(entry.getKey(), equalTo(BenchmarkSettings.DEFAULT_PERCENTILES[i++]));
-            if (last != null) {
-                assertThat(entry.getValue(), greaterThanOrEqualTo(last));
-            }
             // This is a hedge against rounding errors. Sometimes two adjacent percentile values will
             // be nearly equivalent except for some insignificant decimal places. In such cases we
             // want the two values to compare as equal.
-            final BigDecimal bd = new BigDecimal(entry.getValue()).setScale(2, RoundingMode.HALF_DOWN);
-            last = bd.doubleValue();
+            assertThat(entry.getValue(), greaterThanOrEqualTo(last - 1e-6));
+            last = entry.getValue();
         }
     }
 

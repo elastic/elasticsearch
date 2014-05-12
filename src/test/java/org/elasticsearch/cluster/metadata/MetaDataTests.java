@@ -129,7 +129,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testIndexOptions_allowUnavailableExpandOpenDisAllowEmpty() {
+    public void testIndexOptions_allowUnavailableExpandOpenDisallowEmpty() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo"))
                 .put(indexBuilder("foobar"))
@@ -145,18 +145,26 @@ public class MetaDataTests extends ElasticsearchTestCase {
         assertEquals(1, results.length);
         assertEquals("foo", results[0]);
 
-        results = md.concreteIndices(new String[]{"bar"}, options);
-        assertThat(results, emptyArray());
+        try {
+            md.concreteIndices(new String[]{"bar"}, options);
+            fail();
+        } catch(IndexMissingException e) {
+            assertThat(e.index().name(), equalTo("bar"));
+        }
 
         try {
             md.concreteIndices(new String[]{"baz*"}, options);
             fail();
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+            assertThat(e.index().name(), equalTo("baz*"));
+        }
 
         try {
             md.concreteIndices(new String[]{"foo", "baz*"}, options);
             fail();
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+            assertThat(e.index().name(), equalTo("baz*"));
+        }
     }
 
     @Test

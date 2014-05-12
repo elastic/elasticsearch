@@ -132,7 +132,7 @@ public class StringTerms extends InternalTerms {
         builder.startArray(CommonFields.BUCKETS);
         for (InternalTerms.Bucket bucket : buckets) {
             builder.startObject();
-            builder.field(CommonFields.KEY, ((Bucket) bucket).termBytes);
+            builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
             builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
             ((InternalAggregations) bucket.getAggregations()).toXContentInternal(builder, params);
             builder.endObject();

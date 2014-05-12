@@ -54,6 +54,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         super(settings);
         ImportCustomizer imports = new ImportCustomizer();
         imports.addStarImports("java.util", "org.joda.time");
+        imports.addStaticStars("java.lang.Math");
         CompilerConfiguration config = new CompilerConfiguration();
         config.addCompilationCustomizers(imports);
         this.loader = new GroovyClassLoader(settings.getClassLoader(), config);

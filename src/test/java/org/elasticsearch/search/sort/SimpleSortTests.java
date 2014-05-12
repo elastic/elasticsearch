@@ -685,7 +685,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "retval = Long.MAX_VALUE; for (v in doc['lvalue'].values){ retval = Math.min(v, retval) }; retval")
+                .addScriptField("min", "retval = Long.MAX_VALUE; for (v in doc['lvalue'].values){ retval = min(v, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -698,7 +698,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the double values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['dvalue'].values){ retval = Math.min(v, retval) }; retval")
+                .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['dvalue'].values){ retval = min(v, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -712,7 +712,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the string values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "retval = Integer.MAX_VALUE; for (v in doc['svalue'].values){ retval = Math.min(Integer.parseInt(v), retval) }; retval")
+                .addScriptField("min", "retval = Integer.MAX_VALUE; for (v in doc['svalue'].values){ retval = min(Integer.parseInt(v), retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 
@@ -726,7 +726,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         // test the geopoint values
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['gvalue'].values){ retval = Math.min(v.lon, retval) }; retval")
+                .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['gvalue'].values){ retval = min(v.lon, retval) }; retval")
                 .addSort("ord", SortOrder.ASC).setSize(10)
                 .execute().actionGet();
 

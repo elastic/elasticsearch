@@ -274,7 +274,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         assertNoFailures(client().admin().indices().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
         SearchResponse resp = client().prepareSearch("idx")
-                .addAggregation(terms("terms").field("values").script("Math.floor(_value / interval)").param("interval", interval).size(maxNumTerms))
+                .addAggregation(terms("terms").field("values").script("floor(_value / interval)").param("interval", interval).size(maxNumTerms))
                 .addAggregation(histogram("histo").field("values").interval(interval))
                 .execute().actionGet();
 

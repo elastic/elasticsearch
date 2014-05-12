@@ -359,7 +359,7 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(MULTI_VALUED_FIELD_NAME)
-                        .script("Math.floor(_value / 1000 + 1)"))
+                        .script("floor(_value / 1000 + 1)"))
                 .execute().actionGet();
 
         assertSearchResponse(response);

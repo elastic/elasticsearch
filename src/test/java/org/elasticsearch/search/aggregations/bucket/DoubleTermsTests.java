@@ -951,7 +951,7 @@ public class DoubleTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(functionScoreQuery(matchAllQuery()).add(ScoreFunctionBuilders.scriptFunction("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")))
                 .addAggregation(terms("terms")
-                        .script("Math.ceil(_doc.score()/3)")
+                        .script("ceil(_doc.score()/3)")
                 ).execute().actionGet();
 
         assertSearchResponse(response);

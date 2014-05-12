@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.object;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -184,14 +183,14 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                parseObjectOrDocumentTyeProperties( fieldName,  fieldNode,  parserContext,  builder);
+                parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder);
                 parseObjectProperties(name, fieldName,  fieldNode,  builder);
             }
             parseNested(name, node, builder);
             return builder;
         }
 
-        protected static boolean parseObjectOrDocumentTyeProperties(String fieldName, Object fieldNode, ParserContext parserContext, ObjectMapper.Builder builder) {
+        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode, ParserContext parserContext, ObjectMapper.Builder builder) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {

@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.object;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
@@ -36,7 +35,6 @@ import java.util.*;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
  *
@@ -132,7 +130,7 @@ public class RootObjectMapper extends ObjectMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTyeProperties( fieldName,  fieldNode,  parserContext,  builder)) {
+                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
                     iterator.remove();
                 }
                 if (processField(builder,fieldName, fieldNode)) {

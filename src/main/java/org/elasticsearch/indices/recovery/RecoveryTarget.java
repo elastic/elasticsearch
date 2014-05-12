@@ -635,7 +635,7 @@ public class RecoveryTarget extends AbstractComponent {
                             content = content.toBytesArray();
                         }
                         indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                        onGoingRecovery.recoveryState.getIndex().addRecoveredByteCount(request.length());
+                        onGoingRecovery.recoveryState.getIndex().addRecoveredByteCount(content.length());
                         RecoveryState.File file = onGoingRecovery.recoveryState.getIndex().file(request.name());
                         if (file != null) {
                             file.updateRecovered(request.length());

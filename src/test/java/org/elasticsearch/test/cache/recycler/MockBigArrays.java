@@ -70,9 +70,19 @@ public class MockBigArrays extends BigArrays {
             }
         }
         if (INSTANCE != null) {
-            final long sizeInBytes = INSTANCE.sizeInBytes();
-            if (sizeInBytes != 0) {
-                throw new AssertionError("Expected 0 bytes, got " + sizeInBytes);
+            // BigArrays are used on the network layer and the cluster is shared across tests so nodes might still be talking to
+            // each other a bit after the test finished, wait a bit for things to stabilize if so
+            final boolean sizeIsZero = ElasticsearchTestCase.awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    return INSTANCE.sizeInBytes() == 0;
+                }
+            });
+            if (!sizeIsZero) {
+                final long sizeInBytes = INSTANCE.sizeInBytes();
+                if (sizeInBytes != 0) {
+                    throw new AssertionError("Expected 0 bytes, got " + sizeInBytes);
+                }
             }
         }
     }

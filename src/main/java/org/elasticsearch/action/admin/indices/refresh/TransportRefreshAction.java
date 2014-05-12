@@ -100,7 +100,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshRequest newShardRequest(ShardRouting shard, RefreshRequest request) {
+    protected ShardRefreshRequest newShardRequest(int numShards, ShardRouting shard, RefreshRequest request) {
         return new ShardRefreshRequest(shard.index(), shard.id(), request);
     }
 

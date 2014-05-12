@@ -100,7 +100,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override
-    protected ShardOptimizeRequest newShardRequest(ShardRouting shard, OptimizeRequest request) {
+    protected ShardOptimizeRequest newShardRequest(int numShards, ShardRouting shard, OptimizeRequest request) {
         return new ShardOptimizeRequest(shard.index(), shard.id(), request);
     }
 

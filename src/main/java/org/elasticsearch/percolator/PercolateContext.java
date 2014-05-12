@@ -93,6 +93,7 @@ public class PercolateContext extends SearchContext {
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
+    private final int numberOfShards;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -127,6 +128,7 @@ public class PercolateContext extends SearchContext {
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
         this.scriptService = scriptService;
+        this.numberOfShards = request.getNumberOfShards();
     }
 
     public IndexSearcher docSearcher() {
@@ -327,7 +329,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public int numberOfShards() {
-        throw new UnsupportedOperationException();
+        return numberOfShards;
     }
 
     @Override

@@ -57,7 +57,6 @@ import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
-import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -198,12 +197,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new LogByteSizeMergePolicyProvider(store, new IndexSettingsService(new Index("test"), EMPTY_SETTINGS));
     }
 
-    protected MergeSchedulerProvider createMergeScheduler() {
-        return new SerialMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
+    protected MergeSchedulerProvider createMergeScheduler(IndexSettingsService indexSettingsService) {
+        return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
     }
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog) {
-        return createEngine(indexSettingsService, store, translog, createMergeScheduler());
+        return createEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
     }
 
     protected Engine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {

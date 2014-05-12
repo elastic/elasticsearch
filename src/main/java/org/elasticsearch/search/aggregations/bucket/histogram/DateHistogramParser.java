@@ -89,6 +89,8 @@ public class DateHistogramParser implements Aggregator.Parser {
         DateTimeZone postZone = DateTimeZone.UTC;
         long preOffset = 0;
         long postOffset = 0;
+        boolean timezoneSet = false;
+        boolean preOrPostZoneSet = false;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -101,10 +103,13 @@ public class DateHistogramParser implements Aggregator.Parser {
                 if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
                     preZone = parseZone(parser.text());
                     postZone = preZone;
+                    timezoneSet = true;
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
                     preZone = parseZone(parser.text());
+                    preOrPostZoneSet = true;
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
                     postZone = parseZone(parser.text());
+                    preOrPostZoneSet = true;
                 } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
                 } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
@@ -128,10 +133,13 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
                     preZone = DateTimeZone.forOffsetHours(parser.intValue());
                     postZone = preZone;
+                    timezoneSet = true;
                 } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
                     preZone = DateTimeZone.forOffsetHours(parser.intValue());
+                    preOrPostZoneSet = true;
                 } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
                     postZone = DateTimeZone.forOffsetHours(parser.intValue());
+                    preOrPostZoneSet = true;
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -179,6 +187,10 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
+        }
+
+        if (timezoneSet && preOrPostZoneSet) {
+            throw new SearchParseException(context, "[pre_zone] and [post_zone] keys can not be set in addition to [time_zone].");
         }
 
         if (interval == null) {

@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -48,6 +50,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -245,18 +248,11 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         // checking post_zone setting as an int
 
         response = client().prepareSearch("idx")
-                .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
-                    @Override
-                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                        return builder.startObject(name)
-                                .startObject(type)
-                                .field("field", "date")
-                                .field("interval", "1d")
-                                .field("time_zone", +1)
-                                .endObject()
-                                .endObject();
-                    }
-                })
+                .addAggregation(dateHistogram("histo")
+                        .field("date")
+                        .timeZone("+1:00")
+                        .interval(DateHistogram.Interval.DAY)
+                        .format("yyyy-MM-dd"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -302,6 +298,44 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(1l));
+    }
+
+    @Test
+    public void settingTimeZoneWithPrePostZone() throws Exception {
+        // We test when pre_zone is set after time_zone
+        ListenableActionFuture<SearchResponse> future = client().prepareSearch("idx")
+                .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        return builder.startObject(name)
+                                .startObject(type)
+                                .field("field", "date")
+                                .field("interval", "1d")
+                                .field("time_zone", +1)
+                                .field("pre_zone", +1)
+                                .endObject()
+                                .endObject();
+                    }
+                })
+                .execute();
+        assertThrows(future, SearchPhaseExecutionException.class);
+
+        future = client().prepareSearch("idx")
+                .addAggregation(new AbstractAggregationBuilder("histo", "date_histogram") {
+                    @Override
+                    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                        return builder.startObject(name)
+                                .startObject(type)
+                                .field("field", "date")
+                                .field("interval", "1d")
+                                .field("post_zone", +1)
+                                .field("time_zone", +1)
+                                .endObject()
+                                .endObject();
+                    }
+                })
+                .execute();
+        assertThrows(future, SearchPhaseExecutionException.class);
     }
 
     @Test

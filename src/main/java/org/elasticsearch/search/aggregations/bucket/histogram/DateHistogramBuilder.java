@@ -79,6 +79,12 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
         return this;
     }
 
+    public DateHistogramBuilder timeZone(String timeZone) {
+        this.preZone = timeZone;
+        this.postZone = timeZone;
+        return this;
+    }
+
     public DateHistogramBuilder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
         this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
         return this;

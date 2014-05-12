@@ -258,11 +258,11 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         docBuilder.meta(attributes);
 
         if (!mapping.isEmpty()) {
-            String remainingFields = "";
+            StringBuilder remainingFields = new StringBuilder();
             for (String key : mapping.keySet()) {
-                remainingFields += " [" + key + " : " + mapping.get(key).toString() + "]";
+                remainingFields.append(" [").append(key).append(" : ").append(mapping.get(key).toString()).append("]");
             }
-            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:" + remainingFields);
+            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:" + remainingFields.toString());
         }
         if (!docBuilder.hasIndexAnalyzer()) {
             docBuilder.indexAnalyzer(analysisService.defaultIndexAnalyzer());

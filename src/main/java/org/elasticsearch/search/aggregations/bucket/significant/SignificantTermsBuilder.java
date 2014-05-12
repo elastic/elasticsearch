@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
 
 import java.io.IOException;
 
@@ -34,10 +35,10 @@ import java.io.IOException;
 public class SignificantTermsBuilder extends AggregationBuilder<SignificantTermsBuilder> {
 
     private String field;
-    private int requiredSize = SignificantTermsParser.DEFAULT_REQUIRED_SIZE;
-    private int shardSize = SignificantTermsParser.DEFAULT_SHARD_SIZE;
-    private int minDocCount = SignificantTermsParser.DEFAULT_MIN_DOC_COUNT;
-    private int shardMinDocCount = SignificantTermsParser.DEFAULT_SHARD_MIN_DOC_COUNT;
+    private int requiredSize = AbstractTermsParametersParser.DEFAULT_REQUIRED_SIZE;
+    private int shardSize = AbstractTermsParametersParser.DEFAULT_SHARD_SIZE;
+    private int minDocCount = AbstractTermsParametersParser.DEFAULT_MIN_DOC_COUNT;
+    private int shardMinDocCount = AbstractTermsParametersParser.DEFAULT_SHARD_MIN_DOC_COUNT;
     private String executionHint;
     private String includePattern;
     private int includeFlags;
@@ -136,16 +137,16 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (field != null) {
             builder.field("field", field);
         }
-        if (minDocCount != SignificantTermsParser.DEFAULT_MIN_DOC_COUNT) {
+        if (minDocCount != AbstractTermsParametersParser.DEFAULT_MIN_DOC_COUNT) {
             builder.field("minDocCount", minDocCount);
         }
-        if (shardMinDocCount != SignificantTermsParser.DEFAULT_SHARD_MIN_DOC_COUNT) {
+        if (shardMinDocCount != AbstractTermsParametersParser.DEFAULT_SHARD_MIN_DOC_COUNT) {
             builder.field("shardMinDocCount", shardMinDocCount);
         }
-        if (requiredSize != SignificantTermsParser.DEFAULT_REQUIRED_SIZE) {
+        if (requiredSize != AbstractTermsParametersParser.DEFAULT_REQUIRED_SIZE) {
             builder.field("size", requiredSize);
         }
-        if (shardSize != SignificantTermsParser.DEFAULT_SHARD_SIZE) {
+        if (shardSize != AbstractTermsParametersParser.DEFAULT_SHARD_SIZE) {
             builder.field("shard_size", shardSize);
         }
         if (executionHint != null) {
@@ -173,7 +174,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
         
         if (filterBuilder != null) {
-            builder.field(SignificantTermsParser.BACKGROUND_FILTER.getPreferredName());
+            builder.field(SignificantTermsParametersParser.BACKGROUND_FILTER.getPreferredName());
             filterBuilder.toXContent(builder, params); 
         }
 

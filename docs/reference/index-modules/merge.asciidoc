@@ -185,19 +185,11 @@ Defaults to unbounded.
 [[scheduling]]
 === Scheduling
 
-The merge schedule controls the execution of merge operations once they
-are needed (according to the merge policy). The following types are
-supported, with the default being the `ConcurrentMergeScheduler`.
-
-[float]
-==== ConcurrentMergeScheduler
-
-A merge scheduler that runs merges using a separate thread. When the maximum
-number of threads is reached, further merges will wait until a merge thread
-becomes available.
-
-
-The scheduler supports the following settings:
+The merge scheduler (ConcurrentMergeScheduler) controls the execution of
+merge operations once they are needed (according to the merge policy).  Merges
+run in separate threads, and when the maximum number of threads is reached,
+further merges will wait until a merge thread becomes available.  The merge
+scheduler supports this setting:
 
 `index.merge.scheduler.max_thread_count`::
 
@@ -209,22 +201,3 @@ coming[1.2.0]
 The default will change to `1` which works best with spinning-magnets
 disks.  If you are using a good solid-state disk (SSD) instead then try
 setting this to `3`.
-
-[float]
-==== SerialMergeScheduler
-
-A merge scheduler that simply does each merge sequentially using the
-calling thread (blocking the operations that triggered the merge or the
-index operation). This merge scheduler has a merge thread pool that
-explicitly schedules merges, and it makes sure that merges are serial
-within a shard, yet concurrent across multiple shards.
-
-The scheduler supports the following settings:
-
-`index.merge.scheduler.max_merge_at_once`::
-
-The maximum number of merges a single merge run performs. This setting prevents
-executing unlimited amount of merges in a loop until another shards has a
-chance to get a merge thread from the pool. If this limit is reached the
-merge thread returns to the pool and continues once the the call to a single
-shards is executed. The default is `5`

@@ -42,8 +42,8 @@ public class BenchmarkTestUtil {
     public static final int MAX_MULTIPLIER = 500;
     public static final int MIN_SMALL_INTERVAL = 1;
     public static final int MAX_SMALL_INTERVAL = 3;
-    public static final int MIN_LARGE_INTERVAL = 11;
-    public static final int MAX_LARGE_INTERVAL = 19;
+    public static final int MIN_LARGE_INTERVAL = 5;
+    public static final int MAX_LARGE_INTERVAL = 7;
 
     public static final String BENCHMARK_NAME = "test_benchmark";
     public static final String COMPETITOR_PREFIX = "competitor_";

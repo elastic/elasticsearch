@@ -896,7 +896,7 @@
                         <mapping>
                             <directory>/etc/rc.d/init.d/</directory>
                             <filemode>755</filemode>
-                            <configuration>true</configuration>
+                            <configuration>false</configuration>
                             <sources>
                                 <source>
                                     <location>src/rpm/init.d/elasticsearch</location>

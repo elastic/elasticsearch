@@ -176,7 +176,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testSpecifiedIndexUnavailable_snapshotRestore() throws Exception {
         createIndex("test1");
-        ensureYellow();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();
@@ -337,7 +336,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
     @Test
     public void testWildcardBehaviour_snapshotRestore() throws Exception {
         createIndex("foobar");
-        ensureYellow();
 
         PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("dummy-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder().put("location", newTempDir())).get();

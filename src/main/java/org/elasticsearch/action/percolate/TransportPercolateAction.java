@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -173,8 +174,8 @@ public class TransportPercolateAction extends TransportBroadcastOperationAction<
     }
 
     @Override
-    protected PercolateShardRequest newShardRequest(ShardRouting shard, PercolateRequest request) {
-        return new PercolateShardRequest(shard.index(), shard.id(), request);
+    protected PercolateShardRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, PercolateRequest request) {
+        return new PercolateShardRequest(shard.index(), shard.id(), shardIt.size(), request);
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,7 +126,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
     }
 
     @Override
-    protected IndexShardStatsRequest newShardRequest(ShardRouting shard, IndicesStatsRequest request) {
+    protected IndexShardStatsRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, IndicesStatsRequest request) {
         return new IndexShardStatsRequest(shard.index(), shard.id(), request);
     }
 

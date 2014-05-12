@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -93,7 +94,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
     }
 
     @Override
-    protected ShardSuggestRequest newShardRequest(ShardRouting shard, SuggestRequest request) {
+    protected ShardSuggestRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, SuggestRequest request) {
         return new ShardSuggestRequest(shard.index(), shard.id(), request);
     }
 

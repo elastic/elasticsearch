@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -100,7 +101,7 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     }
 
     @Override
-    protected ShardRefreshRequest newShardRequest(ShardRouting shard, RefreshRequest request) {
+    protected ShardRefreshRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, RefreshRequest request) {
         return new ShardRefreshRequest(shard.index(), shard.id(), request);
     }
 

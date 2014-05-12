@@ -654,7 +654,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 return aliasesOrIndices;
             }
             String[] actualLst = aliasAndIndexToIndexMap.getOrDefault(aliasOrIndex, Strings.EMPTY_ARRAY);
-            if (!indicesOptions.allowNoIndices() && actualLst == null) {
+            if (actualLst.length == 0 && !indicesOptions.allowNoIndices()) {
                 throw new IndexMissingException(new Index(aliasOrIndex));
             } else {
                 return actualLst;

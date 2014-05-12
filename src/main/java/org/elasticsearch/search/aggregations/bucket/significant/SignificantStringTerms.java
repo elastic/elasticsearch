@@ -144,7 +144,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
                 builder.startObject();
-                builder.field(CommonFields.KEY, ((Bucket) bucket).termBytes);
+                builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
                 builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
                 builder.field("score", bucket.score);
                 builder.field("bg_count", bucket.supersetDf);

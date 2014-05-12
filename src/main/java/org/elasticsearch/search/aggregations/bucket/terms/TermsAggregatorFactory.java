@@ -57,7 +57,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent) {
                 if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                    return MAP.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
                 }
                 return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }
@@ -103,11 +103,8 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent) {
-                if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
-                }
-                if (factories != AggregatorFactories.EMPTY) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode can only be used as a leaf aggregation");
+                if (includeExclude != null || factories != null) {
+                    return GLOBAL_ORDINALS.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, includeExclude, aggregationContext, parent);
                 }
                 return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, estimatedBucketCount, maxOrd, order, requiredSize, shardSize, minDocCount, aggregationContext, parent);
             }

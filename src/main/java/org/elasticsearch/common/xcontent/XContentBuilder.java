@@ -529,6 +529,16 @@ public final class XContentBuilder implements BytesStream {
         return this;
     }
 
+    public XContentBuilder utf8Field(XContentBuilderString name, BytesRef value) throws IOException {
+        field(name);
+        generator.writeUTF8String(value.bytes, value.offset, value.length);
+        return this;
+    }
+
+    /**
+     * replaced with {@link #utf8Field(XContentBuilderString, org.apache.lucene.util.BytesRef)}
+     */
+    @Deprecated
     public XContentBuilder field(XContentBuilderString name, BytesRef value) throws IOException {
         field(name);
         generator.writeUTF8String(value.bytes, value.offset, value.length);
@@ -1135,6 +1145,8 @@ public final class XContentBuilder implements BytesStream {
             generator.writeNumber(((Float) value).floatValue());
         } else if (type == Double.class) {
             generator.writeNumber(((Double) value).doubleValue());
+        } else if (type == Byte.class) {
+            generator.writeNumber(((Byte)value).byteValue());
         } else if (type == Short.class) {
             generator.writeNumber(((Short) value).shortValue());
         } else if (type == Boolean.class) {

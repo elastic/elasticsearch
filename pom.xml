@@ -221,13 +221,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <version>2.3.0</version>
-            <scope>compile</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.3.3</version>
@@ -269,6 +262,14 @@
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.3.0</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>log4j</groupId>
@@ -1334,7 +1335,7 @@
             <version>0.6.4.201312101107</version>
             <scope>test</scope>
           </dependency>
-        </dependencies>        
+        </dependencies>
         <build>
           <plugins>
             <plugin>
@@ -1359,7 +1360,7 @@
                   <id>default-check</id>
                   <goals>
                     <goal>check</goal>
-                  </goals>                  
+                  </goals>
                 </execution>
               </executions>
               <configuration>

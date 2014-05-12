@@ -124,7 +124,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastOperationA
     }
 
     @Override
-    protected IndexShardSegmentRequest newShardRequest(ShardRouting shard, IndicesSegmentsRequest request) {
+    protected IndexShardSegmentRequest newShardRequest(int numShards, ShardRouting shard, IndicesSegmentsRequest request) {
         return new IndexShardSegmentRequest(shard.index(), shard.id(), request);
     }
 

@@ -42,8 +42,6 @@ public class IncludeExclude {
     private final Matcher exclude;
     private final CharsRef scratch = new CharsRef();
 
-    private LongBitSet acceptedGlobalOrdinals;
-
     /**
      * @param include   The regular expression pattern for the terms to be included
      *                  (may only be {@code null} if {@code exclude} is not {@code null}
@@ -74,21 +72,22 @@ public class IncludeExclude {
         return !exclude.reset(scratch).matches();
     }
 
-    public Ordinals.Docs acceptedGlobalOrdinals(Ordinals.Docs globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
-        if (acceptedGlobalOrdinals == null) {
-            TermsEnum globalTermsEnum = valueSource.getGlobalTermsEnum();
-            acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getMaxOrd());
-            try {
-                for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
-                    if (accept(term)) {
-                        acceptedGlobalOrdinals.set(globalTermsEnum.ord());
-                    }
+    /**
+     * Computes which global ordinals are accepted by this IncludeExclude instance.
+     */
+    public LongBitSet acceptedGlobalOrdinals(Ordinals.Docs globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
+        TermsEnum globalTermsEnum = valueSource.getGlobalTermsEnum();
+        LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getMaxOrd());
+        try {
+            for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
+                if (accept(term)) {
+                    acceptedGlobalOrdinals.set(globalTermsEnum.ord());
                 }
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
             }
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
         }
-        return new FilteredOrdinals(globalOrdinals, acceptedGlobalOrdinals);
+        return acceptedGlobalOrdinals;
     }
 
     public static class Parser {
@@ -173,65 +172,4 @@ public class IncludeExclude {
         }
     }
 
-    private static final class FilteredOrdinals implements Ordinals.Docs {
-
-        private final Ordinals.Docs inner;
-        private final LongBitSet accepted;
-
-        private long currentOrd;
-        private long[] buffer = new long[0];
-        private int bufferSlot;
-
-        private FilteredOrdinals(Ordinals.Docs inner, LongBitSet accepted) {
-            this.inner = inner;
-            this.accepted = accepted;
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return inner.getMaxOrd();
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return inner.isMultiValued();
-        }
-
-        @Override
-        public long getOrd(int docId) {
-            long ord = inner.getOrd(docId);
-            if (accepted.get(ord)) {
-                return currentOrd = ord;
-            } else {
-                return currentOrd = Ordinals.MISSING_ORDINAL;
-            }
-        }
-
-        @Override
-        public long nextOrd() {
-            return currentOrd = buffer[bufferSlot++];
-        }
-
-        @Override
-        public int setDocument(int docId) {
-            int numDocs = inner.setDocument(docId);
-            buffer = ArrayUtil.grow(buffer, numDocs);
-            bufferSlot = 0;
-
-            int numAcceptedOrds = 0;
-            for (int slot = 0; slot < numDocs; slot++) {
-                long ord = inner.nextOrd();
-                if (accepted.get(ord)) {
-                    buffer[numAcceptedOrds] = ord;
-                    numAcceptedOrds++;
-                }
-            }
-            return numAcceptedOrds;
-        }
-
-        @Override
-        public long currentOrd() {
-            return currentOrd;
-        }
-    }
 }

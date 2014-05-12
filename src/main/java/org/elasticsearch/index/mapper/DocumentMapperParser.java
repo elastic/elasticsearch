@@ -253,8 +253,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
         ImmutableMap<String, Object> attributes = ImmutableMap.of();
         if (mapping.containsKey("_meta")) {
-            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.get("_meta"));
-            mapping.remove("_meta");
+            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.remove("_meta"));
         }
         docBuilder.meta(attributes);
 

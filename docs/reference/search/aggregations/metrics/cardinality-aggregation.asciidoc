@@ -1,5 +1,5 @@
 [[search-aggregations-metrics-cardinality-aggregation]]
-=== Cardinality
+=== Cardinality Aggregation
 
 added[1.1.0]
 
@@ -21,8 +21,8 @@ match a query:
 --------------------------------------------------
 {
     "aggs" : {
-        "author_count" : { 
-            "cardinality" : { 
+        "author_count" : {
+            "cardinality" : {
                 "field" : "author"
             }
         }
@@ -36,8 +36,8 @@ This aggregation also supports the `precision_threshold` and `rehash` options:
 --------------------------------------------------
 {
     "aggs" : {
-        "author_count" : { 
-            "cardinality" : { 
+        "author_count" : {
+            "cardinality" : {
                 "field" : "author_hash",
                 "precision_threshold": 100, <1>
                 "rehash": false <2>
@@ -76,7 +76,7 @@ properties:
  * excellent accuracy on low-cardinality sets,
  * fixed memory usage: no matter if there are tens or billions of unique values,
    memory usage only depends on the configured precision.
- 
+
 For a precision threshold of `c`, the implementation that we are using requires
 about `c * 8` bytes.
 
@@ -121,8 +121,8 @@ without computing hashes on the fly:
 --------------------------------------------------
 {
     "aggs" : {
-        "author_count" : { 
-            "cardinality" : { 
+        "author_count" : {
+            "cardinality" : {
                 "field" : "author.hash"
             }
         }
@@ -149,8 +149,8 @@ however since hashes need to be computed on the fly.
 --------------------------------------------------
 {
     "aggs" : {
-        "author_count" : { 
-            "cardinality" : { 
+        "author_count" : {
+            "cardinality" : {
                 "script": "doc['author.first_name'].value + ' ' + doc['author.last_name'].value"
             }
         }

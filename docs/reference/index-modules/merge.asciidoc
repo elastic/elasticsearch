@@ -195,9 +195,3 @@ scheduler supports this setting:
 
 The maximum number of threads to perform the merge operation. Defaults to
 `Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2))`.
-
-coming[1.2.0]
-
-The default will change to `1` which works best with spinning-magnets
-disks.  If you are using a good solid-state disk (SSD) instead then try
-setting this to `3`.

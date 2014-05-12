@@ -181,10 +181,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = createBuilder(name);
-            Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
-            while (iterator.hasNext()) {
-
-                Map.Entry<String, Object> entry = iterator.next();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 parseObjectOrDocumentTyeProperties( fieldName,  fieldNode,  parserContext,  builder);

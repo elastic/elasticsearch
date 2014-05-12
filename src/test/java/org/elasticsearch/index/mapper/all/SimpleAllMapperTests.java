@@ -329,7 +329,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         DocumentMapper docMapper = MapperTestUtils.newParser().parse("test", mapping);
     }
 
-    // unrelated to https://github.com/elasticsearch/elasticsearch/issues/5864
+    // related to https://github.com/elasticsearch/elasticsearch/issues/5864
     @Test(expected = MapperParsingException.class)
     public void testMistypedTypeInRoot() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mistyped_type_in_root.json");

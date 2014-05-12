@@ -26,23 +26,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -52,12 +51,6 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
-    }
-
-    public String randomExecutionHintNoOrdinals() {
-        EnumSet<SignificantTermsAggregatorFactory.ExecutionMode> modes = EnumSet.allOf(ExecutionMode.class);
-        modes.remove(ExecutionMode.ORDINALS);
-        return randomBoolean() ? null : randomFrom(modes.toArray()).toString();
     }
 
     @Override
@@ -130,7 +123,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void includeExclude() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setQuery(new TermQueryBuilder("_all", "weller"))
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHintNoOrdinals())
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .exclude("weller"))
                 .get();
         assertSearchResponse(response);
@@ -149,7 +142,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
         response = client().prepareSearch("test")
                 .setQuery(new TermQueryBuilder("_all", "weller"))
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHintNoOrdinals())
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .include("weller"))
                 .get();
         assertSearchResponse(response);

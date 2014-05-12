@@ -48,7 +48,7 @@ import java.util.Arrays;
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
 
     protected final ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
-    private final IncludeExclude includeExclude;
+    protected final IncludeExclude includeExclude;
 
     protected BytesValues.WithOrdinals globalValues;
     protected Ordinals.Docs globalOrdinals;
@@ -59,7 +59,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     // first defined one.
     // So currently for each instance of this aggregator the acceptedGlobalOrdinals will be computed, this is unnecessary
     // especially if this agg is on a second layer or deeper.
-    private LongBitSet acceptedGlobalOrdinals;
+    protected LongBitSet acceptedGlobalOrdinals;
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
                                                long maxOrd, InternalOrder order, int requiredSize, int shardSize, long minDocCount,
@@ -124,6 +124,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
         for (long globalTermOrd = Ordinals.MIN_ORDINAL; globalTermOrd < globalOrdinals.getMaxOrd(); ++globalTermOrd) {
+            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
+                continue;
+            }
             final long bucketOrd = getBucketOrd(globalTermOrd);
             final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (minDocCount > 0 && bucketDocCount == 0) {

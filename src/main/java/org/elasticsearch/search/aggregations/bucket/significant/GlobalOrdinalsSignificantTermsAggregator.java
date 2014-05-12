@@ -80,6 +80,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         SignificantStringTerms.Bucket spare = null;
         for (long globalTermOrd = Ordinals.MIN_ORDINAL; globalTermOrd < globalOrdinals.getMaxOrd(); ++globalTermOrd) {
+            if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
+                continue;
+            }
             final long bucketOrd = getBucketOrd(globalTermOrd);
             final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (minDocCount > 0 && bucketDocCount == 0) {

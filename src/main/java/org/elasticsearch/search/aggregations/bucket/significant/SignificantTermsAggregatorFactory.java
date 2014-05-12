@@ -70,7 +70,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               int requiredSize, int shardSize, long minDocCount, long shardMinDocCount, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
                 if (includeExclude != null) {
-                    throw new ElasticsearchIllegalArgumentException("The `" + this + "` execution mode cannot filter terms.");
+                    return MAP.create(name, factories, valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, includeExclude, aggregationContext, parent, termsAggregatorFactory);
                 }
                 return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, requiredSize, shardSize, minDocCount, shardMinDocCount, aggregationContext, parent, termsAggregatorFactory);
             }

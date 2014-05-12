@@ -130,10 +130,8 @@ public class RootObjectMapper extends ObjectMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
-                    iterator.remove();
-                }
-                if (processField(builder,fieldName, fieldNode)) {
+                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
+                        || processField(builder, fieldName, fieldNode)) {
                     iterator.remove();
                 }
             }

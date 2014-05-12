@@ -83,7 +83,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardRequest newShardRequest();
 
-    protected abstract ShardRequest newShardRequest(ShardRouting shard, Request request);
+    protected abstract ShardRequest newShardRequest(int numShards, ShardRouting shard, Request request);
 
     protected abstract ShardResponse newShardResponse();
 
@@ -161,7 +161,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 onOperation(null, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
                 try {
-                    final ShardRequest shardRequest = newShardRequest(shard, request);
+                    final ShardRequest shardRequest = newShardRequest(shardIt.size(), shard, request);
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         threadPool.executor(executor).execute(new Runnable() {
                             @Override

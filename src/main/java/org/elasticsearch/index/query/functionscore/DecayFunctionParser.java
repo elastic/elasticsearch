@@ -200,7 +200,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             }
         }
         if (!scaleFound || !refFound) {
-            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
+            throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + " and " + DecayFunctionBuilder.ORIGIN
                     + " must be set for numeric fields.");
         }
         IndexNumericFieldData numericFieldData = parseContext.getForField(mapper);

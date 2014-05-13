@@ -1540,7 +1540,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
                 .startObject("nested")
-                    .field("foo", "bar")
+                    .field("foo", "bar bar")
                 .endObject()
                 .endObject()).execute().actionGet();
         refresh();
@@ -1575,7 +1575,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             assertThat(o, notNullValue());
             assertThat(o instanceof StringAndBytesText, is(true));
             StringAndBytesText text = (StringAndBytesText) o;
-            assertThat(text.string(), is("bar"));
+            assertThat(text.string(), is("bar bar"));
         }
     }
 

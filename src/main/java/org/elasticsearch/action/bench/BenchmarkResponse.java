@@ -183,7 +183,7 @@ public class BenchmarkResponse extends ActionResponse implements Streamable, ToX
      * Sets error messages
      * @param errors    Error messages
      */
-    public void errors(String[] errors) {
+    public void errors(String... errors) {
         this.errors = (errors == null) ? Strings.EMPTY_ARRAY : errors;
     }
 

@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.search.highlight.HighlighterContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -127,6 +128,26 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
     @Override
     public boolean includeInObject() {
         return false;
+    }
+
+    public Analyzer setAnalyzer(HighlighterContext context){
+        if (context.analyzer() != null){
+            return context.analyzer();
+        }
+
+        Analyzer analyzer = null;
+
+        if (path != null) {
+            String analyzerName = (String) context.context.lookup().source().extractValue(path);
+            analyzer = context.context.mapperService().analysisService().analyzer(analyzerName);
+        }
+
+        if (analyzer == null) {
+            analyzer = context.context.mapperService().documentMapper(context.hitContext.hit().type()).mappers().indexAnalyzer();
+        }
+        context.analyzer(analyzer);
+
+        return analyzer;
     }
 
     @Override

@@ -1511,6 +1511,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     /**
      * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
      */
+    @Test
     public void testNestedSort() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
                 .addMapping("type",

@@ -41,47 +41,61 @@ public class MetaDataTests extends ElasticsearchTestCase {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo"))
                 .put(indexBuilder("foobar"))
+                .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         MetaData md = mdBuilder.build();
 
-        IndicesOptions options = IndicesOptions.strictExpandOpen();
+        IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.strictExpandOpen(), IndicesOptions.strictExpand()};
 
-        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        for (IndicesOptions options : indicesOptions) {
+            String[] results = md.concreteIndices(new String[]{"foo"}, options);
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+
+            try {
+                md.concreteIndices(new String[]{"bar"}, options);
+                fail();
+            } catch (IndexMissingException e) {}
+
+            results = md.concreteIndices(new String[]{"foofoo", "foobar"}, options);
+            assertEquals(2, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
+
+            try {
+                md.concreteIndices(new String[]{"foo", "bar"}, options);
+                fail();
+            } catch (IndexMissingException e) {}
+
+            results = md.concreteIndices(new String[]{"barbaz", "foobar"}, options);
+            assertEquals(2, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
+
+            try {
+                md.concreteIndices(new String[]{"barbaz", "bar"}, options);
+                fail();
+            } catch (IndexMissingException e) {}
+
+            results = md.concreteIndices(new String[]{"baz*"}, options);
+            assertThat(results, emptyArray());
+
+            results = md.concreteIndices(new String[]{"foo", "baz*"}, options);
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+        }
+
+        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, IndicesOptions.strictExpandOpen());
         assertEquals(3, results.length);
 
-        results = md.concreteIndices(new String[]{"foo"}, options);
+        results = md.concreteIndices(Strings.EMPTY_ARRAY, IndicesOptions.strictExpand());
+        assertEquals(4, results.length);
+
+        results = md.concreteIndices(new String[]{"foofoo*"}, IndicesOptions.strictExpandOpen());
         assertEquals(1, results.length);
-        assertEquals("foo", results[0]);
+        assertEquals("foofoo", results[0]);
 
-        try {
-            md.concreteIndices(new String[]{"bar"}, options);
-            fail();
-        } catch (IndexMissingException e) {}
-
-        results = md.concreteIndices(new String[]{"foofoo", "foobar"}, options);
+        results = md.concreteIndices(new String[]{"foofoo*"}, IndicesOptions.strictExpand());
         assertEquals(2, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
-
-        try {
-            md.concreteIndices(new String[]{"foo", "bar"}, options);
-            fail();
-        } catch (IndexMissingException e) {}
-
-        results = md.concreteIndices(new String[]{"barbaz", "foobar"}, options);
-        assertEquals(2, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
-
-        try {
-            md.concreteIndices(new String[]{"barbaz", "bar"}, options);
-            fail();
-        } catch (IndexMissingException e) {}
-
-        results = md.concreteIndices(new String[]{"baz*"}, options);
-        assertThat(results, emptyArray());
-
-        results = md.concreteIndices(new String[]{"foo", "baz*"}, options);
-        assertEquals(1, results.length);
-        assertEquals("foo", results[0]);
+        assertThat(results, arrayContainingInAnyOrder("foofoo", "foofoo-closed"));
     }
 
     @Test
@@ -89,82 +103,105 @@ public class MetaDataTests extends ElasticsearchTestCase {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo"))
                 .put(indexBuilder("foobar"))
+                .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         MetaData md = mdBuilder.build();
 
-        IndicesOptions options = IndicesOptions.lenientExpandOpen();
+        IndicesOptions lenientExpand = IndicesOptions.fromOptions(true, true, true, true);
+        IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.lenientExpandOpen(), lenientExpand};
 
-        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        for (IndicesOptions options : indicesOptions) {
+            String[] results = md.concreteIndices(new String[]{"foo"}, options);
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+
+            results = md.concreteIndices(new String[]{"bar"}, options);
+            assertThat(results, emptyArray());
+
+            results = md.concreteIndices(new String[]{"foofoo", "foobar"}, options);
+            assertEquals(2, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
+
+            results = md.concreteIndices(new String[]{"foo", "bar"}, options);
+            assertEquals(1, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foo"));
+
+            results = md.concreteIndices(new String[]{"barbaz", "foobar"}, options);
+            assertEquals(2, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
+
+            results = md.concreteIndices(new String[]{"barbaz", "bar"}, options);
+            assertEquals(1, results.length);
+            assertThat(results, arrayContainingInAnyOrder("foofoo"));
+
+            results = md.concreteIndices(new String[]{"baz*"}, options);
+            assertThat(results, emptyArray());
+
+            results = md.concreteIndices(new String[]{"foo", "baz*"}, options);
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+        }
+
+        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, IndicesOptions.lenientExpandOpen());
         assertEquals(3, results.length);
 
-        results = md.concreteIndices(new String[]{"foo"}, options);
+        results = md.concreteIndices(Strings.EMPTY_ARRAY, lenientExpand);
+        assertEquals(4, results.length);
+
+        results = md.concreteIndices(new String[]{"foofoo*"}, IndicesOptions.lenientExpandOpen());
         assertEquals(1, results.length);
-        assertEquals("foo", results[0]);
+        assertEquals("foofoo", results[0]);
 
-        results = md.concreteIndices(new String[]{"bar"}, options);
-        assertThat(results, emptyArray());
-
-        results = md.concreteIndices(new String[]{"foofoo", "foobar"}, options);
+        results = md.concreteIndices(new String[]{"foofoo*"}, lenientExpand);
         assertEquals(2, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
-
-        results = md.concreteIndices(new String[]{"foo", "bar"}, options);
-        assertEquals(1, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foo"));
-
-        results = md.concreteIndices(new String[]{"barbaz", "foobar"}, options);
-        assertEquals(2, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foofoo", "foobar"));
-
-        results = md.concreteIndices(new String[]{"barbaz", "bar"}, options);
-        assertEquals(1, results.length);
-        assertThat(results, arrayContainingInAnyOrder("foofoo"));
-
-        results = md.concreteIndices(new String[]{"baz*"}, options);
-        assertThat(results, emptyArray());
-
-        results = md.concreteIndices(new String[]{"foo", "baz*"}, options);
-        assertEquals(1, results.length);
-        assertEquals("foo", results[0]);
+        assertThat(results, arrayContainingInAnyOrder("foofoo", "foofoo-closed"));
     }
 
     @Test
-    public void testIndexOptions_allowUnavailableExpandOpenDisallowEmpty() {
+    public void testIndexOptions_allowUnavailableDisallowEmpty() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("foo"))
                 .put(indexBuilder("foobar"))
+                .put(indexBuilder("foofoo-closed").state(IndexMetaData.State.CLOSE))
                 .put(indexBuilder("foofoo").putAlias(AliasMetaData.builder("barbaz")));
         MetaData md = mdBuilder.build();
 
-        IndicesOptions options = IndicesOptions.fromOptions(true, false, true, false);
+        IndicesOptions expandOpen = IndicesOptions.fromOptions(true, false, true, false);
+        IndicesOptions expand = IndicesOptions.fromOptions(true, false, true, true);
+        IndicesOptions[] indicesOptions = new IndicesOptions[]{expandOpen, expand};
 
-        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, options);
+        for (IndicesOptions options : indicesOptions) {
+            String[] results = md.concreteIndices(new String[]{"foo"}, options);
+            assertEquals(1, results.length);
+            assertEquals("foo", results[0]);
+
+            try {
+                md.concreteIndices(new String[]{"bar"}, options);
+                fail();
+            } catch(IndexMissingException e) {
+                assertThat(e.index().name(), equalTo("bar"));
+            }
+
+            try {
+                md.concreteIndices(new String[]{"baz*"}, options);
+                fail();
+            } catch (IndexMissingException e) {
+                assertThat(e.index().name(), equalTo("baz*"));
+            }
+
+            try {
+                md.concreteIndices(new String[]{"foo", "baz*"}, options);
+                fail();
+            } catch (IndexMissingException e) {
+                assertThat(e.index().name(), equalTo("baz*"));
+            }
+        }
+
+        String[] results = md.concreteIndices(Strings.EMPTY_ARRAY, expandOpen);
         assertEquals(3, results.length);
 
-        results = md.concreteIndices(new String[]{"foo"}, options);
-        assertEquals(1, results.length);
-        assertEquals("foo", results[0]);
-
-        try {
-            md.concreteIndices(new String[]{"bar"}, options);
-            fail();
-        } catch(IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("bar"));
-        }
-
-        try {
-            md.concreteIndices(new String[]{"baz*"}, options);
-            fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("baz*"));
-        }
-
-        try {
-            md.concreteIndices(new String[]{"foo", "baz*"}, options);
-            fail();
-        } catch (IndexMissingException e) {
-            assertThat(e.index().name(), equalTo("baz*"));
-        }
+        results = md.concreteIndices(Strings.EMPTY_ARRAY, expand);
+        assertEquals(4, results.length);
     }
 
     @Test

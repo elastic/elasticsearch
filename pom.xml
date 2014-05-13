@@ -74,11 +74,6 @@
             <version>4.3.1</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.tdunning</groupId>
-            <artifactId>t-digest</artifactId>
-            <version>3.0</version>
-        </dependency>
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
@@ -258,6 +253,13 @@
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
             <version>0.9.6</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.tdunning</groupId>
+            <artifactId>t-digest</artifactId>
+            <version>3.0</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
@@ -580,6 +582,7 @@
                             <include>io.netty:netty</include>
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
+                            <include>com.tdunning:t-digest</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -614,6 +617,10 @@
                         <relocation>
                             <pattern>com.ning.compress</pattern>
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.tdunning.math.stats</pattern>
+                            <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>

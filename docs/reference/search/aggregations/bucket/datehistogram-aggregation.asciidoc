@@ -50,7 +50,7 @@ computations to take the relevant zone into account. The time returned for each 
 epoch of the provided time zone.
 
 The parameters are `pre_zone` (pre rounding based on interval) and `post_zone` (post rounding based on interval). The
-`time_zone` parameter simply sets the `pre_zone` parameter. By default, those are set to `UTC`.
+`time_zone` parameter simply sets `pre_zone` and `post_zone` parameters. By default, those are set to `UTC`.
 
 The zone value accepts either a numeric value for the hours offset, for example: `"time_zone" : -2`. It also accepts a
 format of hours and minutes, like `"time_zone" : "-02:30"`. Another option is to provide a time zone accepted as one of

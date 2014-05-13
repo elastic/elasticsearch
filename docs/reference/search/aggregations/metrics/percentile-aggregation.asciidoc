@@ -184,7 +184,7 @@ This balance can be controlled using a `compression` parameter:
 The TDigest algorithm uses a number of "nodes" to approximate percentiles -- the
 more nodes available, the higher the accuracy (and large memory footprint) proportional
 to the volume of data.  The `compression` parameter limits the maximum number of
-nodes to `100 * compression`.
+nodes to `20 * compression`.
 
 Therefore, by increasing the compression value, you can increase the accuracy of
 your percentiles at the cost of more memory.  Larger compression values also
@@ -192,7 +192,7 @@ make the algorithm slower since the underlying tree data structure grows in size
 resulting in more expensive operations.  The default compression value is
 `100`.
 
-A "node" uses roughly 48 bytes of memory, so under worst-case scenarios (large amount
+A "node" uses roughly 32 bytes of memory, so under worst-case scenarios (large amount
 of data which arrives sorted and in-order) the default settings will produce a
-TDigest roughly 480KB in size.  In practice data tends to be more random and
+TDigest roughly 64KB in size.  In practice data tends to be more random and
 the TDigest will use less memory.

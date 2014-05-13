@@ -75,10 +75,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.mahout</groupId>
-            <artifactId>mahout-core</artifactId>
-            <version>0.9</version>
-            <scope>test</scope>
+            <groupId>com.tdunning</groupId>
+            <artifactId>t-digest</artifactId>
+            <version>3.0</version>
         </dependency>
 
         <dependency>

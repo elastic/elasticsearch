@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
-    
+
     @Test
     // see #3486
     public void testHighTermFrequencyDoc() throws ElasticsearchException, IOException {
@@ -137,8 +137,8 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         SearchResponse search = client().prepareSearch("test").setTypes("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR)).addHighlightedField("name.autocomplete").execute().actionGet();
         assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
     }
-    
-    @Test 
+
+    @Test
     public void testMultiPhraseCutoff() throws ElasticsearchException, IOException {
         /*
          * MultiPhraseQuery can literally kill an entire node if there are too many terms in the
@@ -169,7 +169,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         search = client().prepareSearch().setQuery(matchQuery("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature").type(Type.PHRASE)).addHighlightedField("body").execute().actionGet();
         assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: <em>http://www.facebook.com</em> <em>http://elasticsearch.org</em> <em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"));
     }
-    
+
     @Test
     public void testNgramHighlightingPreLucene42() throws ElasticsearchException, IOException {
 
@@ -237,7 +237,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(search, 1, "name2", 0, anyOf(equalTo("<em>logica</em>cmg ehemals avinci - the know how company"),
                 equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>")));
     }
-    
+
     @Test
     public void testNgramHighlighting() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test")
@@ -264,23 +264,23 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen();
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").get();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
-        
+
         search = client().prepareSearch().setQuery(matchQuery("name", "logica ma")).addHighlightedField("name").get();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
 
         search = client().prepareSearch().setQuery(matchQuery("name", "logica")).addHighlightedField("name").get();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
-        
+
         search = client().prepareSearch().setQuery(matchQuery("name2", "logica m")).addHighlightedField("name2").get();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how <em>company</em>"));
-        
+
         search = client().prepareSearch().setQuery(matchQuery("name2", "logica ma")).addHighlightedField("name2").get();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how company"));
 
         search = client().prepareSearch().setQuery(matchQuery("name2", "logica")).addHighlightedField("name2").get();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> ehemals avinci - the know how company"));
     }
-    
+
     @Test
     public void testEnsureNoNegativeOffsets() throws Exception {
         assertAcked(prepareCreate("test")
@@ -314,7 +314,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         assertHighlight(search, 0, "no_long_term", 0, 1, equalTo("a <b>test</b> where <b>foo</b> is <b>highlighed</b> and"));
     }
-    
+
     @Test
     public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {
         assertAcked(prepareCreate("test")
@@ -654,6 +654,38 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
+    }
+
+    @Test
+    public void testPlainHighlighterDocumentAnalyzer() throws Exception {
+        client().admin().indices().prepareCreate("test")
+        .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("_analyzer")
+                .field("path", "language_analyzer")
+            .endObject()
+            .startObject("properties")
+                .startObject("language_analyzer")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                .endObject()
+                .startObject("text")
+                    .field("type", "string")
+                .endObject()
+            .endObject()
+            .endObject().endObject()).execute().actionGet();
+        ensureYellow();
+
+        index("test", "type1", "1",
+                "language_analyzer", "english",
+                "text", "Look at me, I'm eating cars.");
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "car"))
+                .addHighlightedField(
+                        new HighlightBuilder.Field("text").preTags("<1>").postTags("</1>").requireFieldMatch(true))
+                .get();
+        assertHighlight(response, 0, "text", 0, 1, equalTo("Look at me, I'm eating <1>cars</1>."));
     }
 
     @Test
@@ -1272,7 +1304,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
         assertHighlight(response, 0, "tags", 0, equalTo("this is a really long <em>tag</em> i would like to highlight"));
         assertHighlight(response, 0, "tags", 1, 2, equalTo("here is another one that is very long and has the <em>tag</em> token near the end"));
     }
-    
+
     @Test
     public void testBoostingQuery() {
         createIndex("test");
@@ -1291,7 +1323,7 @@ public class HighlighterSearchTests extends ElasticsearchIntegrationTest {
 
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
-    
+
     @Test
     public void testBoostingQueryTermVector() throws ElasticsearchException, IOException {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));

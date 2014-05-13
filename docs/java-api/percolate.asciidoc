@@ -1,8 +1,8 @@
 [[percolate]]
 == Percolate API
 
-The percolator allows to register queries against an index, and then
-send `percolate` requests which include a doc, and getting back the
+The percolator allows one to register queries against an index, and then
+send `percolate` requests which include a doc, getting back the
 queries that match on that doc out of the set of registered queries.
 
 Read the main {ref}/search-percolate.html[percolate]

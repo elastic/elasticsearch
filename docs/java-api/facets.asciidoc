@@ -296,7 +296,7 @@ learn how to build queries using Java.
 [[statistical]]
 ==== Statistical
 
-Here is how you can use
+Here is how you can use the
 {ref}/search-facets-statistical-facet.html[Statistical
 Facet] with Java API.
 
@@ -340,7 +340,7 @@ f.getVariance();        // Variance
 [[terms-stats]]
 ==== Terms Stats Facet
 
-Here is how you can use
+Here is how you can use the
 {ref}/search-facets-terms-stats-facet.html[Terms
 Stats Facet] with Java API.
 
@@ -390,7 +390,7 @@ for (TermsStatsFacet.Entry entry : f) {
 ==== Geo Distance Facet
 
 Here is how you can use
-{ref}/search-facets-geo-distance-facet.html[Geo
+the {ref}/search-facets-geo-distance-facet.html[Geo
 Distance Facet] with Java API.
 
 

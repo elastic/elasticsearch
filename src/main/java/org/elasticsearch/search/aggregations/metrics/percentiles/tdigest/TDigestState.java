@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Extension of {@link TDigest} with custom serialization.
+ * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
  */
 public class TDigestState extends AVLTreeDigest {
 

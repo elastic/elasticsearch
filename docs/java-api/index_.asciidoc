@@ -8,11 +8,11 @@ index and make it searchable.
 [[generate]]
 === Generate JSON document
 
-There are different way of generating JSON document:
+There are different way of generating a JSON document:
 
 * Manually (aka do it yourself) using native `byte[]` or as a `String`
 
-* Using `Map` that will be automatically converted to its JSON
+* Using a `Map` that will be automatically converted to its JSON
 equivalent
 
 * Using a third party library to serialize your beans such as
@@ -29,7 +29,7 @@ directly constructs a `byte[]`.
 ==== Do It Yourself
 
 Nothing really difficult here but note that you will have to encode
-dates regarding to the
+dates according to the
 {ref}/mapping-date-format.html[Date Format].
 
 [source,java]
@@ -60,7 +60,7 @@ json.put("message","trying out Elasticsearch");
 [[beans]]
 ==== Serialize your beans
 
-Elasticsearch already use Jackson but shade it under
+Elasticsearch already uses Jackson but shades it under
 `org.elasticsearch.common.jackson` package. +
  So, you can add your own Jackson version in your `pom.xml` file or in
 your classpath. See http://wiki.fasterxml.com/JacksonDownload[Jackson
@@ -109,8 +109,8 @@ XContentBuilder builder = jsonBuilder()
 --------------------------------------------------
 
 Note that you can also add arrays with `startArray(String)` and
-`endArray()` methods. By the way, `field` method +
- accept many object types. You can pass directly numbers, dates and even
+`endArray()` methods. By the way, the `field` method +
+ accepts many object types. You can directly pass numbers, dates and even
 other XContentBuilder objects.
 
 If you need to see the generated JSON content, you can use the
@@ -161,7 +161,7 @@ IndexResponse response = client.prepareIndex("twitter", "tweet")
         .actionGet();
 --------------------------------------------------
 
-`IndexResponse` object will give you report:
+`IndexResponse` object will give you a report:
 
 [source,java]
 --------------------------------------------------
@@ -176,7 +176,7 @@ long _version = response.getVersion();
 --------------------------------------------------
 
 If you use percolation while indexing, `IndexResponse` object will give
-you percolator that have matched:
+you a percolator that have matched:
 
 [source,java]
 --------------------------------------------------
@@ -194,12 +194,12 @@ For more information on the index operation, check out the REST
 
 === Operation Threading
 
-The index API allows to set the threading model the operation will be
+The index API allows one to set the threading model the operation will be
 performed when the actual execution of the API is performed on the same
 node (the API is executed on a shard that is allocated on the same
 server).
 
 The options are to execute the operation on a different thread, or to
-execute it on the calling thread (note that the API is still async). By
+execute it on the calling thread (note that the API is still asynchronous). By
 default, `operationThreaded` is set to `true` which means the operation
 is executed on a different thread.

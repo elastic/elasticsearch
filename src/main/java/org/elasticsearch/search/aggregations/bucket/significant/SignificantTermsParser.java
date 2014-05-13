@@ -34,8 +34,6 @@ import java.io.IOException;
  */
 public class SignificantTermsParser implements Aggregator.Parser {
 
-
-
     @Override
     public String type() {
         return SignificantStringTerms.TYPE.name();

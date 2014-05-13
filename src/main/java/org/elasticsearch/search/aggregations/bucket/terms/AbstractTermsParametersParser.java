@@ -29,10 +29,11 @@ import java.io.IOException;
 
 public abstract class AbstractTermsParametersParser {
 
-    static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
-    static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
-    static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
-    static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
+    public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
+    public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
+    public static final ParseField MIN_DOC_COUNT_FIELD_NAME = new ParseField("min_doc_count");
+    public static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
+    public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
 
     //These are the results of the parsing.
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds();
@@ -72,7 +73,7 @@ public abstract class AbstractTermsParametersParser {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if ("size".equals(currentFieldName)) {
+                if (REQUIRED_SIZE_FIELD_NAME.match(currentFieldName)) {
                     bucketCountThresholds.requiredSize = parser.intValue();
                 } else if (SHARD_SIZE_FIELD_NAME.match(currentFieldName)) {
                     bucketCountThresholds.shardSize = parser.intValue();

@@ -29,6 +29,8 @@ import java.io.IOException;
 
 public class TermsParametersParser extends AbstractTermsParametersParser {
 
+    private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds();
+
     public String getOrderKey() {
         return orderKey;
     }
@@ -70,6 +72,6 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
 
     @Override
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
-        return TermsBuilder.getDefaultBucketCountThresholds();
+        return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 }

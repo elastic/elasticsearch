@@ -33,6 +33,8 @@ import java.io.IOException;
 
 public class SignificantTermsParametersParser extends AbstractTermsParametersParser {
 
+    private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(3, 0, 10, -1);
+
     public Filter getFilter() {
         return filter;
     }
@@ -40,7 +42,7 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
     private Filter filter = null;
 
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
-        return SignificantTermsBuilder.getDefaultBucketCountThresholds();
+        return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");

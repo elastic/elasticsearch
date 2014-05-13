@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
 import java.io.IOException;
@@ -34,8 +35,7 @@ import java.io.IOException;
  */
 public class SignificantTermsBuilder extends AggregationBuilder<SignificantTermsBuilder> {
 
-    private TermsAggregator.BucketCountThresholds bucketCountThresholds = getDefaultBucketCountThresholds();
-    private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(3, 0, 10, -1);
+    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(-1, -1, -1, -1);
 
     private String field;
     private String executionHint;
@@ -136,20 +136,20 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (field != null) {
             builder.field("field", field);
         }
-        if (bucketCountThresholds.minDocCount >= 0) {
-            builder.field("minDocCount", bucketCountThresholds.minDocCount);
-        }
-        if (bucketCountThresholds.shardMinDocCount >= 0) {
-            builder.field("shardMinDocCount", bucketCountThresholds.shardMinDocCount);
-        }
         if (bucketCountThresholds.requiredSize >= 0) {
-            builder.field("size", bucketCountThresholds.requiredSize);
+            builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.requiredSize);
         }
         if (bucketCountThresholds.shardSize >= 0) {
-            builder.field("shard_size", bucketCountThresholds.shardSize);
+            builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.shardSize);
+        }
+        if (bucketCountThresholds.minDocCount >= 0) {
+            builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.minDocCount);
+        }
+        if (bucketCountThresholds.shardMinDocCount >= 0) {
+            builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.shardMinDocCount);
         }
         if (executionHint != null) {
-            builder.field("execution_hint", executionHint);
+            builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }
         if (includePattern != null) {
             if (includeFlags == 0) {
@@ -178,9 +178,5 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         }
 
         return builder.endObject();
-    }
-
-    public static TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 }

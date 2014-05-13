@@ -54,12 +54,11 @@ Or with more advanced settings:
 `max_expansions`::
 
     The maximum number of terms that the `fuzzy` query will expand to.
-    Defaults to `0`.
+    Defaults to `50`.
 
 
 WARNING: this query can be very heavy if `prefix_length` and `max_expansions`
-are both set to their defaults of `0`. This could cause every term in the
-index to be examined!
+are both set to `0`. This could cause every term in the index to be examined!
 
 
 [float]

@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -98,13 +99,24 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-
+        
+        SearchLookup lookup = context.lookup();
+        //TODO generalize. 
+        String documentLanguageAnalyzer = (String)lookup.source().extractValue("language_analyzer"); 
+        Analyzer analyzer = null;
+        if (documentLanguageAnalyzer != null){
+            analyzer = context.mapperService().analysisService().analyzer(documentLanguageAnalyzer);
+        }
+        if(analyzer == null){
+            analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();  
+        }
+        
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
-
+               
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
-                Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+                
                 TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), text);
                 if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
@@ -151,7 +163,6 @@ public class PlainHighlighter implements Highlighter {
         if (noMatchSize > 0 && textsToHighlight.size() > 0) {
             // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
             String fieldContents = textsToHighlight.get(0).toString();
-            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
             int end;
             try {
                 end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(mapper.names().indexName(), fieldContents));

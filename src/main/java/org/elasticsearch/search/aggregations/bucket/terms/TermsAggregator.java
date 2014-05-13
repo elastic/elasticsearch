@@ -42,17 +42,11 @@ public abstract class TermsAggregator extends BucketsAggregator {
             this.shardSize = new Explicit<>(shardSize, false);
         }
         public BucketCountThresholds() {
-            this.minDocCount = new Explicit<>(-1l, false);
-            this.shardMinDocCount =  new Explicit<>(-1l, false);
-            this.requiredSize = new Explicit<>(-1, false);
-            this.shardSize = new Explicit<>(-1, false);
+            this(-1, -1, -1, -1);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
-            this.minDocCount = new Explicit<>(bucketCountThresholds.minDocCount.value(), false);
-            this.shardMinDocCount = new Explicit<>(bucketCountThresholds.shardMinDocCount.value(), false);
-            this.requiredSize = new Explicit<>(bucketCountThresholds.requiredSize.value(), false);
-            this.shardSize = new Explicit<>(bucketCountThresholds.shardSize.value(), false);
+            this(bucketCountThresholds.minDocCount.value(), bucketCountThresholds.shardMinDocCount.value(), bucketCountThresholds.requiredSize.value(), bucketCountThresholds.shardSize.value());
         }
 
         public void ensureValidity() {

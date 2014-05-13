@@ -187,6 +187,10 @@ public class BenchmarkExecutor {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             benchmarkResponse.state(BenchmarkResponse.State.ABORTED);
+        } catch (Throwable ex) {
+            logger.debug("Unexpected exception during benchmark", ex);
+            benchmarkResponse.state(BenchmarkResponse.State.FAILED);
+            benchmarkResponse.errors(ex.getMessage());
         } finally {
             synchronized (lock) {
                 semaphore.stop();

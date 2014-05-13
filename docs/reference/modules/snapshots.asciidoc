@@ -211,7 +211,7 @@ persistent settings are added to the existing persistent settings.
 [float]
 === Snapshot status
 
-coming[1.1.0]
+added[1.1.0]
 
 A list of currently running snapshots with their detailed status information can be obtained using the following command:
 

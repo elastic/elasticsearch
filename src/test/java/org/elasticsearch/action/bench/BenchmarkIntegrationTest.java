@@ -20,7 +20,6 @@ package org.elasticsearch.action.bench;
 
 import com.google.common.base.Predicate;
 import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -108,7 +107,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
 
-        client().bench(request);
+        final ActionFuture<BenchmarkResponse> future = client().bench(request);
 
         final boolean ret = awaitBusy(statusPredicate, TIMEOUT, TIME_UNIT);
         assertTrue(ret);
@@ -127,6 +126,12 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
                 validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), false);
             }
         }
+        client().prepareAbortBench(BENCHMARK_NAME).get();
+        // Confirm that there are no active benchmarks in the cluster
+        assertThat(client().prepareBenchStatus().execute().actionGet().totalActiveBenchmarks(), equalTo(0));
+
+        // Confirm that benchmark was indeed aborted
+        assertThat(future.get().state(), isOneOf(BenchmarkResponse.State.ABORTED, BenchmarkResponse.State.COMPLETE));
     }
 
     @Test
@@ -161,7 +166,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         assertThat(statusResponse.totalActiveBenchmarks(), equalTo(0));
 
         // Confirm that benchmark was indeed aborted
-        assertThat(benchmarkResponse.get().state(), equalTo(BenchmarkResponse.State.ABORTED));
+        assertThat(benchmarkResponse.get().state(),isOneOf(BenchmarkResponse.State.ABORTED, BenchmarkResponse.State.COMPLETE));
     }
 
     @Test(expected = BenchmarkMissingException.class)

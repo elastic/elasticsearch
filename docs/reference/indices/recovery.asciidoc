@@ -1,7 +1,7 @@
 [[indices-recovery]]
 == Indices Recovery
 
-The indices recovery API provides insight into on-going shard recoveries.
+The indices recovery API provides insight into on-going index shard recoveries.
 Recovery status may be reported for specific indices, or cluster-wide.
 
 For example, the following command would show recovery information for the indices "index1" and "index2".

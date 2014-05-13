@@ -5,7 +5,7 @@ coming[1.2.0]
 
 The context suggester is an extension to the suggest API of Elasticsearch. Namely the
 suggester system provides a very fast way of searching documents by handling these
-entirely in memory. But this special treatenment does not allow the handling of
+entirely in memory. But this special treatment does not allow the handling of
 traditional queries and filters, because those would have notable impact on the
 performance. So the context extension is designed to take so-called context information
 into account to specify a more accurate way of searching within the suggester system. 
@@ -34,7 +34,7 @@ PUT services/service/_mapping
                 "context": {
                     "color": { <1>
                         "type": "category",
-                        "path": "color_field"
+                        "path": "color_field",
                         "default": ["red", "green", "blue"]
                     },
                     "location": { <2>
@@ -293,7 +293,7 @@ POST services/_suggest
 }
 --------------------------------------------------
 
-A special form of the query is definied by an extension of the object representation of
+A special form of the query is defined by an extension of the object representation of
 the `geo_point`. Using this representation allows to set the `precision` parameter within
 the location itself:
 

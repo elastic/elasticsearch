@@ -181,6 +181,20 @@ You may further restrict the permissions by specifying a prefix within the bucke
 
 ```
 
+The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository registration will fail. If you want elasticsearch to create the bucket instead, you can add the permission to create a specific bucket like this:
+
+```js
+{
+   "Action": [
+      "s3:CreateBucket"
+   ],
+   "Effect": "Allow",
+   "Resource": [
+      "arn:aws:s3:::snaps.example.com"
+   ]
+}
+```
+
 ## Testing
 
 Integrations tests in this plugin require working AWS configuration and therefore disabled by default. Three buckets and two iam users have to be created. The first iam user needs access to two buckets in different regions and the final bucket is exclusive for the other iam user. To enable tests prepare a config file elasticsearch.yml with the following content:

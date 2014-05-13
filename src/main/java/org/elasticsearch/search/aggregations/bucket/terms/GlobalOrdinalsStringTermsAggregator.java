@@ -115,11 +115,11 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         final int size;
-        if (bucketCountThresholds.minDocCount == 0) {
+        if (bucketCountThresholds.getMinDocCount().value() == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = (int) Math.min(globalOrdinals.getMaxOrd(), bucketCountThresholds.shardSize);
+            size = (int) Math.min(globalOrdinals.getMaxOrd(), bucketCountThresholds.getShardSize().value());
         } else {
-            size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.shardSize);
+            size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize().value());
         }
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
@@ -129,7 +129,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             }
             final long bucketOrd = getBucketOrd(globalTermOrd);
             final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
-            if (bucketCountThresholds.minDocCount > 0 && bucketDocCount == 0) {
+            if (bucketCountThresholds.getMinDocCount().value() > 0 && bucketDocCount == 0) {
                 continue;
             }
             if (spare == null) {
@@ -138,7 +138,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
             copy(globalValues.getValueByOrd(globalTermOrd), spare.termBytes);
-            if (bucketCountThresholds.shardMinDocCount <= spare.docCount) {
+            if (bucketCountThresholds.getShardMinDocCount().value() <= spare.docCount) {
                 spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
@@ -150,7 +150,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             list[i] = bucket;
         }
 
-        return new StringTerms(name, order, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Arrays.asList(list));
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Arrays.asList(list));
     }
 
     /**

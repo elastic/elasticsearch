@@ -74,13 +74,13 @@ public abstract class AbstractTermsParametersParser {
                 }
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (REQUIRED_SIZE_FIELD_NAME.match(currentFieldName)) {
-                    bucketCountThresholds.requiredSize = parser.intValue();
+                    bucketCountThresholds.setRequiredSize(parser.intValue());
                 } else if (SHARD_SIZE_FIELD_NAME.match(currentFieldName)) {
-                    bucketCountThresholds.shardSize = parser.intValue();
+                    bucketCountThresholds.setShardSize(parser.intValue());
                 } else if (MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)) {
-                    bucketCountThresholds.minDocCount = parser.intValue();
+                    bucketCountThresholds.setMinDocCount(parser.intValue());
                 } else if (SHARD_MIN_DOC_COUNT_FIELD_NAME.match(currentFieldName)) {
-                    bucketCountThresholds.shardMinDocCount = parser.longValue();
+                    bucketCountThresholds.setShardMinDocCount(parser.longValue());
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }
@@ -93,5 +93,5 @@ public abstract class AbstractTermsParametersParser {
 
     public abstract void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException;
 
-    public abstract TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds();
+    protected abstract TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds();
 }

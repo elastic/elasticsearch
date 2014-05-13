@@ -52,7 +52,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        if ( bucketCountThresholds.shardSize == aggParser.getDefaultBucketCountThresholds().shardSize) {
+        if (!bucketCountThresholds.getShardSize().explicit()) {
             //The user has not made a shardSize selection .
             //Use default heuristic to avoid any wrong-ranking caused by distributed counting
             //but request double the usual amount.
@@ -60,7 +60,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
             //as the significance algorithm is in less of a position to down-select at shard-level -
             //some of the things we want to find have only one occurrence on each shard and as
             // such are impossible to differentiate from non-significant terms at that early stage.
-            bucketCountThresholds.shardSize = 2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.requiredSize, context.numberOfShards());
+            bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize().value(), context.numberOfShards()));
 
         }
         bucketCountThresholds.ensureValidity();

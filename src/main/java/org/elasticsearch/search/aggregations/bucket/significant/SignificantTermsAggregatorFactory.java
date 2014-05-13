@@ -166,7 +166,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount);
+        final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value());
         return new NonCollectingAggregator(name, aggregationContext, parent) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

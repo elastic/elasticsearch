@@ -87,7 +87,7 @@ public class LongTermsAggregator extends TermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        if (bucketCountThresholds.minDocCount == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.requiredSize)) {
+        if (bucketCountThresholds.getMinDocCount().value() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize().value())) {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
                 context.setNextReader(ctx);
@@ -101,7 +101,7 @@ public class LongTermsAggregator extends TermsAggregator {
             }
         }
 
-        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize().value());
 
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         LongTerms.Bucket spare = null;
@@ -112,7 +112,7 @@ public class LongTermsAggregator extends TermsAggregator {
             spare.term = bucketOrds.get(i);
             spare.docCount = bucketDocCount(i);
             spare.bucketOrd = i;
-            if (bucketCountThresholds.shardMinDocCount <= spare.docCount) {
+            if (bucketCountThresholds.getShardMinDocCount().value() <= spare.docCount) {
                 spare = (LongTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
@@ -123,12 +123,12 @@ public class LongTermsAggregator extends TermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new LongTerms(name, order, formatter, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Arrays.asList(list));
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Arrays.asList(list));
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new LongTerms(name, order, formatter, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Collections.<InternalTerms.Bucket>emptyList());
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Collections.<InternalTerms.Bucket>emptyList());
     }
 
     @Override

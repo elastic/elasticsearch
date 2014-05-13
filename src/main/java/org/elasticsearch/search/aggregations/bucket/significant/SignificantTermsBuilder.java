@@ -56,17 +56,17 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     }
 
     public SignificantTermsBuilder size(int requiredSize) {
-        bucketCountThresholds.requiredSize = requiredSize;
+        bucketCountThresholds.setRequiredSize(requiredSize);
         return this;
     }
 
     public SignificantTermsBuilder shardSize(int shardSize) {
-        bucketCountThresholds.shardSize = shardSize;
+        bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
 
     public SignificantTermsBuilder minDocCount(int minDocCount) {
-        bucketCountThresholds.minDocCount = minDocCount;
+        bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
     
@@ -77,7 +77,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     
 
     public SignificantTermsBuilder shardMinDocCount(int shardMinDocCount) {
-        bucketCountThresholds.shardMinDocCount = shardMinDocCount;
+        bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
 
@@ -136,17 +136,17 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (field != null) {
             builder.field("field", field);
         }
-        if (bucketCountThresholds.requiredSize >= 0) {
-            builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.requiredSize);
+        if (bucketCountThresholds.getRequiredSize().explicit()) {
+            builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getRequiredSize().value());
         }
-        if (bucketCountThresholds.shardSize >= 0) {
-            builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.shardSize);
+        if (bucketCountThresholds.getShardSize().explicit()) {
+            builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getShardSize().value());
         }
-        if (bucketCountThresholds.minDocCount >= 0) {
-            builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.minDocCount);
+        if (bucketCountThresholds.getMinDocCount().explicit()) {
+            builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.getMinDocCount().value());
         }
-        if (bucketCountThresholds.shardMinDocCount >= 0) {
-            builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.shardMinDocCount);
+        if (bucketCountThresholds.getShardMinDocCount().explicit()) {
+            builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.getShardMinDocCount().value());
         }
         if (executionHint != null) {
             builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);

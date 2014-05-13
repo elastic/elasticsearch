@@ -29,7 +29,7 @@ import java.io.IOException;
 
 public class TermsParametersParser extends AbstractTermsParametersParser {
 
-    private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds();
+    private static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(1, 0, 10, -1);
 
     public String getOrderKey() {
         return orderKey;
@@ -72,6 +72,10 @@ public class TermsParametersParser extends AbstractTermsParametersParser {
 
     @Override
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
+        assert (! (DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardMinDocCount().explicit()
+                || DEFAULT_BUCKET_COUNT_THRESHOLDS.getMinDocCount().explicit()
+                || DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize().explicit()
+                || DEFAULT_BUCKET_COUNT_THRESHOLDS.getRequiredSize().explicit()));
         return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 }

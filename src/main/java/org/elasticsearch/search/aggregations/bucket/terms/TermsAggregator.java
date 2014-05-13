@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -29,45 +30,77 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 public abstract class TermsAggregator extends BucketsAggregator {
 
     public static class BucketCountThresholds {
-        public long minDocCount;
-        public long shardMinDocCount;
-        public int requiredSize;
-        public int shardSize;
+        private Explicit<Long> minDocCount;
+        private Explicit<Long> shardMinDocCount;
+        private Explicit<Integer> requiredSize;
+        private Explicit<Integer> shardSize;
         
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
-            this.minDocCount = minDocCount;
-            this.shardMinDocCount = shardMinDocCount;
-            this.requiredSize = requiredSize;
-            this.shardSize = shardSize;
+            this.minDocCount = new Explicit<>(minDocCount, false);
+            this.shardMinDocCount =  new Explicit<>(shardMinDocCount, false);
+            this.requiredSize = new Explicit<>(requiredSize, false);
+            this.shardSize = new Explicit<>(shardSize, false);
         }
         public BucketCountThresholds() {
-            this.minDocCount = 1;
-            this.shardMinDocCount = 0;
-            this.requiredSize = 10;
-            this.shardSize = -1;
+            this.minDocCount = new Explicit<>(-1l, false);
+            this.shardMinDocCount =  new Explicit<>(-1l, false);
+            this.requiredSize = new Explicit<>(-1, false);
+            this.shardSize = new Explicit<>(-1, false);
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
-            this.minDocCount = bucketCountThresholds.minDocCount;
-            this.shardMinDocCount = bucketCountThresholds.shardMinDocCount;
-            this.requiredSize = bucketCountThresholds.requiredSize;
-            this.shardSize = bucketCountThresholds.shardSize;
+            this.minDocCount = new Explicit<>(bucketCountThresholds.minDocCount.value(), false);
+            this.shardMinDocCount = new Explicit<>(bucketCountThresholds.shardMinDocCount.value(), false);
+            this.requiredSize = new Explicit<>(bucketCountThresholds.requiredSize.value(), false);
+            this.shardSize = new Explicit<>(bucketCountThresholds.shardSize.value(), false);
         }
 
         public void ensureValidity() {
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-            if (shardSize < requiredSize) {
+            if (shardSize.value() < requiredSize.value()) {
                 shardSize = requiredSize;
             }
 
             // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
-            if (shardMinDocCount > minDocCount) {
+            if (shardMinDocCount.value() > minDocCount.value()) {
                 shardMinDocCount = minDocCount;
             }
 
-            if (requiredSize < 0 || minDocCount < 0) {
+            if (requiredSize.value() < 0 || minDocCount.value() < 0) {
                 throw new ElasticsearchException("parameters [requiredSize] and [minDocCount] must be >=0 in terms aggregation.");
             }
+        }
+
+        public Explicit<Long> getShardMinDocCount() {
+            return shardMinDocCount;
+        }
+
+        public void setShardMinDocCount(long shardMinDocCount) {
+            this.shardMinDocCount = new Explicit<>(shardMinDocCount, true);
+        }
+
+        public Explicit<Long> getMinDocCount() {
+            return minDocCount;
+        }
+
+        public void setMinDocCount(long minDocCount) {
+            this.minDocCount = new Explicit<>(minDocCount, true);
+        }
+
+        public Explicit<Integer> getRequiredSize() {
+            return requiredSize;
+        }
+
+        public void setRequiredSize(int requiredSize) {
+            this.requiredSize = new Explicit<>(requiredSize, true);
+        }
+
+        public Explicit<Integer> getShardSize() {
+            return shardSize;
+        }
+
+        public void setShardSize(int shardSize) {
+            this.shardSize = new Explicit<>(shardSize, true);
         }
     }
 

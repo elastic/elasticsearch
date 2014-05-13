@@ -42,6 +42,10 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
     private Filter filter = null;
 
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
+        assert (! (DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardMinDocCount().explicit()
+                || DEFAULT_BUCKET_COUNT_THRESHOLDS.getMinDocCount().explicit()
+                || DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize().explicit()
+                || DEFAULT_BUCKET_COUNT_THRESHOLDS.getRequiredSize().explicit()));
         return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 

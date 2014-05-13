@@ -59,7 +59,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     public SignificantLongTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.shardSize);
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize().value());
 
         long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
@@ -81,7 +81,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             spare.updateScore();
 
             spare.bucketOrd = i;
-            if (spare.subsetDf >= bucketCountThresholds.shardMinDocCount) {
+            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount().value()) {
                 spare = (SignificantLongTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
@@ -92,7 +92,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Arrays.asList(list));
+        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Arrays.asList(list));
     }
 
     @Override
@@ -101,7 +101,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override

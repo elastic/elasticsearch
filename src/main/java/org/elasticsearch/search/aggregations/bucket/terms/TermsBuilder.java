@@ -48,7 +48,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Sets the size - indicating how many term buckets should be returned (defaults to 10)
      */
     public TermsBuilder size(int size) {
-        bucketCountThresholds.requiredSize = size;
+        bucketCountThresholds.setRequiredSize(size);
         return this;
     }
 
@@ -57,7 +57,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * node that coordinates the search execution). The higher the shard size is, the more accurate the results are.
      */
     public TermsBuilder shardSize(int shardSize) {
-        bucketCountThresholds.shardSize = shardSize;
+        bucketCountThresholds.setShardSize(shardSize);
         return this;
     }
 
@@ -65,7 +65,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Set the minimum document count terms should have in order to appear in the response.
      */
     public TermsBuilder minDocCount(long minDocCount) {
-        bucketCountThresholds.minDocCount = minDocCount;
+        bucketCountThresholds.setMinDocCount(minDocCount);
         return this;
     }
 
@@ -73,7 +73,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
      * Set the minimum document count terms should have on the shard in order to appear in the response.
      */
     public TermsBuilder shardMinDocCount(long shardMinDocCount) {
-        bucketCountThresholds.shardMinDocCount = shardMinDocCount;
+        bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
     }
 
@@ -144,17 +144,17 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
-        if (bucketCountThresholds.requiredSize >= 0) {
-            builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.requiredSize);
+        if (bucketCountThresholds.getRequiredSize().explicit()) {
+            builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getRequiredSize().value());
         }
-        if (bucketCountThresholds.shardSize >= 0) {
-            builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.shardSize);
+        if (bucketCountThresholds.getShardSize().explicit()) {
+            builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getShardSize().value());
         }
-        if (bucketCountThresholds.minDocCount >= 0) {
-            builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.minDocCount);
+        if (bucketCountThresholds.getMinDocCount().explicit()) {
+            builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.getMinDocCount().value());
         }
-        if (bucketCountThresholds.shardMinDocCount >= 0) {
-            builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.shardMinDocCount);
+        if (bucketCountThresholds.getShardMinDocCount().explicit()) {
+            builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.getShardMinDocCount().value());
         }
         if (executionHint != null) {
             builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);

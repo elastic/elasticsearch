@@ -66,11 +66,11 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         }
 
         final int size;
-        if (bucketCountThresholds.minDocCount == 0) {
+        if (bucketCountThresholds.getMinDocCount().value() == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = (int) Math.min(globalOrdinals.getMaxOrd(), bucketCountThresholds.shardSize);
+            size = (int) Math.min(globalOrdinals.getMaxOrd(), bucketCountThresholds.getShardSize().value());
         } else {
-            size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.shardSize);
+            size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize().value());
         }
         long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
@@ -83,7 +83,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             }
             final long bucketOrd = getBucketOrd(globalTermOrd);
             final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
-            if (bucketCountThresholds.minDocCount > 0 && bucketDocCount == 0) {
+            if (bucketCountThresholds.getMinDocCount().value() > 0 && bucketDocCount == 0) {
                 continue;
             }
             if (spare == null) {
@@ -100,7 +100,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             // Back at the central reducer these properties will be updated with
             // global stats
             spare.updateScore();
-            if (spare.subsetDf >= bucketCountThresholds.shardMinDocCount) {
+            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount().value()) {
                 spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
@@ -114,7 +114,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Arrays.asList(list));
     }
 
     @Override
@@ -123,7 +123,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.requiredSize, bucketCountThresholds.minDocCount, Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override

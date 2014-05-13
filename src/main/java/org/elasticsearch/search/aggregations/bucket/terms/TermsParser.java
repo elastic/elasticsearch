@@ -56,10 +56,7 @@ public class TermsParser implements Aggregator.Parser {
         if (bucketCountThresholds.requiredSize == 0) {
             bucketCountThresholds.requiredSize = Integer.MAX_VALUE;
         }
-        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-        if (bucketCountThresholds.shardSize < bucketCountThresholds.requiredSize) {
-            bucketCountThresholds.shardSize = bucketCountThresholds.requiredSize;
-        }
+        bucketCountThresholds.ensureValidity();
         InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
         return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint());
     }

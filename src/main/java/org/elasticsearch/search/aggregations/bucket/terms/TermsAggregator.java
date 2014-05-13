@@ -20,6 +20,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
@@ -51,6 +52,22 @@ public abstract class TermsAggregator extends BucketsAggregator {
             this.shardMinDocCount = bucketCountThresholds.shardMinDocCount;
             this.requiredSize = bucketCountThresholds.requiredSize;
             this.shardSize = bucketCountThresholds.shardSize;
+        }
+
+        public void ensureValidity() {
+            // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
+            if (shardSize < requiredSize) {
+                shardSize = requiredSize;
+            }
+
+            // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
+            if (shardMinDocCount > minDocCount) {
+                shardMinDocCount = minDocCount;
+            }
+
+            if (requiredSize < 0 || minDocCount < 0) {
+                throw new ElasticsearchException("parameters [requiredSize] and [minDocCount] must be >=0 in terms aggregation.");
+            }
         }
     }
 

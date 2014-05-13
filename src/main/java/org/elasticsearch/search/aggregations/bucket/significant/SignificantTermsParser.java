@@ -63,16 +63,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
             bucketCountThresholds.shardSize = 2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.requiredSize, context.numberOfShards());
 
         }
-
-        // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
-        if (bucketCountThresholds.shardSize < bucketCountThresholds.requiredSize) {
-            bucketCountThresholds.shardSize = bucketCountThresholds.requiredSize;
-        }
-
-        // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
-        if (bucketCountThresholds.shardMinDocCount > bucketCountThresholds.minDocCount) {
-            bucketCountThresholds.shardMinDocCount = bucketCountThresholds.minDocCount;
-        }
+        bucketCountThresholds.ensureValidity();
         return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter());
     }
 }

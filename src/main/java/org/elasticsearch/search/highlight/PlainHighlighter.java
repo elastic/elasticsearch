@@ -30,6 +30,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.internal.AnalyzerMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -99,12 +100,16 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
 
+        AnalyzerMapper analyzerMapper = context.mapperService().documentMapper(hitContext.hit().type()).analyzerMapper();
+
+        Analyzer analyzer = analyzerMapper.setAnalyzer(highlighterContext);
+
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);
 
             for (Object textToHighlight : textsToHighlight) {
                 String text = textToHighlight.toString();
-                Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
+
                 TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), text);
                 if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
@@ -151,7 +156,6 @@ public class PlainHighlighter implements Highlighter {
         if (noMatchSize > 0 && textsToHighlight.size() > 0) {
             // Pull an excerpt from the beginning of the string but make sure to split the string on a term boundary.
             String fieldContents = textsToHighlight.get(0).toString();
-            Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
             int end;
             try {
                 end = findGoodEndForNoHighlightExcerpt(noMatchSize, analyzer.tokenStream(mapper.names().indexName(), fieldContents));

@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -50,6 +51,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 
@@ -1505,5 +1507,77 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             previousTs = timestamp;
         }
     }
+
+    /**
+     * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
+     */
+    @Test
+    public void testNestedSort() throws ElasticsearchException, IOException, InterruptedException, ExecutionException {
+        assertAcked(prepareCreate("test")
+                .addMapping("type",
+                        XContentFactory.jsonBuilder()
+                                .startObject()
+                                    .startObject("type")
+                                        .startObject("properties")
+                                            .startObject("nested")
+                                                .field("type", "nested")
+                                                .startObject("properties")
+                                                    .startObject("foo")
+                                                        .field("type", "string")
+                                                        .startObject("fields")
+                                                            .startObject("sub")
+                                                                .field("type", "string")
+                                                                .field("index", "not_analyzed")
+                                                            .endObject()
+                                                        .endObject()
+                                                    .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject()));
+        ensureGreen();
+
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+                .startObject("nested")
+                    .field("foo", "bar bar")
+                .endObject()
+                .endObject()).execute().actionGet();
+        refresh();
+
+        // We sort on nested field
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("nested.foo", SortOrder.DESC)
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        SearchHit[] hits = searchResponse.getHits().hits();
+        for (int i = 0; i < hits.length; ++i) {
+            assertThat(hits[i].getSortValues().length, is(1));
+            Object o = hits[i].getSortValues()[0];
+            assertThat(o, notNullValue());
+            assertThat(o instanceof StringAndBytesText, is(true));
+            StringAndBytesText text = (StringAndBytesText) o;
+            assertThat(text.string(), is("bar"));
+        }
+
+
+        // We sort on nested sub field
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort("nested.foo.sub", SortOrder.DESC)
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        hits = searchResponse.getHits().hits();
+        for (int i = 0; i < hits.length; ++i) {
+            assertThat(hits[i].getSortValues().length, is(1));
+            Object o = hits[i].getSortValues()[0];
+            assertThat(o, notNullValue());
+            assertThat(o instanceof StringAndBytesText, is(true));
+            StringAndBytesText text = (StringAndBytesText) o;
+            assertThat(text.string(), is("bar bar"));
+        }
+    }
+
 
 }

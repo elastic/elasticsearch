@@ -69,8 +69,6 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.endObject();
         return builder;
     }
 

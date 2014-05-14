@@ -267,7 +267,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         }
 
         this.versionType = VersionType.fromValue(in.readByte());
-        this.version = Versions.readFromVLong(in);
+        this.version = Versions.readVersionWithVLongForBW(in);
 
         fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
     }
@@ -298,7 +298,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
         }
 
         out.writeByte(versionType.getValue());
-        Versions.writeAsVLong(version, out);
+        Versions.writeVersionWithVLongForBW(version, out);
 
         FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
     }

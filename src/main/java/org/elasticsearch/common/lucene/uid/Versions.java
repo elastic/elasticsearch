@@ -41,23 +41,44 @@ public class Versions {
     public static final long NOT_FOUND = -1L;
     public static final long NOT_SET = -2L;
 
-    // The minimum possible for a version value. This is needed to serialize version as positive vLong.
-    private static final long MIN_VALID_VALUE = -3L;
-
-
-    public static void writeAsVLong(long version, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeVLong(version - Versions.MIN_VALID_VALUE);
-        } else {
-            out.writeVLong(version);
+    public static void writeVersion(long version, StreamOutput out) throws IOException {
+        if (out.getVersion().before(Version.V_1_2_0) && version == MATCH_ANY) {
+            // we have to send out a value the node will understand
+            version = MATCH_ANY_PRE_1_2_0;
         }
+        out.writeLong(version);
     }
 
-    public static long readFromVLong(StreamInput in) throws IOException {
+    public static long readVersion(StreamInput in) throws IOException {
+        long version = in.readLong();
+        if (in.getVersion().before(Version.V_1_2_0) && version == MATCH_ANY_PRE_1_2_0) {
+            version = MATCH_ANY;
+        }
+        return version;
+    }
+
+    public static void writeVersionWithVLongForBW(long version, StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeLong(version);
+            return;
+        }
+
+        if (version == MATCH_ANY) {
+            // we have to send out a value the node will understand
+            version = MATCH_ANY_PRE_1_2_0;
+        }
+        out.writeVLong(version);
+    }
+
+    public static long readVersionWithVLongForBW(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            return in.readVLong() + Versions.MIN_VALID_VALUE;
+            return in.readLong();
         } else {
-            return in.readVLong();
+            long version = in.readVLong();
+            if (version == MATCH_ANY_PRE_1_2_0) {
+                return MATCH_ANY;
+            }
+            return version;
         }
     }
 

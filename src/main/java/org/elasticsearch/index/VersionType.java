@@ -40,8 +40,7 @@ public enum VersionType {
             if (currentVersion == Versions.NOT_SET) {
                 return false;
             }
-            // we need to allow pre 1.2.0 match any as requests can come in from older nodes and data may be stored in
-            // a transaction log.
+            // we need to allow pre 1.2.0 match any as requests can come in for java code where the may be hardcoded
             if (expectedVersion == Versions.MATCH_ANY || expectedVersion == Versions.MATCH_ANY_PRE_1_2_0) {
                 return false;
             }

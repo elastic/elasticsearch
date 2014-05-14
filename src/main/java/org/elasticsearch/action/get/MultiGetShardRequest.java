@@ -139,7 +139,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
             } else {
                 fields.add(null);
             }
-            versions.add(Versions.readFromVLong(in));
+            versions.add(Versions.readVersionWithVLongForBW(in));
             versionTypes.add(VersionType.fromValue(in.readByte()));
 
             fetchSourceContexts.add(FetchSourceContext.optionalReadFromStream(in));
@@ -176,7 +176,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
                     out.writeString(field);
                 }
             }
-            Versions.writeAsVLong(versions.get(i), out);
+            Versions.writeVersionWithVLongForBW(versions.get(i), out);
             out.writeByte(versionTypes.get(i).getValue());
             FetchSourceContext fetchSourceContext = fetchSourceContexts.get(i);
             FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);

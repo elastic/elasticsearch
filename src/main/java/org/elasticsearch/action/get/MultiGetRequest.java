@@ -169,7 +169,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                     fields[i] = in.readString();
                 }
             }
-            version = Versions.readFromVLong(in);
+            version = Versions.readVersionWithVLongForBW(in);
             versionType = VersionType.fromValue(in.readByte());
 
             fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
@@ -190,7 +190,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                 }
             }
 
-            Versions.writeAsVLong(version, out);
+            Versions.writeVersionWithVLongForBW(version, out);
             out.writeByte(versionType.getValue());
 
             FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);

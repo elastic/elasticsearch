@@ -58,7 +58,7 @@ in the elasticsearch process being swapped out and suffer from low
 performance then.
 
 The first option is to ensure that the sysctl value `vm.swappiness` is set
-to `0`. This reduces the kernel's tendency to swap and should not lead to
+to `1`. This reduces the kernel's tendency to swap and should not lead to
 swapping under normal circumstances, while still allowing the whole system
 to swap in emergency conditions.
 

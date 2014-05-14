@@ -36,6 +36,7 @@
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
@@ -468,6 +469,9 @@
                             <systemProperties>
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
+                                <tests.bwc>${tests.bwc}</tests.bwc>
+                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
+                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
                                 <tests.processors>${tests.processors}</tests.processors>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>

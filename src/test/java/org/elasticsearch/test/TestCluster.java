@@ -81,6 +81,7 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -124,6 +125,8 @@ public final class TestCluster extends ImmutableTestCluster {
      * A node level setting that holds a per node random seed that is consistent across node restarts
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
+
+    private static final String NODE_PREFIX = "node_";
 
     private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
@@ -225,7 +228,7 @@ public final class TestCluster extends ImmutableTestCluster {
             if (numOfDataPaths > 0) {
                 StringBuilder dataPath = new StringBuilder();
                 for (int i = 0; i < numOfDataPaths; i++) {
-                    dataPath.append("data/d").append(i).append(',');
+                    dataPath.append(new File("data/d"+i).getAbsolutePath()).append(',');
                 }
                 builder.put("path.data", dataPath.toString());
             }
@@ -273,7 +276,7 @@ public final class TestCluster extends ImmutableTestCluster {
                 //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
-                        // default to non gateway
+                // default to non gateway
                 .put("gateway.type", "none")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
@@ -462,7 +465,14 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     private String buildNodeName(int id) {
-        return "node_" + id;
+        return NODE_PREFIX + id;
+    }
+
+    /**
+     * Returns the common node name prefix for this test cluster.
+     */
+    public String nodePrefix() {
+        return NODE_PREFIX;
     }
 
     @Override
@@ -518,7 +528,9 @@ public final class TestCluster extends ImmutableTestCluster {
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client(random);
         }
-        startNodeClient(ImmutableSettings.EMPTY);
+        int nodeId = nextNodeId.getAndIncrement();
+        Settings settings = getSettings(nodeId, random.nextLong(), ImmutableSettings.EMPTY);
+        startNodeClient(settings);
         return getRandomNodeAndClient(new ClientNodePredicate()).client(random);
     }
 
@@ -578,7 +590,6 @@ public final class TestCluster extends ImmutableTestCluster {
 
     @Override
     public void close() {
-        ensureOpen();
         if (this.open.compareAndSet(true, false)) {
             IOUtils.closeWhileHandlingException(nodes.values());
             nodes.clear();
@@ -698,7 +709,6 @@ public final class TestCluster extends ImmutableTestCluster {
                 nodeClient = null;
             }
             node.close();
-
         }
     }
 
@@ -751,7 +761,7 @@ public final class TestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
         super.beforeTest(random, transportClientRatio);
         reset(true);
     }
@@ -1138,7 +1148,12 @@ public final class TestCluster extends ImmutableTestCluster {
 
     public synchronized void startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        startNode(settingsBuilder().put(settings).put("node.client", true));
+        Builder builder = settingsBuilder().put(settings).put("node.client", true).put("node.data", false);
+        if (size() == 0) {
+            // if we are the first node - don't wait for a state
+            builder.put("discovery.initial_state_timeout", 0);
+        }
+        startNode(builder);
     }
 
     /**
@@ -1438,6 +1453,10 @@ public final class TestCluster extends ImmutableTestCluster {
         public boolean doRestart(String nodeName) {
             return true;
         }
+    }
+
+    public Settings getDefaultSettings() {
+        return defaultSettings;
     }
 
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.get;
 
+import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -156,11 +158,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMultiGetTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // fine
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
         ensureGreen();

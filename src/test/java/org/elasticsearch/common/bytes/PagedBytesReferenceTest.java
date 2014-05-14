@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.junit.After;
 import org.junit.Before;
@@ -61,7 +60,7 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int sliceLength = Math.max(1, length - sliceOffset - 1);
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
         assertEquals(pbr.get(sliceOffset), slice.get(0));
-        assertEquals(pbr.get(sliceOffset + sliceLength), slice.get(sliceLength));
+        assertEquals(pbr.get(sliceOffset + sliceLength - 1), slice.get(sliceLength - 1));
     }
 
     public void testLength() {

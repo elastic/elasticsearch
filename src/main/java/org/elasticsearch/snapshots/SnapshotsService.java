@@ -164,7 +164,7 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
                 SnapshotMetaData snapshots = metaData.custom(SnapshotMetaData.TYPE);
                 if (snapshots == null || snapshots.entries().isEmpty()) {
                     // Store newSnapshot here to be processed in clusterStateProcessed
-                    ImmutableList<String> indices = ImmutableList.copyOf(metaData.concreteIndices(request.indices(), request.indicesOptions()));
+                    ImmutableList<String> indices = ImmutableList.copyOf(metaData.concreteIndices(request.indicesOptions(), request.indices()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", request.repository(), request.name(), indices);
                     newSnapshot = new SnapshotMetaData.Entry(snapshotId, request.includeGlobalState(), State.INIT, indices, null);
                     snapshots = new SnapshotMetaData(newSnapshot);

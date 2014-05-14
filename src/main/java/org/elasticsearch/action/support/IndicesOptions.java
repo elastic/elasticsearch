@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,8 +35,14 @@ public class IndicesOptions {
 
     private static final IndicesOptions[] VALUES;
 
+    private static final byte IGNORE_UNAVAILABLE = 1;
+    private static final byte ALLOW_NO_INDICES = 2;
+    private static final byte EXPAND_WILDCARDS_OPEN = 4;
+    private static final byte EXPAND_WILDCARDS_CLOSED = 8;
+    private static final byte FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
+
     static {
-        byte max = 1 << 4;
+        byte max = 1 << 5;
         VALUES = new IndicesOptions[max];
         for (byte id = 0; id < max; id++) {
             VALUES[id] = new IndicesOptions(id);
@@ -52,7 +59,7 @@ public class IndicesOptions {
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
     public boolean ignoreUnavailable() {
-        return (id & 1) != 0;
+        return (id & IGNORE_UNAVAILABLE) != 0;
     }
 
     /**
@@ -60,28 +67,45 @@ public class IndicesOptions {
      *         The `_all` string or empty list of indices count as wildcard expressions too.
      */
     public boolean allowNoIndices() {
-        return (id & 2) != 0;
+        return (id & ALLOW_NO_INDICES) != 0;
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to open indices
      */
     public boolean expandWildcardsOpen() {
-        return (id & 4) != 0;
+        return (id & EXPAND_WILDCARDS_OPEN) != 0;
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to closed indices
      */
     public boolean expandWildcardsClosed() {
-        return (id & 8) != 0;
+        return (id & EXPAND_WILDCARDS_CLOSED) != 0;
+    }
+
+    /**
+     * @return whether aliases pointing to multiple indices are allowed
+     */
+    public boolean allowAliasesToMultipleIndices() {
+        //true is default here, for bw comp we keep the first 16 values
+        //in the array same as before + the default value for the new flag
+        return (id & FORBID_ALIASES_TO_MULTIPLE_INDICES) == 0;
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id);
+        if (allowAliasesToMultipleIndices() || out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.write(id);
+        } else {
+            //if we are talking to a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
+            //flip to 0 all the bits starting from the 5th
+            out.write(id & 0xf);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
+        //if we read from a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
+        //we just receive the old corresponding value with the new flag set to true (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
             throw new ElasticsearchIllegalArgumentException("No valid missing index type id: " + id);
@@ -90,7 +114,11 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true);
+    }
+
+    static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices) {
+        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices);
         return VALUES[id];
     }
 
@@ -117,6 +145,7 @@ public class IndicesOptions {
             }
         }
 
+        //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
                 toBool(sIgnoreUnavailable, defaultSettings.ignoreUnavailable()),
                 toBool(sAllowNoIndices, defaultSettings.allowNoIndices()),
@@ -133,13 +162,20 @@ public class IndicesOptions {
         return VALUES[6];
     }
 
-
     /**
      * @return indices option that requires every specified index to exist, expands wildcards to both open and closed
      * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpand() {
         return VALUES[14];
+    }
+
+    /**
+     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
+     * throws error if any of the aliases resolves to multiple indices
+     */
+    public static IndicesOptions strictSingleIndexNoExpand() {
+        return VALUES[FORBID_ALIASES_TO_MULTIPLE_INDICES];
     }
 
     /**
@@ -150,19 +186,24 @@ public class IndicesOptions {
         return VALUES[7];
     }
 
-    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed) {
+    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices) {
         byte id = 0;
         if (ignoreUnavailable) {
-            id |= 1;
+            id |= IGNORE_UNAVAILABLE;
         }
         if (allowNoIndices) {
-            id |= 2;
+            id |= ALLOW_NO_INDICES;
         }
         if (wildcardExpandToOpen) {
-            id |= 4;
+            id |= EXPAND_WILDCARDS_OPEN;
         }
         if (wildcardExpandToClosed) {
-            id |= 8;
+            id |= EXPAND_WILDCARDS_CLOSED;
+        }
+        //true is default here, for bw comp we keep the first 16 values
+        //in the array same as before + the default value for the new flag
+        if (!allowAliasesToMultipleIndices) {
+            id |= FORBID_ALIASES_TO_MULTIPLE_INDICES;
         }
         return id;
     }
@@ -173,5 +214,4 @@ public class IndicesOptions {
         }
         return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
     }
-
 }

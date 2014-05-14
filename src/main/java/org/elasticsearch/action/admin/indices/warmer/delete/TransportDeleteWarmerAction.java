@@ -79,7 +79,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     @Override
     protected void doExecute(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener) {
         // update to concrete indices
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
         super.doExecute(request, listener);
     }
 

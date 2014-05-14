@@ -69,7 +69,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeOperationA
 
     @Override
     protected void doExecute(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
         super.doExecute(request, listener);
     }
 

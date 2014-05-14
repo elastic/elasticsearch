@@ -158,7 +158,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-        final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value());
+        final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount());
         return new NonCollectingAggregator(name, aggregationContext, parent) {
             @Override
             public InternalAggregation buildEmptyAggregation() {

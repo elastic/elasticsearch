@@ -144,18 +144,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
-        if (bucketCountThresholds.getRequiredSize().explicit()) {
-            builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getRequiredSize().value());
-        }
-        if (bucketCountThresholds.getShardSize().explicit()) {
-            builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), bucketCountThresholds.getShardSize().value());
-        }
-        if (bucketCountThresholds.getMinDocCount().explicit()) {
-            builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.getMinDocCount().value());
-        }
-        if (bucketCountThresholds.getShardMinDocCount().explicit()) {
-            builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), bucketCountThresholds.getShardMinDocCount().value());
-        }
+
+        bucketCountThresholds.toXContent(builder);
+
         if (executionHint != null) {
             builder.field(AbstractTermsParametersParser.EXECUTION_HINT_FIELD_NAME.getPreferredName(), executionHint);
         }

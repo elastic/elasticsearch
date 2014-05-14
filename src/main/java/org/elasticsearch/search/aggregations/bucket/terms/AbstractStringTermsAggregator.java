@@ -44,7 +44,7 @@ abstract class AbstractStringTermsAggregator extends TermsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Collections.<InternalTerms.Bucket>emptyList());
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
     }
 
 }

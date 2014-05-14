@@ -50,10 +50,10 @@ public class TermsParser implements Aggregator.Parser {
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        if (bucketCountThresholds.getShardSize().value() == 0) {
+        if (bucketCountThresholds.getShardSize() == 0) {
             bucketCountThresholds.setShardSize(Integer.MAX_VALUE);
         }
-        if (bucketCountThresholds.getRequiredSize().value() == 0) {
+        if (bucketCountThresholds.getRequiredSize() == 0) {
             bucketCountThresholds.setRequiredSize(Integer.MAX_VALUE);
         }
         bucketCountThresholds.ensureValidity();

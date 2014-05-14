@@ -22,10 +22,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+
+import java.io.IOException;
 
 public abstract class TermsAggregator extends BucketsAggregator {
 
@@ -65,36 +68,51 @@ public abstract class TermsAggregator extends BucketsAggregator {
             }
         }
 
-        public Explicit<Long> getShardMinDocCount() {
-            return shardMinDocCount;
+        public long getShardMinDocCount() {
+            return shardMinDocCount.value();
         }
 
         public void setShardMinDocCount(long shardMinDocCount) {
             this.shardMinDocCount = new Explicit<>(shardMinDocCount, true);
         }
 
-        public Explicit<Long> getMinDocCount() {
-            return minDocCount;
+        public long getMinDocCount() {
+            return minDocCount.value();
         }
 
         public void setMinDocCount(long minDocCount) {
             this.minDocCount = new Explicit<>(minDocCount, true);
         }
 
-        public Explicit<Integer> getRequiredSize() {
-            return requiredSize;
+        public int getRequiredSize() {
+            return requiredSize.value();
         }
 
         public void setRequiredSize(int requiredSize) {
             this.requiredSize = new Explicit<>(requiredSize, true);
         }
 
-        public Explicit<Integer> getShardSize() {
-            return shardSize;
+        public int getShardSize() {
+            return shardSize.value();
         }
 
         public void setShardSize(int shardSize) {
             this.shardSize = new Explicit<>(shardSize, true);
+        }
+
+        public void toXContent(XContentBuilder builder) throws IOException {
+            if (requiredSize.explicit()) {
+                builder.field(AbstractTermsParametersParser.REQUIRED_SIZE_FIELD_NAME.getPreferredName(), requiredSize.value());
+            }
+            if (shardSize.explicit()) {
+                builder.field(AbstractTermsParametersParser.SHARD_SIZE_FIELD_NAME.getPreferredName(), shardSize.value());
+            }
+            if (minDocCount.explicit()) {
+                builder.field(AbstractTermsParametersParser.MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), minDocCount.value());
+            }
+            if (shardMinDocCount.explicit()) {
+                builder.field(AbstractTermsParametersParser.SHARD_MIN_DOC_COUNT_FIELD_NAME.getPreferredName(), shardMinDocCount.value());
+            }
         }
     }
 

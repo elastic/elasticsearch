@@ -65,7 +65,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
-        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize().value());
+        final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
         long supersetSize = termsAggFactory.prepareBackground(context);
         long subsetSize = numCollectedDocs;
 
@@ -88,7 +88,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             spare.updateScore();
 
             spare.bucketOrd = i;
-            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount().value()) {
+            if (spare.subsetDf >= bucketCountThresholds.getShardMinDocCount()) {
                 spare = (SignificantStringTerms.Bucket) ordered.insertWithOverflow(spare);
             }
         }
@@ -102,7 +102,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
 
     @Override
@@ -111,7 +111,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize().value(), bucketCountThresholds.getMinDocCount().value(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList());
     }
 
     @Override

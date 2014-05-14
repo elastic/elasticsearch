@@ -139,11 +139,21 @@ public class NettyHttpChannel extends HttpChannel {
                         buffer,
                         ChannelBuffers.wrappedBuffer(END_JSONP)
                 );
+                // Add content-type header of "application/javascript"
+                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, "application/javascript");
             }
             resp.setContent(buffer);
-            resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
-            resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
-
+            
+            // If our response doesn't specify a content-type header, set one 
+            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_TYPE)) {
+                resp.headers().add(HttpHeaders.Names.CONTENT_TYPE, response.contentType());
+            }
+            
+            // If our response has no content-length, calculate and set one
+            if (!resp.headers().contains(HttpHeaders.Names.CONTENT_LENGTH)) {
+                resp.headers().add(HttpHeaders.Names.CONTENT_LENGTH, String.valueOf(buffer.readableBytes()));
+            }
+            
             if (transport.resetCookies) {
                 String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
                 if (cookieString != null) {

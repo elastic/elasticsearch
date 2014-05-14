@@ -116,7 +116,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
     @Override
     protected void masterOperation(final DeleteMappingRequest request, final ClusterState state, final ActionListener<DeleteMappingResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
         flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {

@@ -146,7 +146,7 @@ public class IndicesFilterParser implements FilterParser {
     }
 
     protected boolean matchesIndices(String currentIndex, String... indices) {
-        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(indices, IndicesOptions.lenientExpandOpen());
+        final String[] concreteIndices = clusterService.state().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), indices);
         for (String index : concreteIndices) {
             if (Regex.simpleMatch(index, currentIndex)) {
                 return true;

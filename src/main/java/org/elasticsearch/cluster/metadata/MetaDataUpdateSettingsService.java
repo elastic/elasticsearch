@@ -229,7 +229,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                String[] actualIndices = currentState.metaData().concreteIndices(request.indices(), IndicesOptions.strictExpand());
+                String[] actualIndices = currentState.metaData().concreteIndices(IndicesOptions.strictExpand(), request.indices());
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
 

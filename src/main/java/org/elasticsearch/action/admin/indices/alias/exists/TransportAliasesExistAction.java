@@ -61,7 +61,7 @@ public class TransportAliasesExistAction extends TransportMasterNodeReadOperatio
 
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<AliasesExistResponse> listener) throws ElasticsearchException {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
+        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         request.indices(concreteIndices);
 
         boolean result = state.metaData().hasAliases(request.aliases(), request.indices());

@@ -66,7 +66,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
-public class IndicesOptionsTests extends ElasticsearchIntegrationTest {
+public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testSpecifiedIndexUnavailable() throws Exception {

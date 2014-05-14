@@ -166,7 +166,7 @@ public class TransportMultiPercolateAction extends TransportAction<MultiPercolat
                     PercolateRequest percolateRequest = (PercolateRequest) element;
                     String[] concreteIndices;
                     try {
-                         concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indices(), percolateRequest.indicesOptions());
+                         concreteIndices = clusterState.metaData().concreteIndices(percolateRequest.indicesOptions(), percolateRequest.indices());
                     } catch (IndexMissingException e) {
                         reducedResponses.set(slot, e);
                         responsesByItemAndShard.set(slot, new AtomicReferenceArray(0));

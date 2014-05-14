@@ -18,10 +18,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
@@ -34,6 +38,13 @@ import java.io.IOException;
  */
 public class SignificantTermsParser implements Aggregator.Parser {
 
+    private final SignificanceHeuristicParserMapper significanceHeuristicParserMapper;
+
+    @Inject
+    public SignificantTermsParser(SignificanceHeuristicParserMapper significanceHeuristicParserMapper) {
+        this.significanceHeuristicParserMapper = significanceHeuristicParserMapper;
+    }
+
     @Override
     public String type() {
         return SignificantStringTerms.TYPE.name();
@@ -41,7 +52,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        SignificantTermsParametersParser aggParser = new SignificantTermsParametersParser();
+        SignificantTermsParametersParser aggParser = new SignificantTermsParametersParser(significanceHeuristicParserMapper);
         ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, SignificantStringTerms.TYPE, context)
                 .scriptable(false)
                 .formattable(true)
@@ -52,7 +63,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        if (bucketCountThresholds.getShardSize() == new SignificantTermsParametersParser().getDefaultBucketCountThresholds().getShardSize()) {
+        if (bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
             //The user has not made a shardSize selection .
             //Use default heuristic to avoid any wrong-ranking caused by distributed counting
             //but request double the usual amount.
@@ -64,6 +75,10 @@ public class SignificantTermsParser implements Aggregator.Parser {
         }
 
         bucketCountThresholds.ensureValidity();
-        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter());
+        SignificanceHeuristic significanceHeuristic = aggParser.getSignificanceHeuristic();
+        if (significanceHeuristic == null) {
+            significanceHeuristic = JLHScore.INSTANCE;
+        }
+        return new SignificantTermsAggregatorFactory(aggregationName, vsParser.config(), bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getFilter(), significanceHeuristic);
     }
 }

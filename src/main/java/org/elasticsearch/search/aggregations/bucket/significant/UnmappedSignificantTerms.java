@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -58,7 +59,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount) {
         //We pass zero for index/subset sizes because for the purpose of significant term analysis 
         // we assume an unmapped index's size is irrelevant to the proceedings. 
-        super(0, 0, name, requiredSize, minDocCount, BUCKETS);
+        super(0, 0, name, requiredSize, minDocCount, JLHScore.INSTANCE, BUCKETS);
     }
 
     @Override

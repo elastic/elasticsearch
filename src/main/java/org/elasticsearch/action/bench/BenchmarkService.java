@@ -45,8 +45,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Service component for running benchmarks
@@ -103,9 +106,8 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         } else {
             BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), request, listener);
             for (DiscoveryNode node : nodes) {
-                if (isBenchmarkNode(node)) {
-                    transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
-                }
+                assert isBenchmarkNode(node);
+                transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
             }
         }
     }
@@ -494,6 +496,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         BenchmarkResponse response = new BenchmarkResponse();
 
         // Merge node responses into a single consolidated response
+        List<String> errors = new ArrayList<>();
         for (BenchmarkResponse r : responses) {
             for (Map.Entry<String, CompetitionResult> entry : r.competitionResults.entrySet()) {
                 if (!response.competitionResults.containsKey(entry.getKey())) {
@@ -505,12 +508,21 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
                 CompetitionResult cr = response.competitionResults.get(entry.getKey());
                 cr.nodeResults().addAll(entry.getValue().nodeResults());
             }
+            if (r.hasErrors()) {
+                for (String error : r.errors()) {
+                    errors.add(error);
+                }
+            }
 
             if (response.benchmarkName() == null) {
                 response.benchmarkName(r.benchmarkName());
             }
             assert response.benchmarkName().equals(r.benchmarkName());
+            if (!errors.isEmpty()) {
+                response.errors(errors.toArray(new String[errors.size()]));
+            }
             response.mergeState(r.state());
+            assert errors.isEmpty() || response.state() != BenchmarkResponse.State.COMPLETE : "Response can't be complete since it has errors";
         }
 
         return response;

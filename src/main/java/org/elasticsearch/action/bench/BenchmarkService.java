@@ -286,7 +286,8 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public String executor() {
-            return ThreadPool.Names.BENCH;
+            // Perform management tasks on GENERIC so as not to block pending acquisition of a thread from BENCH.
+            return ThreadPool.Names.GENERIC;
         }
     }
 
@@ -308,7 +309,8 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public String executor() {
-            return ThreadPool.Names.BENCH;
+            // Perform management tasks on GENERIC so as not to block pending acquisition of a thread from BENCH.
+            return ThreadPool.Names.GENERIC;
         }
     }
 

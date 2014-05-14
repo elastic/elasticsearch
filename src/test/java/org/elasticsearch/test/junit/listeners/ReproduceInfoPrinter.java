@@ -136,7 +136,8 @@ public class ReproduceInfoPrinter extends RunListener {
 
         public ReproduceErrorMessageBuilder appendESProperties() {
             appendProperties("es.logger.level", "es.node.mode", "es.node.local", TESTS_CLUSTER, TestCluster.TESTS_ENABLE_MOCK_MODULES,
-                    "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", "tests.client.ratio", "tests.heap.size");
+                    "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", "tests.client.ratio", "tests.heap.size",
+                    "tests.bwc", "tests.bwc.path", "tests.bwc.version");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }

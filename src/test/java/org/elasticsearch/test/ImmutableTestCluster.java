@@ -32,6 +32,8 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Random;
 
@@ -43,9 +45,9 @@ import static org.junit.Assert.assertThat;
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution
  */
-public abstract class ImmutableTestCluster implements Iterable<Client> {
+public abstract class ImmutableTestCluster implements Iterable<Client>, Closeable {
 
-    private final ESLogger logger = Loggers.getLogger(getClass());
+    protected final ESLogger logger = Loggers.getLogger(getClass());
 
     protected Random random;
 
@@ -54,7 +56,7 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random, double transportClientRatio) {
+    public void beforeTest(Random random, double transportClientRatio) throws IOException {
         assert transportClientRatio >= 0.0 && transportClientRatio <= 1.0;
         logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
         this.transportClientRatio = transportClientRatio;
@@ -113,7 +115,7 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
     /**
      * Closes the current cluster
      */
-    public abstract void close();
+    public abstract void close() throws IOException;
 
     /**
      * Deletes the given indices from the tests cluster. If no index name is passed to this method
@@ -202,4 +204,5 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
      * Return whether or not this cluster can cache filters.
      */
     public abstract boolean hasFilterCache();
+
 }

@@ -27,6 +27,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -101,9 +102,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.TestCluster.clusterName;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -493,11 +492,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return testCluster;
     }
 
-    private void clearClusters() throws IOException {
+    private static void clearClusters() throws IOException {
         if (!clusters.isEmpty()) {
-            for (ImmutableTestCluster cluster : clusters.values()) {
-                cluster.close();
-            }
+            IOUtils.close(clusters.values());
             clusters.clear();
         }
     }
@@ -599,7 +596,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected int maximumNumberOfReplicas() {
-        return immutableCluster().numDataNodes() - 1;
+        return Math.max(0, immutableCluster().numDataNodes() - 1);
     }
 
     protected int numberOfReplicas() {
@@ -849,7 +846,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return actionGet.getStatus();
     }
 
-    private void ensureClusterSizeConsistency() {
+    /**
+     * Prints the current cluster state as info logging.
+     */
+    public void logClusterState() {
+        logger.debug("cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+    }
+
+    void ensureClusterSizeConsistency() {
+        logger.trace("Check consistency for [{}] nodes", immutableCluster().size());
         assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(immutableCluster().size())).get());
     }
 
@@ -1311,7 +1316,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return ImmutableSettings.EMPTY;
     }
 
-    private TestCluster buildTestCluster(Scope scope) {
+    protected ImmutableTestCluster buildTestCluster(Scope scope) throws IOException {
         long currentClusterSeed = randomLong();
 
         NodeSettingsSource nodeSettingsSource = new NodeSettingsSource() {
@@ -1430,6 +1435,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             } finally {
                 INSTANCE = null;
             }
+        } else {
+            clearClusters();
         }
 
     }

@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +36,7 @@ public class IndicesOptions {
     private static final IndicesOptions[] VALUES;
 
     static {
-        byte max = 1 << 4;
+        byte max = 1 << 5;
         VALUES = new IndicesOptions[max];
         for (byte id = 0; id < max; id++) {
             VALUES[id] = new IndicesOptions(id);
@@ -77,11 +78,28 @@ public class IndicesOptions {
         return (id & 8) != 0;
     }
 
+    /**
+     * @return whether aliases pointing to multiple indices are allowed
+     */
+    public boolean allowAliasesToMultipleIndices() {
+        //true is default here, for bw comp we keep the first 16 values
+        //in the array same as before + the default value for the new flag
+        return (id & 16) == 0;
+    }
+
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id);
+        //if we are talking to a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
+        //we need to serialize the old corresponding value ignoring the new flag value
+        if (allowAliasesToMultipleIndices() || out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.write(id);
+        } else {
+            out.write(id ^ 16);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
+        //if we read from a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
+        //we just receive the old corresponding value with the new flag set to true (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
             throw new ElasticsearchIllegalArgumentException("No valid missing index type id: " + id);
@@ -90,7 +108,11 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true);
+    }
+
+    static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices) {
+        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices);
         return VALUES[id];
     }
 
@@ -117,6 +139,7 @@ public class IndicesOptions {
             }
         }
 
+        //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
                 toBool(sIgnoreUnavailable, defaultSettings.ignoreUnavailable()),
                 toBool(sAllowNoIndices, defaultSettings.allowNoIndices()),
@@ -135,7 +158,6 @@ public class IndicesOptions {
         return strictExpandOpen();
     }
 
-
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
      *         allows that no indices are resolved from wildcard expressions (not returning an error).
@@ -144,13 +166,20 @@ public class IndicesOptions {
         return VALUES[6];
     }
 
-
     /**
      * @return indices option that requires every specified index to exist, expands wildcards to both open and closed
      * indices and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpand() {
         return VALUES[14];
+    }
+
+    /**
+     * @return indices option that requires each specified index or alias to exist, doesn't expand wildcards and
+     * throws error if any of the aliases resolves to multiple indices
+     */
+    public static IndicesOptions strictSingleIndexNoExpand() {
+        return VALUES[16];
     }
 
     /**
@@ -171,7 +200,7 @@ public class IndicesOptions {
         return VALUES[7];
     }
 
-    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed) {
+    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices) {
         byte id = 0;
         if (ignoreUnavailable) {
             id |= 1;
@@ -185,6 +214,11 @@ public class IndicesOptions {
         if (wildcardExpandToClosed) {
             id |= 8;
         }
+        //true is default here, for bw comp we keep the first 16 values
+        //in the array same as before + the default value for the new flag
+        if (!allowAliasesToMultipleIndices) {
+            id |= 16;
+        }
         return id;
     }
 
@@ -194,5 +228,4 @@ public class IndicesOptions {
         }
         return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
     }
-
 }

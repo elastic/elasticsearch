@@ -547,3 +547,20 @@ keep in mind that scoring more phrases consumes more time and memory.
 
 If using `matched_fields` keep in mind that `phrase_limit` phrases per
 matched field are considered.
+
+[[explicit-field-order]]
+=== Field Highlight Order
+Elasticsearch highlights the fields in the order that they are sent.  Per the
+json spec objects are unordered but if you need to be explicit about the order
+that fields are highlighted then you can use an array for `fields` like this:
+[source,js]
+--------------------------------------------------
+    "highlight": {
+        "fields": [
+            {"title":{ /*params*/ }},
+            {"text":{ /*params*/ }}
+        ]
+    }
+--------------------------------------------------
+None of the highlighters built into Elasticsearch care about the order that the
+fields are highlighted but a plugin may.

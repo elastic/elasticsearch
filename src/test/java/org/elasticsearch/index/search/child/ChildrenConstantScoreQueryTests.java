@@ -243,7 +243,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
             // Simulate a parent update
             if (random().nextBoolean()) {
-                int numberOfUpdates = scaledRandomIntBetween(1, 25);
+                final int numberOfUpdatableParents = numParentDocs - filteredOrDeletedDocs.size();
+                int numberOfUpdates = scaledRandomIntBetween(0, numberOfUpdatableParents);
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int parentId;
                     do {

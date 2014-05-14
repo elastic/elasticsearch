@@ -807,6 +807,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
+     * @return this for chaining
+     */
+    public SearchRequestBuilder setHighlighterExplicitFieldOrder(boolean explicitFieldOrder) {
+        highlightBuilder().useExplicitFieldOrder(explicitFieldOrder);
+        return this;
+    }
+
+    /**
      * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
      */
     public SearchRequestBuilder setSuggestText(String globalText) {

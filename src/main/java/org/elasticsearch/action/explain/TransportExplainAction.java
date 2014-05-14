@@ -98,9 +98,9 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     @Override
     protected void resolveRequest(ClusterState state, ExplainRequest request) {
-        String concreteIndex = state.metaData().concreteIndex(request.index());
+        String concreteIndex = state.metaData().concreteSingleIndex(request.index());
         request.filteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index()));
 
         // Fail fast on the node that received the request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {

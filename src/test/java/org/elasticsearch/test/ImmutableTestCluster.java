@@ -24,8 +24,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.bench.BenchmarkNodeMissingException;
-import org.elasticsearch.action.bench.BenchmarkStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.logging.ESLogger;
@@ -38,9 +36,7 @@ import java.net.InetSocketAddress;
 import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -81,12 +77,6 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
         assertAllSearchersClosed();
         assertAllFilesClosed();
         ensureEstimatedStats();
-        try {
-            final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
-            assertThat(statusResponse.benchmarkResponses(), is(empty()));
-        } catch (BenchmarkNodeMissingException ex) {
-            // that's fine
-        }
     }
 
     /**

@@ -48,7 +48,7 @@ import static com.google.common.base.Predicates.isNull;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -70,7 +70,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         final String node_1 = nodesIds.get(0);
         final String node_2 = nodesIds.get(1);
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         String server1NodeId = cluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();

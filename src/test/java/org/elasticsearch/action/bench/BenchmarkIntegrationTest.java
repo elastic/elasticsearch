@@ -28,12 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
@@ -72,6 +72,12 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             }
 
         }
+    }
+
+    @After
+    public void afterBenchmarkIntegrationTests() throws Exception {
+        final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
+        assertThat("Some benchmarks are still running", statusResponse.benchmarkResponses(), is(empty()));
     }
 
     @Before
@@ -119,28 +125,34 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
                 request.settings().iterations());
 
         final ActionFuture<BenchmarkResponse> future = client().bench(request);
+        try {
+            waitForQuery.await();
+            final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
+            waitForTestLatch.countDown();
+            assertThat(statusResponse.benchmarkResponses().size(), greaterThan(0));
+            for (BenchmarkResponse benchmarkResponse : statusResponse.benchmarkResponses()) {
+                assertThat(benchmarkResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
+                assertThat(benchmarkResponse.state(), equalTo(BenchmarkResponse.State.RUNNING));
+                assertFalse(benchmarkResponse.hasErrors());
 
-        assertTrue(waitForQuery.await(5l, TimeUnit.SECONDS));
-        final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
-        waitForTestLatch.countDown();
-
-        assertThat(statusResponse.benchmarkResponses().size(), greaterThan(0));
-        for (BenchmarkResponse benchmarkResponse : statusResponse.benchmarkResponses()) {
-            assertThat(benchmarkResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
-            assertThat(benchmarkResponse.state(), equalTo(BenchmarkResponse.State.RUNNING));
-            assertFalse(benchmarkResponse.hasErrors());
-
-            for (CompetitionResult result : benchmarkResponse.competitionResults().values()) {
-                assertThat(result.nodeResults().size(), lessThanOrEqualTo(numExecutorNodes));
-                validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), false);
+                for (CompetitionResult result : benchmarkResponse.competitionResults().values()) {
+                    assertThat(result.nodeResults().size(), lessThanOrEqualTo(numExecutorNodes));
+                    validateCompetitionResult(result, competitionSettingsMap.get(result.competitionName()), false);
+                }
             }
-        }
-        client().prepareAbortBench(BENCHMARK_NAME).get();
-        // Confirm that there are no active benchmarks in the cluster
-        assertThat(client().prepareBenchStatus().execute().actionGet().totalActiveBenchmarks(), equalTo(0));
 
+        } finally {
+            if (waitForTestLatch.getCount() == 1) {
+                waitForTestLatch.countDown();
+            }
+            client().prepareAbortBench(BENCHMARK_NAME).get();
+            // Confirm that there are no active benchmarks in the cluster
+            assertThat(client().prepareBenchStatus().execute().actionGet().totalActiveBenchmarks(), equalTo(0));
+            assertThat(waitForTestLatch.getCount(), is(0l));
+        }
         // Confirm that benchmark was indeed aborted
         assertThat(future.get().state(), isOneOf(BenchmarkResponse.State.ABORTED, BenchmarkResponse.State.COMPLETE));
+
     }
 
     public static CountDownLatch waitForTestLatch;
@@ -209,7 +221,6 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             }
         }
         assertThat(response.benchmarkName(), equalTo(BENCHMARK_NAME));
-
     }
 
     @Test
@@ -218,29 +229,41 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         final BenchmarkRequest request =
                 BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap, searchRequest);
         request.settings().iterations(Integer.MAX_VALUE, true); // massive amount of iterations
-        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}] [{}]", request.competitors().size(),
-                request.settings().iterations(), request);
+        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
+                request.settings().iterations());
+        boolean aborted = false;
         final ActionFuture<BenchmarkResponse> benchmarkResponse = client().bench(request);
-        assertTrue(waitForQuery.await(5l, TimeUnit.SECONDS));
-        final AbortBenchmarkResponse abortResponse =
-                client().prepareAbortBench(BENCHMARK_NAME).execute().actionGet();
-        waitForTestLatch.countDown();
-        // Confirm that the benchmark was actually aborted and did not finish on its own
-        assertThat(abortResponse.getNodeResponses().size(), lessThanOrEqualTo(numExecutorNodes));
-        assertThat(abortResponse.getBenchmarkName(), equalTo(BENCHMARK_NAME));
+        try {
+            waitForQuery.await();
+            final AbortBenchmarkResponse abortResponse =
+                    client().prepareAbortBench(BENCHMARK_NAME).get();
+            aborted = true;
+            waitForTestLatch.countDown();
+            // Confirm that the benchmark was actually aborted and did not finish on its own
+            assertThat(abortResponse.getNodeResponses().size(), lessThanOrEqualTo(numExecutorNodes));
+            assertThat(abortResponse.getBenchmarkName(), equalTo(BENCHMARK_NAME));
 
-        for (AbortBenchmarkNodeResponse nodeResponse : abortResponse.getNodeResponses()) {
-            assertThat(nodeResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
-            assertThat(nodeResponse.errorMessage(), nullValue());
-            assertThat(nodeResponse.nodeName(), notNullValue());
+            for (AbortBenchmarkNodeResponse nodeResponse : abortResponse.getNodeResponses()) {
+                assertThat(nodeResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
+                assertThat(nodeResponse.errorMessage(), nullValue());
+                assertThat(nodeResponse.nodeName(), notNullValue());
+            }
+            // Confirm that there are no active benchmarks in the cluster
+            final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
+            assertThat(statusResponse.totalActiveBenchmarks(), equalTo(0));
+
+            // Confirm that benchmark was indeed aborted
+            assertThat(benchmarkResponse.get().state(), is(BenchmarkResponse.State.ABORTED));
+
+        } finally {
+            if (waitForTestLatch.getCount() == 1) {
+                waitForTestLatch.countDown();
+            }
+            if (!aborted) {
+                client().prepareAbortBench(BENCHMARK_NAME).get();
+            }
+            assertThat(waitForTestLatch.getCount(), is(0l));
         }
-
-        // Confirm that there are no active benchmarks in the cluster
-        final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
-        assertThat(statusResponse.totalActiveBenchmarks(), equalTo(0));
-
-        // Confirm that benchmark was indeed aborted
-        assertThat(benchmarkResponse.get().state(), is(BenchmarkResponse.State.ABORTED));
     }
 
     @Test(expected = BenchmarkMissingException.class)

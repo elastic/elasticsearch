@@ -458,6 +458,7 @@
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <tests.processors>${tests.processors}</tests.processors>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>
                                 <tests.iters>${tests.iters}</tests.iters>
                                 <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>

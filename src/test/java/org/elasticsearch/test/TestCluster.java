@@ -27,6 +27,7 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -302,6 +303,11 @@ public final class TestCluster extends ImmutableTestCluster {
         }
         builder.put("plugins.isolation", random.nextBoolean());
         builder.put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, 1 + random.nextInt(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_DEFAULT));
+        if (random.nextInt(10) == 0) {
+            builder.put(EsExecutors.PROCESSORS, 1 + random.nextInt(AbstractRandomizedTest.TESTS_PROCESSORS));
+        } else {
+            builder.put(EsExecutors.PROCESSORS, AbstractRandomizedTest.TESTS_PROCESSORS);
+        }
         return builder.build();
     }
 

@@ -348,12 +348,16 @@ public class BenchmarkExecutor {
         }
 
         public void onFailure(Throwable e) {
-            manage();
-            if (errorMessages.size() < 5) {
-                logger.error("Failed to execute benchmark [{}]", e.getMessage(), e);
-                e = ExceptionsHelper.unwrapCause(e);
-                errorMessages.add(e.getLocalizedMessage());
+            try {
+                if (errorMessages.size() < 5) {
+                    logger.debug("Failed to execute benchmark [{}]", e.getMessage(), e);
+                    e = ExceptionsHelper.unwrapCause(e);
+                    errorMessages.add(e.getLocalizedMessage());
+                }
+            } finally {
+                manage(); // first add the msg then call the count down on the latch otherwise we might iss one error
             }
+
         }
     }
 
@@ -383,9 +387,13 @@ public class BenchmarkExecutor {
 
         @Override
         public void onFailure(Throwable e) {
-            timeBuckets[bucketId] = -1;
-            docBuckets[bucketId] = -1;
-            super.onFailure(e);
+            try {
+                timeBuckets[bucketId] = -1;
+                docBuckets[bucketId] = -1;
+            } finally {
+                super.onFailure(e);
+            }
+
         }
     }
 

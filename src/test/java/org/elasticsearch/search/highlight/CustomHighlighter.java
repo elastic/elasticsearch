@@ -23,6 +23,7 @@ import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -38,9 +39,24 @@ public class CustomHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
+        CacheEntry cacheEntry = (CacheEntry) highlighterContext.hitContext.cache().get("test-custom");
+        if (cacheEntry == null) {
+            cacheEntry = new CacheEntry();
+            highlighterContext.hitContext.cache().put("test-custom", cacheEntry);
+            cacheEntry.docId = highlighterContext.hitContext.docId();
+            cacheEntry.position = 1;
+        } else {
+            if (cacheEntry.docId == highlighterContext.hitContext.docId()) {
+                cacheEntry.position++;
+            } else {
+                cacheEntry.docId = highlighterContext.hitContext.docId();
+                cacheEntry.position = 1;
+            }
+        }
 
         List<Text> responses = Lists.newArrayList();
-        responses.add(new StringText("standard response"));
+        responses.add(new StringText(String.format(Locale.ENGLISH, "standard response for %s at position %s", field.field(),
+                cacheEntry.position)));
 
         if (field.fieldOptions().options() != null) {
             for (Map.Entry<String, Object> entry : field.fieldOptions().options().entrySet()) {
@@ -49,5 +65,10 @@ public class CustomHighlighter implements Highlighter {
         }
 
         return new HighlightField(highlighterContext.fieldName, responses.toArray(new Text[]{}));
+    }
+
+    private static class CacheEntry {
+        private int position;
+        private int docId;
     }
 }

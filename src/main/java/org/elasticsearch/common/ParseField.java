@@ -55,6 +55,16 @@ public class ParseField {
         return underscoreName;
     }
 
+    public String[] getAllNamesIncludedDeprecated() {
+        String[] allNames = new String[2 + deprecatedNames.length];
+        allNames[0] = camelCaseName;
+        allNames[1] = underscoreName;
+        for (int i = 0; i < deprecatedNames.length; i++) {
+            allNames[i + 2] = deprecatedNames[i];
+        }
+        return allNames;
+    }
+
     public ParseField withDeprecation(String... deprecatedNames) {
         return new ParseField(this.underscoreName, deprecatedNames);
     }

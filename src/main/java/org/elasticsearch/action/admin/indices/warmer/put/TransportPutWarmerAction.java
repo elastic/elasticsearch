@@ -83,7 +83,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(PutWarmerRequest request, ClusterState state) {
-        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indices(), request.searchRequest().indicesOptions());
+        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indicesOptions(), request.searchRequest().indices());
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
     }
 
@@ -134,7 +134,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         MetaData metaData = currentState.metaData();
-                        String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indices(), request.searchRequest().indicesOptions());
+                        String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indicesOptions(), request.searchRequest().indices());
 
                         BytesReference source = null;
                         if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {

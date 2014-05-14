@@ -117,7 +117,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;

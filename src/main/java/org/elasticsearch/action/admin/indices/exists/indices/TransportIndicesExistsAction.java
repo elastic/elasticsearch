@@ -81,7 +81,7 @@ public class TransportIndicesExistsAction extends TransportMasterNodeReadOperati
         boolean exists;
         try {
             // Similar as the previous behaviour, but now also aliases and wildcards are supported.
-            clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions());
+            clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices());
             exists = true;
         } catch (IndexMissingException e) {
             exists = false;

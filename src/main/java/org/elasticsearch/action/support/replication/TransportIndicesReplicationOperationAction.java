@@ -74,7 +74,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
             throw blockException;
         }
         // get actual indices
-        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
+        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         blockException = checkRequestBlock(clusterState, request, concreteIndices);
         if (blockException != null) {
             throw blockException;

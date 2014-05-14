@@ -44,7 +44,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     @Override
     protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) throws ElasticsearchException {
-        String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.indicesOptions());
+        String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), request.indices());
         request.indices(concreteIndices);
         doMasterOperation(request, state, listener);
     }

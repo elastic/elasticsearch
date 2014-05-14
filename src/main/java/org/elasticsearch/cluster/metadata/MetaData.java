@@ -624,15 +624,6 @@ public class MetaData implements Iterable<IndexMetaData> {
     }
 
     /**
-     * Translates the provided indices (possibly aliased) into actual indices.
-     * @deprecated use {@link #concreteIndices(org.elasticsearch.action.support.IndicesOptions, String...)} instead
-     */
-    @Deprecated
-    public String[] concreteIndices(String[] aliasesOrIndices, IndicesOptions indicesOptions) throws IndexMissingException {
-        return concreteIndices(indicesOptions, aliasesOrIndices);
-    }
-
-    /**
      * Translates the provided indices or aliases, eventually containing wildcard expressions, into actual indices.
      * @param indicesOptions how the aliases or indices need to be resolved to concrete indices
      * @param aliasesOrIndices the aliases or indices to be resolved to concrete indices

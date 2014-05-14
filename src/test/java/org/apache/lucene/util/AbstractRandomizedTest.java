@@ -67,6 +67,32 @@ import java.util.logging.Logger;
 // NOTE: this class is in o.a.lucene.util since it uses some classes that are related
 // to the test framework that didn't make sense to copy but are package private access
 public abstract class AbstractRandomizedTest extends RandomizedTest {
+
+
+    /**
+     * Annotation for backwards compat tests
+     */
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @TestGroup(enabled = false, sysProperty = TESTS_BACKWARDS_COMPATIBILITY)
+    public @interface BackwardsCompatibilityTest {
+    }
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY = "tests.bwc";
+
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_VERSION = "tests.bwc.version";
+
+    /**
+     * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
+     * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY_PATH}
+     */
+    public static final String TESTS_BACKWARDS_COMPATIBILITY_PATH = "tests.bwc.path";
+
     /**
      * Annotation for integration tests
      */

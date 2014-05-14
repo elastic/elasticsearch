@@ -12,6 +12,7 @@ target/
 docs/html/
 docs/build.log
 /tmp/
+backwards/
 
 ## eclipse ignores (use 'mvn eclipse:eclipse' to build eclipse projects)
 ## The only configuration files which are not ignored are certain files in

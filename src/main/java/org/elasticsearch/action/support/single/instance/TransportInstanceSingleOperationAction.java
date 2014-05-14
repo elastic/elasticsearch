@@ -89,7 +89,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
      * means a different execution, then return false here to indicate not to continue and execute this request.
      */
     protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index()));
         return true;
     }
 

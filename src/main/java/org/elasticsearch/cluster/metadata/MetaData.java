@@ -686,14 +686,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         return actualIndices.toArray(new String[actualIndices.size()]);
     }
 
-    /**
-     * @return the concrete index that the index or alias provided as an argument points to.
-     * @throws IndexMissingException if the index or alias doesn't exist
-     * @throws ElasticsearchIllegalArgumentException if the provided alias points to multiple indices
-     * @deprecated in favor of {@link #concreteIndices(org.elasticsearch.action.support.IndicesOptions, String...)}
-     */
-    @Deprecated
-    public String concreteIndex(String indexOrAlias) throws IndexMissingException, ElasticsearchIllegalArgumentException {
+    public String concreteSingleIndex(String indexOrAlias) throws IndexMissingException, ElasticsearchIllegalArgumentException {
         String[] indices = concreteIndices(IndicesOptions.strictSingleIndexNoExpand(), indexOrAlias);
         assert indices.length == 1;
         return indices[0];

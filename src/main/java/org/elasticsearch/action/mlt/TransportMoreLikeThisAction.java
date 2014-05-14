@@ -92,7 +92,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
-        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
+        final String concreteIndex = clusterState.metaData().concreteSingleIndex(request.index());
 
         Iterable<MutableShardRouting> routingNode = clusterState.getRoutingNodes().routingNodeIter(clusterService.localNode().getId());
         if (routingNode == null) {

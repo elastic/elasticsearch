@@ -21,6 +21,7 @@ package org.elasticsearch.index.search.child;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -187,7 +188,8 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
 
             // Simulate a parent update
             if (random().nextBoolean()) {
-                int numberOfUpdates = 1 + random().nextInt(TEST_NIGHTLY ? 25 : 5);
+                final int numberOfUpdatableParents = numParentDocs - filteredOrDeletedDocs.size();
+                int numberOfUpdates = RandomInts.randomIntBetween(random(), 0, Math.min(numberOfUpdatableParents, TEST_NIGHTLY ? 25 : 5));
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int parentId;
                     do {

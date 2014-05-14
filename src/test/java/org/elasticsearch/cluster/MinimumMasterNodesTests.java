@@ -256,7 +256,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     public void dynamicUpdateMinimumMasterNodes() throws InterruptedException {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.zen.ping_timeout", "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put("gateway.type", "local")
                 .build();

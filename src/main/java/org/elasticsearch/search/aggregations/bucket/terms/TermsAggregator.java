@@ -53,14 +53,22 @@ public abstract class TermsAggregator extends BucketsAggregator {
         }
 
         public void ensureValidity() {
+
+            if (shardSize.value() == 0) {
+                setShardSize(Integer.MAX_VALUE);
+            }
+
+            if (requiredSize.value() == 0) {
+                setRequiredSize(Integer.MAX_VALUE);
+            }
             // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
             if (shardSize.value() < requiredSize.value()) {
-                shardSize = requiredSize;
+                setShardSize(requiredSize.value());
             }
 
             // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match the min_doc_count criteria
             if (shardMinDocCount.value() > minDocCount.value()) {
-                shardMinDocCount = minDocCount;
+                setShardMinDocCount(minDocCount.value());
             }
 
             if (requiredSize.value() < 0 || minDocCount.value() < 0) {

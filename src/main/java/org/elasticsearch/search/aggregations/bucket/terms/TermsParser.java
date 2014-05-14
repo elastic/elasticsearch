@@ -50,12 +50,6 @@ public class TermsParser implements Aggregator.Parser {
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
-        if (bucketCountThresholds.getShardSize() == 0) {
-            bucketCountThresholds.setShardSize(Integer.MAX_VALUE);
-        }
-        if (bucketCountThresholds.getRequiredSize() == 0) {
-            bucketCountThresholds.setRequiredSize(Integer.MAX_VALUE);
-        }
         bucketCountThresholds.ensureValidity();
         InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
         return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint());

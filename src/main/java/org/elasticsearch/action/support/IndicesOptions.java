@@ -35,6 +35,12 @@ public class IndicesOptions {
 
     private static final IndicesOptions[] VALUES;
 
+    private static final byte IGNORE_UNAVAILABLE = 1;
+    private static final byte ALLOW_NO_INDICES = 2;
+    private static final byte EXPAND_WILDCARDS_OPEN = 4;
+    private static final byte EXPAND_WILDCARDS_CLOSED = 8;
+    private static final byte DONT_ALLOW_ALIASES_TO_MULTIPLE_INDICES = 16;
+
     static {
         byte max = 1 << 5;
         VALUES = new IndicesOptions[max];
@@ -53,7 +59,7 @@ public class IndicesOptions {
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
     public boolean ignoreUnavailable() {
-        return (id & 1) != 0;
+        return (id & IGNORE_UNAVAILABLE) != 0;
     }
 
     /**
@@ -61,21 +67,21 @@ public class IndicesOptions {
      *         The `_all` string or empty list of indices count as wildcard expressions too.
      */
     public boolean allowNoIndices() {
-        return (id & 2) != 0;
+        return (id & ALLOW_NO_INDICES) != 0;
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to open indices
      */
     public boolean expandWildcardsOpen() {
-        return (id & 4) != 0;
+        return (id & EXPAND_WILDCARDS_OPEN) != 0;
     }
 
     /**
      * @return Whether wildcard expressions should get expanded to closed indices
      */
     public boolean expandWildcardsClosed() {
-        return (id & 8) != 0;
+        return (id & EXPAND_WILDCARDS_CLOSED) != 0;
     }
 
     /**
@@ -84,7 +90,7 @@ public class IndicesOptions {
     public boolean allowAliasesToMultipleIndices() {
         //true is default here, for bw comp we keep the first 16 values
         //in the array same as before + the default value for the new flag
-        return (id & 16) == 0;
+        return (id & DONT_ALLOW_ALIASES_TO_MULTIPLE_INDICES) == 0;
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
@@ -93,7 +99,7 @@ public class IndicesOptions {
         if (allowAliasesToMultipleIndices() || out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.write(id);
         } else {
-            out.write(id ^ 16);
+            out.write(id ^ DONT_ALLOW_ALIASES_TO_MULTIPLE_INDICES);
         }
     }
 
@@ -179,7 +185,7 @@ public class IndicesOptions {
      * throws error if any of the aliases resolves to multiple indices
      */
     public static IndicesOptions strictSingleIndexNoExpand() {
-        return VALUES[16];
+        return VALUES[DONT_ALLOW_ALIASES_TO_MULTIPLE_INDICES];
     }
 
     /**
@@ -203,21 +209,21 @@ public class IndicesOptions {
     private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices) {
         byte id = 0;
         if (ignoreUnavailable) {
-            id |= 1;
+            id |= IGNORE_UNAVAILABLE;
         }
         if (allowNoIndices) {
-            id |= 2;
+            id |= ALLOW_NO_INDICES;
         }
         if (wildcardExpandToOpen) {
-            id |= 4;
+            id |= EXPAND_WILDCARDS_OPEN;
         }
         if (wildcardExpandToClosed) {
-            id |= 8;
+            id |= EXPAND_WILDCARDS_CLOSED;
         }
         //true is default here, for bw comp we keep the first 16 values
         //in the array same as before + the default value for the new flag
         if (!allowAliasesToMultipleIndices) {
-            id |= 16;
+            id |= DONT_ALLOW_ALIASES_TO_MULTIPLE_INDICES;
         }
         return id;
     }

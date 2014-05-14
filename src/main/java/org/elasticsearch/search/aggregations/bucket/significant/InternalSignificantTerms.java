@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 
 import java.util.*;
 
@@ -33,6 +34,7 @@ import java.util.*;
  */
 public abstract class InternalSignificantTerms extends InternalAggregation implements SignificantTerms, ToXContent, Streamable {
 
+    protected SignificanceHeuristic significanceHeuristic;
     protected int requiredSize;
     protected long minDocCount;
     protected Collection<Bucket> buckets;
@@ -42,7 +44,6 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
 
     protected InternalSignificantTerms() {} // for serialization
 
-    // TODO updateScore call in constructor to be cleaned up as part of adding pluggable scoring algos
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
     public static abstract class Bucket extends SignificantTerms.Bucket {
 
@@ -53,7 +54,6 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
             super(subsetDf, subsetSize, supersetDf, supersetSize);
             this.aggregations = aggregations;
-            updateScore();
         }
 
         @Override
@@ -76,59 +76,8 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
             return subsetSize;
         }
 
-        /**
-         * Calculates the significance of a term in a sample against a background of
-         * normal distributions by comparing the changes in frequency. This is the heart
-         * of the significant terms feature.
-         * <p/>
-         * TODO - allow pluggable scoring implementations
-         *
-         * @param subsetFreq   The frequency of the term in the selected sample
-         * @param subsetSize   The size of the selected sample (typically number of docs)
-         * @param supersetFreq The frequency of the term in the superset from which the sample was taken
-         * @param supersetSize The size of the superset from which the sample was taken  (typically number of docs)
-         * @return a "significance" score
-         */
-        public static double getSampledTermSignificance(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
-            if ((subsetSize == 0) || (supersetSize == 0)) {
-                // avoid any divide by zero issues
-                return 0;
-            }
-            if (supersetFreq == 0) {
-                // If we are using a background context that is not a strict superset, a foreground 
-                // term may be missing from the background, so for the purposes of this calculation
-                // we assume a value of 1 for our calculations which avoids returning an "infinity" result
-                supersetFreq = 1;
-            }
-            double subsetProbability = (double) subsetFreq / (double) subsetSize;
-            double supersetProbability = (double) supersetFreq / (double) supersetSize;
-
-            // Using absoluteProbabilityChange alone favours very common words e.g. you, we etc
-            // because a doubling in popularity of a common term is a big percent difference 
-            // whereas a rare term would have to achieve a hundred-fold increase in popularity to
-            // achieve the same difference measure.
-            // In favouring common words as suggested features for search we would get high
-            // recall but low precision.
-            double absoluteProbabilityChange = subsetProbability - supersetProbability;
-            if (absoluteProbabilityChange <= 0) {
-                return 0;
-            }
-            // Using relativeProbabilityChange tends to favour rarer terms e.g.mis-spellings or 
-            // unique URLs.
-            // A very low-probability term can very easily double in popularity due to the low
-            // numbers required to do so whereas a high-probability term would have to add many
-            // extra individual sightings to achieve the same shift. 
-            // In favouring rare words as suggested features for search we would get high
-            // precision but low recall.
-            double relativeProbabilityChange = (subsetProbability / supersetProbability);
-
-            // A blend of the above metrics - favours medium-rare terms to strike a useful
-            // balance between precision and recall.
-            return absoluteProbabilityChange * relativeProbabilityChange;
-        }
-
-        public void updateScore() {
-            score = getSampledTermSignificance(subsetDf, subsetSize, supersetDf, supersetSize);
+        public void updateScore(SignificanceHeuristic significanceHeuristic) {
+            score = significanceHeuristic.getScore(subsetDf, subsetSize, supersetDf, supersetSize);
         }
 
         @Override
@@ -162,13 +111,14 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, Collection<Bucket> buckets) {
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<Bucket> buckets) {
         super(name);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
         this.buckets = buckets;
         this.subsetSize = subsetSize;
         this.supersetSize = supersetSize;
+        this.significanceHeuristic = significanceHeuristic;
     }
 
     @Override
@@ -227,6 +177,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         for (Map.Entry<String, List<Bucket>> entry : buckets.entrySet()) {
             List<Bucket> sameTermBuckets = entry.getValue();
             final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
+            b.updateScore(significanceHeuristic);
             if ((b.score > 0) && (b.subsetDf >= minDocCount)) {
                 ordered.insertWithOverflow(b);
             }

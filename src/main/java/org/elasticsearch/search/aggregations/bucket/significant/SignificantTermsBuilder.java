@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParametersParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 
@@ -44,6 +45,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private String excludePattern;
     private int excludeFlags;
     private FilterBuilder filterBuilder;
+    private SignificanceHeuristicBuilder significanceHeuristicBuilder;
 
 
     public SignificantTermsBuilder(String name) {
@@ -165,7 +167,15 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
             builder.field(SignificantTermsParametersParser.BACKGROUND_FILTER.getPreferredName());
             filterBuilder.toXContent(builder, params); 
         }
+        if (significanceHeuristicBuilder != null) {
+            significanceHeuristicBuilder.toXContent(builder);
+        }
 
         return builder.endObject();
+    }
+
+    public SignificantTermsBuilder significanceHeuristic(SignificanceHeuristicBuilder significanceHeuristicBuilder) {
+        this.significanceHeuristicBuilder = significanceHeuristicBuilder;
+        return this;
     }
 }

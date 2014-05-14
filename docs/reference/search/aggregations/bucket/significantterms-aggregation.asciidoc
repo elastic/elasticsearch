@@ -194,10 +194,7 @@ where a simple `terms` aggregation would typically show the very popular "consta
 
 .How are the scores calculated?
 **********************************
-The numbers returned for scores are primarily intended for ranking different suggestions sensibly rather than something easily understood by end users.
-The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favour
-common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favour rare terms.
-Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
+The numbers returned for scores are primarily intended for ranking different suggestions sensibly rather than something easily understood by end users. The scores are derived from the doc frequencies in _foreground_ and _background_ sets. In brief, a term is considered significant if there is a noticeable difference in the frequency in which a term appears in the subset and in the background. The way the terms are ranked can be configured, see "Parameters" section.
 
 **********************************
 
@@ -282,7 +279,27 @@ However, the `size` and `shard size` settings covered in the next section provid
 
 ==== Parameters
 
+===== default score
 
+The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
+
+===== mutual information
+added[1.2.3]
+
+Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
+	
+[source,js]
+--------------------------------------------------
+
+	 "mutual_information": {
+	      "exclude_negatives": false
+	 }
+--------------------------------------------------
+
+Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that are appear less often in the subset than in documents outside the subset, `exclude_negatives` can be set to `true`. 
+
+ 
+	
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By
@@ -338,7 +355,7 @@ Terms that score highly will be collected on a shard level and merged with the t
 
 added[1.2.0] `shard_min_doc_count` parameter
 
-The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent words and you are not interested in these (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a resonable certainty not reach the required `min_doc_count` even after merging the local frequencies. `shard_min_doc_count` is set to `1` per default and has no effect unless you explicitly set it.
+The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent words and you are not interested in these (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a reasonable certainty not reach the required `min_doc_count` even after merging the local frequencies. `shard_min_doc_count` is set to `1` per default and has no effect unless you explicitly set it.
 
 
 

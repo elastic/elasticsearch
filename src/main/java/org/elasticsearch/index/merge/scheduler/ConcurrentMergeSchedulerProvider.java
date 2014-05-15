@@ -47,6 +47,12 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     private final IndexSettingsService indexSettingsService;
     private final ApplySettings applySettings = new ApplySettings();
 
+    private static final String MAX_THREAD_COUNT_KEY = "max_thread_count";
+    private static final String MAX_MERGE_COUNT_KEY = "max_merge_count";
+
+    public static final String MAX_THREAD_COUNT = "index.merge.scheduler." + MAX_THREAD_COUNT_KEY;
+    public static final String MAX_MERGE_COUNT = "index.merge.scheduler." + MAX_MERGE_COUNT_KEY;
+
     private volatile int maxThreadCount;
     private volatile int maxMergeCount;
 
@@ -57,8 +63,8 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         super(shardId, indexSettings, threadPool);
         this.indexSettingsService = indexSettingsService;
         // TODO LUCENE MONITOR this will change in Lucene 4.0
-        this.maxThreadCount = componentSettings.getAsInt("max_thread_count", Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2)));
-        this.maxMergeCount = componentSettings.getAsInt("max_merge_count", maxThreadCount + 2);
+        this.maxThreadCount = componentSettings.getAsInt(MAX_THREAD_COUNT_KEY, Math.max(1, Math.min(3, EsExecutors.boundedNumberOfProcessors(indexSettings) / 2)));
+        this.maxMergeCount = componentSettings.getAsInt(MAX_MERGE_COUNT_KEY, maxThreadCount + 2);
         logger.debug("using [concurrent] merge scheduler with max_thread_count[{}], max_merge_count[{}]", maxThreadCount, maxMergeCount);
 
         indexSettingsService.addListener(applySettings);

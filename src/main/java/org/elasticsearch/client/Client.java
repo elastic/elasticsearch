@@ -590,4 +590,14 @@ public interface Client {
      * Reports on status of actively running benchmarks
      */
     BenchmarkStatusRequestBuilder prepareBenchStatus();
+
+    /**
+     * Sends a control command to an active benchmark
+     */
+    void controlBenchmark(BenchmarkControlRequest request, ActionListener<BenchmarkStatusResponse> listener);
+
+    /**
+     * Sends a control command to an active benchmark
+     */
+    BenchmarkControlRequestBuilder prepareControlBenchmark(String benchmarkName);
 }

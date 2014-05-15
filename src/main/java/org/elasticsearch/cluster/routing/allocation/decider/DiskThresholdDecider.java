@@ -110,8 +110,8 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Inject
     public DiskThresholdDecider(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-        String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "70%");
-        String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "85%");
+        String lowWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "85%");
+        String highWatermark = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "90%");
 
         if (!validWatermarkSetting(lowWatermark)) {
             throw new ElasticsearchParseException("Unable to parse low watermark: [" + lowWatermark + "]");
@@ -126,7 +126,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         this.freeBytesThresholdLow = thresholdBytesFromWatermark(lowWatermark);
         this.freeBytesThresholdHigh = thresholdBytesFromWatermark(highWatermark);
 
-        this.enabled = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
+        this.enabled = settings.getAsBoolean(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
     }
 

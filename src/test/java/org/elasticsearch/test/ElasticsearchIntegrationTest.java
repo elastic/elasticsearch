@@ -406,7 +406,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 builder.put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 10, 200), ByteSizeUnit.MB));
             }
         }
-
         return builder;
     }
 
@@ -438,7 +437,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, SerialMergeSchedulerProvider.class.getName());
                 break;
             case 3:
-                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class.getName());
+                builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class);
+                final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
+                final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount+4);
+                builder.put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, maxMergeCount);
+                builder.put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, maxThreadCount);
                 break;
         }
 

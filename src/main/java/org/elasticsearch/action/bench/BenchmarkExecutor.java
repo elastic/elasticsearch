@@ -58,6 +58,7 @@ public class BenchmarkExecutor {
         final String id;
         final StoppableSemaphore semaphore;
         final BenchmarkResponse response;
+        volatile boolean paused = false;
 
         BenchmarkState(BenchmarkRequest request, BenchmarkResponse response, StoppableSemaphore semaphore) {
             this.id = request.benchmarkName();
@@ -74,10 +75,7 @@ public class BenchmarkExecutor {
      */
     public AbortBenchmarkNodeResponse abortBenchmark(String benchmarkName) {
 
-        BenchmarkState state = activeBenchmarks.get(benchmarkName);
-        if (state == null) {
-            throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
-        }
+        final BenchmarkState state = benchmarkState(benchmarkName);
         state.semaphore.stop();
         activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(benchmarkName).build();
         logger.debug("Aborted benchmark [{}] on [{}]", benchmarkName, nodeName());
@@ -91,6 +89,9 @@ public class BenchmarkExecutor {
      */
     public BenchmarkStatusNodeResponse benchmarkStatus() {
 
+        int totalActive = 0;
+        int totalPaused = 0;
+
         BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
         final ImmutableOpenMap<String, BenchmarkState> activeBenchmarks = this.activeBenchmarks;
         UnmodifiableIterator<String> iter = activeBenchmarks.keysIt();
@@ -98,10 +99,72 @@ public class BenchmarkExecutor {
             String id = iter.next();
             BenchmarkState state = activeBenchmarks.get(id);
             response.addBenchResponse(state.response);
+
+            if (state.paused) {
+                totalPaused++;
+            } else {
+                totalActive++;
+            }
         }
 
-        logger.debug("Reporting [{}] active benchmarks on [{}]", response.activeBenchmarks(), nodeName());
+        logger.debug("Reporting [{}] active, [{}] paused benchmarks on [{}]", totalActive, totalPaused, nodeName());
         return response;
+    }
+
+    /**
+     * Pauses the execution of the named benchmark
+     * @param benchmarkName     The benchmark to pause
+     * @return                  Node status
+     */
+    public BenchmarkStatusNodeResponse pauseBenchmark(String benchmarkName) {
+
+        final BenchmarkState state = benchmarkState(benchmarkName);
+        state.paused = true;
+        state.response.state(BenchmarkResponse.State.PAUSED);
+        BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
+        response.addBenchResponse(state.response);
+
+        logger.debug("Pausing benchmark [{}] on [{}]", benchmarkName, nodeName());
+        return response;
+    }
+
+    /**
+     * Resumes execution of the named benchmark
+     * @param benchmarkName     The benchmark to resume
+     * @return                  Node status
+     */
+    public BenchmarkStatusNodeResponse resumeBenchmark(String benchmarkName) {
+
+        final BenchmarkState state = benchmarkState(benchmarkName);
+        state.paused = false;
+        state.response.state(BenchmarkResponse.State.RUNNING);
+        BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
+        response.addBenchResponse(state.response);
+
+        logger.debug("Resuming benchmark [{}] on [{}]", benchmarkName, nodeName());
+        return response;
+    }
+
+    private BenchmarkState benchmarkState(String benchmarkName) {
+        final BenchmarkState state = activeBenchmarks.get(benchmarkName);
+        if (state == null) {
+            throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
+        }
+        return state;
+    }
+
+    private void conditionallySuspendExecution(String benchmarkName) {
+
+        // XXX - IS BUSY WAITING OK IN THIS CONTEXT?
+        //       OR IS IT STRONGLY PREFERRED TO PROPERLY BLOCK THE THREAD USING CONCURRENCY PRIMITIVES?
+        while (benchmarkState(benchmarkName).paused) {
+            logger.debug("Benchmark [{}] pausing itself on [{}]", benchmarkName, nodeName());
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new BenchmarkExecutionException("Benchmark interrupted while suspended", e);
+            }
+        }
     }
 
     /**
@@ -114,7 +177,7 @@ public class BenchmarkExecutor {
     public BenchmarkResponse benchmark(BenchmarkRequest request) throws ElasticsearchException {
 
         final StoppableSemaphore semaphore = new StoppableSemaphore(1);
-        final Map<String, CompetitionResult> competitionResults = new HashMap<String, CompetitionResult>();
+        final Map<String, CompetitionResult> competitionResults = new HashMap<>();
         final BenchmarkResponse benchmarkResponse = new BenchmarkResponse(request.benchmarkName(), competitionResults);
 
         synchronized (lock) {
@@ -160,6 +223,12 @@ public class BenchmarkExecutor {
                 final long[] docBuckets = new long[numMeasurements];
 
                 for (int i = 0; i < iterations; i++) {
+
+                    // Conditionally pause
+                    // XXX - WE COULD PUSH THIS DOWN TO THE INNER-MOST LOOP IF DESIRED.
+                    //       ON THE OTHER HAND, PAUSING AT ITERATION BOUNDARIES SEEMS CLEANER.
+                    conditionallySuspendExecution(request.benchmarkName());
+
                     if (settings.allowCacheClearing() && settings.clearCaches() != null) {
                         try {
                             client.admin().indices().clearCache(settings.clearCaches()).get();

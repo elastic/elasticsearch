@@ -20,6 +20,7 @@ package org.elasticsearch.action.bench;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -93,6 +94,82 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         competitionSettingsMap = new HashMap<>();
         logger.info("--> indexing random data");
         indices = randomData();
+    }
+
+    @Test
+    public void testControlBenchmark() throws Exception {
+
+        SearchRequest searchRequest = prepareBlockingScriptQuery();
+        final BenchmarkRequest request =
+                BenchmarkTestUtil.randomRequest(client(), indices, numExecutorNodes, competitionSettingsMap, searchRequest);
+        logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
+                request.settings().iterations());
+
+        final ActionFuture<BenchmarkResponse> benchmarkResponse = client().bench(request);
+
+        try {
+            waitForQuery.await();
+            BenchmarkStatusResponse pauseResponse =
+                    client().prepareControlBenchmark(BENCHMARK_NAME).
+                            setCommand(BenchmarkControlRequest.Command.PAUSE).execute().actionGet();
+
+            waitForTestLatch.countDown();
+
+            Map<String, CompetitionResult> competitionResultMap = new HashMap<>();
+
+            assertThat(pauseResponse.benchmarkResponses().size(), greaterThan(0));
+            for (BenchmarkResponse subResponse : pauseResponse.benchmarkResponses()) {
+                assertThat(subResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
+                assertThat(subResponse.state(), equalTo(BenchmarkResponse.State.PAUSED));
+                assertFalse(subResponse.hasErrors());
+
+                competitionResultMap = subResponse.competitionResults();
+            }
+
+            // Now do a list to confirm it is still present but inactive
+            final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
+            assertThat(statusResponse.benchmarkResponses().size(), greaterThan(0));
+            for (BenchmarkResponse subResponse : statusResponse.benchmarkResponses()) {
+                assertThat(subResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
+                assertThat(subResponse.state(), equalTo(BenchmarkResponse.State.PAUSED));
+                assertFalse(subResponse.hasErrors());
+
+                Map<String, CompetitionResult> currentCompetitionResultMap = subResponse.competitionResults();
+                for (Map.Entry<String, CompetitionResult> entry : currentCompetitionResultMap.entrySet()) {
+
+                    assertTrue(competitionResultMap.containsKey(entry.getKey()));
+
+                    // Sanity check that no more iterations have executed since benchmark was paused
+                    competitionResultMap.get(entry.getKey()).competitionSummary().computeSummaryStatistics();
+                    entry.getValue().competitionSummary().computeSummaryStatistics();
+
+                    final long lastRunCompletedIters =
+                            competitionResultMap.get(entry.getKey()).competitionSummary().getCompletedIterations();
+                    final long currentRunCompletedIters =
+                            entry.getValue().competitionSummary().getCompletedIterations();
+                    assertThat(currentRunCompletedIters, equalTo(lastRunCompletedIters));
+                }
+            }
+
+            BenchmarkStatusResponse resumeResponse = client().prepareControlBenchmark(BENCHMARK_NAME).setCommand(BenchmarkControlRequest.Command.RESUME).execute().actionGet();
+            assertThat(resumeResponse.benchmarkResponses().size(), greaterThanOrEqualTo(0));
+            for (BenchmarkResponse subResponse : resumeResponse.benchmarkResponses()) {
+                assertThat(subResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
+                assertThat(subResponse.state(), equalTo(BenchmarkResponse.State.RUNNING));
+                assertFalse(subResponse.hasErrors());
+            }
+        } finally {
+            if (waitForTestLatch.getCount() == 1) {
+                waitForTestLatch.countDown();
+            }
+            client().prepareAbortBench(BENCHMARK_NAME).get();
+            // Confirm that there are no active benchmarks in the cluster
+            assertThat(client().prepareBenchStatus().execute().actionGet().totalActiveBenchmarks(), equalTo(0));
+            assertThat(waitForTestLatch.getCount(), is(0l));
+        }
+
+        // Confirm that benchmark was indeed aborted
+        //assertThat(benchmarkResponse.get().state(), isOneOf(BenchmarkResponse.State.ABORTED, BenchmarkResponse.State.COMPLETE));
     }
 
     @Test

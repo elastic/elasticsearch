@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -37,7 +38,7 @@ import java.util.concurrent.Executor;
  */
 public class URLBlobStore extends AbstractComponent implements BlobStore {
 
-    private final Executor executor;
+    private final ThreadPool threadPool;
 
     private final URL path;
 
@@ -53,14 +54,14 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
      * </dl>
      *
      * @param settings settings
-     * @param executor executor for read operations
+     * @param threadPool thread pool for read operations
      * @param path     base URL
      */
-    public URLBlobStore(Settings settings, Executor executor, URL path) {
+    public URLBlobStore(Settings settings, ThreadPool threadPool, URL path) {
         super(settings);
         this.path = path;
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.executor = executor;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -95,7 +96,7 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
      * @return executor
      */
     public Executor executor() {
-        return executor;
+        return threadPool.executor(ThreadPool.Names.SNAPSHOT_DATA);
     }
 
     /**

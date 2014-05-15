@@ -620,6 +620,10 @@
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
                         </relocation>
                         <relocation>
+			    <pattern>com.github.mustachejava</pattern>
+                            <shadedPattern>org.elasticsearch.common.mustache</shadedPattern>
+                        </relocation>
+                        <relocation>
                             <pattern>com.tdunning.math.stats</pattern>
                             <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
                         </relocation>

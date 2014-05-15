@@ -29,6 +29,7 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -212,12 +213,6 @@ public class SearchPhaseController extends AbstractComponent {
             // the 'index' field is the position in the resultsArr atomic array
             shardTopDocs[sortedResult.index] = topDocs;
         }
-        // TopDocs#merge can't deal with empty shard TopDocs
-        for (int i = 0; i < shardTopDocs.length; i++) {
-            if (shardTopDocs[i] == null) {
-                shardTopDocs[i] = new TopDocs(0, EMPTY_DOCS, 0.0f);
-            }
-        }
         int from = firstResult.queryResult().from();
         if (scrollSort) {
             from = 0;
@@ -225,7 +220,7 @@ public class SearchPhaseController extends AbstractComponent {
         // TopDocs#merge can't deal with null shard TopDocs
         for (int i = 0; i < shardTopDocs.length; i++) {
             if (shardTopDocs[i] == null) {
-                shardTopDocs[i] = new TopDocs(0, EMPTY_DOCS, 0.0f);
+                shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
             }
         }
         TopDocs mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);

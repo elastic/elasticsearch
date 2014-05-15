@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -56,6 +56,10 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
@@ -79,7 +83,7 @@ import static com.google.common.collect.Sets.newHashSet;
  * notifies all {@link #snapshotCompletionListeners} that snapshot is completed, and finally calls {@link #removeSnapshotFromClusterState(SnapshotId, SnapshotInfo, Throwable)} to remove snapshot from cluster state</li>
  * </ul>
  */
-public class SnapshotsService extends AbstractComponent implements ClusterStateListener {
+public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsService> implements ClusterStateListener {
 
     private final ClusterService clusterService;
 
@@ -92,6 +96,10 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
     private final TransportService transportService;
 
     private volatile ImmutableMap<SnapshotId, SnapshotShards> shardSnapshots = ImmutableMap.of();
+
+    private final Lock shutdownLock = new ReentrantLock();
+
+    private final Condition shutdownCondition = shutdownLock.newCondition();
 
     private final CopyOnWriteArrayList<SnapshotCompletionListener> snapshotCompletionListeners = new CopyOnWriteArrayList<>();
 
@@ -678,7 +686,16 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
 
         // Update the list of snapshots that we saw and tried to started
         // If startup of these shards fails later, we don't want to try starting these shards again
-        shardSnapshots = ImmutableMap.copyOf(survivors);
+        shutdownLock.lock();
+        try {
+            shardSnapshots = ImmutableMap.copyOf(survivors);
+            if (shardSnapshots.isEmpty()) {
+                // Notify all waiting threads that no more snapshots
+                shutdownCondition.signalAll();
+            }
+        } finally {
+            shutdownLock.unlock();
+        }
 
         // We have new snapshots to process -
         if (newSnapshots != null) {
@@ -1099,6 +1116,30 @@ public class SnapshotsService extends AbstractComponent implements ClusterStateL
      */
     public void removeListener(SnapshotCompletionListener listener) {
         this.snapshotCompletionListeners.remove(listener);
+    }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
+
+    }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {
+        shutdownLock.lock();
+        try {
+            while(!shardSnapshots.isEmpty() && shutdownCondition.await(5, TimeUnit.SECONDS)) {
+                // Wait for at most 5 second for locally running snapshots to finish
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        } finally {
+            shutdownLock.unlock();
+        }
+    }
+
+    @Override
+    protected void doClose() throws ElasticsearchException {
+
     }
 
     /**

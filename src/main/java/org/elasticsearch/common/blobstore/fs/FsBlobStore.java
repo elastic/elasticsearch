@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.util.concurrent.Executor;
@@ -37,15 +38,16 @@ import java.util.concurrent.Executor;
  */
 public class FsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final Executor executor;
+    private final ThreadPool threadPool;
 
     private final File path;
 
     private final int bufferSizeInBytes;
 
-    public FsBlobStore(Settings settings, Executor executor, File path) {
+    public FsBlobStore(Settings settings, ThreadPool threadPool, File path) {
         super(settings);
         this.path = path;
+        this.threadPool = threadPool;
         if (!path.exists()) {
             boolean b = FileSystemUtils.mkdirs(path);
             if (!b) {
@@ -56,7 +58,6 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
             throw new BlobStoreException("Path is not a directory at [" + path + "]");
         }
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
-        this.executor = executor;
     }
 
     @Override
@@ -73,7 +74,7 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     public Executor executor() {
-        return executor;
+        return threadPool.executor(ThreadPool.Names.SNAPSHOT_DATA);
     }
 
     @Override

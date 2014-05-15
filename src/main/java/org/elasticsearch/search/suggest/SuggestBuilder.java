@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 import org.elasticsearch.search.suggest.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
@@ -97,6 +99,18 @@ public class SuggestBuilder implements ToXContent {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.prettyPrint();
+            toXContent(builder, EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            throw new ElasticsearchException("Failed to build suggestion queries", e);
+        }
     }
 
     /**
@@ -300,6 +314,20 @@ public class SuggestBuilder implements ToXContent {
         public T shardSize(Integer shardSize) {
             this.shardSize = shardSize;
             return (T)this;
+        }
+
+        @Override
+        public String toString() {
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                builder.prettyPrint();
+                builder.startObject();
+                toXContent(builder, EMPTY_PARAMS);
+                builder.endObject();
+                return builder.string();
+            } catch (Exception e) {
+                throw new ElasticsearchException("Failed to build suggestion query", e);
+            }
         }
     }
 }

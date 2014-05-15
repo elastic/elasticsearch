@@ -96,4 +96,9 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
 
         ((InternalClient) client).suggest(request, listener);
     }
+
+    @Override
+    public String toString() {
+        return suggest.toString();
+    }
 }

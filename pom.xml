@@ -584,6 +584,10 @@
                             <pattern>com.ning.compress</pattern>
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
                         </relocation>
+                        <relocation>
+			    <pattern>com.github.mustachejava</pattern>
+                            <shadedPattern>org.elasticsearch.common.mustache</shadedPattern>
+                        </relocation>
                     </relocations>
                     <filters>
                         <filter>

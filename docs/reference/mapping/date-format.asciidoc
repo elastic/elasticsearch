@@ -24,7 +24,7 @@ representation.
 === Date Math
 
 The `date` type supports using date math expression when using it in a
-query/filter (mainly make sense in `range` query/filter).
+query/filter (mainly makes sense in `range` query/filter).
 
 The expression starts with an "anchor" date, which can be either `now`
 or a date string (in the applicable format) ending with `||`. It can

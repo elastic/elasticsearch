@@ -258,6 +258,10 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     }
 
+    protected TransportRequestHandler getHandler(String action) {
+        return serverHandlers.get(action);
+    }
+
     class Adapter implements TransportServiceAdapter {
 
         final MeanMetric rxMetric = new MeanMetric();

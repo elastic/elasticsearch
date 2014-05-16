@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -41,16 +42,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportService;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -108,38 +113,36 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         assert unluckyNode != null;
 
         // Simulate a network issue between the unlucky node and elected master node in both directions.
-        addFailToSendNoConnectRule(masterDiscoNode.getName(), unluckyNode);
-        addFailToSendNoConnectRule(unluckyNode, masterDiscoNode.getName());
-        try {
-            // Wait until elected master has removed that the unlucky node...
-            boolean applied = awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return masterClient.admin().cluster().prepareState().setLocal(true).get().getState().nodes().size() == 2;
-                }
-            }, 1, TimeUnit.MINUTES);
-            assertThat(applied, is(true));
 
-            // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
-            // continuously ping until network failures have been resolved. However
-            final Client isolatedNodeClient = internalCluster().client(unluckyNode);
-            // It may a take a bit before the node detects it has been cut off from the elected master
-            applied = awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
-                    DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
-                    logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
-                    return localDiscoveryNodes.masterNode() == null;
-                }
-            }, 10, TimeUnit.SECONDS);
-            assertThat(applied, is(true));
-        } finally {
-            // stop simulating network failures, from this point on the unlucky node is able to rejoin
-            // We also need to do this even if assertions fail, since otherwise the test framework can't work properly
-            clearNoConnectRule(masterDiscoNode.getName(), unluckyNode);
-            clearNoConnectRule(unluckyNode, masterDiscoNode.getName());
-        }
+        NetworkDisconnectPartition networkDisconnect = new NetworkDisconnectPartition(masterDiscoNode.name(), unluckyNode, getRandom());
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+
+        // Wait until elected master has removed that the unlucky node...
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                return masterClient.admin().cluster().prepareState().setLocal(true).get().getState().nodes().size() == 2;
+            }
+        }, 1, TimeUnit.MINUTES);
+        assertThat(applied, is(true));
+
+        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // continuously ping until network failures have been resolved. However
+        final Client isolatedNodeClient = internalCluster().client(unluckyNode);
+        // It may a take a bit before the node detects it has been cut off from the elected master
+        applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
+                DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
+                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
+                return localDiscoveryNodes.masterNode() == null;
+            }
+        }, 10, TimeUnit.SECONDS);
+        assertThat(applied, is(true));
+
+        networkDisconnect.stopDisrupting();
 
         // Wait until the master node sees all 3 nodes again.
         ensureStableCluster(3);
@@ -193,79 +196,77 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // (waiting for green here, because indexing / search in a yellow index is fine as long as no other nodes go down)
         ensureGreen("test");
 
-        // Pick a node that isn't the elected master.
-        final String isolatedNode = nodes.get(0);
-        final String nonIsolatedNode = nodes.get(1);
+        NetworkPartition networkPartition = addRandomPartition();
+
+        final String isolatedNode = networkPartition.getMinoritySide().get(0);
+        final String nonIsolatedNode = networkPartition.getMjaoritySide().get(0);
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
-        randomIsolateNode(isolatedNode, nodes);
-        try {
-            logger.info("wait until elected master has removed [{}]", isolatedNode);
-            boolean applied = awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return client(nonIsolatedNode).admin().cluster().prepareState().setLocal(true).get().getState().nodes().size() == 2;
-                }
-            }, 1, TimeUnit.MINUTES);
-            assertThat(applied, is(true));
+        networkPartition.startDisrupting();
 
-            // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
-            // continuously ping until network failures have been resolved. However
-            // It may a take a bit before the node detects it has been cut off from the elected master
-            logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
-            applied = awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    ClusterState localClusterState = client(isolatedNode).admin().cluster().prepareState().setLocal(true).get().getState();
-                    DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
-                    logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
-                    return localDiscoveryNodes.masterNode() == null;
-                }
-            }, 10, TimeUnit.SECONDS);
-            assertThat(applied, is(true));
-            ensureStableCluster(2, nonIsolatedNode);
-
-            // Reads on the right side of the split must work
-            logger.info("verifying healthy part of cluster returns data");
-            searchResponse = client(nonIsolatedNode).prepareSearch("test").setTypes("type")
-                    .addSort("field", SortOrder.ASC)
-                    .get();
-            assertHitCount(searchResponse, indexRequests.length);
-            for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
-                SearchHit searchHit = searchResponse.getHits().getAt(i);
-                assertThat(searchHit.id(), equalTo(String.valueOf(i)));
-                assertThat((long) searchHit.sortValues()[0], equalTo((long) i));
+        logger.info("wait until elected master has removed [{}]", isolatedNode);
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                return client(nonIsolatedNode).admin().cluster().prepareState().setLocal(true).get().getState().nodes().size() == 2;
             }
+        }, 1, TimeUnit.MINUTES);
+        assertThat(applied, is(true));
 
-            // Reads on the wrong side of the split are partial
-            logger.info("verifying isolated node [{}] returns partial data", isolatedNode);
-            searchResponse = client(isolatedNode).prepareSearch("test").setTypes("type")
-                    .addSort("field", SortOrder.ASC).setPreference("_only_local")
-                    .get();
-            assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
-            assertThat(searchResponse.getHits().totalHits(), lessThan((long) indexRequests.length));
-
-            logger.info("verifying writes on healthy cluster");
-            UpdateResponse updateResponse = client(nonIsolatedNode).prepareUpdate("test", "type", "0").setDoc("field2", 2).get();
-            assertThat(updateResponse.getVersion(), equalTo(2l));
-
-            try {
-                logger.info("verifying writes on isolated [{}] fail", isolatedNode);
-                client(isolatedNode).prepareUpdate("test", "type", "0").setDoc("field2", 2)
-                        .setTimeout("1s") // Fail quick, otherwise we wait 60 seconds.
-                        .get();
-                fail();
-            } catch (ClusterBlockException exception) {
-                assertThat(exception.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-                assertThat(exception.blocks().size(), equalTo(1));
-                ClusterBlock clusterBlock = exception.blocks().iterator().next();
-                assertThat(clusterBlock.id(), equalTo(DiscoverySettings.NO_MASTER_BLOCK_ID));
+        // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
+        // continuously ping until network failures have been resolved. However
+        // It may a take a bit before the node detects it has been cut off from the elected master
+        logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
+        applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                ClusterState localClusterState = client(isolatedNode).admin().cluster().prepareState().setLocal(true).get().getState();
+                DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
+                logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
+                return localDiscoveryNodes.masterNode() == null;
             }
-        } finally {
-            // stop simulating network failures, from this point on the unlucky node is able to rejoin
-            // We also need to do this even if assertions fail, since otherwise the test framework can't work properly
-            restoreIsolation(isolatedNode, nodes);
+        }, 10, TimeUnit.SECONDS);
+        assertThat(applied, is(true));
+        ensureStableCluster(2, nonIsolatedNode);
+
+        // Reads on the right side of the split must work
+        logger.info("verifying healthy part of cluster returns data");
+        searchResponse = client(nonIsolatedNode).prepareSearch("test").setTypes("type")
+                .addSort("field", SortOrder.ASC)
+                .get();
+        assertHitCount(searchResponse, indexRequests.length);
+        for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+            SearchHit searchHit = searchResponse.getHits().getAt(i);
+            assertThat(searchHit.id(), equalTo(String.valueOf(i)));
+            assertThat((long) searchHit.sortValues()[0], equalTo((long) i));
         }
+
+        // Reads on the wrong side of the split are partial
+        logger.info("verifying isolated node [{}] returns partial data", isolatedNode);
+        searchResponse = client(isolatedNode).prepareSearch("test").setTypes("type")
+                .addSort("field", SortOrder.ASC).setPreference("_only_local")
+                .get();
+        assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
+        assertThat(searchResponse.getHits().totalHits(), lessThan((long) indexRequests.length));
+
+        logger.info("verifying writes on healthy cluster");
+        UpdateResponse updateResponse = client(nonIsolatedNode).prepareUpdate("test", "type", "0").setDoc("field2", 2).get();
+        assertThat(updateResponse.getVersion(), equalTo(2l));
+
+        try {
+            logger.info("verifying writes on isolated [{}] fail", isolatedNode);
+            client(isolatedNode).prepareUpdate("test", "type", "0").setDoc("field2", 2)
+                    .setTimeout("1s") // Fail quick, otherwise we wait 60 seconds.
+                    .get();
+            fail();
+        } catch (ClusterBlockException exception) {
+            assertThat(exception.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+            assertThat(exception.blocks().size(), equalTo(1));
+            ClusterBlock clusterBlock = exception.blocks().iterator().next();
+            assertThat(clusterBlock.id(), equalTo(DiscoverySettings.NO_MASTER_BLOCK_ID));
+        }
+
+        networkPartition.stopDisrupting();
 
         // Wait until the master node sees all 3 nodes again.
         ensureStableCluster(3);
@@ -316,13 +317,14 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 break;
             }
         }
-        randomIsolateNode(isolatedNode, nodes);
+        ServiceDisruptionScheme scheme = addRandomIsolation(isolatedNode);
+        scheme.startDisrupting();
 
         // make sure cluster reforms
         ensureStableCluster(2, nonIsolatedNode);
 
         // restore isolation
-        restoreIsolation(isolatedNode, nodes);
+        scheme.stopDisrupting();
 
         ensureStableCluster(3);
 
@@ -356,7 +358,119 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             }
 
         }
+    }
 
+    @Test
+    public void testAckedIndexing() throws Exception {
+        final List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
+        ensureStableCluster(3);
+
+        assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.builder()
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                ));
+
+        ensureGreen();
+
+        ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
+        logger.info("disruption scheme [{}] added", disruptionScheme);
+
+        final ConcurrentHashMap<String, String> ackedDocs = new ConcurrentHashMap<>(); // id -> node sent.
+
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        List<Thread> indexers = new ArrayList<>(nodes.size());
+        List<Semaphore> semaphores = new ArrayList<>(nodes.size());
+        final AtomicInteger idGenerator = new AtomicInteger(0);
+        final AtomicReference<CountDownLatch> countDownLatch = new AtomicReference<>();
+        logger.info("starting indexers");
+
+        for (final String node : nodes) {
+            final Semaphore semaphore = new Semaphore(0);
+            semaphores.add(semaphore);
+            final Client client = client(node);
+            final String name = "indexer_" + indexers.size();
+            Thread thread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    while (!stop.get()) {
+                        try {
+                            if (!semaphore.tryAcquire(10, TimeUnit.SECONDS)) {
+                                continue;
+                            }
+                            try {
+                                String id = Integer.toString(idGenerator.incrementAndGet());
+                                logger.trace("[{}] indexing id [{}] through node [{}]", name, id, node);
+                                IndexResponse response = client.prepareIndex("test", "type", id).setSource("{}").setTimeout("1s").get();
+                                ackedDocs.put(id, node);
+                            } finally {
+                                countDownLatch.get().countDown();
+                                logger.trace("[{}] decreased counter : {}", name, countDownLatch.get().getCount());
+                            }
+                        } catch (ElasticsearchException | InterruptedException e) {
+                            // expected
+                        } catch (Throwable t) {
+                            logger.info("unexpected exception in background thread of [{}]", t, node);
+                        }
+                    }
+                }
+            });
+
+            thread.setName(name);
+            thread.setDaemon(true);
+            thread.start();
+            indexers.add(thread);
+        }
+
+        logger.info("indexing some docs before partition");
+        int docsPerIndexer = randomInt(3);
+        countDownLatch.set(new CountDownLatch(docsPerIndexer * indexers.size()));
+        for (Semaphore semaphore : semaphores) {
+            semaphore.release(docsPerIndexer);
+        }
+        assertTrue(countDownLatch.get().await(1, TimeUnit.MINUTES));
+
+        for (int iter = 1 + randomInt(2); iter > 0; iter--) {
+
+            logger.info("starting disruptions & indexing (iteration [{}])", iter);
+            disruptionScheme.startDisrupting();
+
+            docsPerIndexer = 1 + randomInt(5);
+            countDownLatch.set(new CountDownLatch(docsPerIndexer * indexers.size()));
+            Collections.shuffle(semaphores);
+            for (Semaphore semaphore : semaphores) {
+                semaphore.release(docsPerIndexer);
+            }
+            assertTrue(countDownLatch.get().await(1, TimeUnit.MINUTES));
+
+            logger.info("stopping disruption");
+            disruptionScheme.stopDisrupting();
+
+            ensureStableCluster(3);
+            ensureGreen("test");
+
+            logger.info("validating successful docs");
+            for (String node : nodes) {
+                try {
+                    logger.debug("validating through node [{}]", node);
+                    for (String id : ackedDocs.keySet()) {
+                        assertTrue("doc [" + id + "] indexed via node [" + ackedDocs.get(id) + "] not found",
+                                client(node).prepareGet("test", "type", id).setPreference("_local").get().isExists());
+                    }
+                } catch (AssertionError e) {
+                    throw new AssertionError(e.getMessage() + " (checked via node [" + node + "]", e);
+                }
+            }
+
+            logger.info("done validating (iteration [{}])", iter);
+        }
+
+        logger.info("shutting down indexers");
+        stop.set(true);
+        for (Thread indexer : indexers) {
+            indexer.interrupt();
+            indexer.join(60000);
+        }
     }
 
 
@@ -379,7 +493,8 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         String isolatedNode = nodes.get(0);
         String notIsolatedNode = nodes.get(1);
 
-        randomIsolateNode(isolatedNode, nodes);
+        ServiceDisruptionScheme scheme = addRandomIsolation(isolatedNode);
+        scheme.startDisrupting();
         ensureStableCluster(2, notIsolatedNode);
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
@@ -395,7 +510,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         assertThat(getResponse.getVersion(), equalTo(1l));
         assertThat(getResponse.getId(), equalTo(indexResponse.getId()));
 
-        restoreIsolation(isolatedNode, nodes);
+        scheme.stopDisrupting();
 
         ensureStableCluster(3);
         ensureGreen("test");
@@ -411,30 +526,47 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         }
     }
 
-    protected void restoreIsolation(String isolatedNode, List<String> nodes) {
-        logger.info("restoring isolation of [{}]", isolatedNode);
-        for (String nodeId : nodes) {
-            if (!nodeId.equals(isolatedNode)) {
-                clearNoConnectRule(nodeId, isolatedNode);
-                clearNoConnectRule(isolatedNode, nodeId);
-            }
+    protected NetworkPartition addRandomPartition() {
+        NetworkPartition partition;
+        if (randomBoolean()) {
+            partition = new NetworkUnresponsivePartition(getRandom());
+        } else {
+            partition = new NetworkDisconnectPartition(getRandom());
         }
+
+        setDisruptionScheme(partition);
+
+        return partition;
     }
 
-    protected void randomIsolateNode(String isolatedNode, List<String> nodes) {
-        boolean unresponsive = randomBoolean();
-        logger.info("isolating [{}] with unresponsive: [{}]", isolatedNode, unresponsive);
-        for (String nodeId : nodes) {
-            if (!nodeId.equals(isolatedNode)) {
-                if (unresponsive) {
-                    addUnresponsiveRule(nodeId, isolatedNode);
-                    addUnresponsiveRule(isolatedNode, nodeId);
-                } else {
-                    addFailToSendNoConnectRule(nodeId, isolatedNode);
-                    addFailToSendNoConnectRule(isolatedNode, nodeId);
-                }
-            }
+    protected NetworkPartition addRandomIsolation(String isolatedNode) {
+        Set<String> side1 = new HashSet<>();
+        Set<String> side2 = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+        side1.add(isolatedNode);
+        side2.remove(isolatedNode);
+
+        NetworkPartition partition;
+        if (randomBoolean()) {
+            partition = new NetworkUnresponsivePartition(side1, side2, getRandom());
+        } else {
+            partition = new NetworkDisconnectPartition(side1, side2, getRandom());
         }
+
+        internalCluster().setDisruptionScheme(partition);
+
+        return partition;
+    }
+
+    private ServiceDisruptionScheme addRandomDisruptionScheme() {
+        List<ServiceDisruptionScheme> list = Arrays.asList(
+                new NetworkUnresponsivePartition(getRandom()),
+                new NetworkDelaysPartition(getRandom()),
+                new NetworkDisconnectPartition(getRandom()),
+                new SlowClusterStateProcessing(getRandom())
+        );
+        Collections.shuffle(list);
+        setDisruptionScheme(list.get(0));
+        return list.get(0);
     }
 
     private DiscoveryNode findMasterNode(List<String> nodes) {
@@ -450,21 +582,6 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         }
         assert masterDiscoNode != null;
         return masterDiscoNode;
-    }
-
-    private void addFailToSendNoConnectRule(String fromNode, String toNode) {
-        TransportService mockTransportService = internalCluster().getInstance(TransportService.class, fromNode);
-        ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(internalCluster().getInstance(Discovery.class, toNode).localNode());
-    }
-
-    private void addUnresponsiveRule(String fromNode, String toNode) {
-        TransportService mockTransportService = internalCluster().getInstance(TransportService.class, fromNode);
-        ((MockTransportService) mockTransportService).addUnresponsiveRule(internalCluster().getInstance(Discovery.class, toNode).localNode());
-    }
-
-    private void clearNoConnectRule(String fromNode, String toNode) {
-        TransportService mockTransportService = internalCluster().getInstance(TransportService.class, fromNode);
-        ((MockTransportService) mockTransportService).clearRule(internalCluster().getInstance(Discovery.class, toNode).localNode());
     }
 
 

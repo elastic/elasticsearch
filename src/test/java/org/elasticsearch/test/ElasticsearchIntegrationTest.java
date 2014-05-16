@@ -312,8 +312,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
             if (randomizeNumberOfShardsAndReplicas()) {
                 randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, between(DEFAULT_MIN_NUM_SHARDS, DEFAULT_MAX_NUM_SHARDS))
-                    //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
-                    .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : immutableCluster().numDataNodes() - 1));
+                        //use either 0 or 1 replica, yet a higher amount when possible, but only rarely
+                        .put(SETTING_NUMBER_OF_REPLICAS, between(0, getRandom().nextInt(10) > 0 ? 1 : immutableCluster().numDataNodes() - 1));
             }
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
@@ -321,7 +321,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (randomBoolean()) {
                     mappings.startObject(IdFieldMapper.NAME)
                             .field("index", randomFrom("not_analyzed", "no"))
-                        .endObject();
+                            .endObject();
                 }
                 mappings.startArray("dynamic_templates")
                         .startObject()
@@ -440,7 +440,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             case 3:
                 builder.put(MergeSchedulerModule.MERGE_SCHEDULER_TYPE_KEY, ConcurrentMergeSchedulerProvider.class);
                 final int maxThreadCount = RandomInts.randomIntBetween(random, 1, 4);
-                final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount+4);
+                final int maxMergeCount = RandomInts.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
                 builder.put(ConcurrentMergeSchedulerProvider.MAX_MERGE_COUNT, maxMergeCount);
                 builder.put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, maxThreadCount);
                 break;
@@ -500,6 +500,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+            clearDisruptionScheme();
             final Scope currentClusterScope = getCurrentClusterScope();
             try {
                 if (currentClusterScope != Scope.TEST) {
@@ -605,6 +606,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     protected int numberOfReplicas() {
         return between(minimumNumberOfReplicas(), maximumNumberOfReplicas());
+    }
+
+    public void clearDisruptionScheme() {
+        cluster().clearDisruptionScheme();
     }
 
     /**
@@ -1004,8 +1009,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed. Additionally if <tt>true</tt>
      *                     some empty dummy documents are may be randomly inserted into the document list and deleted once all documents are indexed.
      *                     This is useful to produce deleted documents on the server side.
-     * @param builders the documents to index.
-     *
+     * @param builders     the documents to index.
      * @see #indexRandom(boolean, boolean, java.util.List)
      */
     public void indexRandom(boolean forceRefresh, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
@@ -1019,10 +1023,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * segment or if only one document is in a segment etc. This method prevents issues like this by randomizing the index
      * layout.
      *
-     * @param forceRefresh if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
+     * @param forceRefresh   if <tt>true</tt> all involved indices are refreshed once the documents are indexed.
      * @param dummyDocuments if <tt>true</tt> some empty dummy documents are may be randomly inserted into the document list and deleted once
      *                       all documents are indexed. This is useful to produce deleted documents on the server side.
-     * @param builders the documents to index.
+     * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
         Random random = getRandom();
@@ -1035,7 +1039,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builders = new ArrayList<>(builders);
             final String[] indices = indicesSet.toArray(new String[0]);
             // inject some bogus docs
-            final int numBogusDocs = scaledRandomIntBetween(1, builders.size()*2);
+            final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
                 String id = randomRealisticUnicodeOfLength(unicodeLen);
@@ -1087,10 +1091,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         assertThat(actualErrors, emptyIterable());
         if (!bogusIds.isEmpty()) {
-           // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
-           for (Tuple<String, String> doc : bogusIds) {
-               assertTrue("failed to delete a dummy doc", client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
-           }
+            // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
+            for (Tuple<String, String> doc : bogusIds) {
+                assertTrue("failed to delete a dummy doc", client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
+            }
         }
         if (forceRefresh) {
             assertNoFailures(client().admin().indices().prepareRefresh(indices).setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());

@@ -325,6 +325,11 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
             logger.debug("processing [{}]: execute", source);
             ClusterState previousClusterState = clusterState;
+            if (!previousClusterState.nodes().localNodeMaster() && !(updateTask instanceof ClusterStateNonMasterUpdateTask)) {
+                logger.debug("failing [{}]: local node is no longer master", source);
+                updateTask.onFailure(source, new NoLongerMasterException("source: " + source));
+                return;
+            }
             ClusterState newClusterState;
             try {
                 newClusterState = updateTask.execute(previousClusterState);
@@ -722,5 +727,4 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
         }
     }
-
 }

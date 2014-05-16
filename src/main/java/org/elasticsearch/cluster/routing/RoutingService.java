@@ -141,10 +141,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    // double check we are still master, this may have changed.
-                    if (!currentState.nodes().localNodeMaster()) {
-                        return currentState;
-                    }
 
                     RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
                     if (!routingResult.changed()) {

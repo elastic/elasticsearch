@@ -263,12 +263,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 .put("discovery.type", "local")
                 .build();
 
-        ListenableFuture<String> master = cluster().startNodeAsync(settings);
-        ListenableFuture<String> nonMaster = cluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
+        ListenableFuture<String> master = internalCluster().startNodeAsync(settings);
+        ListenableFuture<String> nonMaster = internalCluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
         master.get();
         ensureGreen(); // make sure we have a cluster
 
-        ClusterService clusterService = cluster().getInstance(ClusterService.class, nonMaster.get());
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nonMaster.get());
 
         final boolean[] taskFailed = {false};
         final CountDownLatch latch1 = new CountDownLatch(1);

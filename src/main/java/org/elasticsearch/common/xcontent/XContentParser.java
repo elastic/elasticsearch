@@ -26,7 +26,14 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
+ * Interface for pull - parsing {@link XContent} see {@link XContentType} for supported types.
  *
+ * To obtain an instance of this class use the following pattern:
+ *
+ * <pre>
+ *     XContentType xContentType = XContentType.JSON;
+ *     XContentParser parser = xContentType.xContent().createParser("{\"key\" : \"value\"}");
+ * </pre>
  */
 public interface XContentParser extends Closeable {
 

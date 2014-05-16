@@ -340,6 +340,12 @@
                 <filtering>true</filtering>
             </testResource>
             <testResource>
+                <directory>${basedir}/src/test/java</directory>
+                <includes>
+                    <include>**/*.gz</include>
+                </includes>
+            </testResource>
+            <testResource>
                 <directory>${basedir}/src/test/resources</directory>
                 <includes>
                     <include>**/*.*</include>

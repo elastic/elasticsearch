@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Indicates a benchmark failure due to too many failures being encountered.
+ * Indicates a general benchmark failure
  */
 public class BenchmarkExecutionException extends ElasticsearchException {
 

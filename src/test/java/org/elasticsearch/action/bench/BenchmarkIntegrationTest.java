@@ -62,16 +62,19 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
     protected synchronized Settings nodeSettings(int nodeOrdinal) {
         if (nodeOrdinal == 0) { // at least one
-            return ImmutableSettings.builder().put("node.bench", true).build();
+            return ImmutableSettings.builder().put("node.bench", true).
+                    put(BenchmarkModule.BENCHMARK_SERVICE_KEY, BenchmarkService.class).build();
         } else {
             if (benchNodes.containsKey(nodeOrdinal)) {
-                return ImmutableSettings.builder().put("node.bench", benchNodes.get(nodeOrdinal)).build();
+                return ImmutableSettings.builder().put("node.bench", benchNodes.get(nodeOrdinal)).
+                        put(BenchmarkModule.BENCHMARK_SERVICE_KEY, BenchmarkService.class).build();
             } else {
                 boolean b = randomBoolean();
                 benchNodes.put(nodeOrdinal, b);
-                return ImmutableSettings.builder().put("node.bench", b).build();
+                return ImmutableSettings.builder().put("node.bench", b).
+                        put(BenchmarkModule.BENCHMARK_SERVICE_KEY, BenchmarkService.class)
+                        .build();
             }
-
         }
     }
 
@@ -105,14 +108,13 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         logger.info("--> Submitting benchmark - competitors [{}] iterations [{}]", request.competitors().size(),
                 request.settings().iterations());
 
-        final ActionFuture<BenchmarkResponse> benchmarkResponse = client().bench(request);
+        final ActionFuture<BenchmarkResponse> future = client().bench(request);
 
         try {
             waitForQuery.await();
             BenchmarkStatusResponse pauseResponse =
                     client().prepareControlBenchmark(BENCHMARK_NAME).
                             setCommand(BenchmarkControlRequest.Command.PAUSE).execute().actionGet();
-
             waitForTestLatch.countDown();
 
             Map<String, CompetitionResult> competitionResultMap = new HashMap<>();
@@ -169,7 +171,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
         }
 
         // Confirm that benchmark was indeed aborted
-        //assertThat(benchmarkResponse.get().state(), isOneOf(BenchmarkResponse.State.ABORTED, BenchmarkResponse.State.COMPLETE));
+        assertThat(future.get().state(), isOneOf(BenchmarkResponse.State.ABORTED, BenchmarkResponse.State.COMPLETE));
     }
 
     @Test

@@ -69,15 +69,28 @@ public class RestBenchAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/{index}/_bench", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bench", this);
 
-        // Abort benchmark
-        controller.registerHandler(POST, "/_bench/abort/{name}", this);
+        // Abort/pause/resume benchmark
+        controller.registerHandler(POST, "/_bench/{command}/{name}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         switch (request.method()) {
             case POST:
-                handleAbortRequest(request, channel);
+                switch (request.param("command", "")) {
+                    case "abort":
+                        handleAbortRequest(request, channel);
+                        break;
+                    case "pause":
+                        handleControlRequest(request, channel, BenchmarkControlRequest.Command.PAUSE);
+                        break;
+                    case "resume":
+                        handleControlRequest(request, channel, BenchmarkControlRequest.Command.RESUME);
+                        break;
+                    default:
+                        channel.sendResponse(new BytesRestResponse(BAD_REQUEST));
+                        break;
+                }
                 break;
             case PUT:
                 handleSubmitRequest(request, channel);
@@ -110,12 +123,29 @@ public class RestBenchAction extends BaseRestHandler {
         });
     }
 
+    private void handleControlRequest(final RestRequest request, final RestChannel channel, BenchmarkControlRequest.Command command) {
+
+        final String benchmarkName = request.param("name");
+        final BenchmarkControlRequest controlRequest = new BenchmarkControlRequest(benchmarkName);
+        controlRequest.command(command);
+
+        client.controlBenchmark(controlRequest, new RestBuilderListener<BenchmarkStatusResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(BenchmarkStatusResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                response.toXContent(builder, request);
+                builder.endObject();
+                return new BytesRestResponse(OK, builder);
+            }
+        });
+    }
+
     /**
      * Aborts an actively running benchmark
      */
     private void handleAbortRequest(final RestRequest request, final RestChannel channel) {
 
-        String benchmarkName = request.param("name");
+        final String benchmarkName = request.param("name");
         AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkName);
 
         client.abortBench(abortBenchmarkRequest, new RestBuilderListener<AbortBenchmarkResponse>(channel) {

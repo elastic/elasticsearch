@@ -41,7 +41,7 @@ import java.util.concurrent.*;
  */
 public class BenchmarkExecutor {
 
-    private static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
+    protected static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
 
     private final Client client;
     private String nodeName;
@@ -58,9 +58,8 @@ public class BenchmarkExecutor {
         final String id;
         final StoppableSemaphore semaphore;
         final BenchmarkResponse response;
-        volatile boolean paused = false;
 
-        BenchmarkState(BenchmarkRequest request, BenchmarkResponse response, StoppableSemaphore semaphore) {
+        BenchmarkState(BenchmarkRequest request, BenchmarkResponse   response, StoppableSemaphore semaphore) {
             this.id = request.benchmarkName();
             this.response = response;
             this.semaphore = semaphore;
@@ -100,7 +99,7 @@ public class BenchmarkExecutor {
             BenchmarkState state = activeBenchmarks.get(id);
             response.addBenchResponse(state.response);
 
-            if (state.paused) {
+            if (state.semaphore.paused) {
                 totalPaused++;
             } else {
                 totalActive++;
@@ -119,7 +118,11 @@ public class BenchmarkExecutor {
     public BenchmarkStatusNodeResponse pauseBenchmark(String benchmarkName) {
 
         final BenchmarkState state = benchmarkState(benchmarkName);
-        state.paused = true;
+        try {
+            state.semaphore.pause();
+        } catch (InterruptedException e) {
+            throw new BenchmarkExecutionException("Unable to pause [" + benchmarkName + "] on [" + nodeName() + "]", e);
+        }
         state.response.state(BenchmarkResponse.State.PAUSED);
         BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
         response.addBenchResponse(state.response);
@@ -136,7 +139,7 @@ public class BenchmarkExecutor {
     public BenchmarkStatusNodeResponse resumeBenchmark(String benchmarkName) {
 
         final BenchmarkState state = benchmarkState(benchmarkName);
-        state.paused = false;
+        state.semaphore.unpause();
         state.response.state(BenchmarkResponse.State.RUNNING);
         BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
         response.addBenchResponse(state.response);
@@ -151,20 +154,6 @@ public class BenchmarkExecutor {
             throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
         }
         return state;
-    }
-
-    private void conditionallySuspendExecution(String benchmarkName) {
-
-        // XXX - IS BUSY WAITING OK IN THIS CONTEXT?
-        //       OR IS IT STRONGLY PREFERRED TO PROPERLY BLOCK THE THREAD USING CONCURRENCY PRIMITIVES?
-        while (benchmarkState(benchmarkName).paused) {
-            logger.debug("Benchmark [{}] pausing itself on [{}]", benchmarkName, nodeName());
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                throw new BenchmarkExecutionException("Benchmark interrupted while suspended", e);
-            }
-        }
     }
 
     /**
@@ -210,7 +199,7 @@ public class BenchmarkExecutor {
 
                 if (settings.warmup()) {
                     final long beforeWarmup = System.nanoTime();
-                    final List<String> warmUpErrors = warmUp(competitor, searchRequests, semaphore);
+                    final List<String> warmUpErrors = warmUp(searchRequests, semaphore);
                     final long afterWarmup = System.nanoTime();
                     competitionNodeResult.warmUpTime(TimeUnit.MILLISECONDS.convert(afterWarmup - beforeWarmup, TimeUnit.NANOSECONDS));
                     if (!warmUpErrors.isEmpty()) {
@@ -223,12 +212,6 @@ public class BenchmarkExecutor {
                 final long[] docBuckets = new long[numMeasurements];
 
                 for (int i = 0; i < iterations; i++) {
-
-                    // Conditionally pause
-                    // XXX - WE COULD PUSH THIS DOWN TO THE INNER-MOST LOOP IF DESIRED.
-                    //       ON THE OTHER HAND, PAUSING AT ITERATION BOUNDARIES SEEMS CLEANER.
-                    conditionallySuspendExecution(request.benchmarkName());
-
                     if (settings.allowCacheClearing() && settings.clearCaches() != null) {
                         try {
                             client.admin().indices().clearCache(settings.clearCaches()).get();
@@ -270,15 +253,14 @@ public class BenchmarkExecutor {
         return benchmarkResponse;
     }
 
-    private List<String> warmUp(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests, StoppableSemaphore stoppableSemaphore)
+    private List<String> warmUp(List<SearchRequest> searchRequests, StoppableSemaphore stoppableSemaphore)
             throws InterruptedException {
-        final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
         final CountDownLatch totalCount = new CountDownLatch(searchRequests.size());
         final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
 
         for (SearchRequest searchRequest : searchRequests) {
-            semaphore.acquire();
-            client.search(searchRequest, new BoundsManagingActionListener<SearchResponse>(semaphore, totalCount, errorMessages) { } );
+            stoppableSemaphore.acquire();
+            client.search(searchRequest, new BoundsManagingActionListener<SearchResponse>(stoppableSemaphore, totalCount, errorMessages) { } );
         }
         totalCount.await();
         return errorMessages;
@@ -291,8 +273,6 @@ public class BenchmarkExecutor {
         assert timeBuckets.length == competitor.settings().multiplier() * searchRequests.size();
         assert docBuckets.length == competitor.settings().multiplier() * searchRequests.size();
 
-        final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
-
         Arrays.fill(timeBuckets, -1);   // wipe CPU cache     ;)
         Arrays.fill(docBuckets, -1);    // wipe CPU cache     ;)
 
@@ -304,8 +284,8 @@ public class BenchmarkExecutor {
         for (int i = 0; i < competitor.settings().multiplier(); i++) {
             for (SearchRequest searchRequest : searchRequests) {
                 StatisticCollectionActionListener statsListener =
-                        new StatisticCollectionActionListener(semaphore, timeBuckets, docBuckets, id++, totalCount, errorMessages);
-                semaphore.acquire();
+                        new StatisticCollectionActionListener(stoppableSemaphore, timeBuckets, docBuckets, id++, totalCount, errorMessages);
+                stoppableSemaphore.acquire();
                 client.search(searchRequest, statsListener);
             }
         }
@@ -357,7 +337,6 @@ public class BenchmarkExecutor {
             } else if (topNQueue.top().avgTime < max) {
                 topNQueue.top().update(i, max, avg);
                 topNQueue.updateTop();
-
             }
         }
 
@@ -462,16 +441,19 @@ public class BenchmarkExecutor {
             } finally {
                 super.onFailure(e);
             }
-
         }
     }
 
     private final static class StoppableSemaphore {
+
         private Semaphore semaphore;
+        private final int concurrency;
         private volatile boolean stopped = false;
+        private volatile boolean paused = false;
 
         public StoppableSemaphore(int concurrency) {
             semaphore = new Semaphore(concurrency);
+            this.concurrency = concurrency;
         }
 
         public StoppableSemaphore reset(int concurrency) {
@@ -490,8 +472,25 @@ public class BenchmarkExecutor {
             semaphore.release();
         }
 
-        public void stop() {
+        public synchronized void stop() {
             stopped = true;
+            if (paused) {
+                unpause();
+            }
+        }
+
+        public synchronized void pause() throws InterruptedException {
+            if (!stopped && !paused) {
+                semaphore.acquire(concurrency);
+                paused = true;
+            }
+        }
+
+        public synchronized void unpause() {
+            if (paused) {
+                paused = false;
+                semaphore.release(concurrency);
+            }
         }
     }
 

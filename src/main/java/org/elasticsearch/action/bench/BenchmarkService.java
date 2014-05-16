@@ -73,6 +73,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     @Inject
     public BenchmarkService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                             Client client, TransportService transportService) {
+
         super(settings);
         this.threadPool = threadPool;
         this.executor = new BenchmarkExecutor(client, clusterService);
@@ -320,6 +321,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public String executor() {
+            // Perform management tasks on GENERIC so as not to block pending acquisition of a thread from BENCH.
             return ThreadPool.Names.GENERIC;
         }
     }

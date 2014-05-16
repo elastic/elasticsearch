@@ -25,15 +25,9 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
-import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.Tuple;
@@ -43,11 +37,12 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -61,7 +56,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -117,6 +111,28 @@ public class ScriptService extends AbstractComponent {
     private Client client = null;
     public static final String SCRIPT_INDEX = ".script";
 
+    public enum ScriptType {
+        INLINE,
+        INDEXED,
+        FILE
+    }
+
+
+    class IndexedScript {
+        String type;
+        String id;
+        IndexedScript(String script) {
+            String[] parts = script.split("/");
+            if (parts.length != 3) {
+                throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
+                        " should be /lang/id");
+            } else {
+                this.type = parts[1];
+                this.id = parts[2];
+            }
+        }
+    }
+
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
                          ResourceWatcherService resourceWatcherService) {
@@ -165,40 +181,7 @@ public class ScriptService extends AbstractComponent {
 
     @Inject(optional=true)
     public void setClient(Client client) {
-        this.client= client;
-        /*
-        //Ensure we have a ".scripts" index
-        ListenableActionFuture<IndicesExistsResponse> lafResp = client.admin().indices().prepareExists(SCRIPT_INDEX).execute();
-        try {
-            //IndicesExistsResponse response = client.admin().indices().prepareExists(SCRIPT_INDEX).execute().get();
-
-            IndicesExistsResponse response = null;
-            response = lafResp.get();
-            if( !response.isExists() ){
-
-                CreateIndexRequestBuilder indexBuilder = client.admin().indices().prepareCreate(SCRIPT_INDEX);
-                HashMap propertiesMap = new HashMap();
-                HashMap disabledMap = new HashMap();
-                disabledMap.put("enabled","false");
-                for (String scriptType : scriptEngines.keySet()){
-                    propertiesMap.put(scriptType,disabledMap);
-                }
-                HashMap<String,Object> nest = new HashMap<>();
-                nest.put("properties", nest);
-                indexBuilder.addMapping("__default__",nest);
-                CreateIndexResponse cir = indexBuilder.get();
-                if( !cir.isAcknowledged() ){
-                    logger.error("Unable to create scripts index named " + SCRIPT_INDEX);
-                }
-            }
-        } catch (InterruptedException ie){
-            logger.error("Got InterruptedException creating scripts index",ie);
-            //throw ie;
-        } catch (ExecutionException ee) {
-            logger.error("Got ExecutionException creating scripts index",ee);
-            logger.error("Root failure ",lafResp.getRootFailure());
-        }
-        */
+        this.client = client;
     }
 
     public void close() {
@@ -218,32 +201,16 @@ public class ScriptService extends AbstractComponent {
         CompiledScript compiled = null;
 
         if (script.startsWith("/")){ //This is how we determine if we need to search the index for the script
-            if( client == null ){
+            if ( client == null ){
                 throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
             }
-            String[] parts = script.split("/");
-            if (parts.length != 3) {
-                throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
-                        " should be /lang/id"  );
-            } else {
-                String scriptLang = parts[1];
-                String id = parts[2];
+            IndexedScript indexedScript = new IndexedScript(script);
 
-                if (lang != null && !lang.equals(scriptLang)){
-                    logger.trace("Overriding lang to " + scriptLang);
-                    lang = scriptLang;
-                    //cacheKey = new CacheKey(lang,script);
-                }
-                /*
-                //No point in even querying the index if we have the script cached
-                compiled = cache.getIfPresent(cacheKey);
-
-                if (compiled != null) {
-                    return compiled;
-                }
-                */
-                scriptContent = getScriptFromIndex(script, SCRIPT_INDEX, scriptLang, id);
+            if (lang != null && !lang.equals(indexedScript.type)){
+                logger.trace("Overriding lang to " + indexedScript.type);
+                lang = indexedScript.type;
             }
+            scriptContent = getScriptFromIndex(script, SCRIPT_INDEX, indexedScript.type, indexedScript.id);
         } else {
             compiled = staticCache.get(script); //Indexed scripts will never be in the static cache
             if (compiled != null) {
@@ -286,13 +253,24 @@ public class ScriptService extends AbstractComponent {
 
     private String getScriptFromIndex(String script, String index, String scriptLang, String id) {
         GetResponse responseFields = client.prepareGet(index, scriptLang, id).get();
-        if (responseFields.isExists() ){
-            return responseFields.getSourceAsString();
-        } else {
-            throw new ElasticsearchIllegalArgumentException("Unable to find script [" + script + "]");
+        if (responseFields.isExists() ) {
+            Map<String, Object> source = responseFields.getSourceAsMap();
+            if (source.containsKey("template")) {
+                try {
+                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                    Object template = source.get("template");
+                    builder.map((Map<String, Object>)template);
+                    return builder.string();
+                } catch( IOException|ClassCastException e ){
+                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json",e);
+                }
+            } else  if (source.containsKey("script")) {
+                return source.get("script").toString();
+            }
         }
-    }
+        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + script + "]");
 
+    }
 
     public ExecutableScript executable(String lang, String script, Map vars) {
         return executable(compile(lang, script), vars);

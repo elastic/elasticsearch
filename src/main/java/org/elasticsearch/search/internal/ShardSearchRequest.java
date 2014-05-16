@@ -73,6 +73,7 @@ public class ShardSearchRequest extends TransportRequest {
     private BytesReference extraSource;
     private BytesReference templateSource;
     private String templateName;
+    private String templateId;
     private Map<String, String> templateParams;
 
     private long nowInMillis;
@@ -92,6 +93,7 @@ public class ShardSearchRequest extends TransportRequest {
         this.extraSource = searchRequest.extraSource();
         this.templateSource = searchRequest.templateSource();
         this.templateName = searchRequest.templateName();
+        this.templateId = searchRequest.templateId();
         this.templateParams = searchRequest.templateParams();
         this.scroll = searchRequest.scroll();
         this.types = searchRequest.types();
@@ -149,6 +151,10 @@ public class ShardSearchRequest extends TransportRequest {
 
     public String templateName() {
         return templateName;
+    }
+
+    public String templateId() {
+        return templateId;
     }
 
     public Map<String, String> templateParams() {
@@ -223,6 +229,9 @@ public class ShardSearchRequest extends TransportRequest {
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             templateSource = in.readBytesReference();
             templateName = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+                templateId = in.readOptionalString();
+            }
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
             }
@@ -257,6 +266,9 @@ public class ShardSearchRequest extends TransportRequest {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
+            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+                out.writeOptionalString(templateId);
+            }
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);
             if (existTemplateParams) {

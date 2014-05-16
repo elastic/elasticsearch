@@ -28,6 +28,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchType;
@@ -585,6 +586,14 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     private void parseTemplate(ShardSearchRequest request) {
         if (hasLength(request.templateName())) {
             ExecutableScript executable = this.scriptService.executable("mustache", request.templateName(), request.templateParams());
+            BytesReference processedQuery = (BytesReference) executable.run();
+            request.source(processedQuery);
+        } else if (hasLength(request.templateId())) {
+            String templateId = request.templateId();
+            if (!templateId.startsWith("/mustache/")){
+                templateId = "/mustache/" + templateId; //Glue the type to the id so the script service can find it.
+            }
+            ExecutableScript executable = this.scriptService.executable("mustache", templateId, request.templateParams());
             BytesReference processedQuery = (BytesReference) executable.run();
             request.source(processedQuery);
         } else {

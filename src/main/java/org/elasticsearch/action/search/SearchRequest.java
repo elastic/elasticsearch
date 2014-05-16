@@ -71,6 +71,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     private BytesReference templateSource;
     private boolean templateSourceUnsafe;
     private String templateName;
+    private String templateId;
     private Map<String, String> templateParams = Collections.emptyMap();
 
     private BytesReference source;
@@ -404,6 +405,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         this.templateName = name;
     }
 
+    public void templateId(String name){
+        this.templateId = name;
+    }
+
     /**
      * Template parameters used for rendering
      */
@@ -416,6 +421,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      */
     public String templateName() {
         return templateName;
+    }
+
+    /**
+     * The name of the stored template
+     */
+    public String templateId() {
+        return templateId;
     }
 
     /**
@@ -508,6 +520,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             templateSourceUnsafe = false;
             templateSource = in.readBytesReference();
             templateName =  in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+                templateId = in.readOptionalString();
+            }
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
             }
@@ -544,6 +559,10 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
+            if (out.getVersion().onOrAfter(Version.V_1_2_0)){
+                out.writeOptionalString(templateId);
+            }
+
 
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);

@@ -226,17 +226,21 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
         List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "1").setSource("{" +
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "1a").setSource("{" +
+                "\"template\":{"+
                 "                \"query\":{" +
                 "                   \"match\":{" +
                 "                    \"theField\" : \"{{fieldParam}}\"}" +
                 "       }" +
+                    "}" +
                 "}"));
         builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "2").setSource("{" +
+                "\"template\":{"+
                 "                \"query\":{" +
                 "                   \"match\":{" +
                 "                    \"theField\" : \"{{fieldParam}}\"}" +
                 "       }" +
+                    "}" +
                 "}"));
         indexRandom(true, builders);
 
@@ -254,7 +258,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("/mustache/1").setTemplateParams(templateParams).get();
+                setTemplateId("/mustache/1a").setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         Exception e = null;
@@ -276,6 +280,9 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         assert e != null;
 
 
+        searchResponse = client().prepareSearch("test").setTypes("type").
+                setTemplateId("1a").setTemplateParams(templateParams).get();
+        assertHitCount(searchResponse, 4);
 
         templateParams.put("fieldParam", "bar");
         searchResponse = client().prepareSearch("test").setTypes("type").

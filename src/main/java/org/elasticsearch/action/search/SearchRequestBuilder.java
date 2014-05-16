@@ -1038,6 +1038,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder setTemplateId(String templateId) {
+        request.templateId(templateId);
+        return this;
+    }
+
     public SearchRequestBuilder setTemplateParams(Map<String,String> templateParams) {
         request.templateParams(templateParams);
         return this;

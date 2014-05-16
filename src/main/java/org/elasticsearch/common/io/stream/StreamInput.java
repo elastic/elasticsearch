@@ -19,9 +19,8 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -34,25 +33,12 @@ import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.ref.SoftReference;
 import java.util.*;
 
 /**
  *
  */
 public abstract class StreamInput extends InputStream {
-
-    private static final ThreadLocal<SoftReference<char[]>> charCache = new ThreadLocal<>();
-
-    private static char[] charCache(int size) {
-        SoftReference<char[]> ref = charCache.get();
-        char[] arr = (ref == null) ? null : ref.get();
-        if (arr == null || arr.length < size) {
-            arr = new char[ArrayUtil.oversize(size, RamUsageEstimator.NUM_BYTES_CHAR)];
-            charCache.set(new SoftReference<>(arr));
-        }
-        return arr;
-    }
 
     private Version version = Version.CURRENT;
 
@@ -268,11 +254,15 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    private final CharsRef spare = new CharsRef();
+
     public String readString() throws IOException {
-        int charCount = readVInt();
-        char[] chars = charCache(charCount);
-        int c, charIndex = 0;
-        while (charIndex < charCount) {
+        final int charCount = readVInt();
+        spare.offset = 0;
+        spare.length = 0;
+        spare.grow(charCount);
+        int c = 0;
+        while (spare.length < charCount) {
             c = readByte() & 0xff;
             switch (c >> 4) {
                 case 0:
@@ -283,18 +273,18 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                 case 6:
                 case 7:
-                    chars[charIndex++] = (char) c;
+                    spare.chars[spare.length++] = (char) c;
                     break;
                 case 12:
                 case 13:
-                    chars[charIndex++] = (char) ((c & 0x1F) << 6 | readByte() & 0x3F);
+                    spare.chars[spare.length++] = (char) ((c & 0x1F) << 6 | readByte() & 0x3F);
                     break;
                 case 14:
-                    chars[charIndex++] = (char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0);
+                    spare.chars[spare.length++] = (char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0);
                     break;
             }
         }
-        return new String(chars, 0, charCount);
+        return spare.toString();
     }
 
     public String readSharedString() throws IOException {

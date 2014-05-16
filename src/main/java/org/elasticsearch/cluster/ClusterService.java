@@ -110,4 +110,16 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      * Returns the tasks that are pending.
      */
     List<PendingClusterTask> pendingTasks();
+
+    /**
+     * an exception to indicate a {@link org.elasticsearch.cluster.ClusterStateUpdateTask} was not executed as
+     * the current node is no longer master
+     */
+    public static class NoLongerMasterException extends ElasticsearchIllegalStateException {
+
+        public NoLongerMasterException(String msg) {
+            super(msg);
+        }
+
+    }
 }

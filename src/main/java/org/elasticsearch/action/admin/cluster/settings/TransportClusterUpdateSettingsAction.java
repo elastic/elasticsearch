@@ -140,8 +140,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     @Override
                     public void onFailure(String source, Throwable t) {
                         //if the reroute fails we only log
-                        logger.debug("failed to perform [{}]", t, source);
-                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", t));
+                        if (t instanceof ClusterService.NoLongerMasterException) {
+                            logger.debug("failed to preform reroute after cluster settings were updated - current node is no longer a master");
+                            listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, transientUpdates.build(), persistentUpdates.build()));
+                        } else {
+                            logger.debug("failed to perform [{}]", t, source);
+                            listener.onFailure(new ElasticsearchException("reroute after update settings failed", t));
+                        }
                     }
 
                     @Override

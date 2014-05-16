@@ -123,7 +123,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 // we are the first master (and the master)
                 master = true;
                 final LocalDiscovery master = firstMaster;
-                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("local-disco-initial_connect(master)", new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -149,7 +149,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
             } else if (firstMaster != null) {
                 // update as fast as we can the local node state with the new metadata (so we create indices for example)
                 final ClusterState masterState = firstMaster.clusterService.state();
-                clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("local-disco(detected_master)", new ClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         // make sure we have the local node id set, we might need it as a result of the new metadata
@@ -165,7 +165,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
                 // tell the master to send the fact that we are here
                 final LocalDiscovery master = firstMaster;
-                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateUpdateTask() {
+                firstMaster.clusterService.submitStateUpdateTask("local-disco-receive(from node[" + localNode + "])", new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
@@ -225,7 +225,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 }
 
                 final LocalDiscovery master = firstMaster;
-                master.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateUpdateTask() {
+                master.clusterService.submitStateUpdateTask("local-disco-update", new ClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode.id());
@@ -305,7 +305,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
-                    discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateUpdateTask() {
+                    discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateNonMasterUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             if (nodeSpecificClusterState.version() < currentState.version() && Objects.equal(nodeSpecificClusterState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {

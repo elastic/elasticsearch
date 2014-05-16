@@ -1,5 +1,5 @@
 [[cat-thread-pool]]
-== Thread pool
+== cat thread pool
 
 The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
 statistics are returned for the bulk, index and search thread pools.

@@ -1,5 +1,5 @@
 [[cat-recovery]]
-== Recovery
+== cat recovery
 
 `recovery` is a view of shard replication.  It will show information
 anytime data from at least one shard is copying to a different node.

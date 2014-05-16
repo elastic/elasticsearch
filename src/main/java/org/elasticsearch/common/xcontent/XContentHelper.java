@@ -413,4 +413,27 @@ public class XContentHelper {
             }
         }
     }
+
+    public static String toString(ToXContent xContent) {
+        return toString(xContent, false);
+    }
+
+    /**
+     * Converts a {@link ToXContent} to a string. Intended to be called from toString() methods for ToXContent
+     * implementers.
+     * @param  xContent ToXContent implementer
+     * @param  wrapInObject specifies if the {@link ToXContent} output should be wrapped inside a JSON begin-end block
+     * @return JSON string
+     */
+    public static String toString(ToXContent xContent, boolean wrapInObject) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+            if (wrapInObject) builder.startObject();
+            xContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            if (wrapInObject) builder.endObject();
+            return builder.string();
+        } catch (Exception e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
+    }
 }

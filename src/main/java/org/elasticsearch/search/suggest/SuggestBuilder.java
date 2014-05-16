@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
 import org.elasticsearch.search.suggest.context.CategoryContextMapping;
 import org.elasticsearch.search.suggest.context.GeolocationContextMapping;
@@ -103,14 +104,7 @@ public class SuggestBuilder implements ToXContent {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder(); 
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
-            return builder.string();
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to build suggestion queries", e);
-        }
+        return XContentHelper.toString(this);
     }
 
     /**
@@ -318,16 +312,7 @@ public class SuggestBuilder implements ToXContent {
 
         @Override
         public String toString() {
-            try {
-                XContentBuilder builder = XContentFactory.jsonBuilder();
-                builder.prettyPrint();
-                builder.startObject();
-                toXContent(builder, EMPTY_PARAMS);
-                builder.endObject();
-                return builder.string();
-            } catch (Exception e) {
-                throw new ElasticsearchException("Failed to build suggestion query", e);
-            }
+            return XContentHelper.toString(this, true);
         }
     }
 }

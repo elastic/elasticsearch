@@ -43,7 +43,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.NodeBuilder;
@@ -169,7 +168,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     @Override
     protected void doStart() throws ElasticsearchException {
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("updating local node id", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("updating local node id", new ProcessedClusterStateNonMasterUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // add our local node to the mix...
@@ -253,7 +252,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         @Override
         public void clusterChanged(final ClusterChangedEvent event) {
             logger.debug("[{}] received cluster event, [{}]", tribeName, event.source());
-            clusterService.submitStateUpdateTask("cluster event from " + tribeName + ", " + event.source(), new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("cluster event from " + tribeName + ", " + event.source(), new ClusterStateNonMasterUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState tribeState = event.state();

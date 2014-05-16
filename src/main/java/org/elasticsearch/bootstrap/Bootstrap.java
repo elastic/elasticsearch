@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
@@ -153,7 +154,7 @@ public class Bootstrap {
                     FileSystemUtils.mkdirs(fPidFile.getParentFile());
                 }
                 FileOutputStream outputStream = new FileOutputStream(fPidFile);
-                outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes());
+                outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes(Charsets.UTF_8));
                 outputStream.close();
 
                 fPidFile.deleteOnExit();

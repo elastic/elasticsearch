@@ -200,11 +200,14 @@ public class FreqTermsEnumTests extends ElasticsearchLuceneTestCase {
                 if (!termsEnum.seekExact(new BytesRef(term))) {
                     continue;
                 }
-                if (docFreq) {
-                    assertThat("cycle " + i + ", term " + term + ", docFreq", termsEnum.docFreq(), equalTo(reference.get(term).docFreq));
-                }
-                if (totalTermFreq) {
-                    assertThat("cycle " + i + ", term " + term + ", totalTermFreq", termsEnum.totalTermFreq(), equalTo(reference.get(term).totalTermFreq));
+                // with -Dtests.seed=ED695B6A3A249CA6, term has been skipped so not available in reference array
+                if (reference.get(term) != null) {
+                    if (docFreq) {
+                        assertThat("cycle " + i + ", term " + term + ", docFreq", termsEnum.docFreq(), equalTo(reference.get(term).docFreq));
+                    }
+                    if (totalTermFreq) {
+                        assertThat("cycle " + i + ", term " + term + ", totalTermFreq", termsEnum.totalTermFreq(), equalTo(reference.get(term).totalTermFreq));
+                    }
                 }
             }
         }

@@ -19,6 +19,7 @@
 package org.elasticsearch.cluster;
 
 import com.google.common.base.Predicate;
+import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
@@ -44,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -248,6 +249,58 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         assertThat(onFailure.get(), equalTo(false));
 
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testMasterAwareExecution() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("discovery.type", "local")
+                .build();
+
+        ListenableFuture<String> master = cluster().startNodeAsync(settings);
+        ListenableFuture<String> nonMaster = cluster().startNodeAsync(settingsBuilder().put(settings).put("node.master", false).build());
+        master.get();
+        ensureGreen(); // make sure we have a cluster
+
+        ClusterService clusterService = cluster().getInstance(ClusterService.class, nonMaster.get());
+
+        final boolean[] taskFailed = {false};
+        final CountDownLatch latch1 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                latch1.countDown();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                taskFailed[0] = true;
+                latch1.countDown();
+            }
+        });
+
+        latch1.await();
+        assertTrue("cluster state update task was executed on a non-master", taskFailed[0]);
+
+        taskFailed[0] = true;
+        final CountDownLatch latch2 = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateNonMasterUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                taskFailed[0] = false;
+                latch2.countDown();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                taskFailed[0] = true;
+                latch2.countDown();
+            }
+        });
+        latch2.await();
+        assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
     }
 
     @Test

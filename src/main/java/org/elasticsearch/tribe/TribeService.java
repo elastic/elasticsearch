@@ -49,6 +49,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -74,8 +75,8 @@ import java.util.concurrent.CountDownLatch;
  */
 public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
-    public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false, RestStatus.BAD_REQUEST, ClusterBlockLevel.METADATA);
-    public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false, RestStatus.BAD_REQUEST, ClusterBlockLevel.WRITE);
+    public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA));
+    public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
 
     public static Settings processSettings(Settings settings) {
         if (settings.get(TRIBE_NAME) != null) {

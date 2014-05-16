@@ -104,7 +104,7 @@ public class SuggestBuilder implements ToXContent {
     @Override
     public String toString() {
         try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
+            XContentBuilder builder = XContentFactory.jsonBuilder(); 
             builder.prettyPrint();
             toXContent(builder, EMPTY_PARAMS);
             return builder.string();

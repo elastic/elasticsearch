@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public abstract class BucketCollector implements ReaderContextAware {
 
-    public static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
+    public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
         @Override
         public void collect(int docId, long bucketOrdinal) throws IOException {

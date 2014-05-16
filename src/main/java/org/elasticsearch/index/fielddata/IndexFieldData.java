@@ -41,7 +41,7 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
     public static class CommonSettings {
-        public static String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
+        public static final String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
 
         public enum MemoryStorageFormat {
             ORDINALS, PACKED, PAGED;

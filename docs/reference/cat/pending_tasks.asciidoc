@@ -1,5 +1,5 @@
 [[cat-pending-tasks]]
-== Cluster Pending Tasks
+== cat pending tasks
 
 `pending_tasks` provides the same information as the
 <<cluster-pending,`/_cluster/pending_tasks`>> API in a

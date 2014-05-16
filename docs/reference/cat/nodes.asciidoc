@@ -1,5 +1,5 @@
 [[cat-nodes]]
-== Nodes
+== cat nodes
 
 The `nodes` command shows the cluster topology.
 

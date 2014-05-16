@@ -58,6 +58,7 @@ public class BenchmarkExecutor {
         final String id;
         final StoppableSemaphore semaphore;
         final BenchmarkResponse response;
+        volatile boolean paused = false;
 
         BenchmarkState(BenchmarkRequest request, BenchmarkResponse   response, StoppableSemaphore semaphore) {
             this.id = request.benchmarkName();

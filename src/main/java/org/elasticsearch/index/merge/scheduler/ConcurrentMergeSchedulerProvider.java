@@ -73,7 +73,11 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeScheduler buildMergeScheduler() {
         CustomConcurrentMergeScheduler concurrentMergeScheduler = new CustomConcurrentMergeScheduler(logger, shardId, this);
-        concurrentMergeScheduler.setMaxMergesAndThreads(maxMergeCount, maxThreadCount);
+        // nocommit but this doesn't handle SMS ... should we even expose/allow SMS?  or, if user requests SMS can we just use CMS(1,1),
+        // which would then stall if there are 2 merges in flight, and unstall once we are back to 1 or 0 merges
+        // NOTE: we pass maxMergeCount+1 here so that CMS will allow one too many merges to kick off which then allows
+        // InternalEngine.IndexThrottle to detect too-many-merges and throttle:
+        concurrentMergeScheduler.setMaxMergesAndThreads(maxMergeCount+1, maxThreadCount);
         schedulers.add(concurrentMergeScheduler);
         return concurrentMergeScheduler;
     }
@@ -99,6 +103,10 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public void close() {
         indexSettingsService.removeListener(applySettings);
+    }
+
+    public int getMaxMerges() {
+        return this.maxMergeCount;
     }
 
     public static class CustomConcurrentMergeScheduler extends TrackingConcurrentMergeScheduler {

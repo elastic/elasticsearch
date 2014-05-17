@@ -19,7 +19,19 @@
 
 package org.elasticsearch.index.engine.internal;
 
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.IndexSearcher;
@@ -28,6 +40,7 @@ import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -39,6 +52,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
@@ -75,18 +90,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import com.google.common.collect.Lists;
 
 /**
  *
@@ -162,6 +166,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private final AtomicLong translogIdGenerator = new AtomicLong();
 
     private SegmentInfos lastCommittedSegmentInfos;
+
+    private IndexThrottle throttle;
 
     @Inject
     public InternalEngine(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
@@ -257,6 +263,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             try {
                 this.indexWriter = createWriter();
+                mergeScheduler.removeListener(this.throttle);
+                this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), logger);
+                mergeScheduler.addListener(throttle);
             } catch (IOException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
             }
@@ -373,7 +382,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
             }
-            innerCreate(create, writer);
+            try (Releasable r = throttle.acquireThrottle()) {
+                innerCreate(create, writer);
+            }
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
@@ -462,8 +473,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
             }
-
-            innerIndex(index, writer);
+            try (Releasable r = throttle.acquireThrottle()) {
+                innerIndex(index, writer);
+            }
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
@@ -744,7 +756,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         // to be allocated to a different node
                         currentIndexWriter().close(false);
                         indexWriter = createWriter();
-
+                        mergeScheduler.removeListener(this.throttle);
+                        this.throttle = new IndexThrottle(mergeScheduler.getMaxMerges(), this.logger);
+                        mergeScheduler.addListener(throttle);
                         // commit on a just opened writer will commit even if there are no changes done to it
                         // we rely on that for the commit data translog id key
                         if (flushNeeded || flush.force()) {
@@ -1557,6 +1571,77 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         boolean assertLockIsHeld() {
             Boolean aBoolean = lockIsHeld.get();
             return aBoolean != null && aBoolean.booleanValue();
+        }
+    }
+
+
+    private static final class IndexThrottle implements MergeSchedulerProvider.Listener {
+
+        private static final InternalLock NOOP_LOCK = new InternalLock(new NoOpLock());
+        private final InternalLock lockReference = new InternalLock(new ReentrantLock());
+        private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
+        private final AtomicBoolean isThrottling = new AtomicBoolean();
+        private final int maxNumMerges;
+        private final ESLogger logger;
+
+        private volatile InternalLock lock = NOOP_LOCK;
+
+        public IndexThrottle(int maxNumMerges, ESLogger logger) {
+            this.maxNumMerges = maxNumMerges;
+            this.logger = logger;
+        }
+
+        public Releasable acquireThrottle() {
+            return lock.acquire();
+        }
+
+        @Override
+        public void beforeMerge(OnGoingMerge merge) {
+          if (numMergesInFlight.incrementAndGet() > maxNumMerges) {
+              if (isThrottling.getAndSet(true) == false) {
+                  logger.info("now throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+              }
+              lock = lockReference;
+            }
+        }
+
+        @Override
+        public void afterMerge(OnGoingMerge merge) {
+            if (numMergesInFlight.decrementAndGet() < maxNumMerges) {
+                if (isThrottling.getAndSet(false)) {
+                    logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
+                }
+                lock = NOOP_LOCK;
+            }
+        }
+    }
+
+    private static final class NoOpLock implements Lock {
+
+        @Override
+        public void lock() {}
+
+        @Override
+        public void lockInterruptibly() throws InterruptedException {
+        }
+
+        @Override
+        public boolean tryLock() {
+            return true;
+        }
+
+        @Override
+        public boolean tryLock(long time, TimeUnit unit) throws InterruptedException {
+            return true;
+        }
+
+        @Override
+        public void unlock() {
+        }
+
+        @Override
+        public Condition newCondition() {
+            throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
     }
 }

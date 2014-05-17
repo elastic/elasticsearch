@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1136,7 +1137,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1l));
@@ -1157,7 +1158,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -1182,7 +1183,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         // From translog:
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -1205,7 +1206,7 @@ public class GetTermVectorsTests extends AbstractTermVectorsTests {
         refresh();
 
         // version 0 means ignore version, which is the default
-        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        response = client().prepareTermVectors(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));

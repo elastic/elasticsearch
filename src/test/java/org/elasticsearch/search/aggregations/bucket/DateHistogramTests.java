@@ -168,6 +168,117 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void singleValuedField_WithLongOffsets() throws Exception {
+        SearchResponse response;
+        response = client().prepareSearch("idx")
+            .addAggregation(dateHistogram("histo").field("date")
+                .interval(DateHistogram.Interval.DAY)
+                .preOffset(1000*60*60*24*2)
+                .postOffset(-1000*60*60*24))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        DateHistogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(6));
+
+        long key = new DateTime(2012, 1, 3, 0, 0, DateTimeZone.UTC).getMillis();
+        DateHistogram.Bucket bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 3, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 16, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 3, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 16, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 24, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+    }
+    
+    @Test
+    public void singleValuedField_WithIntervalOffsets() throws Exception {
+        SearchResponse response;
+        response = client().prepareSearch("idx")
+            .addAggregation(dateHistogram("histo").field("date")
+                .interval(DateHistogram.Interval.DAY)
+                .preOffset(DateHistogram.Interval.days(2))
+                .postOffset(DateHistogram.Interval.days(-1)))
+            .execute().actionGet();
+
+        assertSearchResponse(response);
+
+
+        DateHistogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        assertThat(histo.getBuckets().size(), equalTo(6));
+
+        long key = new DateTime(2012, 1, 3, 0, 0, DateTimeZone.UTC).getMillis();
+        DateHistogram.Bucket bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 3, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 2, 16, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 3, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 16, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+
+        key = new DateTime(2012, 3, 24, 0, 0, DateTimeZone.UTC).getMillis();
+        bucket = histo.getBucketByKey(key);
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+    }
+
+
+    @Test
     public void singleValuedField_WithPostTimeZone() throws Exception {
         SearchResponse response;
         if (randomBoolean()) {

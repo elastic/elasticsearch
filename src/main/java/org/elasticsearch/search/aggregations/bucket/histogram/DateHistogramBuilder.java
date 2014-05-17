@@ -41,8 +41,8 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private String postZone;
     private boolean preZoneAdjustLargeInterval;
     private String format;
-    long preOffset = 0;
-    long postOffset = 0;
+    private Object preOffset;
+    private Object postOffset;
     float factor = 1.0f;
 
     public DateHistogramBuilder(String name) {
@@ -90,6 +90,16 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     }
 
     public DateHistogramBuilder postOffset(long postOffset) {
+        this.postOffset = postOffset;
+        return this;
+    }
+
+    public DateHistogramBuilder preOffset( DateHistogram.Interval preOffset ) {
+        this.preOffset = preOffset;
+        return this;
+    }
+
+    public DateHistogramBuilder postOffset( DateHistogram.Interval postOffset ) {
         this.postOffset = postOffset;
         return this;
     }
@@ -153,11 +163,17 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
             builder.field("pre_zone_adjust_large_interval", true);
         }
 
-        if (preOffset != 0) {
+        if (preOffset != null) {
+            if (preOffset instanceof Number) {
+                preOffset = TimeValue.timeValueMillis(((Number) preOffset).longValue()).toString();
+            }
             builder.field("pre_offset", preOffset);
         }
 
-        if (postOffset != 0) {
+        if (postOffset != null) {
+            if (postOffset instanceof Number) {
+                postOffset = TimeValue.timeValueMillis(((Number) postOffset).longValue()).toString();
+            }
             builder.field("post_offset", postOffset);
         }
 

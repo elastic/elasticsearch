@@ -178,8 +178,14 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         unblockNode(blockedNode);
         logger.info("--> stopping node", blockedNode);
         stopNode(blockedNode);
-        DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.get();
-        assertThat(deleteSnapshotResponse.isAcknowledged(), equalTo(true));
+        try {
+            DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
+            assertThat(deleteSnapshotResponse.isAcknowledged(), equalTo(true));
+        } catch (SnapshotMissingException ex) {
+            // When master node is closed during this test, it sometime manages to delete the snapshot files before
+            // completely stopping. In this case the retried delete snapshot operation on the new master can fail
+            // with SnapshotMissingException
+        }
 
         logger.info("--> making sure that snapshot no longer exists");
         assertThrows(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute(), SnapshotMissingException.class);

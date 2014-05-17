@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.8.0</lucene.version>
+        <lucene.version>4.8.1</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -46,6 +46,10 @@
         <repository>
             <id>Codehaus Snapshots</id>
             <url>http://repository.codehaus.org/</url>
+        </repository>
+        <repository>
+            <id>Apache Maven Repository</id>
+            <url>https://repository.apache.org/content/repositories/releases/</url>
         </repository>
     </repositories>
 

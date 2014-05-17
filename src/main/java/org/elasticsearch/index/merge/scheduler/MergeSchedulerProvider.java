@@ -122,6 +122,9 @@ public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent
         return scheduler;
     }
 
+    /** Maximum number of allowed running merges before index throttling kicks in. */
+    public abstract int getMaxMerges();
+
     protected abstract MergeScheduler buildMergeScheduler();
 
     public abstract MergeStats stats();

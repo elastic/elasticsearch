@@ -81,6 +81,7 @@ public final class RateLimitedFSDirectory extends FilterDirectory{
         private final BufferedIndexOutput bufferedDelegate;
         private final RateLimiter rateLimiter;
         private final StoreRateLimiting.Listener rateListener;
+        private long bytesSinceLastRateLimit;
 
         RateLimitedIndexOutput(final RateLimiter rateLimiter, final StoreRateLimiting.Listener rateListener, final IndexOutput delegate) {
             super(delegate instanceof BufferedIndexOutput ? ((BufferedIndexOutput) delegate).getBufferSize() : BufferedIndexOutput.DEFAULT_BUFFER_SIZE);
@@ -97,7 +98,12 @@ public final class RateLimitedFSDirectory extends FilterDirectory{
 
         @Override
         protected void flushBuffer(byte[] b, int offset, int len) throws IOException {
-            rateListener.onPause(rateLimiter.pause(len));
+            bytesSinceLastRateLimit += len;
+            if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
+                long pause = rateLimiter.pause(bytesSinceLastRateLimit);
+                bytesSinceLastRateLimit = 0;
+                rateListener.onPause(pause);
+            }
             if (bufferedDelegate != null) {
                 bufferedDelegate.flushBuffer(b, offset, len);
             } else {

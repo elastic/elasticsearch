@@ -49,7 +49,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     @Nullable
     private String routing;
     private boolean refresh;
-    private long version;
+    private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
     /**

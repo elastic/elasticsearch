@@ -31,6 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -533,8 +534,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         // From translog:
 
-        // version 0 means ignore version, which is the default
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).get();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getVersion(), equalTo(1l));
@@ -554,8 +554,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         // From Lucene index:
         refresh();
 
-        // version 0 means ignore version, which is the default
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -579,8 +578,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         // From translog:
 
-        // version 0 means ignore version, which is the default
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).get();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -602,8 +600,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         // From Lucene index:
         refresh();
 
-        // version 0 means ignore version, which is the default
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(0).setRealtime(false).get();
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setVersion(Versions.MATCH_ANY).setRealtime(false).get();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getIndex(), equalTo("test"));
@@ -639,7 +636,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         // Version from translog
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(Versions.MATCH_ANY))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(1))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(2))
                 .get();
@@ -662,7 +659,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(Versions.MATCH_ANY))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(1))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "1").version(2))
                 .setRealtime(false)
@@ -688,7 +685,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         // Version from translog
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(Versions.MATCH_ANY))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(1))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(2))
                 .get();
@@ -713,7 +710,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(0))
+                .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(Versions.MATCH_ANY))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(1))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "type1", "2").version(2))
                 .setRealtime(false)

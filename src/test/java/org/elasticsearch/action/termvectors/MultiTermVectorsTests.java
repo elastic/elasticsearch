@@ -24,6 +24,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.junit.Test;
 
@@ -96,7 +97,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
 
         // Version from translog
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(0))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(Versions.MATCH_ANY))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(1))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(2))
                 .get();
@@ -119,7 +120,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(0).realtime(false))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(Versions.MATCH_ANY).realtime(false))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(1).realtime(false))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "1").selectedFields("field").version(2).realtime(false))
                 .get();
@@ -144,7 +145,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
 
         // Version from translog
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(0))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(Versions.MATCH_ANY))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(1))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(2))
                 .get();
@@ -169,7 +170,7 @@ public class MultiTermVectorsTests extends AbstractTermVectorsTests {
         //Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(0))
+                .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(Versions.MATCH_ANY))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(1))
                 .add(new TermVectorsRequest(indexOrAlias(), "type1", "2").selectedFields("field").version(2))
                 .get();

@@ -19,30 +19,26 @@
 
 package org.elasticsearch.common.lucene.uid;
 
-import java.io.IOException;
-import java.util.concurrent.ConcurrentMap;
-
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReader.ReaderClosedListener;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+
+import java.io.IOException;
+import java.util.concurrent.ConcurrentMap;
 
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
 public class Versions {
 
     public static final long MATCH_ANY = -3L; // Version was not specified by the user
-    // TODO: can we remove this now?  rolling upgrades only need to handle prev (not older than that) version...?
-    // the value for MATCH_ANY before ES 1.2.0 - will be removed
-    public static final long MATCH_ANY_PRE_1_2_0 = 0L;
     public static final long NOT_FOUND = -1L;
     public static final long NOT_SET = -2L;
 
     // TODO: is there somewhere else we can store these?
-    private static final ConcurrentMap<IndexReader,CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private static final ConcurrentMap<IndexReader, CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
     private static final ReaderClosedListener removeLookupState = new ReaderClosedListener() {
@@ -53,14 +49,14 @@ public class Versions {
                 ctl.close();
             }
         }
-      };
+    };
 
     private static PerThreadIDAndVersionLookup getLookupState(IndexReader reader) throws IOException {
         CloseableThreadLocal<PerThreadIDAndVersionLookup> ctl = lookupStates.get(reader);
         if (ctl == null) {
             // First time we are seeing this reader; make a
             // new CTL:
-            ctl = new CloseableThreadLocal<PerThreadIDAndVersionLookup>();
+            ctl = new CloseableThreadLocal<>();
             CloseableThreadLocal<PerThreadIDAndVersionLookup> other = lookupStates.putIfAbsent(reader, ctl);
             if (other == null) {
                 // Our CTL won, we must remove it when the

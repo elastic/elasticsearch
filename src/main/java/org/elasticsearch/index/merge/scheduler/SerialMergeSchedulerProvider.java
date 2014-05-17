@@ -43,25 +43,26 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 5;
 
     private Set<CustomSerialMergeScheduler> schedulers = new CopyOnWriteArraySet<>();
-    private final int maxMergeAtOnce;
 
     @Inject
     public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(shardId, indexSettings, threadPool);
         Integer value = componentSettings.getAsInt("max_merge_at_once", null);
         if (value != null) {
-            logger.warn("ignoring max_merge_at_once [{}], because we are using ConcurrentMergeScheduler(1, 1)", value);
-        } else {
-            value = DEFAULT_MAX_MERGE_AT_ONCE;
+            logger.warn("ignoring index.merge.scheduler.max_merge_at_once [{}], because we are using ConcurrentMergeScheduler(1, 2)", value);
         }
-        this.maxMergeAtOnce = value;
-        logger.trace("using [concurrent] merge scheduler, max_thread_count=1, max_merge_count=1");
+        logger.trace("using [concurrent] merge scheduler, max_thread_count=1, max_merge_count=2");
+    }
+
+    @Override
+    public int getMaxMerges() {
+        return 2;
     }
 
     @Override
     public MergeScheduler buildMergeScheduler() {
         CustomSerialMergeScheduler scheduler = new CustomSerialMergeScheduler(logger, shardId, this);
-        scheduler.setMaxMergesAndThreads(1, 1);
+        scheduler.setMaxMergesAndThreads(1, 2); // we add max merge count = 2 to make sure we stall once a second merge comes in.
         schedulers.add(scheduler);
         return scheduler;
     }

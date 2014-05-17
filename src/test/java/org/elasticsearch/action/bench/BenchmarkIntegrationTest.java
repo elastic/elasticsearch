@@ -238,7 +238,6 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             final AbortBenchmarkResponse abortResponse =
                     client().prepareAbortBench(BENCHMARK_NAME).get();
             aborted = true;
-            waitForTestLatch.countDown();
             // Confirm that the benchmark was actually aborted and did not finish on its own
             assertThat(abortResponse.getNodeResponses().size(), lessThanOrEqualTo(numExecutorNodes));
             assertThat(abortResponse.getBenchmarkName(), equalTo(BENCHMARK_NAME));
@@ -250,6 +249,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             }
             // Confirm that there are no active benchmarks in the cluster
             final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
+            waitForTestLatch.countDown(); // let the queries go - we already aborted and got the status
             assertThat(statusResponse.totalActiveBenchmarks(), equalTo(0));
 
             // Confirm that benchmark was indeed aborted

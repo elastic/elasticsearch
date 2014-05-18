@@ -82,14 +82,14 @@ level or on index level.
 [source,js]
 --------------------------------------------------
 # Node Stats
-curl localhost:9200/_nodes/stats/indices/?fields=field1,field2?pretty
+curl localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty
 
 # Indices Stat
-curl localhost:9200/_stats/fielddata/?fields=field1,field2?pretty
+curl localhost:9200/_stats/fielddata/?fields=field1,field2&pretty
 
 # You can use wildcards for field names
-curl localhost:9200/_stats/fielddata/?fields=field*?pretty
-curl localhost:9200/_nodes/stats/indices/?fields=field*?pretty
+curl localhost:9200/_stats/fielddata/?fields=field*&pretty
+curl localhost:9200/_nodes/stats/indices/?fields=field*&pretty
 --------------------------------------------------
 
 [float]

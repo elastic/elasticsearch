@@ -351,7 +351,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 }
             }
             if (version >= 3) {
-                this.version = Versions.readVersion(in);
+                this.version = in.readLong();
             }
             if (version >= 4) {
                 this.timestamp = in.readLong();
@@ -384,7 +384,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 out.writeBoolean(true);
                 out.writeString(parent);
             }
-            Versions.writeVersion(version, out);
+            out.writeLong(version);
             out.writeLong(timestamp);
             out.writeLong(ttl);
             out.writeByte(versionType.getValue());
@@ -494,7 +494,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 }
             }
             if (version >= 3) {
-                this.version = Versions.readVersion(in);
+                this.version = in.readLong();
             }
             if (version >= 4) {
                 this.timestamp = in.readLong();
@@ -527,7 +527,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 out.writeBoolean(true);
                 out.writeString(parent);
             }
-            Versions.writeVersion(version, out);
+            out.writeLong(version);
             out.writeLong(timestamp);
             out.writeLong(ttl);
             out.writeByte(versionType.getValue());
@@ -586,7 +586,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
             int version = in.readVInt(); // version
             uid = new Term(in.readString(), in.readString());
             if (version >= 1) {
-                this.version = Versions.readVersion(in);
+                this.version = in.readLong();
             }
             if (version >= 2) {
                 this.versionType = VersionType.fromValue(in.readByte());
@@ -600,7 +600,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
             out.writeVInt(SERIALIZATION_FORMAT);
             out.writeString(uid.field());
             out.writeString(uid.text());
-            Versions.writeVersion(version, out);
+            out.writeLong(version);
             out.writeByte(versionType.getValue());
         }
     }

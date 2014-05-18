@@ -440,13 +440,28 @@ public class RandomizingClient implements InternalClient {
     }
 
     @Override
-    public void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
-        delegate.benchStatus(request, listener);
+    public void benchStatus(BenchmarkControlRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+        delegate.controlBenchmark(request, listener);
     }
 
     @Override
-    public BenchmarkStatusRequestBuilder prepareBenchStatus() {
-        return delegate.prepareBenchStatus();
+    public BenchmarkControlRequestBuilder prepareBenchStatus() {
+        return delegate.prepareControlBenchmark();
+    }
+
+    @Override
+    public void controlBenchmark(BenchmarkControlRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+        delegate.controlBenchmark(request, listener);
+    }
+
+    @Override
+    public BenchmarkControlRequestBuilder prepareControlBenchmark(String benchmarkName) {
+        return delegate.prepareControlBenchmark(benchmarkName);
+    }
+
+    @Override
+    public BenchmarkControlRequestBuilder prepareControlBenchmark() {
+        return delegate.prepareControlBenchmark();
     }
 
     @Override

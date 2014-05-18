@@ -20,32 +20,33 @@
 package org.elasticsearch.action.bench;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 
 /**
- * Transport action for benchmark status requests
+ *
  */
-public class TransportBenchmarkStatusAction extends TransportMasterNodeOperationAction<BenchmarkStatusRequest, BenchmarkStatusResponse> {
+public class TransportBenchmarkControlAction extends TransportMasterNodeOperationAction<BenchmarkControlRequest, BenchmarkStatusResponse> {
 
     private final BenchmarkService service;
 
     @Inject
-    public TransportBenchmarkStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, BenchmarkService service) {
+    public TransportBenchmarkControlAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                           ThreadPool threadPool, BenchmarkService service) {
         super(settings, transportService, clusterService, threadPool);
         this.service = service;
     }
 
     @Override
     protected String transportAction() {
-        return BenchmarkStatusAction.NAME;
+        return BenchmarkControlAction.NAME;
     }
 
     @Override
@@ -54,8 +55,8 @@ public class TransportBenchmarkStatusAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected BenchmarkStatusRequest newRequest() {
-        return new BenchmarkStatusRequest();
+    protected BenchmarkControlRequest newRequest() {
+        return new BenchmarkControlRequest();
     }
 
     @Override
@@ -64,8 +65,20 @@ public class TransportBenchmarkStatusAction extends TransportMasterNodeOperation
     }
 
     @Override
-    protected void masterOperation(BenchmarkStatusRequest request, ClusterState state, ActionListener<BenchmarkStatusResponse> listener)
+    protected void masterOperation(BenchmarkControlRequest request, ClusterState state, ActionListener<BenchmarkStatusResponse> listener)
             throws ElasticsearchException {
-        service.listBenchmarks(request, listener);
+        switch (request.command()) {
+            case PAUSE:
+                service.pauseBenchmark(request, listener);
+                break;
+            case RESUME:
+                service.resumeBenchmark(request, listener);
+                break;
+            case STATUS:
+                service.listBenchmarks(request, listener);
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown benchmark control command [" + request.command() + "]");
+        }
     }
 }

@@ -23,24 +23,24 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.Client;
 
 /**
- * Benchmark status action
+ * Benchmark pause action
  */
-public class BenchmarkStatusAction extends Action<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder> {
+public class BenchmarkControlAction extends Action<BenchmarkControlRequest, BenchmarkStatusResponse, BenchmarkControlRequestBuilder> {
 
-    public static final BenchmarkStatusAction INSTANCE = new BenchmarkStatusAction();
-    public static final String NAME = "benchmark/status";
+    public static final BenchmarkControlAction INSTANCE = new BenchmarkControlAction();
+    public static final String NAME = "benchmark/control";
 
-    public BenchmarkStatusAction() {
+    public BenchmarkControlAction() {
         super(NAME);
+    }
+
+    @Override
+    public BenchmarkControlRequestBuilder newRequestBuilder(Client client) {
+        return new BenchmarkControlRequestBuilder(client);
     }
 
     @Override
     public BenchmarkStatusResponse newResponse() {
         return new BenchmarkStatusResponse();
-    }
-
-    @Override
-    public BenchmarkStatusRequestBuilder newRequestBuilder(Client client) {
-        return new BenchmarkStatusRequestBuilder(client);
     }
 }

@@ -41,13 +41,15 @@ import java.util.concurrent.*;
  */
 public class BenchmarkExecutor {
 
-    private static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
+    protected static final ESLogger logger = Loggers.getLogger(BenchmarkExecutor.class);
 
     private final Client client;
     private String nodeName;
     private final ClusterService clusterService;
     private volatile ImmutableOpenMap<String, BenchmarkState> activeBenchmarks = ImmutableOpenMap.of();
     private final Object lock = new Object();
+    protected final Semaphore submissionControl = new Semaphore(1);
+
 
     public BenchmarkExecutor(Client client, ClusterService clusterService) {
         this.client = client;
@@ -55,14 +57,68 @@ public class BenchmarkExecutor {
     }
 
     private static class BenchmarkState {
-        final String id;
-        final StoppableSemaphore semaphore;
-        final BenchmarkResponse response;
 
-        BenchmarkState(BenchmarkRequest request, BenchmarkResponse response, StoppableSemaphore semaphore) {
-            this.id = request.benchmarkName();
+        final BenchmarkRequest request;
+        final BenchmarkResponse response;
+        final Map<String, StoppableSemaphore> warmupSemaphore;
+        final Map<String, StoppableSemaphore> iterationSemaphore;
+
+        BenchmarkState(BenchmarkRequest request, BenchmarkResponse response) {
+
+            this.request = request;
             this.response = response;
-            this.semaphore = semaphore;
+            warmupSemaphore = new HashMap<>();
+            iterationSemaphore = new HashMap<>();
+
+            // Pre-allocate per-competitor semaphores so that we can pause/resume executions
+            // without regard to where in its lifecycle a competition is.
+            for (BenchmarkCompetitor competitor : request.competitors()) {
+                warmupSemaphore.put(competitor.name(), new StoppableSemaphore(competitor.settings().concurrency()));
+                iterationSemaphore.put(competitor.name(), new StoppableSemaphore(competitor.settings().concurrency()));
+            }
+        }
+
+        StoppableSemaphore competitionWarmUpSemaphore(String competitionName) {
+            final StoppableSemaphore semaphore = warmupSemaphore.get(competitionName);
+            assert semaphore != null;
+            return semaphore;
+        }
+
+        StoppableSemaphore competitionIterationSemaphore(String competitionName) {
+            final StoppableSemaphore semaphore = iterationSemaphore.get(competitionName);
+            assert semaphore != null;
+            return semaphore;
+        }
+
+        synchronized void stopAllCompetitors() {
+            for (BenchmarkCompetitor competitor : request.competitors()) {
+                competitionWarmUpSemaphore(competitor.name()).stop();
+                competitionIterationSemaphore(competitor.name()).stop();
+            }
+        }
+
+        synchronized void pauseAllCompetitors() throws InterruptedException {
+            for (BenchmarkCompetitor competitor : request.competitors()) {
+                competitionWarmUpSemaphore(competitor.name()).pause();
+                competitionIterationSemaphore(competitor.name()).pause();
+            }
+        }
+
+        synchronized void resumeAllCompetitors() {
+            for (BenchmarkCompetitor competitor : request.competitors()) {
+                competitionWarmUpSemaphore(competitor.name()).resume();
+                competitionIterationSemaphore(competitor.name()).resume();
+            }
+        }
+
+        boolean anyCompetitorPaused() {
+            for (BenchmarkCompetitor competitor : request.competitors()) {
+                if (competitionWarmUpSemaphore(competitor.name()).paused ||
+                    competitionIterationSemaphore(competitor.name()).paused) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -78,7 +134,7 @@ public class BenchmarkExecutor {
         if (state == null) {
             throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
         }
-        state.semaphore.stop();
+        state.stopAllCompetitors();
         activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(benchmarkName).build();
         logger.debug("Aborted benchmark [{}] on [{}]", benchmarkName, nodeName());
         return new AbortBenchmarkNodeResponse(benchmarkName, nodeName());
@@ -91,6 +147,9 @@ public class BenchmarkExecutor {
      */
     public BenchmarkStatusNodeResponse benchmarkStatus() {
 
+        int totalActive = 0;
+        int totalPaused = 0;
+
         BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
         final ImmutableOpenMap<String, BenchmarkState> activeBenchmarks = this.activeBenchmarks;
         UnmodifiableIterator<String> iter = activeBenchmarks.keysIt();
@@ -98,11 +157,69 @@ public class BenchmarkExecutor {
             String id = iter.next();
             BenchmarkState state = activeBenchmarks.get(id);
             response.addBenchResponse(state.response);
+
+            if (state.anyCompetitorPaused()) {
+                totalPaused++;
+            } else {
+                totalActive++;
+            }
         }
 
-        logger.debug("Reporting [{}] active benchmarks on [{}]", response.activeBenchmarks(), nodeName());
+        logger.debug("Reporting [{}] active, [{}] paused benchmarks on [{}]", totalActive, totalPaused, nodeName());
         return response;
     }
+
+    /**
+     * Pauses the execution of the named benchmark
+     * @param benchmarkName     The benchmark to pause
+     * @return                  Node status
+     */
+    public BenchmarkStatusNodeResponse pauseBenchmark(String benchmarkName) {
+
+        final BenchmarkState state = benchmarkState(benchmarkName);
+        try {
+            state.pauseAllCompetitors();
+        } catch (InterruptedException e) {
+            throw new BenchmarkExecutionException("Unable to pause [" + benchmarkName + "] on [" + nodeName() + "]", e);
+        }
+        state.response.state(BenchmarkResponse.State.PAUSED);
+        BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
+        response.addBenchResponse(state.response);
+
+        logger.debug("Pausing benchmark [{}] on [{}]", benchmarkName, nodeName());
+        return response;
+    }
+
+    /**
+     * Resumes execution of the named benchmark
+     * @param benchmarkName     The benchmark to resume
+     * @return                  Node status
+     */
+    public BenchmarkStatusNodeResponse resumeBenchmark(String benchmarkName) {
+
+        final BenchmarkState state = benchmarkState(benchmarkName);
+        state.resumeAllCompetitors();
+        state.response.state(BenchmarkResponse.State.RUNNING);
+        BenchmarkStatusNodeResponse response = new BenchmarkStatusNodeResponse();
+        response.addBenchResponse(state.response);
+
+        logger.debug("Resuming benchmark [{}] on [{}]", benchmarkName, nodeName());
+        return response;
+    }
+
+    private BenchmarkState benchmarkState(String benchmarkName) {
+        final BenchmarkState state = activeBenchmarks.get(benchmarkName);
+        if (state == null) {
+            throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
+        }
+        return state;
+    }
+
+    // Sub-class hook for mock implementations to control submissions
+    protected void obtainSubmissionControl() throws InterruptedException { }
+
+    // Sub-class hook for mock implementations to control submissions
+    protected void releaseSubmissionControl() { }
 
     /**
      * Submits a search benchmark for execution
@@ -113,20 +230,20 @@ public class BenchmarkExecutor {
      */
     public BenchmarkResponse benchmark(BenchmarkRequest request) throws ElasticsearchException {
 
-        final StoppableSemaphore semaphore = new StoppableSemaphore(1);
-        final Map<String, CompetitionResult> competitionResults = new HashMap<String, CompetitionResult>();
+        final Map<String, CompetitionResult> competitionResults = new HashMap<>();
         final BenchmarkResponse benchmarkResponse = new BenchmarkResponse(request.benchmarkName(), competitionResults);
+        final BenchmarkState state = new BenchmarkState(request, benchmarkResponse);
 
         synchronized (lock) {
             if (activeBenchmarks.containsKey(request.benchmarkName())) {
                 throw new ElasticsearchException("Benchmark [" + request.benchmarkName() + "] is already running on [" + nodeName() + "]");
             }
-
-            activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fPut(
-                    request.benchmarkName(), new BenchmarkState(request, benchmarkResponse, semaphore)).build();
+            activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fPut(request.benchmarkName(), state).build();
         }
 
         try {
+            obtainSubmissionControl();  // No-op unless sub-classed
+
             for (BenchmarkCompetitor competitor : request.competitors()) {
 
                 final BenchmarkSettings settings = competitor.settings();
@@ -134,7 +251,7 @@ public class BenchmarkExecutor {
                 logger.debug("Executing [iterations: {}] [multiplier: {}] for [{}] on [{}]",
                         iterations, settings.multiplier(), request.benchmarkName(), nodeName());
 
-                final List<CompetitionIteration> competitionIterations = new ArrayList<>(iterations);
+                final List<CompetitionIteration> competitionIterations = new CopyOnWriteArrayList<>();
                 final CompetitionResult competitionResult =
                         new CompetitionResult(competitor.name(), settings.concurrency(), settings.multiplier(), request.percentiles());
                 final CompetitionNodeResult competitionNodeResult =
@@ -147,12 +264,14 @@ public class BenchmarkExecutor {
 
                 if (settings.warmup()) {
                     final long beforeWarmup = System.nanoTime();
-                    final List<String> warmUpErrors = warmUp(competitor, searchRequests, semaphore);
+                    final List<String> warmUpErrors =
+                            warmUp(searchRequests, state.competitionWarmUpSemaphore(competitor.name()));
                     final long afterWarmup = System.nanoTime();
                     competitionNodeResult.warmUpTime(TimeUnit.MILLISECONDS.convert(afterWarmup - beforeWarmup, TimeUnit.NANOSECONDS));
                     if (!warmUpErrors.isEmpty()) {
                         throw new BenchmarkExecutionException("Failed to execute warmup phase", warmUpErrors);
                     }
+                    state.competitionWarmUpSemaphore(competitor.name()).stop();
                 }
 
                 final int numMeasurements = settings.multiplier() * searchRequests.size();
@@ -170,13 +289,15 @@ public class BenchmarkExecutor {
 
                     // Run the iteration
                     CompetitionIteration ci =
-                            runIteration(competitor, searchRequests, timeBuckets, docBuckets, semaphore);
+                            runIteration(competitor, searchRequests, timeBuckets, docBuckets,
+                                    state.competitionIterationSemaphore(competitor.name()));
                     ci.percentiles(request.percentiles());
                     competitionIterations.add(ci);
                     competitionNodeResult.incrementCompletedIterations();
                 }
 
                 competitionNodeResult.totalExecutedQueries(settings.multiplier() * searchRequests.size() * iterations);
+                state.competitionIterationSemaphore(competitor.name()).stop();
             }
 
             benchmarkResponse.state(BenchmarkResponse.State.COMPLETE);
@@ -193,7 +314,6 @@ public class BenchmarkExecutor {
             benchmarkResponse.errors(ex.getMessage());
         } finally {
             synchronized (lock) {
-                semaphore.stop();
                 activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(request.benchmarkName()).build();
             }
         }
@@ -201,15 +321,16 @@ public class BenchmarkExecutor {
         return benchmarkResponse;
     }
 
-    private List<String> warmUp(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests, StoppableSemaphore stoppableSemaphore)
+    private List<String> warmUp(List<SearchRequest> searchRequests, StoppableSemaphore semaphore)
             throws InterruptedException {
-        final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
+
         final CountDownLatch totalCount = new CountDownLatch(searchRequests.size());
         final CopyOnWriteArrayList<String> errorMessages = new CopyOnWriteArrayList<>();
 
         for (SearchRequest searchRequest : searchRequests) {
             semaphore.acquire();
-            client.search(searchRequest, new BoundsManagingActionListener<SearchResponse>(semaphore, totalCount, errorMessages) { } );
+            client.search(searchRequest,
+                    new BoundsManagingActionListener<SearchResponse>(semaphore, totalCount, errorMessages) { } );
         }
         totalCount.await();
         return errorMessages;
@@ -217,12 +338,10 @@ public class BenchmarkExecutor {
 
     private CompetitionIteration runIteration(BenchmarkCompetitor competitor, List<SearchRequest> searchRequests,
                                               final long[] timeBuckets, final long[] docBuckets,
-                                              StoppableSemaphore stoppableSemaphore) throws InterruptedException {
+                                              StoppableSemaphore semaphore) throws InterruptedException {
 
         assert timeBuckets.length == competitor.settings().multiplier() * searchRequests.size();
         assert docBuckets.length == competitor.settings().multiplier() * searchRequests.size();
-
-        final StoppableSemaphore semaphore = stoppableSemaphore.reset(competitor.settings().concurrency());
 
         Arrays.fill(timeBuckets, -1);   // wipe CPU cache     ;)
         Arrays.fill(docBuckets, -1);    // wipe CPU cache     ;)
@@ -357,7 +476,6 @@ public class BenchmarkExecutor {
             } finally {
                 manage(); // first add the msg then call the count down on the latch otherwise we might iss one error
             }
-
         }
     }
 
@@ -399,10 +517,13 @@ public class BenchmarkExecutor {
 
     private final static class StoppableSemaphore {
         private Semaphore semaphore;
+        private final int concurrency;
         private volatile boolean stopped = false;
+        private volatile boolean paused = false;
 
         public StoppableSemaphore(int concurrency) {
             semaphore = new Semaphore(concurrency);
+            this.concurrency = concurrency;
         }
 
         public StoppableSemaphore reset(int concurrency) {
@@ -421,12 +542,29 @@ public class BenchmarkExecutor {
             semaphore.release();
         }
 
-        public void stop() {
+        public synchronized void stop() {
             stopped = true;
+            if (paused) {
+                resume();
+            }
+        }
+
+        public synchronized void pause() throws InterruptedException {
+            if (!stopped && !paused) {
+                semaphore.acquire(concurrency);
+                paused = true;
+            }
+        }
+
+        public synchronized void resume() {
+            if (paused) {
+                paused = false;
+                semaphore.release(concurrency);
+            }
         }
     }
 
-    private String nodeName() {
+    protected String nodeName() {
         if (nodeName == null) {
             nodeName = clusterService.localNode().name();
         }

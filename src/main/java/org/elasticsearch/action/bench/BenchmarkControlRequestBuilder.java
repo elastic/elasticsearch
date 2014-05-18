@@ -25,16 +25,30 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 
 /**
- * Request builder for benchmark status
+ * Request builder for benchmark pause
  */
-public class BenchmarkStatusRequestBuilder extends ActionRequestBuilder<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder> {
+public class BenchmarkControlRequestBuilder extends ActionRequestBuilder<BenchmarkControlRequest, BenchmarkStatusResponse, BenchmarkControlRequestBuilder> {
 
-    public BenchmarkStatusRequestBuilder(Client client) {
-        super((InternalClient) client, new BenchmarkStatusRequest());
+    public BenchmarkControlRequestBuilder(Client client) {
+        super((InternalClient) client, new BenchmarkControlRequest());
+    }
+
+    public BenchmarkControlRequestBuilder setBenchmarkName(String benchmarkName) {
+        request.benchmarkName(benchmarkName);
+        return this;
+    }
+
+    public BenchmarkControlRequestBuilder setBenchmarkName() {
+        return this;
+    }
+
+    public BenchmarkControlRequestBuilder setCommand(BenchmarkControlRequest.Command command) {
+        request.command(command);
+        return this;
     }
 
     @Override
     protected void doExecute(ActionListener<BenchmarkStatusResponse> listener) {
-        ((Client) client).benchStatus(request, listener);
+        ((Client) client).controlBenchmark(request, listener);
     }
 }

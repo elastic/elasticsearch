@@ -73,14 +73,19 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     @Inject
     public BenchmarkService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
                             Client client, TransportService transportService) {
+        this(settings, clusterService, threadPool, client, transportService, new BenchmarkExecutor(client, clusterService));
+    }
+
+    protected BenchmarkService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
+                               Client client, TransportService transportService, BenchmarkExecutor benchmarkExecutor) {
         super(settings);
         this.threadPool = threadPool;
-        this.executor = new BenchmarkExecutor(client, clusterService);
+        this.executor = benchmarkExecutor;
         this.clusterService = clusterService;
         this.transportService = transportService;
         transportService.registerHandler(BenchExecutionHandler.ACTION, new BenchExecutionHandler());
         transportService.registerHandler(AbortExecutionHandler.ACTION, new AbortExecutionHandler());
-        transportService.registerHandler(StatusExecutionHandler.ACTION, new StatusExecutionHandler());
+        transportService.registerHandler(ControlExecutionHandler.ACTION, new ControlExecutionHandler());
     }
 
     @Override
@@ -92,22 +97,31 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     @Override
     protected void doClose() throws ElasticsearchException { }
 
-    /**
-     * Lists actively running benchmarks on the cluster
-     *
-     * @param request   Status request
-     * @param listener  Response listener
-     */
-    public void listBenchmarks(final BenchmarkStatusRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
+    public void listBenchmarks(final BenchmarkControlRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
+        assert request.command() == BenchmarkControlRequest.Command.STATUS;
+        controlBenchmark(request, listener);
+    }
+
+    public void pauseBenchmark(final BenchmarkControlRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
+        assert request.command() == BenchmarkControlRequest.Command.PAUSE;
+        controlBenchmark(request, listener);
+    }
+
+    public void resumeBenchmark(final BenchmarkControlRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
+        assert request.command() == BenchmarkControlRequest.Command.RESUME;
+        controlBenchmark(request, listener);
+    }
+
+    private void controlBenchmark(final BenchmarkControlRequest request, final ActionListener<BenchmarkStatusResponse> listener) {
 
         final List<DiscoveryNode> nodes = availableBenchmarkNodes();
         if (nodes.size() == 0) {
             listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmarks"));
         } else {
-            BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), request, listener);
+            BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), listener);
             for (DiscoveryNode node : nodes) {
                 assert isBenchmarkNode(node);
-                transportService.sendRequest(node, StatusExecutionHandler.ACTION, new NodeStatusRequest(request), async);
+                transportService.sendRequest(node, ControlExecutionHandler.ACTION, new NodeControlRequest(request), async);
             }
         }
     }
@@ -291,6 +305,44 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         }
     }
 
+    private class ControlExecutionHandler extends BaseTransportRequestHandler<NodeControlRequest> {
+
+        static final String ACTION = "benchmark/executor/control";
+
+        @Override
+        public NodeControlRequest newInstance() {
+            return new NodeControlRequest();
+        }
+
+        @Override
+        public void messageReceived(NodeControlRequest request, TransportChannel channel) throws Exception {
+
+            final BenchmarkStatusNodeResponse nodeResponse;
+
+            switch (request.request.command()) {
+                case PAUSE:
+                    nodeResponse = executor.pauseBenchmark(request.request.benchmarkName());
+                    break;
+                case RESUME:
+                    nodeResponse = executor.resumeBenchmark(request.request.benchmarkName());
+                    break;
+                case STATUS:
+                    nodeResponse = executor.benchmarkStatus();
+                    break;
+                default:
+                    throw new ElasticsearchIllegalStateException("Invalid control command [" + request.request.command() + "]");
+            }
+
+            nodeResponse.nodeName(clusterService.localNode().name());
+            channel.sendResponse(nodeResponse);
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.GENERIC;
+        }
+    }
+
     private class AbortExecutionHandler extends BaseTransportRequestHandler<NodeAbortRequest> {
 
         static final String ACTION = "benchmark/executor/abort";
@@ -348,6 +400,31 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         public NodeStatusRequest() {
             this(new BenchmarkStatusRequest());
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            request.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            request.writeTo(out);
+        }
+    }
+
+    public static class NodeControlRequest extends TransportRequest {
+
+        final BenchmarkControlRequest request;
+
+        public NodeControlRequest(BenchmarkControlRequest request) {
+            this.request = request;
+        }
+
+        public NodeControlRequest() {
+            this(new BenchmarkControlRequest());
         }
 
         @Override
@@ -451,12 +528,10 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
     private class BenchmarkStatusAsyncHandler extends CountDownAsyncHandler<BenchmarkStatusNodeResponse> {
 
-        private final BenchmarkStatusRequest request;
         private final ActionListener<BenchmarkStatusResponse> listener;
 
-        public BenchmarkStatusAsyncHandler(int nodeCount, final BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+        public BenchmarkStatusAsyncHandler(int nodeCount, ActionListener<BenchmarkStatusResponse> listener) {
             super(nodeCount);
-            this.request = request;
             this.listener = listener;
         }
 

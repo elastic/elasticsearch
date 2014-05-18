@@ -59,15 +59,17 @@ public class BenchmarkResponse extends ActionResponse implements Streamable, ToX
     /**
      * Benchmarks can be in one of:
      *  RUNNING     - executing normally
+     *  PAUSED      - execution suspended
      *  COMPLETE    - completed normally
      *  ABORTED     - aborted
      *  FAILED      - execution failed
      */
     public static enum State {
         RUNNING((byte) 0),
-        COMPLETE((byte) 1),
-        ABORTED((byte) 2),
-        FAILED((byte) 3);
+        PAUSED((byte) 1),
+        COMPLETE((byte) 2),
+        ABORTED((byte) 3),
+        FAILED((byte) 4);
 
         private final byte id;
         private static final State[] STATES = new State[State.values().length];

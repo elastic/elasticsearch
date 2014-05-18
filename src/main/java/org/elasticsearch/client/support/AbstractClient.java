@@ -409,12 +409,27 @@ public abstract class AbstractClient implements InternalClient {
     }
 
     @Override
-    public void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
-        execute(BenchmarkStatusAction.INSTANCE, request, listener);
+    public BenchmarkControlRequestBuilder prepareBenchStatus() {
+        return new BenchmarkControlRequestBuilder(this);
     }
 
     @Override
-    public BenchmarkStatusRequestBuilder prepareBenchStatus() {
-        return new BenchmarkStatusRequestBuilder(this);
+    public void benchStatus(BenchmarkControlRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+        execute(BenchmarkControlAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public void controlBenchmark(BenchmarkControlRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+        execute(BenchmarkControlAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public BenchmarkControlRequestBuilder prepareControlBenchmark(String benchmarkName) {
+        return new BenchmarkControlRequestBuilder(this).setBenchmarkName(benchmarkName);
+    }
+
+    @Override
+    public BenchmarkControlRequestBuilder prepareControlBenchmark() {
+        return new BenchmarkControlRequestBuilder(this).setBenchmarkName();
     }
 }

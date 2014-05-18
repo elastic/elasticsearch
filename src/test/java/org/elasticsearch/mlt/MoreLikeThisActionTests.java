@@ -19,6 +19,7 @@
 
 package org.elasticsearch.mlt;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -37,6 +38,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import static org.elasticsearch.client.Requests.*;
@@ -407,17 +409,33 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setTypes("type1")
                 .setQuery(queryBuilder)
+                .setSize(texts.length)
                 .execute().actionGet();
         assertSearchResponse(mltResponseDSL);
 
         logger.info("Running MoreLikeThis API");
-        MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").id("0").minTermFreq(1).minDocFreq(1);
+        MoreLikeThisRequest mltRequest = moreLikeThisRequest("test").type("type1").searchSize(texts.length).id("0").minTermFreq(1).minDocFreq(1);
         SearchResponse mltResponseAPI = client.moreLikeThis(mltRequest).actionGet();
         assertSearchResponse(mltResponseAPI);
 
         logger.info("Ensure the documents and scores returned are the same.");
         SearchHit[] hitsDSL = mltResponseDSL.getHits().hits();
         SearchHit[] hitsAPI = mltResponseAPI.getHits().hits();
+
+        // we have to resort since the results might come from
+        // different shards and docIDs that are used for tie-breaking might not be the same on the shards
+        Comparator<SearchHit> cmp = new Comparator<SearchHit>() {
+
+            @Override
+            public int compare(SearchHit o1, SearchHit o2) {
+                if (Float.compare(o1.getScore(), o2.getScore()) == 0) {
+                    return o1.getId().compareTo(o2.getId());
+                }
+                return Float.compare(o1.getScore(), o2.getScore());
+            }
+        };
+        ArrayUtil.timSort(hitsDSL, cmp);
+        ArrayUtil.timSort(hitsAPI, cmp);
         assertThat("Not the same number of results.", hitsAPI.length, equalTo(hitsDSL.length));
         for (int i = 0; i < hitsDSL.length; i++) {
             assertThat("Expected id: " + hitsDSL[i].getId() + " at position " + i + " but wasn't.",

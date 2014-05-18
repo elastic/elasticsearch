@@ -126,9 +126,9 @@ public final class NoisyChannelSpellChecker {
             double inputPhraseScore = scorer.score(candidates, candidateSets);
             cutoffScore = inputPhraseScore * confidence;
         }
-        Correction[] findBestCandiates = scorer.findBestCandiates(candidateSets, maxErrors, cutoffScore);
+        Correction[] bestCandidates = scorer.findBestCandiates(candidateSets, maxErrors, cutoffScore);
         
-        return new Result(findBestCandiates, cutoffScore);
+        return new Result(bestCandidates, cutoffScore);
     }
 
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,

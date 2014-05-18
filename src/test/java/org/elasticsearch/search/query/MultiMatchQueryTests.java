@@ -211,6 +211,15 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSingleField() {
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
+        assertNoFailures(searchResponse);
+        assertFirstHit(searchResponse, hasId("theone"));
+        // TODO we need equivalence tests with match query here
+    }
+
+    @Test
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
         final long numDocs = client().prepareCount("test")
                 .setQuery(matchAllQuery()).get().getCount();

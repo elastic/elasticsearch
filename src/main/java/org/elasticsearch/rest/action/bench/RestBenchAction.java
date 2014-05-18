@@ -115,8 +115,8 @@ public class RestBenchAction extends BaseRestHandler {
      */
     private void handleAbortRequest(final RestRequest request, final RestChannel channel) {
 
-        String benchmarkName = request.param("name");
-        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkName);
+        final String[] benchmarkNames = Strings.splitStringByCommaToArray(request.param("name"));
+        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkNames);
 
         client.abortBench(abortBenchmarkRequest, new RestBuilderListener<AbortBenchmarkResponse>(channel) {
 

@@ -35,21 +35,10 @@ import java.util.ArrayList;
  */
 public class AbortBenchmarkResponse extends ActionResponse implements Streamable, ToXContent {
 
-    private String benchmarkName;
-    private String errorMessage;
     private List<AbortBenchmarkNodeResponse> nodeResponses = new ArrayList<>();
 
     AbortBenchmarkResponse() {
         super();
-    }
-
-    AbortBenchmarkResponse(String benchmarkName) {
-        this.benchmarkName = benchmarkName;
-    }
-
-    AbortBenchmarkResponse(String benchmarkName, String errorMessage) {
-        this.benchmarkName = benchmarkName;
-        this.errorMessage = errorMessage;
     }
 
     public void addNodeResponse(AbortBenchmarkNodeResponse nodeResponse) {
@@ -60,15 +49,9 @@ public class AbortBenchmarkResponse extends ActionResponse implements Streamable
         return nodeResponses;
     }
 
-    public String getBenchmarkName() {
-        return benchmarkName;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        benchmarkName = in.readString();
-        errorMessage = in.readOptionalString();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             AbortBenchmarkNodeResponse nodeResponse = new AbortBenchmarkNodeResponse();
@@ -80,8 +63,6 @@ public class AbortBenchmarkResponse extends ActionResponse implements Streamable
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(benchmarkName);
-        out.writeOptionalString(errorMessage);
         out.writeVInt(nodeResponses.size());
         for (AbortBenchmarkNodeResponse nodeResponse : nodeResponses) {
             nodeResponse.writeTo(out);
@@ -90,9 +71,6 @@ public class AbortBenchmarkResponse extends ActionResponse implements Streamable
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (errorMessage != null && !errorMessage.isEmpty()) {
-            builder.field(Fields.ERROR, errorMessage);
-        }
         if (nodeResponses.size() > 0) {
             builder.startArray(Fields.ABORTED);
             for (AbortBenchmarkNodeResponse nodeResponse : nodeResponses) {
@@ -104,7 +82,6 @@ public class AbortBenchmarkResponse extends ActionResponse implements Streamable
     }
 
     static final class Fields {
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
         static final XContentBuilderString ABORTED = new XContentBuilderString("aborted_benchmarks");
     }
 }

@@ -28,21 +28,83 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Node-level response for the status of a benchmark abort request
  */
 public class AbortBenchmarkNodeResponse extends ActionResponse implements Streamable, ToXContent {
 
-    private String benchmarkName;
     private String nodeName;
-    private String errorMessage;
+    private List<AbortBenchmarkNodeStatus> abortBenchmarkNodeStatuses = new ArrayList<>();
+
+    public static class AbortBenchmarkNodeStatus implements Streamable, ToXContent {
+        String benchmarkName;
+        String errorMessage;
+        boolean aborted;
+
+        public AbortBenchmarkNodeStatus() { }
+
+        public AbortBenchmarkNodeStatus(String benchmarkName, boolean aborted) {
+            this(benchmarkName, "", aborted);
+        }
+
+        public AbortBenchmarkNodeStatus(String benchmarkName, String errorMessage, boolean aborted) {
+            this.benchmarkName = benchmarkName;
+            this.errorMessage = errorMessage;
+            this.aborted = aborted;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            benchmarkName = in.readString();
+            errorMessage = in.readString();
+            aborted = in.readBoolean();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(benchmarkName);
+            out.writeString(errorMessage);
+            out.writeBoolean(aborted);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Fields.BENCHMARK, benchmarkName);
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                builder.field(Fields.ERR, errorMessage);
+            }
+            builder.field(Fields.ABORTED, aborted);
+            builder.endObject();
+            return builder;
+        }
+
+        static final class Fields {
+            static final XContentBuilderString BENCHMARK = new XContentBuilderString("benchmark");
+            static final XContentBuilderString ERR = new XContentBuilderString("error");
+            static final XContentBuilderString ABORTED = new XContentBuilderString("aborted");
+        }
+    }
 
     public AbortBenchmarkNodeResponse() { }
 
-    public AbortBenchmarkNodeResponse(String benchmarkName, String nodeName) {
-        this.benchmarkName = benchmarkName;
+    public AbortBenchmarkNodeResponse(String nodeName) {
         this.nodeName = nodeName;
+    }
+
+    public void add(String benchmarkName, String error, boolean aborted) {
+        abortBenchmarkNodeStatuses.add(new AbortBenchmarkNodeStatus(benchmarkName, error, aborted));
+    }
+
+    public void add(String benchmarkName, boolean aborted) {
+        abortBenchmarkNodeStatuses.add(new AbortBenchmarkNodeStatus(benchmarkName, aborted));
+    }
+
+    public List<AbortBenchmarkNodeStatus> abortBenchmarkNodeStatuses() {
+        return abortBenchmarkNodeStatuses;
     }
 
     public void nodeName(String nodeName) {
@@ -53,41 +115,40 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         return nodeName;
     }
 
-    public String benchmarkName() {
-        return benchmarkName;
-    }
-
-    public String errorMessage() {
-        return errorMessage;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.NODE, nodeName);
-        builder.field(Fields.NAME, benchmarkName);
-        builder.field(Fields.ERRMSG, errorMessage);
-        return builder;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        benchmarkName = in.readString();
         nodeName = in.readString();
-        errorMessage = in.readOptionalString();
+        final int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            AbortBenchmarkNodeStatus status = new AbortBenchmarkNodeStatus();
+            status.readFrom(in);
+            abortBenchmarkNodeStatuses.add(status);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(benchmarkName);
         out.writeString(nodeName);
-        out.writeOptionalString(errorMessage);
+        out.writeVInt(abortBenchmarkNodeStatuses.size());
+        for (AbortBenchmarkNodeStatus status : abortBenchmarkNodeStatuses) {
+            status.writeTo(out);
+        }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.NODE, nodeName);
+        builder.startArray();
+        for (AbortBenchmarkNodeStatus status : abortBenchmarkNodeStatuses) {
+           status.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
     }
 
     static final class Fields {
         static final XContentBuilderString NODE = new XContentBuilderString("node");
-        static final XContentBuilderString NAME = new XContentBuilderString("benchmark_name");
-        static final XContentBuilderString ERRMSG = new XContentBuilderString("error_message");
     }
 }

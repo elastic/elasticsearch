@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.regex.Regex;
 
 import com.google.common.collect.UnmodifiableIterator;
 
@@ -47,7 +48,8 @@ public class BenchmarkExecutor {
     private String nodeName;
     private final ClusterService clusterService;
     private volatile ImmutableOpenMap<String, BenchmarkState> activeBenchmarks = ImmutableOpenMap.of();
-    private final Object lock = new Object();
+
+    private final Object activeStateLock = new Object();
 
     public BenchmarkExecutor(Client client, ClusterService clusterService) {
         this.client = client;
@@ -67,21 +69,31 @@ public class BenchmarkExecutor {
     }
 
     /**
-     * Aborts a benchmark with the given id
+     * Aborts benchmark(s) matching the given wildcard patterns
      *
-     * @param benchmarkName The benchmark to abort
-     * @return              Abort response
+     * @param benchmarkNamePatterns Wildcard patterns matching the benchmarks to abort
+     * @return                      Abort response
      */
-    public AbortBenchmarkNodeResponse abortBenchmark(String benchmarkName) {
+    public AbortBenchmarkNodeResponse abortBenchmark(String[] benchmarkNamePatterns) {
 
-        BenchmarkState state = activeBenchmarks.get(benchmarkName);
-        if (state == null) {
-            throw new BenchmarkMissingException("Benchmark [" + benchmarkName + "] not found on [" + nodeName() + "]");
+        final AbortBenchmarkNodeResponse response = new AbortBenchmarkNodeResponse(nodeName());
+
+        synchronized (activeStateLock) {
+            for (String pattern : benchmarkNamePatterns) {
+                UnmodifiableIterator<String> iter = activeBenchmarks.keysIt();
+                while (iter.hasNext()) {
+                    final String name = iter.next();
+                    if (Regex.simpleMatch(pattern, name)) {
+                        final BenchmarkState state = activeBenchmarks.get(name);
+                        state.semaphore.stop();
+                        activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(name).build();
+                        logger.debug("Aborted benchmark [{}] on [{}]", name, nodeName());
+                        response.add(name, true);
+                    }
+                }
+            }
         }
-        state.semaphore.stop();
-        activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(benchmarkName).build();
-        logger.debug("Aborted benchmark [{}] on [{}]", benchmarkName, nodeName());
-        return new AbortBenchmarkNodeResponse(benchmarkName, nodeName());
+        return response;
     }
 
     /**
@@ -117,7 +129,7 @@ public class BenchmarkExecutor {
         final Map<String, CompetitionResult> competitionResults = new HashMap<String, CompetitionResult>();
         final BenchmarkResponse benchmarkResponse = new BenchmarkResponse(request.benchmarkName(), competitionResults);
 
-        synchronized (lock) {
+        synchronized (activeStateLock) {
             if (activeBenchmarks.containsKey(request.benchmarkName())) {
                 throw new ElasticsearchException("Benchmark [" + request.benchmarkName() + "] is already running on [" + nodeName() + "]");
             }
@@ -192,7 +204,7 @@ public class BenchmarkExecutor {
             benchmarkResponse.state(BenchmarkResponse.State.FAILED);
             benchmarkResponse.errors(ex.getMessage());
         } finally {
-            synchronized (lock) {
+            synchronized (activeStateLock) {
                 semaphore.stop();
                 activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(request.benchmarkName()).build();
             }

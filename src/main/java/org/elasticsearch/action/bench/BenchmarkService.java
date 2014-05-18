@@ -115,46 +115,20 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     /**
      * Aborts actively running benchmarks on the cluster
      *
-     * @param benchmarkName Benchmark name to abort
-     * @param listener      Response listener
+     * @param benchmarkNames Benchmark name(s) to abort
+     * @param listener       Response listener
      */
-    public void abortBenchmark(final String benchmarkName, final ActionListener<AbortBenchmarkResponse> listener) {
+    public void abortBenchmark(final String[] benchmarkNames, final ActionListener<AbortBenchmarkResponse> listener) {
 
         final List<DiscoveryNode> nodes = availableBenchmarkNodes();
         if (nodes.size() == 0) {
             listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmarks"));
         } else {
-            BenchmarkStateListener benchmarkStateListener = new BenchmarkStateListener() {
-                @Override
-                public void onResponse(final ClusterState newState, final BenchmarkMetaData.Entry entry) {
-                    if (entry != null) {
-                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                final ImmutableOpenMap<String, DiscoveryNode> nodes = newState.nodes().nodes();
-                                BenchmarkAbortAsyncHandler async = new BenchmarkAbortAsyncHandler(entry.nodes().length, benchmarkName, listener);
-                                for (String nodeId : entry.nodes()) {
-                                    final DiscoveryNode node = nodes.get(nodeId);
-                                    if (node != null) {
-                                        transportService.sendRequest(node, AbortExecutionHandler.ACTION, new NodeAbortRequest(benchmarkName), async);
-                                    } else {
-                                        logger.debug("Node for ID [" + nodeId + "] not found in cluster state - skipping");
-                                    }
-                                }
-                            }
-                        });
-                    } else {
-                        listener.onFailure(new BenchmarkMissingException("Benchmark with name [" + benchmarkName + "] not found"));
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable t) {
-                    listener.onFailure(t);
-                }
-            };
-
-            clusterService.submitStateUpdateTask("abort_benchmark", new AbortBenchmarkTask(benchmarkName, benchmarkStateListener));
+            BenchmarkAbortAsyncHandler async = new BenchmarkAbortAsyncHandler(nodes.size(), benchmarkNames, listener);
+            for (DiscoveryNode node : nodes) {
+                assert isBenchmarkNode(node);
+                transportService.sendRequest(node, AbortExecutionHandler.ACTION, new NodeAbortRequest(benchmarkNames), async);
+            }
         }
     }
 
@@ -302,7 +276,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         public void messageReceived(NodeAbortRequest request, TransportChannel channel) throws Exception {
-            AbortBenchmarkNodeResponse nodeResponse = executor.abortBenchmark(request.benchmarkName);
+            AbortBenchmarkNodeResponse nodeResponse = executor.abortBenchmark(request.benchmarkNames);
             nodeResponse.nodeName(clusterService.localNode().name());
             channel.sendResponse(nodeResponse);
         }
@@ -315,10 +289,10 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
     }
 
     public static class NodeAbortRequest extends TransportRequest {
-        private String benchmarkName;
+        private String[] benchmarkNames;
 
-        public NodeAbortRequest(String benchmarkName) {
-            this.benchmarkName = benchmarkName;
+        public NodeAbortRequest(String[] benchmarkNames) {
+            this.benchmarkNames = benchmarkNames;
         }
 
         public NodeAbortRequest() {
@@ -328,13 +302,13 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            benchmarkName = in.readString();
+            benchmarkNames = in.readStringArray();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(benchmarkName);
+            out.writeStringArray(benchmarkNames);
         }
     }
 
@@ -424,12 +398,12 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
     private class BenchmarkAbortAsyncHandler extends CountDownAsyncHandler<AbortBenchmarkNodeResponse> {
 
-        private final String benchmarkName;
+        private String[] benchmarkNames;
         private final ActionListener<AbortBenchmarkResponse> listener;
 
-        public BenchmarkAbortAsyncHandler(int size, String benchmarkName, ActionListener<AbortBenchmarkResponse> listener) {
+        public BenchmarkAbortAsyncHandler(int size, String[] benchmarkNames, ActionListener<AbortBenchmarkResponse> listener) {
             super(size);
-            this.benchmarkName = benchmarkName;
+            this.benchmarkNames = benchmarkNames;
             this.listener = listener;
         }
 
@@ -440,8 +414,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         @Override
         protected void sendResponse() {
-            AbortBenchmarkResponse abortResponse = new AbortBenchmarkResponse(benchmarkName);
-            // Merge all node responses into a single response
+            AbortBenchmarkResponse abortResponse = new AbortBenchmarkResponse();
             for (AbortBenchmarkNodeResponse nodeResponse : responses) {
                 abortResponse.addNodeResponse(nodeResponse);
             }

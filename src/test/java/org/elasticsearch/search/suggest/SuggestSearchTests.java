@@ -758,9 +758,9 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         phraseSuggestion.analyzer(null);
         suggest = searchSuggest( "Xor the Got-Jewel", phraseSuggestion);
 
-        // In this case xorr has a better score than xorn... why?  Simon sez: because the probability that the term is not in the dictionary
-        // but is NOT a misspelling is relatively high in this case compared to the others that have no n-gram with the other terms in the
-        // phrase :) you can set this realWorldErrorLikelyhood - hope time makes sense?
+        // In this case xorr has a better score than xorn because we set the field back to the default (my_shingle2) analyzer, so the
+        // probability that the term is not in the dictionary but is NOT a misspelling is relatively high in this case compared to the
+        // others that have no n-gram with the other terms in the phrase :) you can set this realWorldErrorLikelyhood
         assertSuggestion(suggest, 0, "simple_phrase", "xorr the god jewel");
     }
 

@@ -124,48 +124,50 @@ public class FilterableTermsEnum extends TermsEnum {
 
     @Override
     public boolean seekExact(BytesRef text) throws IOException {
-        boolean found = false;
-        currentDocFreq = NOT_FOUND;
-        currentTotalTermFreq = NOT_FOUND;
         int docFreq = 0;
         long totalTermFreq = 0;
         for (Holder anEnum : enums) {
-            if (!anEnum.termsEnum.seekExact(text)) {
-                continue;
-            }
-            found = true;
-            if (anEnum.bits == null) {
-                docFreq += anEnum.termsEnum.docFreq();
-                if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
-                    long leafTotalTermFreq = anEnum.termsEnum.totalTermFreq();
-                    if (totalTermFreq == -1 || leafTotalTermFreq == -1) {
-                        totalTermFreq = -1;
-                        continue;
-                    }
-                    totalTermFreq += leafTotalTermFreq;
-                }
-            } else {
-                DocsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.docs(anEnum.bits, anEnum.docsEnum, docsEnumFlag);
-                // 2 choices for performing same heavy loop - one attempts to calculate totalTermFreq and other does not
-                if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
-                    for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                        docFreq++;
-                        // docsEnum.freq() returns 1 if doc indexed with IndexOptions.DOCS_ONLY so no way of knowing if value
-                        // is really 1 or unrecorded when filtering like this
-                        totalTermFreq += docsEnum.freq();
+            if (anEnum.termsEnum.seekExact(text)) {
+                if (anEnum.bits == null) {
+                    docFreq += anEnum.termsEnum.docFreq();
+                    if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
+                        long leafTotalTermFreq = anEnum.termsEnum.totalTermFreq();
+                        if (totalTermFreq == -1 || leafTotalTermFreq == -1) {
+                            totalTermFreq = -1;
+                            continue;
+                        }
+                        totalTermFreq += leafTotalTermFreq;
                     }
                 } else {
-                    for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                        // docsEnum.freq() behaviour is undefined if docsEnumFlag==DocsEnum.FLAG_NONE so don't bother with call
-                        docFreq++;
+                    final DocsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.docs(anEnum.bits, anEnum.docsEnum, docsEnumFlag);
+                    // 2 choices for performing same heavy loop - one attempts to calculate totalTermFreq and other does not
+                    if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
+                        for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            docFreq++;
+                            // docsEnum.freq() returns 1 if doc indexed with IndexOptions.DOCS_ONLY so no way of knowing if value
+                            // is really 1 or unrecorded when filtering like this
+                            totalTermFreq += docsEnum.freq();
+                        }
+                    } else {
+                        for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                            // docsEnum.freq() behaviour is undefined if docsEnumFlag==DocsEnum.FLAG_NONE so don't bother with call
+                            docFreq++;
+                        }
                     }
                 }
             }
+        }
+        if (docFreq > 0) {
             currentDocFreq = docFreq;
             currentTotalTermFreq = totalTermFreq;
             current = text;
+            return true;
+        } else {
+            currentDocFreq = NOT_FOUND;
+            currentTotalTermFreq = NOT_FOUND;
+            current = null;
+            return false;
         }
-        return found;
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.bench;
 
+import com.google.common.primitives.Doubles;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.search.SearchRequest;
@@ -34,21 +35,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-
-import com.google.common.primitives.Doubles;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.contentBuilder;
+import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * REST handler for benchmark actions.
@@ -114,20 +110,10 @@ public class RestBenchAction extends BaseRestHandler {
      * Aborts an actively running benchmark
      */
     private void handleAbortRequest(final RestRequest request, final RestChannel channel) {
+        final String[] benchmarkNames = Strings.splitStringByCommaToArray(request.param("name"));
+        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkNames);
 
-        String benchmarkName = request.param("name");
-        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkName);
-
-        client.abortBench(abortBenchmarkRequest, new RestBuilderListener<AbortBenchmarkResponse>(channel) {
-
-            @Override
-            public RestResponse buildResponse(AbortBenchmarkResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        client.abortBench(abortBenchmarkRequest, new AcknowledgedRestListener<AbortBenchmarkResponse>(channel));
     }
 
     /**

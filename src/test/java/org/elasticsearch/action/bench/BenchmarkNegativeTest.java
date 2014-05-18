@@ -25,6 +25,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import org.junit.Test;
 
+import static org.hamcrest.Matchers.*;
+
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 
 /**
@@ -45,9 +47,10 @@ public class BenchmarkNegativeTest extends ElasticsearchIntegrationTest {
                 client(), new String[] {INDEX_NAME}, cluster().size(), null)).actionGet();
     }
 
-    @Test(expected = BenchmarkNodeMissingException.class)
     public void testListBenchmarkNegative() {
-        client().prepareBenchStatus().execute().actionGet();
+        final BenchmarkStatusResponse response =
+                client().prepareBenchStatus().execute().actionGet();
+        assertThat(response.benchmarkResponses().size(), equalTo(0));
     }
 
     @Test(expected = BenchmarkNodeMissingException.class)

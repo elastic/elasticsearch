@@ -102,7 +102,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
 
         final List<DiscoveryNode> nodes = availableBenchmarkNodes();
         if (nodes.size() == 0) {
-            listener.onFailure(new BenchmarkNodeMissingException("No available nodes for executing benchmarks"));
+            listener.onResponse(new BenchmarkStatusResponse());
         } else {
             BenchmarkStatusAsyncHandler async = new BenchmarkStatusAsyncHandler(nodes.size(), request, listener);
             for (DiscoveryNode node : nodes) {

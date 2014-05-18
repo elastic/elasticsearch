@@ -64,6 +64,6 @@ public class TransportAbortBenchmarkAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(AbortBenchmarkRequest request, ClusterState state, final ActionListener<AbortBenchmarkResponse> listener) throws ElasticsearchException {
-        service.abortBenchmark(request.benchmarkName(), listener);
+        service.abortBenchmark(request.benchmarkNames(), listener);
     }
 }

@@ -33,8 +33,8 @@ public class AbortBenchmarkRequestBuilder extends ActionRequestBuilder<AbortBenc
         super((InternalClient) client, new AbortBenchmarkRequest());
     }
 
-    public AbortBenchmarkRequestBuilder setBenchmarkName(String benchmarkName) {
-        request.benchmarkName(benchmarkName);
+    public AbortBenchmarkRequestBuilder setBenchmarkNames(String... benchmarkNames) {
+        request.benchmarkNames(benchmarkNames);
         return this;
     }
 

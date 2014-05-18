@@ -36,7 +36,12 @@ import static org.apache.lucene.analysis.payloads.PayloadHelper.encodeFloat;
 public final class AllTokenStream extends TokenFilter {
 
     public static TokenStream allTokenStream(String allFieldName, AllEntries allEntries, Analyzer analyzer) throws IOException {
-        return new AllTokenStream(analyzer.tokenStream(allFieldName, allEntries), allEntries);
+        TokenStream ts = analyzer.tokenStream(allFieldName, allEntries);
+        if (allEntries.customBoost()) {
+            // AllTokenStream maps boost to 4-byte payloads, so we only need to use it if boost is changed from the default 1.0f:
+            ts = new AllTokenStream(ts, allEntries);
+        }
+        return ts;
     }
     
     private final BytesRef payloadSpare = new BytesRef(new byte[4]);

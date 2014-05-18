@@ -62,7 +62,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -79,7 +79,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -96,7 +96,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -119,7 +119,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
@@ -134,7 +134,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -155,7 +155,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         Document doc = builtDocMapper.parse(new BytesArray(json)).rootDoc();
 
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(2));
         assertThat(allEntries.fields().contains("name.last"), equalTo(true));
         assertThat(allEntries.fields().contains("simple1"), equalTo(true));
@@ -246,7 +246,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
             assertThat(field.fieldType().storeTermVectorPayloads(), equalTo(tv_payloads));
             assertThat(field.fieldType().storeTermVectorPositions(), equalTo(tv_positions));
             assertThat(field.fieldType().storeTermVectors(), equalTo(tv_stored));
-            AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+            AllEntries allEntries = field.getAllEntries();
             assertThat(allEntries.fields().size(), equalTo(2));
             assertThat(allEntries.fields().contains("foobar"), equalTo(true));
             assertThat(allEntries.fields().contains("foo"), equalTo(true));
@@ -298,7 +298,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
 
         Document doc = docMapper.parse(builder.bytes()).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields(), empty());
     }
 
@@ -318,7 +318,7 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
 
         Document doc = docMapper.parse(builder.bytes()).rootDoc();
         AllField field = (AllField) doc.getField("_all");
-        AllEntries allEntries = ((AllTokenStream) field.tokenStream(docMapper.mappers().indexAnalyzer())).allEntries();
+        AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields(), hasSize(1));
         assertThat(allEntries.fields(), hasItem("foo.bar"));
     }

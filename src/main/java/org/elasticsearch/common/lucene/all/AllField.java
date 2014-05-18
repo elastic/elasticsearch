@@ -56,6 +56,11 @@ public class AllField extends Field {
         return null;
     }
 
+    /** Returns the {@link AllEntries} containing the original text fields for the document. */
+    public AllEntries getAllEntries() {
+        return allEntries;
+    }
+
     @Override
     public TokenStream tokenStream(Analyzer analyzer) throws IOException {
         try {

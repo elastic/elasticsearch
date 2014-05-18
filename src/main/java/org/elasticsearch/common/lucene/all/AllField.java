@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
@@ -65,7 +66,11 @@ public class AllField extends Field {
     public TokenStream tokenStream(Analyzer analyzer) throws IOException {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
-            return AllTokenStream.allTokenStream(name, allEntries, analyzer);
+            if (allEntries.customBoost() && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                return AllTokenStream.allTokenStream(name, allEntries, analyzer);
+            } else {
+                return analyzer.tokenStream(name, allEntries);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create token stream");
         }

@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -60,6 +61,10 @@ public class AllField extends Field {
     /** Returns the {@link AllEntries} containing the original text fields for the document. */
     public AllEntries getAllEntries() {
         return allEntries;
+    }
+
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48: "Re-use the incoming AllTokenStream once we upgrade to Lucene 4.9";
     }
 
     @Override

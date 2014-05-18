@@ -67,6 +67,8 @@ public class AllField extends Field {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
             if (allEntries.customBoost() && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                // AllTokenStream maps boost to 4-byte payloads, so we only need to use it any field had non-default (!= 1.0f) boost and if
+                // positions are indexed:
                 return AllTokenStream.allTokenStream(name, allEntries, analyzer);
             } else {
                 return analyzer.tokenStream(name, allEntries);

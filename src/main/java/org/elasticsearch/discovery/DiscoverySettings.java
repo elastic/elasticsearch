@@ -29,6 +29,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.EnumSet;
+
 /**
  * Exposes common discovery settings that may be supported by all the different discovery implementations
  */
@@ -42,8 +44,8 @@ public class DiscoverySettings extends AbstractComponent {
     public final static int NO_MASTER_BLOCK_ID = 2;
 
     private final static ClusterBlock ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-    private final static ClusterBlock WRITE = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
-    private final static ClusterBlock METADATA = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.METADATA);
+    private final static ClusterBlock WRITE = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
+    private final static ClusterBlock METADATA = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.METADATA));
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;

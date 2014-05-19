@@ -379,7 +379,7 @@ and `false` respectively.
     "tweet" : {
         "properties" : {
             "hes_my_special_tweet" : {
-                "type" : "boolean",
+                "type" : "boolean"
             }
         }
     }
@@ -429,7 +429,7 @@ all.
     "tweet" : {
         "properties" : {
             "image" : {
-                "type" : "binary",
+                "type" : "binary"
             }
         }
     }
@@ -680,7 +680,7 @@ the parameter. In the following example all values from fields `title` and `abst
     "properties" : {
       "title" : { "type" : "string", "copy_to" : "meta_data" },
       "abstract" : { "type" : "string", "copy_to" : "meta_data" },
-      "meta_data" : { "type" : "string" },
+      "meta_data" : { "type" : "string" }
     }
 }
 --------------------------------------------------
@@ -692,7 +692,7 @@ Multiple fields are also supported:
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info"] },
+      "title" : { "type" : "string", "copy_to" : ["meta_data", "article_info"] }
     }
 }
 --------------------------------------------------

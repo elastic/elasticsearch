@@ -69,14 +69,14 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_all").field("omit_norms", true).endObject()
                         .endObject().endObject())
-                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(3, DEFAULT_MAX_NUM_SHARDS)));
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)); // only one shard otherwise IDF might be different for comparing scores
         ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
 
         assertHitCount(client().prepareSearch().setQuery(matchQuery("_all", "quick")).get(), 3l);
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_all", "quick")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_all", "quick")).setExplain(true).get();
         SearchHit[] hits = searchResponse.getHits().hits();
         assertThat(hits.length, equalTo(3));
         assertThat(hits[0].score(), allOf(equalTo(hits[1].getScore()), equalTo(hits[2].getScore())));

@@ -139,6 +139,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("trim",                      TrimTokenFilterFactory.class);
         put("truncate",                  TruncateTokenFilterFactory.class);
         put("turkishlowercase",          LowerCaseTokenFilterFactory.class);
+        put("uppercase",                 UpperCaseTokenFilterFactory.class);
         put("worddelimiter",             WordDelimiterTokenFilterFactory.class);
                 
         // TODO: these tokenfilters are not yet exposed: useful?
@@ -189,8 +190,6 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("type",                      Void.class);
         // puts the type into the payload
         put("typeaspayload",             Void.class);
-        // opposite of lowercase...
-        put("uppercase",                 Void.class);
     }};
     
     public void testTokenFilters() {

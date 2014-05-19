@@ -37,6 +37,7 @@ import java.util.List;
 public class AbortBenchmarkNodeResponse extends ActionResponse implements Streamable, ToXContent {
 
     private String nodeName;
+    private List<String> patternsNotMatching = new ArrayList<>();
     private List<AbortBenchmarkNodeStatus> abortBenchmarkNodeStatuses = new ArrayList<>();
 
     public static class AbortBenchmarkNodeStatus implements Streamable, ToXContent {
@@ -47,7 +48,7 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         public AbortBenchmarkNodeStatus() { }
 
         public AbortBenchmarkNodeStatus(String benchmarkName, boolean aborted) {
-            this(benchmarkName, "", aborted);
+            this(benchmarkName, null, aborted);
         }
 
         public AbortBenchmarkNodeStatus(String benchmarkName, String errorMessage, boolean aborted) {
@@ -59,14 +60,14 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         @Override
         public void readFrom(StreamInput in) throws IOException {
             benchmarkName = in.readString();
-            errorMessage = in.readString();
+            errorMessage = in.readOptionalString();
             aborted = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(benchmarkName);
-            out.writeString(errorMessage);
+            out.writeOptionalString(errorMessage);
             out.writeBoolean(aborted);
         }
 
@@ -115,15 +116,25 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         return nodeName;
     }
 
+    public List<String> patternsNotMatching() {
+        return patternsNotMatching;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         nodeName = in.readString();
-        final int size = in.readVInt();
+        int size = in.readVInt();
+        abortBenchmarkNodeStatuses.clear();
         for (int i = 0; i < size; i++) {
             AbortBenchmarkNodeStatus status = new AbortBenchmarkNodeStatus();
             status.readFrom(in);
             abortBenchmarkNodeStatuses.add(status);
+        }
+        patternsNotMatching().clear();
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            patternsNotMatching.add(in.readString());
         }
     }
 
@@ -135,6 +146,10 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         for (AbortBenchmarkNodeStatus status : abortBenchmarkNodeStatuses) {
             status.writeTo(out);
         }
+        out.writeVInt(patternsNotMatching.size());
+        for (String s : patternsNotMatching) {
+            out.writeString(s);
+        }
     }
 
     @Override
@@ -144,11 +159,15 @@ public class AbortBenchmarkNodeResponse extends ActionResponse implements Stream
         for (AbortBenchmarkNodeStatus status : abortBenchmarkNodeStatuses) {
            status.toXContent(builder, params);
         }
+        if (patternsNotMatching.size() > 0) {
+            builder.array(Fields.PATTERNS, patternsNotMatching.toArray(new String[patternsNotMatching.size()]));
+        }
         builder.endArray();
         return builder;
     }
 
     static final class Fields {
         static final XContentBuilderString NODE = new XContentBuilderString("node");
+        static final XContentBuilderString PATTERNS = new XContentBuilderString("patterns_not_matching");
     }
 }

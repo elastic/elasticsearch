@@ -435,8 +435,8 @@ public class RandomizingClient implements InternalClient {
     }
 
     @Override
-    public AbortBenchmarkRequestBuilder prepareAbortBench(String benchmarkId) {
-        return delegate.prepareAbortBench(benchmarkId);
+    public AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames) {
+        return delegate.prepareAbortBench(benchmarkNames);
     }
 
     @Override

@@ -579,7 +579,7 @@ public interface Client {
     /**
      * Aborts a benchmark run on the server
      */
-    AbortBenchmarkRequestBuilder prepareAbortBench(String benchmarkId);
+    AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames);
 
     /**
      * Reports on status of actively running benchmarks

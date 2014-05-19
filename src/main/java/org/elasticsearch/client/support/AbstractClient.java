@@ -404,8 +404,8 @@ public abstract class AbstractClient implements InternalClient {
     }
 
     @Override
-    public AbortBenchmarkRequestBuilder prepareAbortBench(String benchmarkId) {
-        return new AbortBenchmarkRequestBuilder(this).setBenchmarkName(benchmarkId);
+    public AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames) {
+        return new AbortBenchmarkRequestBuilder(this).setBenchmarkNames(benchmarkNames);
     }
 
     @Override

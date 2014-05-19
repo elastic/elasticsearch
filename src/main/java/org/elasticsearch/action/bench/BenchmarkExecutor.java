@@ -80,16 +80,29 @@ public class BenchmarkExecutor {
 
         synchronized (activeStateLock) {
             for (String pattern : benchmarkNamePatterns) {
+                boolean patternDidMatch = false;
                 UnmodifiableIterator<String> iter = activeBenchmarks.keysIt();
                 while (iter.hasNext()) {
                     final String name = iter.next();
                     if (Regex.simpleMatch(pattern, name)) {
-                        final BenchmarkState state = activeBenchmarks.get(name);
-                        state.semaphore.stop();
-                        activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(name).build();
-                        logger.debug("Aborted benchmark [{}] on [{}]", name, nodeName());
-                        response.add(name, true);
+                        patternDidMatch = true;
+                        try {
+                            final BenchmarkState state = activeBenchmarks.get(name);
+                            state.semaphore.stop();
+                            activeBenchmarks = ImmutableOpenMap.builder(activeBenchmarks).fRemove(name).build();
+                            logger.debug("Aborted benchmark [{}] on [{}]", name, nodeName());
+                            response.add(name, true);
+
+                        } catch (Exception e) {
+                            logger.error("Error while aborting [{}]", name, e);
+                            final String err = "Failed to abort [" + name + "] due to [" +
+                                    ExceptionsHelper.unwrapCause(e).getLocalizedMessage() + "]";
+                            response.add(name, err, false);
+                        }
                     }
+                }
+                if (!patternDidMatch) {
+                    response.patternsNotMatching().add(pattern);
                 }
             }
         }

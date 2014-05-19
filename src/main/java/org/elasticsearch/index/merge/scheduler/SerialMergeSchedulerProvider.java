@@ -49,7 +49,7 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
         super(shardId, indexSettings, threadPool);
         Integer value = componentSettings.getAsInt("max_merge_at_once", null);
         if (value != null) {
-            logger.warn("ignoring index.merge.scheduler.max_merge_at_once [{}], because we are using ConcurrentMergeScheduler(1, 2)", value);
+            logger.warn("ignoring index.merge.scheduler.max_merge_at_once [{}], because we are using ConcurrentMergeScheduler(2, 1)", value);
         }
         logger.trace("using [concurrent] merge scheduler, max_thread_count=1, max_merge_count=2");
     }
@@ -62,7 +62,7 @@ public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
     @Override
     public MergeScheduler buildMergeScheduler() {
         CustomSerialMergeScheduler scheduler = new CustomSerialMergeScheduler(logger, shardId, this);
-        scheduler.setMaxMergesAndThreads(1, 2); // we add max merge count = 2 to make sure we stall once a second merge comes in.
+        scheduler.setMaxMergesAndThreads(2, 1); // we add max merge count = 2 to make sure we stall once a second merge comes in.
         schedulers.add(scheduler);
         return scheduler;
     }

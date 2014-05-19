@@ -20,7 +20,6 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -486,57 +484,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("type", "string")
                 .field("path", "just_name") // Need to specify path again, to make sure that the `path` is known when this mapping is parsed and turned into DocumentMapper that we merge with.
                 .startObject("fields")
-                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject()
-                .endObject())
-                .get();
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-
-        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(suggestResponse, "suggs");
-
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
-    }
-
-    @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "path_type issue")
-    // If the path_type is set to `just_name` and the multi field is updated (for example another multi field is added)
-    // then if the path isn't specified again the path_type isn't taken into account and full path names are generated.
-    public void testThatUpgradeToMultiFieldWorks_bug() throws Exception {
-        final XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .field("path", "just_name")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
                 .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
                 .endObject()
                 .endObject()

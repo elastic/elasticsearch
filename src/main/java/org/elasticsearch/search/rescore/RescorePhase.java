@@ -20,6 +20,7 @@
 package org.elasticsearch.search.rescore;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -54,9 +55,11 @@ public class RescorePhase extends AbstractComponent implements SearchPhase {
     @Override
     public void execute(SearchContext context) throws ElasticsearchException {
         try {
+            TopDocs topDocs = context.queryResult().topDocs();
             for (RescoreSearchContext ctx : context.rescore()) {
-                ctx.rescorer().rescore(context.queryResult().topDocs(), context, ctx);
+               topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
             }
+            context.queryResult().topDocs(topDocs);
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

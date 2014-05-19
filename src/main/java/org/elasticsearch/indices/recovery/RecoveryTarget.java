@@ -177,8 +177,8 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public void retryRecovery(final StartRecoveryRequest request, final RecoveryStatus status, final RecoveryListener listener) {
-        threadPool.generic().execute(new Runnable() {
+    public void retryRecovery(final StartRecoveryRequest request, TimeValue retryAfter, final RecoveryStatus status, final RecoveryListener listener) {
+        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC ,new Runnable() {
             @Override
             public void run() {
                 doRecovery(request, status, listener);

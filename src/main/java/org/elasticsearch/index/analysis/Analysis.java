@@ -20,7 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
@@ -107,10 +106,10 @@ public class Analysis {
                 return new CharArraySet(version, Strings.commaDelimitedListToSet(value), false);
             }
         }
-        String[] stopWords = settings.getAsArray("stem_exclusion", null);
-        if (stopWords != null) {
+        String[] stemExclusion = settings.getAsArray("stem_exclusion", null);
+        if (stemExclusion != null) {
             // LUCENE 4 UPGRADE: Should be settings.getAsBoolean("stem_exclusion_case", false)?
-            return new CharArraySet(version, ImmutableList.of(stopWords), false);
+            return new CharArraySet(version, Arrays.asList(stemExclusion), false);
         } else {
             return defaultStemExclusion;
         }

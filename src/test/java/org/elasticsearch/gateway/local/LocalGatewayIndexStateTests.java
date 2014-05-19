@@ -529,7 +529,14 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> index a different doc");
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").setRefresh(true).execute().actionGet();
 
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+        logger.info("--> verify that doc 2 does exist");
         assertThat(client().prepareGet("test", "type1", "2").execute().actionGet().isExists(), equalTo(true));
+
+        // Need an ensure yellow here, since the index gets created (again) when we index doc2, so the shard that doc
+        // with id 1 is assigned to might not be in a started state. We don't need to do this when verifying if doc 2
+        // exists, because we index into the shard that doc gets assigned to.
+        ensureYellow("test");
+        logger.info("--> verify that doc 1 doesn't exist");
+        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
     }
 }

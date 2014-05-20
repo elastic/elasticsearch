@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBui
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.*;
@@ -47,6 +48,7 @@ import static org.hamcrest.Matchers.*;
  * Integration tests for benchmark API
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@Ignore
 public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
     private static final String BENCHMARK_NAME = "test_benchmark";

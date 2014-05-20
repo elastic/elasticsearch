@@ -62,6 +62,7 @@ import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
@@ -225,6 +226,7 @@ public final class TestCluster extends ImmutableTestCluster {
             }
         }
         builder.put("script.disable_dynamic", false);
+        builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
     }
@@ -714,6 +716,7 @@ public final class TestCluster extends ImmutableTestCluster {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + node.settings().get("name"))
+                    .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff).build());
             client.addTransportAddress(addr);
             return client;

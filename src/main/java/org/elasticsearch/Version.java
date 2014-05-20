@@ -19,12 +19,14 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -342,6 +344,15 @@ public class Version implements Serializable {
             default:
                 return new Version(id, null, Lucene.VERSION);
         }
+    }
+
+    /**
+     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     */
+    public static Version indexCreated(Settings indexSettings) {
+        assert indexSettings.get(IndexMetaData.SETTING_UUID) == null // if the UUDI is there the index has actually been created otherwise this might be a test
+                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null : IndexMetaData.SETTING_VERSION_CREATED + " not set in IndexSettings";
+        return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
     }
 
     public static void writeVersion(Version version, StreamOutput out) throws IOException {

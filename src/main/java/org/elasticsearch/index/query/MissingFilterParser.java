@@ -28,7 +28,9 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.Set;
@@ -94,6 +96,7 @@ public class MissingFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
         }
 
+        final FieldMappers fieldNamesMapper = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern
@@ -122,7 +125,11 @@ public class MissingFilterParser implements FilterParser {
                     nonNullFieldMappers = smartNameFieldMappers;
                 }
                 Filter filter = null;
-                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                if (fieldNamesMapper != null && fieldNamesMapper.mapper().fieldType().indexed()) {
+                    filter = fieldNamesMapper.mapper().termFilter(field, parseContext);
+                }
+                // if _field_names are not indexed, we need to go the slow way
+                if (filter == null && smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                     filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
                 }
                 if (filter == null) {

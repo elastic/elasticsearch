@@ -118,7 +118,7 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                     "category", randomBoolean() ? "marvel hero" : "bogus",
                     "skill", between(1, 3)));
         }
-        indexRandom(true, builders);
+        indexRandom(true, false, builders);
     }
 
     private XContentBuilder createMapping() throws IOException {

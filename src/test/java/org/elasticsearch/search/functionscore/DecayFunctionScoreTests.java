@@ -252,8 +252,7 @@ public class DecayFunctionScoreTests extends ElasticsearchIntegrationTest {
                 .setSource(
                         jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 20)
                                 .endObject().endObject()));
-        indexRandom(false, indexBuilders); // force no dummy docs
-        refresh();
+        indexRandom(true, false, indexBuilders); // force no dummy docs
 
         // Test Gauss
         List<Float> lonlat = new ArrayList<>();

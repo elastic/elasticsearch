@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -101,7 +100,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     }
 
     @Override
-    protected ShardOptimizeRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, OptimizeRequest request) {
+    protected ShardOptimizeRequest newShardRequest(int numShards, ShardRouting shard, OptimizeRequest request) {
         return new ShardOptimizeRequest(shard.index(), shard.id(), request);
     }
 

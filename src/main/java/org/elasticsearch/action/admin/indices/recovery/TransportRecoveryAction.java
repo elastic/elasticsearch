@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -137,7 +136,7 @@ public class TransportRecoveryAction extends
     }
 
     @Override
-    protected ShardRecoveryRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, RecoveryRequest request) {
+    protected ShardRecoveryRequest newShardRequest(int numShards, ShardRouting shard, RecoveryRequest request) {
         return new ShardRecoveryRequest(shard.index(), shard.id(), request);
     }
 

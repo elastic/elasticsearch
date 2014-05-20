@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -100,7 +99,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override
-    protected ShardFlushRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, FlushRequest request) {
+    protected ShardFlushRequest newShardRequest(int numShards, ShardRouting shard, FlushRequest request) {
         return new ShardFlushRequest(shard.index(), shard.id(), request);
     }
 

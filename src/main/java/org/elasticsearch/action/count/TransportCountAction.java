@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -113,7 +112,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     }
 
     @Override
-    protected ShardCountRequest newShardRequest(ShardIterator shardIt, ShardRouting shard, CountRequest request) {
+    protected ShardCountRequest newShardRequest(int numShards, ShardRouting shard, CountRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
         return new ShardCountRequest(shard.index(), shard.id(), filteringAliases, request);
     }

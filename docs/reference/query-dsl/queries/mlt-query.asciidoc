@@ -74,7 +74,7 @@ The `more_like_this` top level parameters include:
 |`fields` |A list of the fields to run the more like this query against.
 Defaults to the `_all` field.
 
-|`like_text` |The text to find documents like it, *required* if `ids` is
+|`like_text` |The text to find documents like it, *required* if `ids` or `docs` are
 not specified.
 
 |`ids` or `docs` |A list of documents following the same syntax as the 

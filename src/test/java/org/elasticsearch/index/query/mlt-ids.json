@@ -1,6 +1,7 @@
 {
     more_like_this:{
         "fields" : ["name.first", "name.last"],
+        "like_text": "Apache Lucene",
         "docs" : [
         {
             "_index" : "test",

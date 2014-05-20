@@ -23,7 +23,9 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -56,11 +58,26 @@ public class AllField extends Field {
         return null;
     }
 
+    /** Returns the {@link AllEntries} containing the original text fields for the document. */
+    public AllEntries getAllEntries() {
+        return allEntries;
+    }
+
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48: "Re-use the incoming AllTokenStream once we upgrade to Lucene 4.9";
+    }
+
     @Override
     public TokenStream tokenStream(Analyzer analyzer) throws IOException {
         try {
             allEntries.reset(); // reset the all entries, just in case it was read already
-            return AllTokenStream.allTokenStream(name, allEntries, analyzer);
+            if (allEntries.customBoost() && fieldType().indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
+                // AllTokenStream maps boost to 4-byte payloads, so we only need to use it any field had non-default (!= 1.0f) boost and if
+                // positions are indexed:
+                return AllTokenStream.allTokenStream(name, allEntries, analyzer);
+            } else {
+                return analyzer.tokenStream(name, allEntries);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to create token stream");
         }

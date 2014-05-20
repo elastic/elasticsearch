@@ -62,6 +62,8 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
         AllField field = (AllField) doc.getField("_all");
+        // One field is boosted so we should see AllTokenStream used:
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer()), Matchers.instanceOf(AllTokenStream.class));
         AllEntries allEntries = field.getAllEntries();
         assertThat(allEntries.fields().size(), equalTo(3));
         assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
@@ -105,6 +107,50 @@ public class SimpleAllMapperTests extends ElasticsearchTestCase {
         assertThat(field.fieldType().omitNorms(), equalTo(false));
         assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(TermQuery.class));
 
+    }
+
+    // #6187: make sure we see AllTermQuery even when offsets are indexed in the _all field:
+    @Test
+    public void testAllMappersWithOffsetsTermQuery() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_offsets_on_all.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        // _all field indexes positions, and mapping has boosts, so we should see AllTokenStream:
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer()), Matchers.instanceOf(AllTokenStream.class));
+        AllEntries allEntries = field.getAllEntries();
+        assertThat(allEntries.fields().size(), equalTo(3));
+        assertThat(allEntries.fields().contains("address.last.location"), equalTo(true));
+        assertThat(allEntries.fields().contains("name.last"), equalTo(true));
+        assertThat(allEntries.fields().contains("simple1"), equalTo(true));
+        FieldMapper mapper = docMapper.mappers().smartNameFieldMapper("_all");
+        assertThat(field.fieldType().omitNorms(), equalTo(false));
+        assertThat(mapper.queryStringTermQuery(new Term("_all", "foobar")), Matchers.instanceOf(AllTermQuery.class));
+    }
+
+    // #6187: if _all doesn't index positions then we never use AllTokenStream, even if some fields have boost
+    @Test
+    public void testBoostWithOmitPositions() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/mapping_boost_omit_positions_on_all.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        // _all field omits positions, so we should not get AllTokenStream even though fields are boosted
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer()), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
+    }
+
+    // #6187: if no fields were boosted, we shouldn't use AllTokenStream
+    @Test
+    public void testNoBoost() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/all/noboost-mapping.json");
+        DocumentMapper docMapper = MapperTestUtils.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/all/test1.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+        AllField field = (AllField) doc.getField("_all");
+        // no fields have boost, so we should not see AllTokenStream:
+        assertThat(field.tokenStream(docMapper.mappers().indexAnalyzer()), Matchers.not(Matchers.instanceOf(AllTokenStream.class)));
     }
 
 

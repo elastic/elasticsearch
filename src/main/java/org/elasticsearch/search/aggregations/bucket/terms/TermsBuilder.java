@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     private String excludePattern;
     private int excludeFlags;
     private String executionHint;
+    private SubAggCollectionMode collectionMode;
 
     public TermsBuilder(String name) {
         super(name, "terms");
@@ -141,6 +143,11 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         this.executionHint = executionHint;
         return this;
     }
+    
+    public TermsBuilder collectMode(SubAggCollectionMode mode) {
+        this.collectionMode = mode;
+        return this;
+    }
 
     @Override
     protected XContentBuilder doInternalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -156,6 +163,9 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         if (order != null) {
             builder.field("order");
             order.toXContent(builder, params);
+        }
+        if (collectionMode != null) {
+            builder.field(AbstractTermsParametersParser.COLLECT_MODE.getPreferredName(), collectionMode.parseField().getPreferredName());
         }
         if (includePattern != null) {
             if (includeFlags == 0) {

@@ -158,8 +158,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
         }
 
-        if ((mltQuery.getLikeText() == null && items.isEmpty()) || (mltQuery.getLikeText() != null && !items.isEmpty())) {
-            throw new QueryParsingException(parseContext.index(), "more_like_this requires either 'like_text' or 'ids/docs' to be specified");
+        if (mltQuery.getLikeText() == null && items.isEmpty()) {
+            throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
         }
 
         if (analyzer == null) {
@@ -216,6 +216,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createUids(items));
                 ConstantScoreQuery query = new ConstantScoreQuery(filter);
                 boolQuery.add(query, BooleanClause.Occur.MUST_NOT);
+            }
+            // add the possible mlt query with like_text
+            if (mltQuery.getLikeText() != null) {
+                boolQuery.add(mltQuery, BooleanClause.Occur.SHOULD);
             }
             return boolQuery;
         }

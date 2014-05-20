@@ -1696,16 +1696,25 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
-        assertThat(booleanQuery.getClauses().length, is(likeTexts.size()));
+        assertThat(booleanQuery.getClauses().length, is(likeTexts.size() + 1));
 
+        // check each clause is for each item
+        BooleanClause[] boolClauses = booleanQuery.getClauses();
         for (int i=0; i<likeTexts.size(); i++) {
-            BooleanClause booleanClause = booleanQuery.getClauses()[i];
-            assertThat(booleanClause.getOccur(), is(BooleanClause.Occur.SHOULD));
-            assertThat(booleanClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
-            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) booleanClause.getQuery();
+            assertThat(boolClauses[i].getOccur(), is(BooleanClause.Occur.SHOULD));
+            assertThat(boolClauses[i].getQuery(), instanceOf(MoreLikeThisQuery.class));
+            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClauses[i].getQuery();
             assertThat(mltQuery.getLikeText(), is(likeTexts.get(i).text));
             assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
         }
+
+        // check last clause is for 'like_text'
+        BooleanClause boolClause = boolClauses[boolClauses.length - 1];
+        assertThat(boolClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+        assertThat(boolClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClause.getQuery();
+        assertArrayEquals("Not the same more like this 'fields'", new String[] {"name.first", "name.last"}, mltQuery.getMoreLikeFields());
+        assertThat(mltQuery.getLikeText(), equalTo("Apache Lucene"));
     }
 
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {

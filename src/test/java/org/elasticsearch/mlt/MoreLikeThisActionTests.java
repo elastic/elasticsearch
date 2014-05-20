@@ -400,7 +400,8 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < texts.length; i++) {
             builders.add(client().prepareIndex("test", "type1").setSource("text", texts[i]).setId(String.valueOf(i)));
         }
-        indexRandom(true, builders);
+        indexRandom(true, false, builders);
+
         int iters = between(10, 20);
         for (int j = 0; j < iters; j++) {
             logger.info("Running MoreLikeThis DSL with IDs");

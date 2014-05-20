@@ -22,6 +22,7 @@ package org.elasticsearch.plugin;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.nodesinfo.SimpleNodesInfoTests;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -45,7 +46,9 @@ public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDisableLuceneVersionCheckingPlugin() throws URISyntaxException {
         String serverNodeId = SimpleNodesInfoTests.startNodeWithPlugins(
-                settingsBuilder().put("plugins.check_lucene", false).build(),
+                settingsBuilder().put("plugins.check_lucene", false)
+                        .put("plugins." + PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
+                        .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
                 "/org/elasticsearch/plugin/lucene/");
         logger.info("--> server {} started" + serverNodeId);
 
@@ -68,7 +71,9 @@ public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testEnableLuceneVersionCheckingPlugin() throws URISyntaxException {
         String serverNodeId = SimpleNodesInfoTests.startNodeWithPlugins(
-                settingsBuilder().put("plugins.check_lucene", true).build(),
+                settingsBuilder().put("plugins.check_lucene", true)
+                        .put("plugins." + PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
+                        .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
                 "/org/elasticsearch/plugin/lucene/");
         logger.info("--> server {} started" + serverNodeId);
 

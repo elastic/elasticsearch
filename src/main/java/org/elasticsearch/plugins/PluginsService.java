@@ -53,7 +53,9 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
  *
  */
 public class PluginsService extends AbstractComponent {
+    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "properties_file";
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
+    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "load_classpath_plugins";
 
     private final Environment environment;
 
@@ -63,6 +65,8 @@ public class PluginsService extends AbstractComponent {
     private final ImmutableList<Tuple<PluginInfo, Plugin>> plugins;
 
     private final ImmutableMap<Plugin, List<OnModuleReference>> onModuleReferences;
+    private final String esPluginPropertiesFile;
+    private final boolean loadClasspathPlugins;
 
     private PluginsInfo cachedPluginsInfo;
     private final TimeValue refreshInterval;
@@ -88,6 +92,8 @@ public class PluginsService extends AbstractComponent {
         super(settings);
         this.environment = environment;
         this.checkLucene = componentSettings.getAsBoolean("check_lucene", true);
+        this.esPluginPropertiesFile = componentSettings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
+        this.loadClasspathPlugins = componentSettings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
 
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
 
@@ -104,7 +110,9 @@ public class PluginsService extends AbstractComponent {
 
         // now, find all the ones that are in the classpath
         loadPluginsIntoClassLoader();
-        tupleBuilder.addAll(loadPluginsFromClasspath(settings));
+        if (loadClasspathPlugins) {
+            tupleBuilder.addAll(loadPluginsFromClasspath(settings));
+        }
         this.plugins = tupleBuilder.build();
 
         // We need to build a List of jvm and site plugins for checking mandatory plugins
@@ -384,7 +392,7 @@ public class PluginsService extends AbstractComponent {
 
         // Trying JVM plugins: looking for es-plugin.properties files
         try {
-            Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(ES_PLUGIN_PROPERTIES);
+            Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(esPluginPropertiesFile);
             while (pluginUrls.hasMoreElements()) {
                 URL pluginUrl = pluginUrls.nextElement();
                 Properties pluginProps = new Properties();
@@ -448,7 +456,7 @@ public class PluginsService extends AbstractComponent {
                     String description = PluginInfo.DESCRIPTION_NOT_AVAILABLE;
 
                     // We check if es-plugin.properties exists in plugin/_site dir
-                    File pluginPropFile = new File(sitePluginDir, ES_PLUGIN_PROPERTIES);
+                    File pluginPropFile = new File(sitePluginDir, esPluginPropertiesFile);
                     if (pluginPropFile.exists()) {
 
                         Properties pluginProps = new Properties();
@@ -460,7 +468,7 @@ public class PluginsService extends AbstractComponent {
                             version = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
                         } catch (Exception e) {
                             // Can not load properties for this site plugin. Ignoring.
-                            logger.debug("can not load {} file.", e, ES_PLUGIN_PROPERTIES);
+                            logger.debug("can not load {} file.", e, esPluginPropertiesFile);
                         } finally {
                             IOUtils.closeWhileHandlingException(is);
                         }
@@ -499,7 +507,7 @@ public class PluginsService extends AbstractComponent {
             Class<? extends Plugin> pluginClass = (Class<? extends Plugin>) settings.getClassLoader().loadClass(className);
             Plugin plugin;
 
-            if (!checkLucene || checkLuceneCompatibility(pluginClass, settings, logger)) {
+            if (!checkLucene || checkLuceneCompatibility(pluginClass, settings, logger, esPluginPropertiesFile)) {
                 try {
                     plugin = pluginClass.getConstructor(Settings.class).newInstance(settings);
                 } catch (NoSuchMethodException e) {
@@ -535,13 +543,13 @@ public class PluginsService extends AbstractComponent {
      * @param pluginClass Plugin class we are checking
      * @return true if the plugin is Lucene compatible
      */
-    public static boolean checkLuceneCompatibility(Class<? extends Plugin> pluginClass, Settings settings, ESLogger logger) {
+    public static boolean checkLuceneCompatibility(Class<? extends Plugin> pluginClass, Settings settings, ESLogger logger, String propertiesFile) {
         String luceneVersion = null;
         try {
             // We try to read the es-plugin.properties file
             // But as we can have several plugins in the same classloader,
             // we have to find the right es-plugin.properties file
-            Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(PluginsService.ES_PLUGIN_PROPERTIES);
+            Enumeration<URL> pluginUrls = settings.getClassLoader().getResources(propertiesFile);
 
             while (pluginUrls.hasMoreElements()) {
                 URL pluginUrl = pluginUrls.nextElement();
@@ -570,7 +578,7 @@ public class PluginsService extends AbstractComponent {
                     return true;
                 }
             } else {
-                logger.debug("lucene property is not set in plugin {} file. Skipping test.", PluginsService.ES_PLUGIN_PROPERTIES);
+                logger.debug("lucene property is not set in plugin {} file. Skipping test.", propertiesFile);
                 return true;
             }
         } catch (Throwable t) {

@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -1030,7 +1031,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ).setRefresh(true).get();
 
         try {
-            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)).execute().actionGet();
+            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
             // Exception must be thrown
             assertFalse(true);
         } catch (SearchPhaseExecutionException e) {

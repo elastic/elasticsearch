@@ -18,7 +18,7 @@ http://en.wikipedia.org/wiki/Chunked_transfer_encoding[HTTP chunking].
 [float]
 === Settings
 
-The following are the settings the can be configured for HTTP:
+The following are the settings that can be configured for HTTP:
 
 [cols="<,<",options="header",]
 |=======================================================================

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.bench;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -128,7 +129,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             waitForQuery.await();
             final BenchmarkStatusResponse statusResponse = client().prepareBenchStatus().execute().actionGet();
             waitForTestLatch.countDown();
-            assertThat(statusResponse.benchmarkResponses().size(), greaterThan(0));
+            assertThat(statusResponse.benchmarkResponses().size(), equalTo(1));
             for (BenchmarkResponse benchmarkResponse : statusResponse.benchmarkResponses()) {
                 assertThat(benchmarkResponse.benchmarkName(), equalTo(BENCHMARK_NAME));
                 assertThat(benchmarkResponse.state(), equalTo(BenchmarkResponse.State.RUNNING));
@@ -230,7 +231,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             List<ActionFuture<BenchmarkResponse>> responses = new ArrayList<>();
 
             SearchRequest searchRequest = prepareBlockingScriptQuery();
-            int benches = between(1, 3);
+            final int benches = between(1, 3);
             String[] names = new String[benches];
             for (int k = 0; k < benches; k++) {
                 final BenchmarkRequest request =
@@ -250,6 +251,14 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
             }
             try {
                 waitForQuery.await();
+                if (benches > 1) {
+                    awaitBusy(new Predicate<Object>() {
+                        @Override
+                        public boolean apply(java.lang.Object input) {
+                            return client().prepareBenchStatus().get().benchmarkResponses().size() == benches;
+                        }
+                    });
+                }
                 final String badPatternA = "*z";
                 final String badPatternB = "xxx";
                 final String[] patterns;

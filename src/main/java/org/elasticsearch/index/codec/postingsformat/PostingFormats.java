@@ -67,7 +67,9 @@ public class PostingFormats {
         for (String luceneName : PostingsFormat.availablePostingsFormats()) {
             buildInPostingFormatsX.put(luceneName, new PreBuiltPostingsFormatProvider.Factory(PostingsFormat.forName(luceneName)));
         }
-        final Elasticsearch090PostingsFormat defaultFormat = new Elasticsearch090PostingsFormat();
+        // nocommit can we disable bloom by default
+        final PostingsFormat defaultFormat = new Elasticsearch090PostingsFormat();
+        //final PostingsFormat defaultFormat = PostingsFormat.forName("Lucene41");
         buildInPostingFormatsX.put("direct", new PreBuiltPostingsFormatProvider.Factory("direct", PostingsFormat.forName("Direct")));
         buildInPostingFormatsX.put("memory", new PreBuiltPostingsFormatProvider.Factory("memory", PostingsFormat.forName("Memory")));
         // LUCENE UPGRADE: Need to change this to the relevant ones on a lucene upgrade

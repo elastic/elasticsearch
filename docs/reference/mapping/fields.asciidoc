@@ -21,6 +21,8 @@ include::fields/boost-field.asciidoc[]
 
 include::fields/parent-field.asciidoc[]
 
+include::fields/field-names-field.asciidoc[]
+
 include::fields/routing-field.asciidoc[]
 
 include::fields/index-field.asciidoc[]

@@ -71,6 +71,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -333,6 +334,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .field("index", randomFrom("not_analyzed", "no"))
                         .endObject();
                 }
+                mappings.startObject(FieldNamesFieldMapper.NAME)
+                        .startObject("fielddata")
+                            .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
+                        .endObject()
+                    .endObject();
                 mappings.startArray("dynamic_templates")
                         .startObject()
                             .startObject("template-strings")

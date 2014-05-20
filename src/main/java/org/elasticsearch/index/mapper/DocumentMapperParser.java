@@ -21,9 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -51,7 +49,6 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 
@@ -122,10 +119,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser())
                 .put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser())
                 .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
+                .put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser())
                 .immutableMap();
-        assert indexSettings.get(IndexMetaData.SETTING_UUID) == null // if the UUDI is there the index has actually been created otherwise this might be a test
-                || indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null : IndexMetaData.SETTING_VERSION_CREATED + " not set in IndexSettings";
-        indexVersionCreated = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        indexVersionCreated = Version.indexCreated(indexSettings);
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {

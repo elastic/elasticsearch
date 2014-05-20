@@ -180,6 +180,8 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
             this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
             this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper());
+            // _field_names last so that it can see all other fields
+            this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings));
         }
 
         public Builder meta(ImmutableMap<String, Object> meta) {

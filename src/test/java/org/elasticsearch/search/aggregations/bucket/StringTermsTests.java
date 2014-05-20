@@ -22,6 +22,7 @@ import com.google.common.base.Strings;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -1265,5 +1266,14 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getDocCount(), equalTo(i == 0 ? 5L : 2L));
             i++;
         }
+
+        response = client().prepareSearch("idx", "empty_bucket_idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field(FieldNamesFieldMapper.NAME)
+                ).execute().actionGet();
+        assertSearchResponse(response);
+        terms = response.getAggregations().get("terms");
+        assertEquals(5L, terms.getBucketByKey("i").getDocCount());
     }
 }

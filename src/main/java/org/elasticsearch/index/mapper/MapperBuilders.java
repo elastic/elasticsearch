@@ -74,6 +74,10 @@ public final class MapperBuilders {
         return new TypeFieldMapper.Builder();
     }
 
+    public static FieldNamesFieldMapper.Builder fieldNames() {
+        return new FieldNamesFieldMapper.Builder();
+    }
+
     public static IndexFieldMapper.Builder index() {
         return new IndexFieldMapper.Builder();
     }

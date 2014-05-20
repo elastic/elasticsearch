@@ -82,8 +82,8 @@ not specified.
 `like_text` is not specified. The texts are fetched from `fields` unless
 specified in each `doc`, and cannot be set to `_all`.
 
-|`exclude` |When using `ids`, specifies whether the documents should be
-excluded from the search. Defaults to `true`.
+|`include` |When using `ids` or `docs`, specifies whether the documents should be
+included from the search. Defaults to `false`.
 
 |`percent_terms_to_match` |The percentage of terms to match on (float
 value). Defaults to `0.3` (30 percent).

@@ -14,7 +14,7 @@
         }
         ],
         "ids" : ["3", "4"],
-        "exclude" : false,
+        "include" : true,
         "min_term_freq" : 1,
         "max_query_terms" : 12
     }

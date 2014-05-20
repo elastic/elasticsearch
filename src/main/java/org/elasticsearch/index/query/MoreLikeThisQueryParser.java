@@ -65,7 +65,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField STOP_WORDS = new ParseField("stop_words");
         public static final ParseField DOCUMENT_IDS = new ParseField("ids");
         public static final ParseField DOCUMENTS = new ParseField("docs");
-        public static final ParseField EXCLUDE = new ParseField("exclude");
+        public static final ParseField INCLUDE = new ParseField("include");
     }
 
     public MoreLikeThisQueryParser() {
@@ -92,7 +92,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         List<String> moreLikeFields = null;
         boolean failOnUnsupportedField = true;
         String queryName = null;
-        boolean exclude = true;
+        boolean include = false;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -131,8 +131,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     failOnUnsupportedField = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if (Fields.EXCLUDE.match(currentFieldName, parseContext.parseFlags())) {
-                    exclude = parser.booleanValue();
+                } else if (Fields.INCLUDE.match(currentFieldName, parseContext.parseFlags())) {
+                    include = parser.booleanValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -212,7 +212,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 addMoreLikeThis(boolQuery, mltQuery, likeText.field, likeText.text);
             }
             // exclude the items from the search
-            if (exclude) {
+            if (!include) {
                 TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createUids(items));
                 ConstantScoreQuery query = new ConstantScoreQuery(filter);
                 boolQuery.add(query, BooleanClause.Occur.MUST_NOT);

@@ -234,7 +234,8 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     @Test
     // forces QUERY_THEN_FETCH because of https://github.com/elasticsearch/elasticsearch/issues/4829
     public void testEquivalence() throws Exception {
-        int numDocs = indexRandomNumbers("whitespace");
+        // no dummy docs since merges can change scores while we run queries.
+        int numDocs = indexRandomNumbers("whitespace", -1, false);
 
         final int iters = scaledRandomIntBetween(50, 100);
         for (int i = 0; i < iters; i++) {
@@ -491,7 +492,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testMultipleRescores() throws Exception {
-        int numDocs = indexRandomNumbers("keyword", 1);
+        int numDocs = indexRandomNumbers("keyword", 1, true);
         QueryRescorer eightIsGreat = RescoreBuilder.queryRescorer(
                 QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("field1", English.intToEnglish(8))).boostMode(CombineFunction.REPLACE)
                 .add(ScoreFunctionBuilders.scriptFunction("1000.0f"))).setScoreMode("total");
@@ -526,10 +527,10 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
     }
 
     private int indexRandomNumbers(String analyzer) throws Exception {
-        return indexRandomNumbers(analyzer, -1);
+        return indexRandomNumbers(analyzer, -1, true);
     }
 
-    private int indexRandomNumbers(String analyzer, int shards) throws Exception {
+    private int indexRandomNumbers(String analyzer, int shards, boolean dummyDocs) throws Exception {
         Builder builder = ImmutableSettings.settingsBuilder().put(indexSettings());
 
         if (shards > 0) {
@@ -548,7 +549,7 @@ public class QueryRescorerTests extends ElasticsearchIntegrationTest {
             docs[i] = client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i));
         }
 
-        indexRandom(true, docs);
+        indexRandom(true, dummyDocs, docs);
         ensureGreen();
         return numDocs;
     }

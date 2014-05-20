@@ -102,7 +102,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private String likeText;
     private List<String> ids = new ArrayList<>();
     private List<Item> docs = new ArrayList<>();
-    private Boolean exclude = null;
+    private Boolean include = null;
     private float percentTermsToMatch = -1;
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
@@ -156,8 +156,17 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    public MoreLikeThisQueryBuilder include(boolean include) {
+        this.include = include;
+        return this;
+    }
+
+    /**
+     * @deprecated This is replaced by <code>include</code>.
+     */
+    @Deprecated
     public MoreLikeThisQueryBuilder exclude(boolean exclude) {
-        this.exclude = exclude;
+        this.include = !exclude;
         return this;
     }
 
@@ -336,8 +345,8 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         if (!docs.isEmpty()) {
             builder.array("docs", docs.toArray());
         }
-        if (exclude != null) {
-            builder.field("exclude", exclude);
+        if (include != null) {
+            builder.field("exclude", !include); // keep on using exclude for bw compat with 1.x
         }
         builder.endObject();
     }

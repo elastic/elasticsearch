@@ -367,7 +367,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         indexRandom(true, builders);
 
         logger.info("Running MoreLikeThis");
-        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids("1").exclude(false).minTermFreq(1).minDocFreq(1);
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("text").ids("1").include(true).minTermFreq(1).minDocFreq(1);
         SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
         assertHitCount(mltResponse, 3l);
     }

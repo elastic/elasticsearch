@@ -332,10 +332,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                     @Override
                     public void onFailure(String source, Throwable t) {
-                        if (!(t instanceof ClusterService.NoLongerMasterException)) {
-                            // no longer master exceptions are not an error here
                             logger.error("unexpected failure during [{}]", t, source);
-                        }
                     }
 
                     @Override
@@ -399,8 +396,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    if (!(t instanceof ClusterService.NoLongerMasterException)) {
-                        // no longer master exceptions are not an error here
+                    if (t instanceof ClusterService.NoLongerMasterException) {
+                        logger.debug("not processing {} leave request as we are no longer master", node);
+                    }
+                    else {
                         logger.error("unexpected failure during [{}]", t, source);
                     }
                 }
@@ -437,8 +436,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void onFailure(String source, Throwable t) {
-                if (!(t instanceof ClusterService.NoLongerMasterException)) {
-                    // no longer master exceptions are not an error here
+                if (t instanceof ClusterService.NoLongerMasterException) {
+                    logger.debug("not processing [{}] as we are no longer master", source);
+                }
+                else {
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             }
@@ -473,8 +474,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             @Override
             public void onFailure(String source, Throwable t) {
-                if (!(t instanceof ClusterService.NoLongerMasterException)) {
-                    // no longer master exceptions are not an error here
+                if (t instanceof ClusterService.NoLongerMasterException) {
+                    logger.debug("not processing [{}] as we are no longer master", source);
+                }
+                else {
                     logger.error("unexpected failure during [{}]", t, source);
                 }
             }
@@ -605,10 +608,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    if (!(t instanceof ClusterService.NoLongerMasterException)) {
-                        // no longer master exceptions are not an error here
-                        logger.error("unexpected failure during [{}]", t, source);
-                    }
+                    logger.error("unexpected failure during [{}]", t, source);
                     newStateProcessed.onNewClusterStateFailed(t);
                 }
 
@@ -767,8 +767,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    if (!(t instanceof ClusterService.NoLongerMasterException)) {
-                        // no longer master exceptions are not an error here
+                    if (t instanceof ClusterService.NoLongerMasterException) {
+                        logger.debug("not processing [{}] as we are no longer master", source);
+                    }
+                    else {
                         logger.error("unexpected failure during [{}]", t, source);
                     }
                 }

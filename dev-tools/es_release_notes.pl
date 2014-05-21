@@ -70,7 +70,7 @@ sub dump_issues {
         my $group_issues = $issues->{$group} or next;
         $format eq 'html' and print "<h2>$Group_Labels{$group}</h2>\n\n<ul>\n";
         $format eq 'markdown' and print "## $Group_Labels{$group}\n\n";
-        
+
         for my $header ( sort keys %$group_issues ) {
             my $header_issues = $group_issues->{$header};
             my $prefix        = "<li>";
@@ -150,9 +150,19 @@ ISSUE:
 #===================================
 sub fetch_labels {
 #===================================
-    my $labels = fetch( $User_Repo . 'labels' )
-        or die "Couldn't retrieve version labels";
-    return map { $_ => 1 } grep {/^v/} map { $_->{name} } @$labels;
+    my %all;
+    my $page = 1;
+    while (1) {
+        my $labels = fetch( $User_Repo . 'labels?page=' . $page++ )
+            or die "Couldn't retrieve version labels";
+        last unless @$labels;
+        for (@$labels) {
+            my $name = $_->{name};
+            next unless $name =~ /^v/;
+            $all{$name} = 1;
+        }
+    }
+    return %all;
 }
 
 #===================================

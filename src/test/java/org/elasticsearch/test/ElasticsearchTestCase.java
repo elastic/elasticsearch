@@ -294,4 +294,19 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static <T> T randomFrom(T... values) {
         return RandomizedTest.randomFrom(values);
     }
+
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize, boolean allowNull) {
+        if (allowNull && randomBoolean()) {
+            return null;
+        }
+        String[] array = new String[randomInt(maxArraySize)]; // allow empty arrays
+        for (int i = 0; i < array.length; i++) {
+            array[i] = randomAsciiOfLength(maxStringSize);
+        }
+        return array;
+    }
+
+    public static String[] generateRandomStringArray(int maxArraySize, int maxStringSize) {
+        return generateRandomStringArray(maxArraySize, maxStringSize, false);
+    }
 }

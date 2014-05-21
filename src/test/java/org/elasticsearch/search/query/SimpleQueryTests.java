@@ -1961,7 +1961,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
         createIndex("test");
-        indexRandom(true,
+        indexRandom(true, false,
                 client().prepareIndex("test", "type1", "1").setSource("body", "foo"),
                 client().prepareIndex("test", "type1", "2").setSource("body", "bar"),
                 client().prepareIndex("test", "type1", "3").setSource("body", "foo bar"),

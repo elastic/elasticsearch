@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
@@ -26,7 +27,9 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -183,9 +186,13 @@ public class AggregatorFactories {
 
     public static class Builder {
 
-        private List<AggregatorFactory> factories = new ArrayList<>();
+        private final Set<String> names = new HashSet<>();
+        private final List<AggregatorFactory> factories = new ArrayList<>();
 
         public Builder add(AggregatorFactory factory) {
+            if (!names.add(factory.name)) {
+                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
+            }
             factories.add(factory);
             return this;
         }

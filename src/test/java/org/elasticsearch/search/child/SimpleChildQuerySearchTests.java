@@ -1979,6 +1979,26 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
     }
 
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/6256
+    public void testParentFieldInMultiMatchField() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("type1")
+                .addMapping("type2", "_parent", "type=type1")
+        );
+        ensureGreen();
+
+        client().prepareIndex("test", "type2", "1").setParent("1").setSource("field", "value").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(multiMatchQuery("1", "_parent"))
+                .get();
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+    }
+
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
         HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);
         hasChildFilterBuilder.setShortCircuitCutoff(randomInt(10));

@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -76,7 +77,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
-        return new IndexFieldCache(cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
+        return new IndexFieldCache(logger, cache, indicesFieldDataCacheListener, indexService, index, fieldNames, fieldDataType);
     }
 
     public Cache<Key, RamUsage> getCache() {
@@ -95,15 +96,20 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             sizeInBytes = value.getMemorySizeInBytes();
         }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
-            listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes);
+            try {
+                listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes);
+            } catch (Throwable e) {
+                // load anyway since listeners should not throw exceptions
+                logger.error("Failed to call listener on field data cache unloading", e);
+            }
         }
     }
 
-    public static class FieldDataWeigher implements Weigher<Key, AtomicFieldData> {
+    public static class FieldDataWeigher implements Weigher<Key, RamUsage> {
 
         @Override
-        public int weigh(Key key, AtomicFieldData fieldData) {
-            int weight = (int) Math.min(fieldData.getMemorySizeInBytes(), Integer.MAX_VALUE);
+        public int weigh(Key key, RamUsage ramUsage) {
+            int weight = (int) Math.min(ramUsage.getMemorySizeInBytes(), Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
     }
@@ -112,14 +118,16 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
      */
     static class IndexFieldCache implements IndexFieldDataCache, SegmentReader.CoreClosedListener, IndexReader.ReaderClosedListener {
-
+        private final ESLogger logger;
         private final IndexService indexService;
         final Index index;
         final FieldMapper.Names fieldNames;
         final FieldDataType fieldDataType;
         private final Cache<Key, RamUsage> cache;
+        private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
 
-        IndexFieldCache(final Cache<Key, RamUsage> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+        IndexFieldCache(ESLogger logger,final Cache<Key, RamUsage> cache, IndicesFieldDataCacheListener indicesFieldDataCacheListener, IndexService indexService, Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType) {
+            this.logger = logger;
             this.indexService = indexService;
             this.index = index;
             this.fieldNames = fieldNames;
@@ -129,8 +137,6 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             assert indexService != null;
         }
 
-        private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
-
         @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final AtomicReaderContext context, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, context.reader().getCoreCacheKey());
@@ -139,8 +145,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 @Override
                 public AtomicFieldData call() throws Exception {
                     SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
-                    AtomicFieldData fieldData = indexFieldData.loadDirect(context);
-                    key.sizeInBytes = fieldData.getMemorySizeInBytes();
+
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(context.reader());
                     if (shardId != null) {
@@ -149,9 +154,16 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             key.listeners.add(shard.fieldData());
                         }
                     }
+                    final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
                     for (Listener listener : key.listeners) {
-                        listener.onLoad(fieldNames, fieldDataType, fieldData);
+                        try {
+                            listener.onLoad(fieldNames, fieldDataType, fieldData);
+                        } catch (Throwable e) {
+                            // load anyway since listeners should not throw exceptions
+                            logger.error("Failed to call listener on atomic field data loading", e);
+                        }
                     }
+                    key.sizeInBytes = fieldData.getMemorySizeInBytes();
                     return fieldData;
                 }
             });
@@ -159,12 +171,12 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         public <IFD extends IndexFieldData.WithOrdinals<?>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, indexReader.getCoreCacheKey());
+
             //noinspection unchecked
             return (IFD) cache.get(key, new Callable<RamUsage>() {
                 @Override
                 public RamUsage call() throws Exception {
                     indexReader.addReaderClosedListener(IndexFieldCache.this);
-                    GlobalOrdinalsIndexFieldData ifd = (GlobalOrdinalsIndexFieldData) indexFieldData.localGlobalDirect(indexReader);
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(indexReader);
                     if (shardId != null) {
@@ -173,8 +185,14 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                             key.listeners.add(shard.fieldData());
                         }
                     }
+                    final GlobalOrdinalsIndexFieldData ifd = (GlobalOrdinalsIndexFieldData) indexFieldData.localGlobalDirect(indexReader);
                     for (Listener listener : key.listeners) {
-                        listener.onLoad(fieldNames, fieldDataType, ifd);
+                        try {
+                            listener.onLoad(fieldNames, fieldDataType, ifd);
+                        } catch (Throwable e) {
+                            // load anyway since listeners should not throw exceptions
+                            logger.error("Failed to call listener on global ordinals loading", e);
+                        }
                     }
                     return ifd;
                 }

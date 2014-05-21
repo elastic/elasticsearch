@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Sets;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -417,12 +416,10 @@ public class IndexTemplateMetaData {
             for (int i = 0; i < mappingsSize; i++) {
                 builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
             }
-            if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-                int aliasesSize = in.readVInt();
-                for (int i = 0; i < aliasesSize; i++) {
-                    AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
-                    builder.putAlias(aliasMd);
-                }
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.putAlias(aliasMd);
             }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
@@ -443,11 +440,9 @@ public class IndexTemplateMetaData {
                 out.writeString(cursor.key);
                 cursor.value.writeTo(out);
             }
-            if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-                out.writeVInt(indexTemplateMetaData.aliases().size());
-                for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
-                    AliasMetaData.Builder.writeTo(cursor.value, out);
-                }
+            out.writeVInt(indexTemplateMetaData.aliases().size());
+            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(cursor.value, out);
             }
             out.writeVInt(indexTemplateMetaData.customs().size());
             for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {

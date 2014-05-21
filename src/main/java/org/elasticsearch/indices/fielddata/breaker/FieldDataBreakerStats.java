@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.fielddata.breaker;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -77,11 +76,7 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         maximum = in.readLong();
         estimated = in.readLong();
         overhead = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            this.trippedCount = in.readLong();
-        } else {
-            this.trippedCount = -1;
-        }
+        this.trippedCount = in.readLong();
     }
 
     @Override
@@ -89,9 +84,7 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         out.writeLong(maximum);
         out.writeLong(estimated);
         out.writeDouble(overhead);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeLong(trippedCount);
-        }
+        out.writeLong(trippedCount);
     }
 
     @Override

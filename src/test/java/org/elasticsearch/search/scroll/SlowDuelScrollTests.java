@@ -21,10 +21,8 @@ package org.elasticsearch.search.scroll;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 /**
@@ -34,8 +32,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 public class SlowDuelScrollTests extends DuelScrollTests {
 
     private final Version[] versions = new Version[]{
-            Version.CURRENT, ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION, Version.V_1_1_0, Version.V_1_0_0
+            Version.CURRENT, Version.V_1_2_0, Version.V_1_1_0, Version.V_1_0_0
     };
+    // nocommit - ask mvg if we can drop more code ie the entire slow scroll
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

@@ -21,7 +21,6 @@ package org.elasticsearch.action.mlt;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -570,11 +569,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         minWordLength = in.readVInt();
         maxWordLength = in.readVInt();
         boostTerms = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            include = in.readBoolean();
-        } else {
-            include = false; // hard-coded behavior until Elasticsearch 1.2
-        }
+        include = in.readBoolean();
 
         searchType = SearchType.fromId(in.readByte());
         if (in.readBoolean()) {
@@ -645,9 +640,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         out.writeVInt(minWordLength);
         out.writeVInt(maxWordLength);
         out.writeFloat(boostTerms);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(include);
-        }
+        out.writeBoolean(include);
 
         out.writeByte(searchType.id());
         if (searchQueryHint == null) {

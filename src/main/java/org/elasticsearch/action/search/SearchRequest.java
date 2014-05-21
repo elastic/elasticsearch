@@ -504,13 +504,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            templateSourceUnsafe = false;
-            templateSource = in.readBytesReference();
-            templateName =  in.readOptionalString();
-            if (in.readBoolean()) {
-                templateParams = (Map<String, String>) in.readGenericValue();
-            }
+        templateSourceUnsafe = false;
+        templateSource = in.readBytesReference();
+        templateName =  in.readOptionalString();
+        if (in.readBoolean()) {
+            templateParams = (Map<String, String>) in.readGenericValue();
         }
     }
 
@@ -541,15 +539,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
 
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBytesReference(templateSource);
-            out.writeOptionalString(templateName);
+        out.writeBytesReference(templateSource);
+        out.writeOptionalString(templateName);
 
-            boolean existTemplateParams = templateParams != null;
-            out.writeBoolean(existTemplateParams);
-            if (existTemplateParams) {
-                out.writeGenericValue(templateParams);
-            }
+        boolean existTemplateParams = templateParams != null;
+        out.writeBoolean(existTemplateParams);
+        if (existTemplateParams) {
+            out.writeGenericValue(templateParams);
         }
     }
 }

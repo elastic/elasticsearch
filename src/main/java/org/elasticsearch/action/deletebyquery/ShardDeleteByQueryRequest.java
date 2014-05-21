@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -121,11 +120,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
             }
         }
 
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            nowInMillis = in.readVLong();
-        } else {
-            nowInMillis = System.currentTimeMillis();
-        }
+        nowInMillis = in.readVLong();
     }
 
     @Override
@@ -150,9 +145,7 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         } else {
             out.writeVInt(0);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeVLong(nowInMillis);
-        }
+        out.writeVLong(nowInMillis);
     }
 
     @Override

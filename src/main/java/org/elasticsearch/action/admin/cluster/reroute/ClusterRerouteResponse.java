@@ -19,11 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.reroute;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -63,11 +61,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         super.readFrom(in);
         state = ClusterState.Builder.readFrom(in, null);
         readAcknowledged(in);
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            explanations = RoutingExplanations.readFrom(in);
-        } else {
-            explanations = new RoutingExplanations();
-        }
+        explanations = RoutingExplanations.readFrom(in);
     }
 
     @Override
@@ -75,8 +69,6 @@ public class ClusterRerouteResponse extends AcknowledgedResponse {
         super.writeTo(out);
         ClusterState.Builder.writeTo(state, out);
         writeAcknowledged(out);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            RoutingExplanations.writeTo(explanations, out);
-        }
+        RoutingExplanations.writeTo(explanations, out);
     }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.tasks;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,12 +38,12 @@ public class PendingClusterTasksRequest extends MasterNodeReadOperationRequest<P
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        readLocal(in, Version.V_1_0_0_RC2);
+        readLocal(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
+        writeLocal(out);
     }
 }

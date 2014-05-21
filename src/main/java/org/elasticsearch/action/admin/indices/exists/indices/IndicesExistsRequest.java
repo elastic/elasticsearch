@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.exists.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
@@ -72,7 +71,7 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.readFrom(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
+        readLocal(in);
     }
 
     @Override
@@ -80,6 +79,6 @@ public class IndicesExistsRequest extends MasterNodeReadOperationRequest<Indices
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
+        writeLocal(out);
     }
 }

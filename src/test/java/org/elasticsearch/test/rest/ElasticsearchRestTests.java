@@ -22,7 +22,6 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.collect.Lists;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -199,11 +198,6 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             messageBuilder.append("[").append(description).append("] skipped, reason: features ").append(skipSection.getFeatures()).append(" not supported");
         }
         return messageBuilder.toString();
-    }
-
-    @Override
-    protected boolean randomizeNumberOfShardsAndReplicas() {
-        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_2_0);
     }
 
     @Test

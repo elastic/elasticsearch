@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.master;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -46,31 +45,13 @@ public abstract class MasterNodeReadOperationRequest<T extends MasterNodeReadOpe
      * Reads the local flag
      */
     protected void readLocal(StreamInput in) throws IOException {
-        readLocal(in, null);
-    }
-
-    /**
-     * Reads the local flag if on or after the specified min version or if the version is <code>null</code>.
-     */
-    protected void readLocal(StreamInput in, Version minVersion) throws IOException {
-        if (minVersion == null || in.getVersion().onOrAfter(minVersion)) {
-            local = in.readBoolean();
-        }
+        local = in.readBoolean();
     }
 
     /**
      * writes the local flag
      */
     protected void writeLocal(StreamOutput out) throws IOException {
-        writeLocal(out, null);
-    }
-
-    /**
-     * writes the local flag if on or after the specified min version or if the version is <code>null</code>.
-     */
-    protected void writeLocal(StreamOutput out, Version minVersion) throws IOException {
-        if (minVersion == null || out.getVersion().onOrAfter(minVersion)) {
-            out.writeBoolean(local);
-        }
+        out.writeBoolean(local);
     }
 }

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -220,19 +218,12 @@ public class ShardSearchRequest extends TransportRequest {
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
 
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            templateSource = in.readBytesReference();
-            templateName = in.readOptionalString();
-            if (in.readBoolean()) {
-                templateParams = (Map<String, String>) in.readGenericValue();
-            }
+        templateSource = in.readBytesReference();
+        templateName = in.readOptionalString();
+        if (in.readBoolean()) {
+            templateParams = (Map<String, String>) in.readGenericValue();
         }
-        if (in.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-            useSlowScroll = in.readBoolean();
-        } else {
-            // This means that this request was send from a 1.0.x or 1.1.x node and we need to fallback to slow scroll.
-            useSlowScroll = in.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION);
-        }
+        useSlowScroll = in.readBoolean();
     }
 
     @Override
@@ -254,17 +245,13 @@ public class ShardSearchRequest extends TransportRequest {
         out.writeStringArrayNullable(filteringAliases);
         out.writeVLong(nowInMillis);
 
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBytesReference(templateSource);
-            out.writeOptionalString(templateName);
-            boolean existTemplateParams = templateParams != null;
-            out.writeBoolean(existTemplateParams);
-            if (existTemplateParams) {
-                out.writeGenericValue(templateParams);
-            }
+        out.writeBytesReference(templateSource);
+        out.writeOptionalString(templateName);
+        boolean existTemplateParams = templateParams != null;
+        out.writeBoolean(existTemplateParams);
+        if (existTemplateParams) {
+            out.writeGenericValue(templateParams);
         }
-        if (out.getVersion().onOrAfter(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-            out.writeBoolean(useSlowScroll);
-        }
+        out.writeBoolean(useSlowScroll);
     }
 }

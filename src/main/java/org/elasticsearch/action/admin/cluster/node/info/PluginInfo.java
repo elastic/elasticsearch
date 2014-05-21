@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -133,11 +132,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         this.description = in.readString();
         this.site = in.readBoolean();
         this.jvm = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
-            this.version = in.readString();
-        } else {
-            this.version = VERSION_NOT_AVAILABLE;
-        }
+        this.version = in.readString();
     }
 
     @Override
@@ -146,9 +141,7 @@ public class PluginInfo implements Streamable, Serializable, ToXContent {
         out.writeString(description);
         out.writeBoolean(site);
         out.writeBoolean(jvm);
-        if (out.getVersion().onOrAfter(Version.V_1_0_0_RC2)) {
-            out.writeString(version);
-        }
+        out.writeString(version);
     }
 
     @Override

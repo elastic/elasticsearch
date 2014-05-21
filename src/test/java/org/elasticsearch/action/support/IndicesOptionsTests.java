@@ -48,13 +48,7 @@ public class IndicesOptionsTests extends ElasticsearchTestCase {
             assertThat(indicesOptions2.allowNoIndices(), equalTo(indicesOptions.allowNoIndices()));
             assertThat(indicesOptions2.expandWildcardsOpen(), equalTo(indicesOptions.expandWildcardsOpen()));
             assertThat(indicesOptions2.expandWildcardsClosed(), equalTo(indicesOptions.expandWildcardsClosed()));
-
-            if (outputVersion.onOrAfter(Version.V_1_2_0)) {
-                assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
-            } else {
-                //default value (true) if the node version doesn't support the allowAliasesToMultipleIndices flag
-                assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(true));
-            }
+            assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
         }
     }
 

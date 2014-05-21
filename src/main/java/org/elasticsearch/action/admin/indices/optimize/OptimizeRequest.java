@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.optimize;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -155,9 +154,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            force = in.readBoolean();
-        }
+        force = in.readBoolean();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -166,8 +163,6 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBoolean(force);
-        }
+        out.writeBoolean(force);
     }
 }

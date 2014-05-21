@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -511,9 +510,7 @@ public class CommonStats implements Streamable, ToXContent {
             segments = SegmentsStats.readSegmentsStats(in);
         }
         translog = in.readOptionalStreamable(new TranslogStats());
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            suggest = in.readOptionalStreamable(new SuggestStats());
-        }
+        suggest = in.readOptionalStreamable(new SuggestStats());
     }
 
     @Override
@@ -609,9 +606,7 @@ public class CommonStats implements Streamable, ToXContent {
             segments.writeTo(out);
         }
         out.writeOptionalStreamable(translog);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeOptionalStreamable(suggest);
-        }
+        out.writeOptionalStreamable(suggest);
     }
 
     // note, requires a wrapping object

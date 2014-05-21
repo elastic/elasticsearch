@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -580,19 +579,13 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-                freed = in.readBoolean();
-            } else {
-                freed = true;
-            }
+            freed = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-                out.writeBoolean(freed);
-            }
+            out.writeBoolean(freed);
         }
     }
 

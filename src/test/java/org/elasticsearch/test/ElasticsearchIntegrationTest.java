@@ -380,7 +380,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected boolean randomizeNumberOfShardsAndReplicas() {
-        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_1_0);
+        return true;
     }
 
     private static ImmutableSettings.Builder setRandomSettings(Random random, ImmutableSettings.Builder builder) {

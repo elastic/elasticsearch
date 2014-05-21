@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -80,7 +79,7 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         names = in.readStringArray();
-        readLocal(in, Version.V_1_0_0_RC2);
+        readLocal(in);
     }
 
     @Override
@@ -89,6 +88,6 @@ public class GetSettingsRequest extends MasterNodeReadOperationRequest<GetSettin
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeStringArray(names);
-        writeLocal(out, Version.V_1_0_0_RC2);
+        writeLocal(out);
     }
 }

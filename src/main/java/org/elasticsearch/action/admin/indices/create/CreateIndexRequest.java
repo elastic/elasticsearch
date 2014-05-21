@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -423,11 +422,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
             customs.put(type, customIndexMetaData);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            int aliasesSize = in.readVInt();
-            for (int i = 0; i < aliasesSize; i++) {
-                aliases.add(Alias.read(in));
-            }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(Alias.read(in));
         }
     }
 
@@ -448,11 +445,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeVInt(aliases.size());
-            for (Alias alias : aliases) {
-                alias.writeTo(out);
-            }
+        out.writeVInt(aliases.size());
+        for (Alias alias : aliases) {
+            alias.writeTo(out);
         }
     }
 }

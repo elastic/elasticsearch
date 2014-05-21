@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequest;
@@ -86,7 +85,7 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         indices = in.readStringArray();
         aliases = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
+        readLocal(in);
     }
 
     @Override
@@ -95,6 +94,6 @@ public class GetAliasesRequest extends MasterNodeReadOperationRequest<GetAliases
         out.writeStringArray(indices);
         out.writeStringArray(aliases);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
+        writeLocal(out);
     }
 }

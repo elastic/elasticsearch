@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.google.common.primitives.Longs;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Comparators;
@@ -206,18 +204,7 @@ class InternalOrder extends Terms.Order {
             if (order instanceof Aggregation) {
                 out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) order.comparator).asc());
                 OrderPath path = ((Aggregation) order).path();
-                if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-                    out.writeString(path.toString());
-                } else {
-                    // prev versions only supported sorting on a single level -> a single token;
-                    OrderPath.Token token = path.lastToken();
-                    out.writeString(token.name);
-                    boolean hasValueName = token.key != null;
-                    out.writeBoolean(hasValueName);
-                    if (hasValueName) {
-                        out.writeString(token.key);
-                    }
-                }
+                out.writeString(path.toString());
             }
         }
 
@@ -231,13 +218,6 @@ class InternalOrder extends Terms.Order {
                 case 0:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-                        return new InternalOrder.Aggregation(key, asc);
-                    }
-                    boolean hasValueNmae = in.readBoolean();
-                    if (hasValueNmae) {
-                        return new InternalOrder.Aggregation(key + "." + in.readString(), asc);
-                    }
                     return new InternalOrder.Aggregation(key, asc);
                 default:
                     throw new RuntimeException("unknown terms order");

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.deletebyquery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.replication.IndexReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
@@ -123,11 +122,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
                 filteringAliases[i] = in.readString();
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            nowInMillis = in.readVLong();
-        } else {
-            nowInMillis = System.currentTimeMillis();
-        }
+        nowInMillis = in.readVLong();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -153,8 +148,6 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
         } else {
             out.writeVInt(0);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeVLong(nowInMillis);
-        }
+        out.writeVLong(nowInMillis);
     }
 }

@@ -19,7 +19,6 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -94,13 +93,7 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (allowAliasesToMultipleIndices() || out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.write(id);
-        } else {
-            //if we are talking to a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
-            //flip to 0 all the bits starting from the 5th
-            out.write(id & 0xf);
-        }
+        out.write(id);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {

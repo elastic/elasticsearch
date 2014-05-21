@@ -124,18 +124,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
             firstResults = new AtomicArray<>(shardsIts.size());
-            // Not so nice, but we need to know if there're nodes below the supported version
-            // and if so fall back to classic scroll (based on from). We need to check every node
-            // because we don't to what nodes we end up sending the request (shard may fail or relocate)
-            boolean useSlowScroll = false;
-            if (request.scroll() != null) {
-                for (DiscoveryNode discoveryNode : clusterState.nodes()) {
-                    if (discoveryNode.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
-                }
-            }
-            this.useSlowScroll = useSlowScroll;
+            this.useSlowScroll = false;
         }
 
         public void start() {

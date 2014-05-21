@@ -21,8 +21,6 @@ package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -136,9 +133,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 Tuple<String, Long> target = context[i];
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
-                    if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
                     executeQueryPhase(i, counter, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {

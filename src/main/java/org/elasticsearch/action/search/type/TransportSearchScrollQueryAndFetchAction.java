@@ -126,9 +126,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 Tuple<String, Long> target = context[i];
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
-                    if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
                     executePhase(i, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {

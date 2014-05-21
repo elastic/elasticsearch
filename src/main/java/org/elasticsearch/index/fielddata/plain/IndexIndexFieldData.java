@@ -27,7 +27,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
 

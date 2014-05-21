@@ -23,11 +23,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.XOrdinalMap;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
@@ -52,7 +53,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final XOrdinalMap ordinalMap = XOrdinalMap.build(null, subs, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
-        breakerService.getBreaker().addWithoutBreaking(memorySizeInBytes);
+        breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA).addWithoutBreaking(memorySizeInBytes);
 
         if (logger.isDebugEnabled()) {
             logger.debug(

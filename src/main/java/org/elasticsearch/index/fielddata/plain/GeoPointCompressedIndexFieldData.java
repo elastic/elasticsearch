@@ -25,6 +25,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedMutable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -38,7 +39,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 /**
  */
@@ -82,7 +83,7 @@ public class GeoPointCompressedIndexFieldData extends AbstractIndexGeoPointField
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicGeoPointFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
         if (terms == null) {
             data = AbstractAtomicGeoPointFieldData.empty(reader.maxDoc());
             estimator.afterLoad(null, data.ramBytesUsed());

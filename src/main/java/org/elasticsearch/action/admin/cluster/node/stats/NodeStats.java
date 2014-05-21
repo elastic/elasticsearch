@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.NodeIndicesStats;
-import org.elasticsearch.indices.fielddata.breaker.FieldDataBreakerStats;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.monitor.jvm.JvmStats;
 import org.elasticsearch.monitor.network.NetworkStats;
@@ -75,7 +75,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     private HttpStats http;
 
     @Nullable
-    private FieldDataBreakerStats breaker;
+    private AllCircuitBreakerStats breaker;
 
     NodeStats() {
     }
@@ -83,7 +83,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     public NodeStats(DiscoveryNode node, long timestamp, @Nullable NodeIndicesStats indices,
                      @Nullable OsStats os, @Nullable ProcessStats process, @Nullable JvmStats jvm, @Nullable ThreadPoolStats threadPool,
                      @Nullable NetworkStats network, @Nullable FsStats fs, @Nullable TransportStats transport, @Nullable HttpStats http,
-                     @Nullable FieldDataBreakerStats breaker) {
+                     @Nullable AllCircuitBreakerStats breaker) {
         super(node);
         this.timestamp = timestamp;
         this.indices = indices;
@@ -174,7 +174,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
     }
 
     @Nullable
-    public FieldDataBreakerStats getBreaker() {
+    public AllCircuitBreakerStats getBreaker() {
         return this.breaker;
     }
 
@@ -215,7 +215,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         if (in.readBoolean()) {
             http = HttpStats.readHttpStats(in);
         }
-        breaker = FieldDataBreakerStats.readOptionalCircuitBreakerStats(in);
+        breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
     }
 
     @Override

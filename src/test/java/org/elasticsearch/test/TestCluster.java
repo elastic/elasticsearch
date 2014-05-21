@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.indices.IndexMissingException;
@@ -194,8 +195,10 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
             NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getEstimated(), equalTo(0L));
+                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+                assertThat("Request breaker not reset to 0 on node: " + stats.getNode(),
+                        stats.getBreaker().getStats(CircuitBreaker.Name.REQUEST).getEstimated(), equalTo(0L));
             }
         }
     }

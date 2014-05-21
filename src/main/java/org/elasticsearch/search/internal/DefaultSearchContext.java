@@ -193,7 +193,8 @@ public class DefaultSearchContext extends SearchContext {
         this.scriptService = scriptService;
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        // SearchContexts use a BigArrays that can circuit break
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(id, shardTarget);
         this.queryResult = new QuerySearchResult(id, shardTarget);
         this.fetchResult = new FetchSearchResult(id, shardTarget);

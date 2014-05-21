@@ -16,35 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.ElasticsearchException;
+package org.elasticsearch.indices.breaker;
 
-/**
- * Exception thrown when the circuit breaker trips
- */
-public class CircuitBreakingException extends ElasticsearchException {
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
-    private final long bytesWanted;
-    private final long byteLimit;
+public class CircuitBreakerModule extends AbstractModule {
 
-    public CircuitBreakingException(String message) {
-        super(message);
-        this.bytesWanted = 0;
-        this.byteLimit = 0;
+    public static final String IMPL = "indices.breaker.breaker_impl";
+
+    private final Settings settings;
+
+    public CircuitBreakerModule(Settings settings) {
+        this.settings = settings;
     }
 
-    public CircuitBreakingException(String message, long bytesWanted, long byteLimit) {
-        super(message);
-        this.bytesWanted = bytesWanted;
-        this.byteLimit = byteLimit;
-    }
-
-    public long getBytesWanted() {
-        return this.bytesWanted;
-    }
-
-    public long getByteLimit() {
-        return this.byteLimit;
+    @Override
+    protected void configure() {
+        bind(CircuitBreakerService.class).to(settings.getAsClass(IMPL, HierarchyCircuitBreakerService.class)).asEagerSingleton();
     }
 }

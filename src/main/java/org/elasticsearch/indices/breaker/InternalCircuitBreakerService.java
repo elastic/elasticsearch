@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.indices.fielddata.breaker;
+package org.elasticsearch.indices.breaker;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,7 +31,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  * that can be used to keep track of memory usage across the node, preventing
  * actions that could cause an {@link OutOfMemoryError} on the node.
  */
-public class InternalCircuitBreakerService extends AbstractLifecycleComponent<InternalCircuitBreakerService> implements CircuitBreakerService {
+public class InternalCircuitBreakerService extends CircuitBreakerService {
 
     public static final String CIRCUIT_BREAKER_MAX_BYTES_SETTING = "indices.fielddata.breaker.limit";
     public static final String CIRCUIT_BREAKER_OVERHEAD_SETTING = "indices.fielddata.breaker.overhead";
@@ -87,7 +86,8 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     /**
      * @return a {@link org.elasticsearch.common.breaker.MemoryCircuitBreaker} that can be used for aggregating memory usage
      */
-    public MemoryCircuitBreaker getBreaker() {
+    public MemoryCircuitBreaker getBreaker(CircuitBreaker.Name name) {
+        // Return the only breaker, regardless of name
         return this.breaker;
     }
 
@@ -104,19 +104,17 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     }
 
     @Override
-    public FieldDataBreakerStats stats() {
-        return new FieldDataBreakerStats(breaker.getMaximum(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
+    public AllCircuitBreakerStats stats() {
+        return new AllCircuitBreakerStats(new CircuitBreakerStats[]{
+                new CircuitBreakerStats(CircuitBreaker.Name.FIELDDATA, breaker.getLimit(), breaker.getUsed(),
+                        breaker.getOverhead(), breaker.getTrippedCount())
+        });
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
+    public CircuitBreakerStats stats(CircuitBreaker.Name name) {
+        // There is only a single breaker, so always return it
+        return new CircuitBreakerStats(CircuitBreaker.Name.FIELDDATA, breaker.getLimit(), breaker.getUsed(),
+                breaker.getOverhead(), breaker.getTrippedCount());
     }
 }

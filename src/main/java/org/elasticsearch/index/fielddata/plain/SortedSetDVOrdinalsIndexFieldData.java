@@ -29,8 +29,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
 

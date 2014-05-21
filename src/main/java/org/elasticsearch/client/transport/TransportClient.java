@@ -76,6 +76,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.PluginsModule;
@@ -187,6 +188,7 @@ public class TransportClient extends AbstractClient {
         modules.add(new TransportModule(this.settings));
         modules.add(new ActionModule(true));
         modules.add(new ClientTransportModule());
+        modules.add(new CircuitBreakerModule(this.settings));
 
         injector = modules.createInjector();
 

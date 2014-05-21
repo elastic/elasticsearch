@@ -209,6 +209,7 @@ public class PercolatorService extends AbstractComponent {
             // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
             PercolatorIndex percolatorIndex;
             if (parsedDocument.docs().size() > 1) {
+                assert indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects();
                 percolatorIndex = multi;
             } else {
                 percolatorIndex = single;

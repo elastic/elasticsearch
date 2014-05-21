@@ -23,7 +23,6 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.action.bench.BenchmarkModule;
 import org.elasticsearch.bulk.udp.BulkUdpModule;
 import org.elasticsearch.bulk.udp.BulkUdpService;
 import org.elasticsearch.cache.recycler.CacheRecycler;
@@ -185,7 +184,6 @@ public final class InternalNode implements Node {
         modules.add(new ResourceWatcherModule());
         modules.add(new RepositoriesModule());
         modules.add(new TribeModule());
-        modules.add(new BenchmarkModule(settings));
 
         injector = modules.createInjector();
 

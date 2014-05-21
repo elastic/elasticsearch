@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -555,39 +554,4 @@ public interface Client {
      * Clears the search contexts associated with specified scroll ids.
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
-
-    /**
-     * Runs a benchmark on the server
-     */
-    void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener);
-
-    /**
-     * Runs a benchmark on the server
-     */
-    ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request);
-
-    /**
-     * Runs a benchmark on the server
-     */
-    BenchmarkRequestBuilder prepareBench(String... indices);
-
-    /**
-     * Aborts a benchmark run on the server
-     */
-    void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener);
-
-    /**
-     * Aborts a benchmark run on the server
-     */
-    AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames);
-
-    /**
-     * Reports on status of actively running benchmarks
-     */
-    void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener);
-
-    /**
-     * Reports on status of actively running benchmarks
-     */
-    BenchmarkStatusRequestBuilder prepareBenchStatus();
 }

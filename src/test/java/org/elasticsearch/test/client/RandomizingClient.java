@@ -21,7 +21,6 @@ package org.elasticsearch.test.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -412,41 +411,6 @@ public class RandomizingClient implements InternalClient {
     @Override
     public void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener) {
         delegate.clearScroll(request, listener);
-    }
-
-    @Override
-    public void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener) {
-        delegate.bench(request, listener);
-    }
-
-    @Override
-    public ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request) {
-        return delegate.bench(request);
-    }
-
-    @Override
-    public BenchmarkRequestBuilder prepareBench(String... indices) {
-        return delegate.prepareBench(indices);
-    }
-
-    @Override
-    public void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener) {
-        delegate.abortBench(request, listener);
-    }
-
-    @Override
-    public AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames) {
-        return delegate.prepareAbortBench(benchmarkNames);
-    }
-
-    @Override
-    public void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
-        delegate.benchStatus(request, listener);
-    }
-
-    @Override
-    public BenchmarkStatusRequestBuilder prepareBenchStatus() {
-        return delegate.prepareBenchStatus();
     }
 
     @Override

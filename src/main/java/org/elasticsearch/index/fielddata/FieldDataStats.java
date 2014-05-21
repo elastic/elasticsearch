@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.MeterMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,7 +37,11 @@ import java.io.IOException;
 public class FieldDataStats implements Streamable, ToXContent {
 
     long memorySize;
-    long evictions;
+
+    private long evictions;
+    private double evictionsOneMinuteRate;
+    private double evictionsFiveMinuteRate;
+    private double evictionsFifteenMinuteRate;
     @Nullable
     ObjectLongOpenHashMap<String> fields;
 
@@ -44,15 +49,21 @@ public class FieldDataStats implements Streamable, ToXContent {
 
     }
 
-    public FieldDataStats(long memorySize, long evictions, @Nullable ObjectLongOpenHashMap<String> fields) {
+    public FieldDataStats(long memorySize, MeterMetric evictionMeter, @Nullable ObjectLongOpenHashMap<String> fields) {
         this.memorySize = memorySize;
-        this.evictions = evictions;
         this.fields = fields;
+        this.evictions = evictionMeter.count();
+        this.evictionsOneMinuteRate = evictionMeter.oneMinuteRate();
+        this.evictionsFiveMinuteRate = evictionMeter.fiveMinuteRate();
+        this.evictionsFifteenMinuteRate = evictionMeter.fifteenMinuteRate();
     }
 
     public void add(FieldDataStats stats) {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
+        this.evictionsOneMinuteRate += stats.evictionsOneMinuteRate;
+        this.evictionsFiveMinuteRate += stats.evictionsFiveMinuteRate;
+        this.evictionsFifteenMinuteRate += stats.evictionsFifteenMinuteRate;
         if (stats.fields != null) {
             if (fields == null) fields = new ObjectLongOpenHashMap<>();
             final boolean[] states = stats.fields.allocated;
@@ -78,6 +89,18 @@ public class FieldDataStats implements Streamable, ToXContent {
         return this.evictions;
     }
 
+    public double getEvictionsOneMinuteRate() {
+        return this.evictionsOneMinuteRate;
+    }
+
+    public double getEvictionsFiveMinuteRate() {
+        return this.evictionsFiveMinuteRate;
+    }
+
+    public double getEvictionsFifteenMinuteRate() {
+        return this.evictionsFifteenMinuteRate;
+    }
+
     @Nullable
     public ObjectLongOpenHashMap<String> getFields() {
         return fields;
@@ -93,6 +116,9 @@ public class FieldDataStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
+        evictionsOneMinuteRate = in.readDouble();
+        evictionsFiveMinuteRate = in.readDouble();
+        evictionsFifteenMinuteRate = in.readDouble();
         if (in.readBoolean()) {
             int size = in.readVInt();
             fields = new ObjectLongOpenHashMap<>(size);
@@ -106,6 +132,9 @@ public class FieldDataStats implements Streamable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
+        out.writeDouble(evictionsOneMinuteRate);
+        out.writeDouble(evictionsFiveMinuteRate);
+        out.writeDouble(evictionsFifteenMinuteRate);
         if (fields == null) {
             out.writeBoolean(false);
         } else {
@@ -128,6 +157,11 @@ public class FieldDataStats implements Streamable, ToXContent {
         builder.startObject(Fields.FIELDDATA);
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
+        builder.startArray(Fields.RATES);
+        builder.value(getEvictionsOneMinuteRate());
+        builder.value(getEvictionsFiveMinuteRate());
+        builder.value(getEvictionsFifteenMinuteRate());
+        builder.endArray();
         if (fields != null) {
             builder.startObject(Fields.FIELDS);
             final boolean[] states = fields.allocated;
@@ -152,5 +186,6 @@ public class FieldDataStats implements Streamable, ToXContent {
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+        static final XContentBuilderString RATES = new XContentBuilderString("rates");
     }
 }

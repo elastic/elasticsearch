@@ -25,17 +25,21 @@ import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 /**
  */
 public class ShardFilterCache extends AbstractIndexShardComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
-    final CounterMetric evictionsMetric = new CounterMetric();
+    final MeterMetric evictionMeter = new MeterMetric(Executors.newSingleThreadScheduledExecutor(), TimeUnit.MINUTES);
     final CounterMetric totalMetric = new CounterMetric();
 
     @Inject
@@ -44,7 +48,7 @@ public class ShardFilterCache extends AbstractIndexShardComponent implements Rem
     }
 
     public FilterCacheStats stats() {
-        return new FilterCacheStats(totalMetric.count(), evictionsMetric.count());
+        return new FilterCacheStats(totalMetric.count(), evictionMeter);
     }
 
     public void onCached(long sizeInBytes) {
@@ -54,7 +58,7 @@ public class ShardFilterCache extends AbstractIndexShardComponent implements Rem
     @Override
     public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, DocIdSet> removalNotification) {
         if (removalNotification.wasEvicted()) {
-            evictionsMetric.inc();
+            evictionMeter.mark();
         }
         if (removalNotification.getValue() != null) {
             totalMetric.dec(DocIdSets.sizeInBytes(removalNotification.getValue()));

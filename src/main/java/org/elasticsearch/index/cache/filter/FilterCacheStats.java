@@ -22,6 +22,7 @@ package org.elasticsearch.index.cache.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.MeterMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,19 +35,28 @@ import java.io.IOException;
 public class FilterCacheStats implements Streamable, ToXContent {
 
     long memorySize;
-    long evictions;
+    private long evictions;
+    private double evictionsOneMinuteRate;
+    private double evictionsFiveMinuteRate;
+    private double evictionsFifteenMinuteRate;
 
     public FilterCacheStats() {
     }
 
-    public FilterCacheStats(long memorySize, long evictions) {
+    public FilterCacheStats(long memorySize, MeterMetric evictionMeter) {
         this.memorySize = memorySize;
-        this.evictions = evictions;
+        this.evictions = evictionMeter.count();
+        this.evictionsOneMinuteRate = evictionMeter.oneMinuteRate();
+        this.evictionsFiveMinuteRate = evictionMeter.fiveMinuteRate();
+        this.evictionsFifteenMinuteRate = evictionMeter.fifteenMinuteRate();
     }
 
     public void add(FilterCacheStats stats) {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
+        this.evictionsOneMinuteRate += stats.evictionsOneMinuteRate;
+        this.evictionsFiveMinuteRate += stats.evictionsFiveMinuteRate;
+        this.evictionsFifteenMinuteRate += stats.evictionsFifteenMinuteRate;
     }
 
     public long getMemorySizeInBytes() {
@@ -61,6 +71,18 @@ public class FilterCacheStats implements Streamable, ToXContent {
         return this.evictions;
     }
 
+    public double getEvictionsOneMinuteRate() {
+        return this.evictionsOneMinuteRate;
+    }
+
+    public double getEvictionsFiveMinuteRate() {
+        return this.evictionsFiveMinuteRate;
+    }
+
+    public double getEvictionsFifteenMinuteRate() {
+        return this.evictionsFifteenMinuteRate;
+    }
+
     public static FilterCacheStats readFilterCacheStats(StreamInput in) throws IOException {
         FilterCacheStats stats = new FilterCacheStats();
         stats.readFrom(in);
@@ -71,12 +93,18 @@ public class FilterCacheStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
+        evictionsOneMinuteRate = in.readDouble();
+        evictionsFiveMinuteRate = in.readDouble();
+        evictionsFifteenMinuteRate = in.readDouble();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
+        out.writeDouble(evictionsOneMinuteRate);
+        out.writeDouble(evictionsFiveMinuteRate);
+        out.writeDouble(evictionsFifteenMinuteRate);
     }
 
     @Override
@@ -84,6 +112,11 @@ public class FilterCacheStats implements Streamable, ToXContent {
         builder.startObject(Fields.FILTER_CACHE);
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
+        builder.startArray(Fields.RATES);
+        builder.value(getEvictionsOneMinuteRate());
+        builder.value(getEvictionsFiveMinuteRate());
+        builder.value(getEvictionsFifteenMinuteRate());
+        builder.endArray();
         builder.endObject();
         return builder;
     }
@@ -93,5 +126,6 @@ public class FilterCacheStats implements Streamable, ToXContent {
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
+        static final XContentBuilderString RATES = new XContentBuilderString("rates");
     }
 }

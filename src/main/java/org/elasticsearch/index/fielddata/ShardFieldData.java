@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -34,12 +35,14 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  */
 public class ShardFieldData extends AbstractIndexShardComponent implements IndexFieldDataCache.Listener {
 
-    final CounterMetric evictionsMetric = new CounterMetric();
+    final MeterMetric evictionMeter = new MeterMetric(Executors.newSingleThreadScheduledExecutor(), TimeUnit.MINUTES);
     final CounterMetric totalMetric = new CounterMetric();
 
     final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
@@ -66,7 +69,7 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
         if (perFieldTotals.containsKey(ParentFieldMapper.NAME)) {
             memorySize -= perFieldTotals.get(ParentFieldMapper.NAME).count();
         }
-        return new FieldDataStats(memorySize, evictionsMetric.count(), fieldTotals);
+        return new FieldDataStats(memorySize, evictionMeter, fieldTotals);
     }
 
     @Override
@@ -89,7 +92,7 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
     @Override
     public void onUnload(FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
         if (wasEvicted) {
-            evictionsMetric.inc();
+            evictionMeter.mark();
         }
         if (sizeInBytes != -1) {
             totalMetric.dec(sizeInBytes);

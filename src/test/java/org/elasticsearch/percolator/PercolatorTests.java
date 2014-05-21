@@ -1661,6 +1661,16 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void makeSureNonNestedDocumentDoesNotTriggerAssertion() throws IOException {
+        initNestedIndexAndPercolation();
+        XContentBuilder doc = jsonBuilder();
+        doc.startObject();
+        doc.field("some_unnested_field", "value");
+        PercolateResponse response = client().preparePercolate().setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(doc)).setIndices("nestedindex").setDocumentType("company").get();
+        assertNoFailures(response);
+    }
+
+    @Test
     public void testNestedPercolationOnExistingDoc() throws IOException {
         initNestedIndexAndPercolation();
         client().prepareIndex("nestedindex", "company", "notmatching").setSource(getNotMatchingNestedDoc()).get();

@@ -1,6 +1,8 @@
 [[search-benchmark]]
 == Benchmark
 
+coming[1.3.0]
+
 .Experimental!
 [IMPORTANT]
 =====

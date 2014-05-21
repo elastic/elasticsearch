@@ -483,4 +483,44 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertHitCount(mltResponse, numOfTypes);
     }
 
+    @Test
+    public void testMoreLikeThisMultiValueFields() throws Exception {
+        logger.info("Creating the index ...");
+        assertAcked(prepareCreate("test")
+                .addMapping("type1", "text", "type=string,analyzer=keyword")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
+        ensureGreen();
+
+        logger.info("Indexing ...");
+        String[] values = {"aaaa", "bbbb", "cccc", "dddd", "eeee", "ffff", "gggg", "hhhh", "iiii", "jjjj"};
+        List<IndexRequestBuilder> builders = new ArrayList<>(values.length + 1);
+        // index one document with all the values
+        builders.add(client().prepareIndex("test", "type1", "0").setSource("text", values));
+        // index each document with only one of the values
+        for (int i = 0; i < values.length; i++) {
+            builders.add(client().prepareIndex("test", "type1", String.valueOf(i + 1)).setSource("text", values[i]));
+        }
+        indexRandom(true, builders);
+
+        int maxIters = randomIntBetween(10, 20);
+        for (int i = 0; i < maxIters; i++)
+        {
+            int max_query_terms = randomIntBetween(1, values.length);
+            logger.info("Running More Like This with max_query_terms = %s", max_query_terms);
+            MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery("text").ids("0").minTermFreq(1).minDocFreq(1)
+                    .maxQueryTerms(max_query_terms).percentTermsToMatch(0);
+            SearchResponse response = client().prepareSearch("test").setTypes("type1")
+                    .setQuery(mltQuery).execute().actionGet();
+            assertSearchResponse(response);
+            assertHitCount(response, max_query_terms);
+
+            logger.info("Running More Like This API with with max_query_terms = %s returns all docs!", max_query_terms);
+            response = client().moreLikeThis(moreLikeThisRequest("test").type("type1")
+                    .id("0").fields("text").minTermFreq(1).minDocFreq(1)
+                    .maxQueryTerms(max_query_terms).percentTermsToMatch(0))
+                    .actionGet();
+            assertSearchResponse(response);
+            assertHitCount(response, values.length);
+        }
+    }
 }

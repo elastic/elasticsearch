@@ -41,22 +41,12 @@ import static org.hamcrest.Matchers.is;
 
 public class ItemSerializationTests extends ElasticsearchTestCase {
 
-    private String[] generateRandomStringArray(int arraySize, int stringSize) {
-        String[] array = randomBoolean() ? new String[randomInt(arraySize)] : null; // allow empty arrays
-        if (array != null) {
-            for (int i = 0; i < array.length; i++) {
-                array[i] = randomAsciiOfLength(stringSize);
-            }
-        }
-        return array;
-    }
-
     private Item generateRandomItem(int arraySize, int stringSize) {
         String index = randomAsciiOfLength(stringSize);
         String type = randomAsciiOfLength(stringSize);
         String id = String.valueOf(Math.abs(randomInt()));
         String routing = randomBoolean() ? randomAsciiOfLength(stringSize) : null;
-        String[] fields = generateRandomStringArray(arraySize, stringSize);
+        String[] fields = generateRandomStringArray(arraySize, stringSize, true);
 
         long version = Math.abs(randomLong());
         VersionType versionType = RandomPicks.randomFrom(new Random(), VersionType.values());
@@ -67,11 +57,11 @@ public class ItemSerializationTests extends ElasticsearchTestCase {
                 fetchSourceContext = new FetchSourceContext(randomBoolean());
                 break;
             case 1 :
-                fetchSourceContext = new FetchSourceContext(generateRandomStringArray(arraySize, stringSize));
+                fetchSourceContext = new FetchSourceContext(generateRandomStringArray(arraySize, stringSize, true));
                 break;
             case 2 :
-                fetchSourceContext = new FetchSourceContext(generateRandomStringArray(arraySize, stringSize),
-                        generateRandomStringArray(arraySize, stringSize));
+                fetchSourceContext = new FetchSourceContext(generateRandomStringArray(arraySize, stringSize, true),
+                        generateRandomStringArray(arraySize, stringSize, true));
                 break;
             default:
                 fetchSourceContext = null;

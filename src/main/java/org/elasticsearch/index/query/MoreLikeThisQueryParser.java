@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService.LikeText;
 
 import java.io.IOException;
 import java.util.*;
@@ -208,11 +209,11 @@ public class MoreLikeThisQueryParser implements QueryParser {
                 }
             }
             // fetching the items with multi-get
-            List<MoreLikeThisFetchService.LikeText> likeTexts = fetchService.fetch(items);
+            List<LikeText> likeTexts = fetchService.fetch(items);
             // right now we are just building a boolean query
             BooleanQuery boolQuery = new BooleanQuery();
-            for (MoreLikeThisFetchService.LikeText likeText : likeTexts) {
-                addMoreLikeThis(boolQuery, mltQuery, likeText.field, likeText.text);
+            for (LikeText likeText : likeTexts) {
+                addMoreLikeThis(boolQuery, mltQuery, likeText);
             }
             // exclude the items from the search
             if (!include) {
@@ -230,10 +231,10 @@ public class MoreLikeThisQueryParser implements QueryParser {
         return mltQuery;
     }
 
-    private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, String fieldName, String likeText) {
+    private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, LikeText likeText) {
         MoreLikeThisQuery mlt = new MoreLikeThisQuery();
-        mlt.setMoreLikeFields(new String[] {fieldName});
-        mlt.setLikeText(likeText);
+        mlt.setMoreLikeFields(new String[] {likeText.field});
+        mlt.setLikeText(likeText.text);
         mlt.setAnalyzer(mltQuery.getAnalyzer());
         mlt.setPercentTermsToMatch(mltQuery.getPercentTermsToMatch());
         mlt.setBoostTerms(mltQuery.isBoostTerms());

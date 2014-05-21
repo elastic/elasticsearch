@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 /**
  */

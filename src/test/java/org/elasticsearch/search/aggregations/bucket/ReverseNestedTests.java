@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -43,11 +42,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
 /**
  *
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 1)
+@ElasticsearchIntegrationTest.SuiteScopeTest
 public class ReverseNestedTests extends ElasticsearchIntegrationTest {
 
-    @Before
-    public void init() throws Exception {
+    public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
                 .addMapping(
                         "type1",

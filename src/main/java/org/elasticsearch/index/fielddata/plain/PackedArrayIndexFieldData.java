@@ -27,7 +27,7 @@ import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -38,7 +38,7 @@ import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -88,7 +88,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicNumericFieldData data = null;
-        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(), getNumericType(), getFieldNames().fullName());
+        PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
             data = AtomicLongFieldData.empty(reader.maxDoc());
             estimator.adjustForNoTerms(data.ramBytesUsed());
@@ -355,11 +355,11 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
      */
     public class PackedArrayEstimator implements PerValueEstimator {
 
-        private final MemoryCircuitBreaker breaker;
+        private final CircuitBreaker breaker;
         private final NumericType type;
         private final String fieldName;
 
-        public PackedArrayEstimator(MemoryCircuitBreaker breaker, NumericType type, String fieldName) {
+        public PackedArrayEstimator(CircuitBreaker breaker, NumericType type, String fieldName) {
             this.breaker = breaker;
             this.type = type;
             this.fieldName = fieldName;

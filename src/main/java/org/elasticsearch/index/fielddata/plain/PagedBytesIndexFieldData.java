@@ -24,7 +24,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -33,7 +33,7 @@ import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
 
@@ -61,7 +61,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         AtomicReader reader = context.reader();
         AtomicOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(), getFieldNames().fullName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), getFieldNames().fullName());
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
@@ -125,11 +125,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public class PagedBytesEstimator implements PerValueEstimator {
 
         private final AtomicReaderContext context;
-        private final MemoryCircuitBreaker breaker;
+        private final CircuitBreaker breaker;
         private final String fieldName;
         private long estimatedBytes;
 
-        PagedBytesEstimator(AtomicReaderContext context, MemoryCircuitBreaker breaker, String fieldName) {
+        PagedBytesEstimator(AtomicReaderContext context, CircuitBreaker breaker, String fieldName) {
             this.breaker = breaker;
             this.context = context;
             this.fieldName = fieldName;

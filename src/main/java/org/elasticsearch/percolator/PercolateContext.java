@@ -122,7 +122,7 @@ public class PercolateContext extends SearchContext {
         this.types = new String[]{request.documentType()};
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.querySearchResult = new QuerySearchResult(0, searchShardTarget);
         this.engineSearcher = indexShard.acquireSearcher("percolate");
         this.searcher = new ContextIndexSearcher(this, engineSearcher);

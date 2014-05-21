@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * MemoryCircuitBreaker is a circuit breaker that breaks once a
  * configurable memory limit has been reached.
  */
-public class MemoryCircuitBreaker {
+public class MemoryCircuitBreaker implements CircuitBreaker {
 
     private final long memoryBytesLimit;
     private final double overheadConstant;
@@ -77,7 +77,7 @@ public class MemoryCircuitBreaker {
      * Method used to trip the breaker
      * @throws CircuitBreakingException
      */
-    public void circuitBreak(String fieldName) throws CircuitBreakingException {
+    public void circuitBreak(String fieldName, long bytesNeeded) throws CircuitBreakingException {
         this.trippedCount.incrementAndGet();
         throw new CircuitBreakingException("Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]");
@@ -92,10 +92,10 @@ public class MemoryCircuitBreaker {
      * @return number of "used" bytes so far
      * @throws CircuitBreakingException
      */
-    public double addEstimateBytesAndMaybeBreak(long bytes, String fieldName) throws CircuitBreakingException {
+    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         // short-circuit on no data allowed, immediately throwing an exception
         if (memoryBytesLimit == 0) {
-            circuitBreak(fieldName);
+            circuitBreak(label, bytes);
         }
 
         long newUsed;
@@ -106,7 +106,7 @@ public class MemoryCircuitBreaker {
             newUsed = this.used.addAndGet(bytes);
             if (logger.isTraceEnabled()) {
                 logger.trace("Adding [{}][{}] to used bytes [new used: [{}], limit: [-1b]]",
-                        new ByteSizeValue(bytes), fieldName, new ByteSizeValue(newUsed));
+                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed));
             }
             return newUsed;
         }
@@ -121,15 +121,15 @@ public class MemoryCircuitBreaker {
             long newUsedWithOverhead = (long)(newUsed * overheadConstant);
             if (logger.isTraceEnabled()) {
                 logger.trace("Adding [{}][{}] to used bytes [new used: [{}], limit: {} [{}], estimate: {} [{}]]",
-                        new ByteSizeValue(bytes), fieldName, new ByteSizeValue(newUsed),
+                        new ByteSizeValue(bytes), label, new ByteSizeValue(newUsed),
                         memoryBytesLimit, new ByteSizeValue(memoryBytesLimit),
                         newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
             }
             if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
                 logger.error("New used memory {} [{}] from field [{}] would be larger than configured breaker: {} [{}], breaking",
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), fieldName,
+                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
                         memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
-                circuitBreak(fieldName);
+                circuitBreak(label, newUsedWithOverhead);
             }
             // Attempt to set the new used value, but make sure it hasn't changed
             // underneath us, if it has, keep trying until we are able to set it
@@ -161,9 +161,9 @@ public class MemoryCircuitBreaker {
     }
 
     /**
-     * @return the maximum number of bytes before the circuit breaker will trip
+     * @return the number of bytes that can be added before the breaker trips
      */
-    public long getMaximum() {
+    public long getLimit() {
         return this.memoryBytesLimit;
     }
 
@@ -179,5 +179,12 @@ public class MemoryCircuitBreaker {
      */
     public long getTrippedCount() {
         return this.trippedCount.get();
+    }
+
+    /**
+     * @return the name of the breaker
+     */
+    public Name getName() {
+        return Name.FIELDDATA;
     }
 }

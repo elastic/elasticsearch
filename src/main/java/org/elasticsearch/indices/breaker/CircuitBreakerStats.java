@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.fielddata.breaker;
+package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,30 +30,37 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Class encapsulating stats about the circuit breaker
  */
-public class FieldDataBreakerStats implements Streamable, ToXContent {
+public class CircuitBreakerStats implements Streamable, ToXContent {
 
-    private long maximum;
+    private CircuitBreaker.Name name;
+    private long limit;
     private long estimated;
     private long trippedCount;
     private double overhead;
 
-    FieldDataBreakerStats() {
+    CircuitBreakerStats() {
 
     }
 
-    public FieldDataBreakerStats(long maximum, long estimated, double overhead, long trippedCount) {
-        this.maximum = maximum;
+    public CircuitBreakerStats(CircuitBreaker.Name name, long limit, long estimated, double overhead, long trippedCount) {
+        this.name = name;
+        this.limit = limit;
         this.estimated = estimated;
         this.trippedCount = trippedCount;
         this.overhead = overhead;
     }
 
-    public long getMaximum() {
-        return this.maximum;
+    public CircuitBreaker.Name getName() {
+        return this.name;
+    }
+
+    public long getLimit() {
+        return this.limit;
     }
 
     public long getEstimated() {
@@ -67,14 +75,15 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         return this.overhead;
     }
 
-    public static FieldDataBreakerStats readOptionalCircuitBreakerStats(StreamInput in) throws IOException {
-        FieldDataBreakerStats stats = in.readOptionalStreamable(new FieldDataBreakerStats());
+    public static CircuitBreakerStats readOptionalCircuitBreakerStats(StreamInput in) throws IOException {
+        CircuitBreakerStats stats = in.readOptionalStreamable(new CircuitBreakerStats());
         return stats;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        maximum = in.readLong();
+        // limit is the maximum from the old circuit breaker stats for backwards compatibility
+        limit = in.readLong();
         estimated = in.readLong();
         overhead = in.readDouble();
         if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
@@ -82,23 +91,31 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         } else {
             this.trippedCount = -1;
         }
+        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
+            this.name = CircuitBreaker.Name.readFrom(in);
+        } else {
+            this.name = CircuitBreaker.Name.FIELDDATA;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(maximum);
+        out.writeLong(limit);
         out.writeLong(estimated);
         out.writeDouble(overhead);
         if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
             out.writeLong(trippedCount);
         }
+        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
+            CircuitBreaker.Name.writeTo(name, out);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.BREAKER);
-        builder.field(Fields.MAX, maximum);
-        builder.field(Fields.MAX_HUMAN, new ByteSizeValue(maximum));
+        builder.startObject(name.toString().toLowerCase(Locale.ROOT));
+        builder.field(Fields.LIMIT, limit);
+        builder.field(Fields.LIMIT_HUMAN, new ByteSizeValue(limit));
         builder.field(Fields.ESTIMATED, estimated);
         builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(estimated));
         builder.field(Fields.OVERHEAD, overhead);
@@ -107,10 +124,17 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         return builder;
     }
 
+    @Override
+    public String toString() {
+        return "[" + this.name.toString() +
+                ",limit=" + this.limit + "/" + new ByteSizeValue(this.limit) +
+                ",estimated=" + this.estimated + "/" + new ByteSizeValue(this.estimated) +
+                ",overhead=" + this.overhead + ",tripped=" + this.trippedCount + "]";
+    }
+
     static final class Fields {
-        static final XContentBuilderString BREAKER = new XContentBuilderString("fielddata_breaker");
-        static final XContentBuilderString MAX = new XContentBuilderString("maximum_size_in_bytes");
-        static final XContentBuilderString MAX_HUMAN = new XContentBuilderString("maximum_size");
+        static final XContentBuilderString LIMIT = new XContentBuilderString("limit_size_in_bytes");
+        static final XContentBuilderString LIMIT_HUMAN = new XContentBuilderString("limit_size");
         static final XContentBuilderString ESTIMATED = new XContentBuilderString("estimated_size_in_bytes");
         static final XContentBuilderString ESTIMATED_HUMAN = new XContentBuilderString("estimated_size");
         static final XContentBuilderString OVERHEAD = new XContentBuilderString("overhead");

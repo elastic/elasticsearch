@@ -1701,10 +1701,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         // check each clause is for each item
         BooleanClause[] boolClauses = booleanQuery.getClauses();
         for (int i=0; i<likeTexts.size(); i++) {
-            assertThat(boolClauses[i].getOccur(), is(BooleanClause.Occur.SHOULD));
-            assertThat(boolClauses[i].getQuery(), instanceOf(MoreLikeThisQuery.class));
-            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClauses[i].getQuery();
-            assertThat(mltQuery.getLikeText(), is(likeTexts.get(i).text));
+            BooleanClause booleanClause = booleanQuery.getClauses()[i];
+            assertThat(booleanClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+            assertThat(booleanClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) booleanClause.getQuery();
+            assertThat(mltQuery.getLikeTexts(), is(likeTexts.get(i).text));
             assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
         }
 

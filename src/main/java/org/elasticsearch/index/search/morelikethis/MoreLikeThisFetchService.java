@@ -40,9 +40,14 @@ public class MoreLikeThisFetchService extends AbstractComponent {
 
     public static final class LikeText {
         public final String field;
-        public final String text;
+        public final String[] text;
 
         public LikeText(String field, String text) {
+            this.field = field;
+            this.text = new String[]{text};
+        }
+
+        public LikeText(String field, String... text) {
             this.field = field;
             this.text = text;
         }
@@ -73,9 +78,11 @@ public class MoreLikeThisFetchService extends AbstractComponent {
             }
 
             for (GetField getField : getResponse.getFields().values()) {
-                for (Object value : getField.getValues()) {
-                    likeTexts.add(new LikeText(getField.getName(), value.toString()));
+                String[] text = new String[getField.getValues().size()];
+                for (int i = 0; i < text.length; i++) {
+                    text[i] = getField.getValues().get(i).toString();
                 }
+                likeTexts.add(new LikeText(getField.getName(), text));
             }
         }
         return likeTexts;

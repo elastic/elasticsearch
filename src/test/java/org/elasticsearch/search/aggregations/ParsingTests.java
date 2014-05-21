@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -82,4 +83,25 @@ public class ParsingTests extends ElasticsearchIntegrationTest {
                     .endObject()
             .endObject()).execute().actionGet();
     }
+
+    @Test(expected=SearchPhaseExecutionException.class)
+    public void testSameAggregationName() throws Exception {
+        createIndex("idx");
+        ensureGreen();
+        final String name = RandomStrings.randomAsciiOfLength(getRandom(), 10);
+        client().prepareSearch("idx").setAggregations(JsonXContent.contentBuilder()
+            .startObject()
+                .startObject(name)
+                    .startObject("terms")
+                        .field("field", "a")
+                    .endObject()
+                .endObject()
+                .startObject(name)
+                    .startObject("terms")
+                        .field("field", "b")
+                    .endObject()
+                .endObject()
+            .endObject()).execute().actionGet();
+    }
+
 }

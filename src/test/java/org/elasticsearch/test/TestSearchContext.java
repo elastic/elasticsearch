@@ -81,7 +81,7 @@ public class TestSearchContext extends SearchContext {
     public TestSearchContext(ThreadPool threadPool, CacheRecycler cacheRecycler, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.cacheRecycler = cacheRecycler;
         this.pageCacheRecycler = pageCacheRecycler;
-        this.bigArrays = bigArrays;
+        this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
         this.filterCache = filterCache;
         this.indexFieldDataService = indexFieldDataService;

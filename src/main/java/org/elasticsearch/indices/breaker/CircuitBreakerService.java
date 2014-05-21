@@ -17,24 +17,44 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.fielddata.breaker;
+package org.elasticsearch.indices.breaker;
 
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * Interface for Circuit Breaker services, which provide breakers to classes
  * that load field data.
  */
-public interface CircuitBreakerService {
+public abstract class CircuitBreakerService extends AbstractLifecycleComponent<InternalCircuitBreakerService> {
+
+    protected CircuitBreakerService(Settings settings) {
+        super(settings);
+    }
 
     /**
      * @return the breaker that can be used to register estimates against
      */
-    public MemoryCircuitBreaker getBreaker();
-
+    public abstract CircuitBreaker getBreaker(CircuitBreaker.Name type);
 
     /**
-     * @return stats about the breaker
+     * @return stats about all breakers
      */
-    public FieldDataBreakerStats stats();
+    public abstract AllCircuitBreakerStats stats();
+
+    /**
+     * @return stats about a specific breaker
+     */
+    public abstract CircuitBreakerStats stats(CircuitBreaker.Name name);
+
+    protected void doStart() throws ElasticsearchException {
+    }
+
+    protected void doStop() throws ElasticsearchException {
+    }
+
+    protected void doClose() throws ElasticsearchException {
+    }
 }

@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;

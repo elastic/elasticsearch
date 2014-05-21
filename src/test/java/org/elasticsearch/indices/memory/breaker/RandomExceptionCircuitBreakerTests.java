@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.fielddata.breaker;
+package org.elasticsearch.indices.memory.breaker;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,7 +59,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet().getNodes()) {
-            assertThat("Breaker is not set to 0", node.getBreaker().getEstimated(), equalTo(0L));
+            assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
         String mapping = XContentFactory.jsonBuilder()
@@ -144,7 +145,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
         NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet();
         for (NodeStats stats : resp.getNodes()) {
-            assertThat("Breaker is set to 0", stats.getBreaker().getEstimated(), equalTo(0L));
+            assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
         for (int i = 0; i < numSearches; i++) {
@@ -180,7 +181,8 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats()
                     .clear().setBreaker(true).execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
-                    assertThat("Breaker reset to 0 last search success: " + success + " mapping: " + mapping, stats.getBreaker().getEstimated(), equalTo(0L));
+                    assertThat("Breaker reset to 0 last search success: " + success + " mapping: " + mapping,
+                            stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
                 }
             }
         }

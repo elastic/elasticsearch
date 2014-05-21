@@ -32,7 +32,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -101,7 +101,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                 new ParentChildIntersectTermsEnum(reader, UidFieldMapper.NAME, ParentFieldMapper.NAME),
                 parentTypes
         );
-        ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(), termsEnum);
+        ParentChildEstimator estimator = new ParentChildEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA), termsEnum);
         TermsEnum estimatedTermsEnum = estimator.beforeLoad(null);
         ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
         try {
@@ -210,13 +210,13 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
      */
     public class ParentChildEstimator implements PerValueEstimator {
 
-        private final MemoryCircuitBreaker breaker;
+        private final CircuitBreaker breaker;
         private final TermsEnum filteredEnum;
 
         // The TermsEnum is passed in here instead of being generated in the
         // beforeLoad() function since it's filtered inside the previous
         // TermsEnum wrappers
-        public ParentChildEstimator(MemoryCircuitBreaker breaker, TermsEnum filteredEnum) {
+        public ParentChildEstimator(CircuitBreaker breaker, TermsEnum filteredEnum) {
             this.breaker = breaker;
             this.filteredEnum = filteredEnum;
         }
@@ -337,7 +337,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             }
         }
 
-        breakerService.getBreaker().addWithoutBreaking(ramBytesUsed);
+        breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA).addWithoutBreaking(ramBytesUsed);
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "Global-ordinals[_parent] took {}",

@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;

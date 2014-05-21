@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
 import java.util.Random;
 

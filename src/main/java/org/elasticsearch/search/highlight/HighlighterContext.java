@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.highlight;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -34,7 +35,8 @@ public class HighlighterContext {
     public final SearchContext context;
     public final FetchSubPhase.HitContext hitContext;
     public final HighlightQuery query;
-
+    private Analyzer analyzer;
+    
     public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext context,
             FetchSubPhase.HitContext hitContext, HighlightQuery query) {
         this.fieldName = fieldName;
@@ -67,5 +69,13 @@ public class HighlighterContext {
         public Query query() {
             return query;
         }
+    }
+    
+    public Analyzer analyzer() {
+        return this.analyzer;
+    }
+
+    public void analyzer(Analyzer analyzer) {
+        this.analyzer = analyzer;
     }
 }

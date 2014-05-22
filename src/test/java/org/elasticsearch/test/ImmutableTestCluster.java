@@ -197,4 +197,9 @@ public abstract class ImmutableTestCluster implements Iterable<Client> {
             }
         }
     }
+
+    /**
+     * Return whether or not this cluster can cache filters.
+     */
+    public abstract boolean hasFilterCache();
 }

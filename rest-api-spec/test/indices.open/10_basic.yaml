@@ -3,10 +3,13 @@
   - do:
       indices.create:
         index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
 
   - do:
       cluster.health:
-        wait_for_status: yellow
+        wait_for_status: green
 
   - do:
       indices.close:
@@ -23,7 +26,7 @@
 
   - do:
       cluster.health:
-        wait_for_status: yellow
+        wait_for_status: green
 
   - do:
       search:

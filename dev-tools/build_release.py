@@ -391,7 +391,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     plugin_names = {}
     for name, plugin  in plugins:
       print('  Install plugin [%s] from [%s]' % (name, plugin))
-      run('%s %s %s' % (es_plugin_path, '-install', plugin))
+      run('%s; %s %s %s' % (java_exe(), es_plugin_path, '-install', plugin))
       plugin_names[name] = True
 
     if release.startswith("0.90."):

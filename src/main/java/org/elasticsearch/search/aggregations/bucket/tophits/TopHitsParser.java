@@ -66,35 +66,35 @@ public class TopHitsParser implements Aggregator.Parser {
         TopHitsContext topHitsContext = new TopHitsContext(context);
         XContentParser.Token token;
         String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                switch (currentFieldName) {
-                    case "size":
-                        topHitsContext.size(parser.intValue());
-                        break;
-                    case "sort":
-                        parseSort(parser, topHitsContext);
-                        break;
-                    case "track_scores":
-                    case "trackScores":
-                        topHitsContext.trackScores(parser.booleanValue());
-                        break;
-                    case "version":
-                        topHitsContext.version(parser.booleanValue());
-                        break;
-                    case "explain":
-                        topHitsContext.explain(parser.booleanValue());
-                        break;
-                    default:
-                        throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                try {
+        try {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    switch (currentFieldName) {
+                        case "size":
+                            topHitsContext.size(parser.intValue());
+                            break;
+                        case "sort":
+                            sortParseElement.parse(parser, topHitsContext);
+                            break;
+                        case "track_scores":
+                        case "trackScores":
+                            topHitsContext.trackScores(parser.booleanValue());
+                            break;
+                        case "version":
+                            topHitsContext.version(parser.booleanValue());
+                            break;
+                        case "explain":
+                            topHitsContext.explain(parser.booleanValue());
+                            break;
+                        default:
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
                     switch (currentFieldName) {
                         case "sort":
-                            parseSort(parser, topHitsContext);
+                            sortParseElement.parse(parser, topHitsContext);
                             break;
                         case "_source":
                             sourceParseElement.parse(parser, topHitsContext);
@@ -106,6 +106,14 @@ public class TopHitsParser implements Aggregator.Parser {
                         case "script_fields":
                             scriptFieldsParseElement.parse(parser, topHitsContext);
                             break;
+                        default:
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    }
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    switch (currentFieldName) {
+                        case "sort":
+                            sortParseElement.parse(parser, topHitsContext);
+                            break;
                         case "fielddataFields":
                         case "fielddata_fields":
                             fieldDataFieldsParseElement.parse(parser, topHitsContext);
@@ -113,26 +121,14 @@ public class TopHitsParser implements Aggregator.Parser {
                         default:
                             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                     }
-                } catch (Exception e) {
-                    throw ExceptionsHelper.convertToElastic(e);
+                } else {
+                    throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
                 }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("sort".equals(currentFieldName)) {
-                    parseSort(parser, topHitsContext);
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
-        }
-        return new TopHitsAggregator.Factory(aggregationName, fetchPhase, topHitsContext);
-    }
-
-    private void parseSort(XContentParser parser, SearchContext context) {
-        try {
-            sortParseElement.parse(parser, context);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
+        return new TopHitsAggregator.Factory(aggregationName, fetchPhase, topHitsContext);
     }
 
 }

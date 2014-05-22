@@ -115,16 +115,6 @@ public class TopHitsBuilder extends AggregationBuilder<TopHitsBuilder> {
         return this;
     }
 
-
-    /**
-     * Adds a field to load and return (note, it must be stored) as part of the search request.
-     * If none are specified, the source of the document will be return.
-     */
-    public TopHitsBuilder addField(String field) {
-        sourceBuilder().field(field);
-        return this;
-    }
-
     /**
      * Adds a field data based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.

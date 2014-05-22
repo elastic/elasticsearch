@@ -103,7 +103,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
             int size = topHitsContext.size();
             topDocsCollectors.put(
                     bucketOrdinal,
-                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, size, true, false, true, false) : TopScoreDocCollector.create(size, false)
+                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, size, true, topHitsContext.trackScores(), true, false) : TopScoreDocCollector.create(size, false)
             );
             topDocsCollector.setNextReader(currentContext);
             topDocsCollector.setScorer(currentScorer);

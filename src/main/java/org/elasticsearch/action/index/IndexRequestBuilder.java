@@ -204,7 +204,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
 
     /**
      * Constructs a simple document with a field name and value pairs.
-     * <b>Note: the number of objects passed to this method must be and even number.</b> 
+     * <b>Note: the number of objects passed to this method must be an even number.</b> 
      */
     public IndexRequestBuilder setSource(Object... source) {
         request.source(source);

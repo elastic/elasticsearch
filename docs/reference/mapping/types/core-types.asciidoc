@@ -181,7 +181,7 @@ you don't need scoring on a specific field, it is highly recommended to disable
 norms on it. In  particular, this is the case for fields that are used solely
 for filtering or aggregations.
 
-coming[1.2.0]
+added[1.2.0]
 In case you would like to disable norms after the fact, it is possible to do so
 by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
 norms won't be removed instantly, but as your index will receive new insertions

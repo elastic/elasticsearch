@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -233,12 +234,19 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
             }
             MultiMatchQueryBuilder multiMatchQueryBuilder = randomizeType(multiMatchQuery(builder.toString(), field));
             SearchResponse multiMatchResp = client().prepareSearch("test")
+                    // _uid sort field is a tie, in case hits have the same score,
+                    // the hits will be sorted the same consistently
+                    .addSort("_score", SortOrder.DESC)
+                    .addSort("_uid", SortOrder.ASC)
                     .setQuery(multiMatchQueryBuilder).get();
             MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(field, builder.toString());
             if (getType(multiMatchQueryBuilder) != null) {
                 matchQueryBuilder.type(MatchQueryBuilder.Type.valueOf(getType(multiMatchQueryBuilder).matchQueryType().toString()));
             }
             SearchResponse matchResp = client().prepareSearch("test")
+                    // _uid tie sort
+                    .addSort("_score", SortOrder.DESC)
+                    .addSort("_uid", SortOrder.ASC)
                     .setQuery(matchQueryBuilder).get();
             assertThat("field: " + field + " query: " + builder.toString(), multiMatchResp.getHits().getTotalHits(), equalTo(matchResp.getHits().getTotalHits()));
             SearchHits hits = multiMatchResp.getHits();

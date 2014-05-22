@@ -34,6 +34,14 @@ import java.util.Locale;
  *
  */
 public class ByteSizeValue implements Serializable, Streamable {
+    /**
+     * Largest size possible for Guava caches to prevent overflow. Guava's
+     * caches use integers to track weight per segment and we always 16 segments
+     * so caches of 32GB would always overflow that integer and they'd never be
+     * evicted by size. We set this to 31.9GB leaving 100MB of headroom to
+     * prevent overflow.
+     */
+    public static final ByteSizeValue MAX_GUAVA_CACHE_SIZE = new ByteSizeValue(32 * ByteSizeUnit.C3 - 100 * ByteSizeUnit.C2);
 
     private long size;
 

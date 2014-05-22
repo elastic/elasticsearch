@@ -166,13 +166,13 @@ IndexResponse response = client.prepareIndex("twitter", "tweet")
 [source,java]
 --------------------------------------------------
 // Index name
-String _index = response.index();
+String _index = response.getIndex();
 // Type name
-String _type = response.type();
+String _type = response.getType();
 // Document ID (generated or not)
-String _id = response.id();
+String _id = response.getId();
 // Version (if it's the first time you index this document, you will get: 1)
-long _version = response.version();
+long _version = response.getVersion();
 --------------------------------------------------
 
 If you use percolation while indexing, `IndexResponse` object will give

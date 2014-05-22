@@ -58,6 +58,9 @@ import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.node.Node;
@@ -160,6 +163,8 @@ public final class TestCluster extends ImmutableTestCluster {
 
     private final ExecutorService executor;
 
+    private final boolean hasFilterCache;
+
     public TestCluster(long clusterSeed, String clusterName) {
         this(clusterSeed, DEFAULT_MIN_NUM_DATA_NODES, DEFAULT_MAX_NUM_DATA_NODES, clusterName, NodeSettingsSource.EMPTY, DEFAULT_NUM_CLIENT_NODES, DEFAULT_ENABLE_RANDOM_BENCH_NODES);
     }
@@ -228,6 +233,7 @@ public final class TestCluster extends ImmutableTestCluster {
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
+        this.hasFilterCache = random.nextBoolean();
     }
 
     public String getClusterName() {
@@ -243,7 +249,8 @@ public final class TestCluster extends ImmutableTestCluster {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed));
+                .put(getRandomNodeSettings(nodeSeed))
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, hasFilterCache() ? WeightedFilterCache.class : NoneFilterCache.class);
         Settings settings = nodeSettingsSource.settings(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
@@ -1275,6 +1282,11 @@ public final class TestCluster extends ImmutableTestCluster {
     @Override
     public int numBenchNodes() {
         return benchNodeAndClients().size();
+    }
+
+    @Override
+    public boolean hasFilterCache() {
+        return hasFilterCache;
     }
 
     private synchronized Collection<NodeAndClient> dataNodeAndClients() {

@@ -135,7 +135,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected IndexShardStatusRequest newShardRequest(ShardRouting shard, IndicesStatusRequest request) {
+    protected IndexShardStatusRequest newShardRequest(int numShards, ShardRouting shard, IndicesStatusRequest request) {
         return new IndexShardStatusRequest(shard.index(), shard.id(), request);
     }
 

@@ -24,9 +24,11 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Weigher;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Asserts that Guava's caches can get stuck in an overflow state where they
@@ -64,7 +66,7 @@ public class GuavaCacheOverflowTest extends ElasticsearchTestCase {
                 missing++;
             }
         }
-        assertThat(missing, both(greaterThan(0)).and(lessThan(entries)));
+        assertThat(missing, Matchers.<Integer>both(greaterThan(0)).and(lessThan(entries)));
     }
 
     private void buildCache(String size) {

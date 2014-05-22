@@ -1,0 +1,142 @@
+[[search-aggregations-bucket-top-hits-aggregation]]
+=== Top hits Aggregation
+
+coming[1.3.0]
+
+The `top_hits` aggregator keeps track of the most relevant document being aggregated. This aggregator is intended to be
+used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
+
+The `top_hits` aggregator can effectively be used to group result sets by certain fields via a bucket aggregator.
+One or more bucket aggregators determines by which properties a result set get sliced into.
+
+.Options:
+* `size` - The maximum number of top matching hits to return per bucket. By default the top three matching hits are returned.
+* `sort` - How the top matching hits should be sorted. By default the hits are sorted by the score of the main query.
+
+.Supported per hit features
+
+The top_hits aggregation returns regular search hits, because of this many per hit features can be supported:
+* {ref}/search-request-highlighting.html[Highlighting]
+* {ref}/search-request-explain.html[Explain]
+* {ref}/search-request-named-queries-and-filters.html[Named filters and queries]
+* {ref}/search-request-source-filtering.html[Source filtering]
+* {ref}/search-request-script-fields.html[Script fields]
+* {ref}/search-request-fielddata-fields.html[Fielddata fields]
+* {ref}/search-request-version.html[Include versions]
+
+.Example
+
+In the following example we group the questions by tag and per tag we show the last active question. For each question
+only the title field is being included in the source.
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs": {
+        "terms": {
+            "top-tags": {
+                "field": "tags",
+                "size": 3
+            },
+            "aggs": {
+                "top_tag_hits": {
+                    "top_hits": {
+                        "sort": [
+                        {
+                            "last_activity_date": {
+                                "order": "desc"
+                            }
+                        }
+                        ],
+                        "size" : 1
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Possible response snippet:
+
+[source,js]
+--------------------------------------------------
+"aggregations": {
+  "top-tags": {
+     "buckets": [
+        {
+           "key": "windows-7",
+           "doc_count": 25365,
+           "top_tags_hits": {
+              "hits": {
+                 "total": 25365,
+                 "max_score": 1,
+                 "hits": [
+                    {
+                       "_index": "stack",
+                       "_type": "question",
+                       "_id": "602679",
+                       "_score": 1,
+                       "_source": {
+                          "title": "Windows port opening"
+                       },
+                       "sort": [
+                          1370143231177
+                       ]
+                    }
+                 ]
+              }
+           }
+        },
+        {
+           "key": "linux",
+           "doc_count": 18342,
+           "top_tags_hits": {
+              "hits": {
+                 "total": 18342,
+                 "max_score": 1,
+                 "hits": [
+                    {
+                       "_index": "stack",
+                       "_type": "question",
+                       "_id": "602672",
+                       "_score": 1,
+                       "_source": {
+                          "title": "Ubuntu RFID Screensaver lock-unlock"
+                       },
+                       "sort": [
+                          1370143379747
+                       ]
+                    }
+                 ]
+              }
+           }
+        },
+        {
+           "key": "windows",
+           "doc_count": 18119,
+           "top_tags_hits": {
+              "hits": {
+                 "total": 18119,
+                 "max_score": 1,
+                 "hits": [
+                    {
+                       "_index": "stack",
+                       "_type": "question",
+                       "_id": "602678",
+                       "_score": 1,
+                       "_source": {
+                          "title": "If I change my computers date / time, what could be affected?"
+                       },
+                       "sort": [
+                          1370142868283
+                       ]
+                    }
+                 ]
+              }
+           }
+        }
+     ]
+  }
+}
+--------------------------------------------------

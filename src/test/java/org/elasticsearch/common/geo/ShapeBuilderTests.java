@@ -25,6 +25,7 @@ import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -192,5 +193,45 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertMultiLineString(shape);
     }
 
+    @Test
+    public void testDateline() {
+        // view shape at https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c
+        // expect 3 polygons, 1 with a hole
 
+        // a giant c shape
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+            .point(-186,0)
+            .point(-176,0)
+            .point(-176,3)
+            .point(-183,3)
+            .point(-183,5)
+            .point(-176,5)
+            .point(-176,8)
+            .point(-186,8)
+            .point(-186,0);
+
+        // 3/4 of an embedded 'c', crossing dateline once
+        builder.hole()
+            .point(-185,1)
+            .point(-181,1)
+            .point(-181,2)
+            .point(-184,2)
+            .point(-184,6)
+            .point(-178,6)
+            .point(-178,7)
+            .point(-185,7)
+            .point(-185,1);
+
+        // embedded hole right of the dateline
+        builder.hole()
+            .point(-179,1)
+            .point(-177,1)
+            .point(-177,2)
+            .point(-179,2)
+            .point(-179,1);
+
+        Shape shape = builder.close().build();
+
+         assertMultiPolygon(shape);
+     }
 }

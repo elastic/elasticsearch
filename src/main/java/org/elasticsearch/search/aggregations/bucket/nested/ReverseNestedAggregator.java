@@ -105,7 +105,12 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
         }
 
         // fast forward to retrieve the parentDoc this childDoc belongs to
-        int parentDoc = parentDocs.advance(childDoc);
+        final int parentDoc;
+        if (parentDocs.docID() < childDoc) {
+            parentDoc = parentDocs.advance(childDoc);
+        } else {
+            parentDoc = parentDocs.docID();
+        }
         assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
         if (bucketOrdToLastCollectedParentDoc.containsKey(bucketOrd)) {
             int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();

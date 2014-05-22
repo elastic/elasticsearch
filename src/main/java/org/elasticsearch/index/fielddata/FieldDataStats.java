@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongOpenHashMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -117,9 +118,15 @@ public class FieldDataStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
-        evictionsOneMinuteRate = in.readDouble();
-        evictionsFiveMinuteRate = in.readDouble();
-        evictionsFifteenMinuteRate = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            evictionsOneMinuteRate = in.readDouble();
+            evictionsFiveMinuteRate = in.readDouble();
+            evictionsFifteenMinuteRate = in.readDouble();
+        } else {
+            evictionsOneMinuteRate = -1;
+            evictionsFiveMinuteRate = -1;
+            evictionsFifteenMinuteRate = -1;
+        }
         if (in.readBoolean()) {
             int size = in.readVInt();
             fields = new ObjectLongOpenHashMap<>(size);
@@ -133,9 +140,11 @@ public class FieldDataStats implements Streamable, ToXContent {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
-        out.writeDouble(evictionsOneMinuteRate);
-        out.writeDouble(evictionsFiveMinuteRate);
-        out.writeDouble(evictionsFifteenMinuteRate);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            out.writeDouble(evictionsOneMinuteRate);
+            out.writeDouble(evictionsFiveMinuteRate);
+            out.writeDouble(evictionsFifteenMinuteRate);
+        }
         if (fields == null) {
             out.writeBoolean(false);
         } else {

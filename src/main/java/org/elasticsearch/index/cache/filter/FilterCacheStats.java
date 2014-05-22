@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.cache.filter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -94,18 +95,29 @@ public class FilterCacheStats implements Streamable, ToXContent {
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
-        evictionsOneMinuteRate = in.readDouble();
-        evictionsFiveMinuteRate = in.readDouble();
-        evictionsFifteenMinuteRate = in.readDouble();
+
+        if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
+            evictionsOneMinuteRate = in.readDouble();
+            evictionsFiveMinuteRate = in.readDouble();
+            evictionsFifteenMinuteRate = in.readDouble();
+        } else {
+            evictionsOneMinuteRate = -1;
+            evictionsFiveMinuteRate = -1;
+            evictionsFifteenMinuteRate = -1;
+        }
+
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
-        out.writeDouble(evictionsOneMinuteRate);
-        out.writeDouble(evictionsFiveMinuteRate);
-        out.writeDouble(evictionsFifteenMinuteRate);
+        if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
+            out.writeDouble(evictionsOneMinuteRate);
+            out.writeDouble(evictionsFiveMinuteRate);
+            out.writeDouble(evictionsFifteenMinuteRate);
+        }
+
     }
 
     @Override

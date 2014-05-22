@@ -71,7 +71,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             size = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.toString();
         }
         final TimeValue expire = componentSettings.getAsTime("expire", null);
-        CacheBuilder<Key, RamUsage> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<Key, AtomicFieldData> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());

@@ -209,7 +209,7 @@ The above aggregation would only return tags which have been found in 10 hits or
 
 Terms are collected and ordered on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global document count available. The decision if a term is added to a candidate list depends only on the order computed on the shard using local shard frequencies. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
 
-coming[1.2.0] `shard_min_doc_count` parameter
+added[1.2.0] `shard_min_doc_count` parameter
 
 The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent terms and you are not interested in those (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a resonable certainty not reach the required `min_doc_count` even after merging the local counts. `shard_min_doc_count` is set to `0` per default and has no effect unless you explicitly set it.
 
@@ -322,7 +322,7 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES
 
 ==== Execution hint
 
-coming[1.2.0] The `global_ordinals` execution mode
+added[1.2.0] The `global_ordinals` execution mode
 
 There are three mechanisms by which terms aggregations can be executed: either by using field values directly in order to aggregate
 data per-bucket (`map`), by using ordinals of the field values instead of the values themselves (`ordinals`) or by using global

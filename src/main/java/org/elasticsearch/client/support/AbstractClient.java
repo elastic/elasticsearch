@@ -20,8 +20,11 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.bench.*;
+import org.elasticsearch.action.benchmark.abort.*;
+import org.elasticsearch.action.benchmark.pause.*;
+import org.elasticsearch.action.benchmark.resume.*;
+import org.elasticsearch.action.benchmark.start.*;
+import org.elasticsearch.action.benchmark.status.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -503,37 +506,72 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener) {
-        execute(BenchmarkAction.INSTANCE, request, listener);
+    public void startBenchmark(BenchmarkStartRequest request, ActionListener<BenchmarkStartResponse> listener) {
+        execute(BenchmarkStartAction.INSTANCE, request, listener);
     }
 
     @Override
-    public ActionFuture<BenchmarkResponse> bench(BenchmarkRequest request) {
-        return execute(BenchmarkAction.INSTANCE, request);
+    public ActionFuture<BenchmarkStartResponse> startBenchmark(BenchmarkStartRequest request) {
+        return execute(BenchmarkStartAction.INSTANCE, request);
     }
 
     @Override
-    public BenchmarkRequestBuilder prepareBench(String... indices) {
-        return new BenchmarkRequestBuilder(this, indices);
+    public BenchmarkStartRequestBuilder prepareStartBenchmark(String... indices) {
+        return new BenchmarkStartRequestBuilder(this, indices);
     }
 
     @Override
-    public void abortBench(AbortBenchmarkRequest request, ActionListener<AbortBenchmarkResponse> listener) {
-        execute(AbortBenchmarkAction.INSTANCE, request, listener);
+    public void abortBench(BenchmarkAbortRequest request, ActionListener<BenchmarkAbortResponse> listener) {
+        execute(BenchmarkAbortAction.INSTANCE, request, listener);
     }
 
     @Override
-    public AbortBenchmarkRequestBuilder prepareAbortBench(String... benchmarkNames) {
-        return new AbortBenchmarkRequestBuilder(this).setBenchmarkNames(benchmarkNames);
+    public BenchmarkAbortRequestBuilder prepareAbortBench(String... benchmarkIdPatterns) {
+        return new BenchmarkAbortRequestBuilder(this).setBenchmarkIdPatterns(benchmarkIdPatterns);
     }
 
     @Override
-    public void benchStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponse> listener) {
+    public void benchmarkStatus(BenchmarkStatusRequest request, ActionListener<BenchmarkStatusResponses> listener) {
         execute(BenchmarkStatusAction.INSTANCE, request, listener);
     }
 
     @Override
-    public BenchmarkStatusRequestBuilder prepareBenchStatus() {
-        return new BenchmarkStatusRequestBuilder(this);
+    public ActionFuture<BenchmarkStatusResponses> benchmarkStatus(BenchmarkStatusRequest request) {
+        return execute(BenchmarkStatusAction.INSTANCE, request);
+    }
+
+    @Override
+    public BenchmarkStatusRequestBuilder prepareBenchmarkStatus(String... benchmarkIdPatterns) {
+        return new BenchmarkStatusRequestBuilder(this).setBenchmarkIdPatterns(benchmarkIdPatterns);
+    }
+
+    @Override
+    public void resumeBenchmark(BenchmarkResumeRequest request, ActionListener<BenchmarkResumeResponse> listener) {
+        execute(BenchmarkResumeAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<BenchmarkResumeResponse> resumeBenchmark(BenchmarkResumeRequest request) {
+        return execute(BenchmarkResumeAction.INSTANCE, request);
+    }
+
+    @Override
+    public BenchmarkResumeRequestBuilder prepareResumeBenchmark(String... benchmarkIds) {
+        return new BenchmarkResumeRequestBuilder(this).setBenchmarkIdPatterns(benchmarkIds);
+    }
+
+    @Override
+    public void pauseBenchmark(BenchmarkPauseRequest request, ActionListener<BenchmarkPauseResponse> listener) {
+        execute(BenchmarkPauseAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<BenchmarkPauseResponse> pauseBenchmark(BenchmarkPauseRequest request) {
+        return execute(BenchmarkPauseAction.INSTANCE, request);
+    }
+
+    @Override
+    public BenchmarkPauseRequestBuilder preparePauseBenchmark(String... benchmarkIdPatterns) {
+        return new BenchmarkPauseRequestBuilder(this).setBenchmarkIdPatterns(benchmarkIdPatterns);
     }
 }

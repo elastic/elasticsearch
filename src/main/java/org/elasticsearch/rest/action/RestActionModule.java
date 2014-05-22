@@ -78,7 +78,11 @@ import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarme
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
-import org.elasticsearch.rest.action.bench.RestBenchAction;
+import org.elasticsearch.rest.action.benchmark.abort.RestBenchmarkAbortAction;
+import org.elasticsearch.rest.action.benchmark.pause.RestBenchmarkPauseAction;
+import org.elasticsearch.rest.action.benchmark.resume.RestBenchmarkResumeAction;
+import org.elasticsearch.rest.action.benchmark.status.RestBenchmarkStatusAction;
+import org.elasticsearch.rest.action.benchmark.submit.RestBenchmarkSubmitAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -217,7 +221,11 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestRecoveryAction.class).asEagerSingleton();
         // Benchmark API
-        bind(RestBenchAction.class).asEagerSingleton();
+        bind(RestBenchmarkSubmitAction.class).asEagerSingleton();
+        bind(RestBenchmarkStatusAction.class).asEagerSingleton();
+        bind(RestBenchmarkAbortAction.class).asEagerSingleton();
+        bind(RestBenchmarkResumeAction.class).asEagerSingleton();
+        bind(RestBenchmarkPauseAction.class).asEagerSingleton();
 
         // Templates API
         bind(RestGetSearchTemplateAction.class).asEagerSingleton();

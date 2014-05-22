@@ -938,6 +938,13 @@ public final class InternalTestCluster extends TestCluster {
         return getInstances(clazz, new DataNodePredicate());
     }
 
+    /**
+     * Returns an Iterable to all instances for the given class &gt;T&lt; across all data nodes in the cluster.
+     */
+    public synchronized <T> Iterable<T> getBenchmarkNodeInstances(Class<T> clazz) {
+        return getInstances(clazz, new BenchNodePredicate());
+    }
+
     private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
         Iterable<NodeAndClient> filteredNodes = Iterables.filter(nodes.values(), predicate);
         List<T> instances = new ArrayList<>();

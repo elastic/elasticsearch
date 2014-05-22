@@ -150,16 +150,24 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
 
 
     public static boolean awaitBusy(Predicate<?> breakPredicate) throws InterruptedException {
-        return awaitBusy(breakPredicate, 10, TimeUnit.SECONDS);
+        return awaitBusy(breakPredicate, null, 10, TimeUnit.SECONDS);
+    }
+
+    public static <T> boolean awaitBusy(Predicate<T> breakPredicate, T input) throws InterruptedException {
+        return awaitBusy(breakPredicate, input, 10, TimeUnit.SECONDS);
     }
 
     public static boolean awaitBusy(Predicate<?> breakPredicate, long maxWaitTime, TimeUnit unit) throws InterruptedException {
+        return awaitBusy(breakPredicate, null, maxWaitTime, unit);
+    }
+
+    public static <T> boolean awaitBusy(Predicate<T> breakPredicate, T input, long maxWaitTime, TimeUnit unit) throws InterruptedException {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
         long iterations = Math.max(Math.round(Math.log10(maxTimeInMillis) / Math.log10(2)), 1);
         long timeInMillis = 1;
         long sum = 0;
         for (int i = 0; i < iterations; i++) {
-            if (breakPredicate.apply(null)) {
+            if (breakPredicate.apply(input)) {
                 return true;
             }
             sum += timeInMillis;
@@ -168,7 +176,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         }
         timeInMillis = maxTimeInMillis - sum;
         Thread.sleep(Math.max(timeInMillis, 0));
-        return breakPredicate.apply(null);
+        return breakPredicate.apply(input);
     }
 
     private static final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};

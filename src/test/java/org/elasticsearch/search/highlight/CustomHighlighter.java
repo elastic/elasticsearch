@@ -40,13 +40,14 @@ public class CustomHighlighter implements Highlighter {
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
         CacheEntry cacheEntry = (CacheEntry) highlighterContext.hitContext.cache().get("test-custom");
+        final int docId = highlighterContext.hitContext.readerContext().docBase + highlighterContext.hitContext.docId();
         if (cacheEntry == null) {
             cacheEntry = new CacheEntry();
             highlighterContext.hitContext.cache().put("test-custom", cacheEntry);
-            cacheEntry.docId = highlighterContext.hitContext.docId();
+            cacheEntry.docId = docId;
             cacheEntry.position = 1;
         } else {
-            if (cacheEntry.docId == highlighterContext.hitContext.docId()) {
+            if (cacheEntry.docId == docId) {
                 cacheEntry.position++;
             } else {
                 cacheEntry.docId = highlighterContext.hitContext.docId();

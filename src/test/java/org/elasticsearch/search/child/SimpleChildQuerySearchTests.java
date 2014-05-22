@@ -1951,7 +1951,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), cluster().hasFilterCache() ? greaterThan(initialCacheSize) : is(initialCacheSize));
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/5783

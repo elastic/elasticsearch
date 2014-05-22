@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.Bits;
@@ -154,6 +155,9 @@ public class NestedQueryParser implements QueryParser {
                 //}
                 parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
+            // if the filter cache is disabled, then we still have a filter that is not cached while ToParentBlockJoinQuery
+            // expects FixedBitSet instances
+            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
 
             ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, scoreMode);
             joinQuery.setBoost(boost);

@@ -60,10 +60,6 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
-        "indices_boost": {
-          "type" : "list",
-          "description" : "Comma-separated list of index boosts"
-        },
         "lenient": {
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"

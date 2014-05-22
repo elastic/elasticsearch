@@ -111,4 +111,9 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     public Iterator<Client> iterator() {
         return Lists.newArrayList(client).iterator();
     }
+
+    @Override
+    public boolean hasFilterCache() {
+        return true; // default
+    }
 }

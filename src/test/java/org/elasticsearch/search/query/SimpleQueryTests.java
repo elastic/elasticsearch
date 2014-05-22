@@ -2212,7 +2212,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
         // Now with rounding is used, so we must have something in filter cache
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
         long filtercacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
-        assertThat(filtercacheSize, greaterThan(0l));
+        assertThat(filtercacheSize, cluster().hasFilterCache() ? greaterThan(0l) : is(0L));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.filteredQuery(
@@ -2226,7 +2226,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         // and because we use term filter, it is also added to filter cache, so it should contain more than before
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(filtercacheSize));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), cluster().hasFilterCache() ? greaterThan(filtercacheSize) : is(filtercacheSize));
         filtercacheSize = statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes();
 
         searchResponse = client().prepareSearch("test")
@@ -2241,7 +2241,7 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
 
         // The range filter is now explicitly cached, so it now it is in the filter cache.
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(filtercacheSize));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), cluster().hasFilterCache() ? greaterThan(filtercacheSize) : is(filtercacheSize));
     }
 
     @Test

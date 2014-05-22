@@ -32,24 +32,25 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
  */
 public class ShardFieldData extends AbstractIndexShardComponent implements IndexFieldDataCache.Listener {
 
-    final MeterMetric evictionMeter = new MeterMetric(Executors.newSingleThreadScheduledExecutor(), TimeUnit.MINUTES);
+    final MeterMetric evictionMeter;
     final CounterMetric totalMetric = new CounterMetric();
 
     final ConcurrentMap<String, CounterMetric> perFieldTotals = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardFieldData(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(shardId, indexSettings);
+        evictionMeter = new MeterMetric(threadPool.scheduler(), TimeUnit.MINUTES);
     }
 
     public FieldDataStats stats(String... fields) {

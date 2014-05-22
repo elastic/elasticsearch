@@ -31,20 +31,21 @@ import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
  */
 public class ShardFilterCache extends AbstractIndexShardComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
-    final MeterMetric evictionMeter = new MeterMetric(Executors.newSingleThreadScheduledExecutor(), TimeUnit.MINUTES);
+    final MeterMetric evictionMeter;
     final CounterMetric totalMetric = new CounterMetric();
 
     @Inject
-    public ShardFilterCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardFilterCache(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(shardId, indexSettings);
+        evictionMeter = new MeterMetric(threadPool.scheduler(), TimeUnit.MINUTES);
     }
 
     public FilterCacheStats stats() {

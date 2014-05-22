@@ -1,5 +1,25 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.search.aggregations.bucket.tophits;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
@@ -58,7 +78,17 @@ public class TopHitsContext extends SearchContext {
     private int docsIdsToLoadSize;
 
     private final SearchContext context;
+
+    private List<String> fieldNames;
+    private FieldDataFieldsContext fieldDataFields;
+    private ScriptFieldsContext scriptFields;
+    private PartialFieldsContext partialFields;
     private FetchSourceContext fetchSourceContext;
+    private SearchContextHighlight highlight;
+
+    private boolean explain;
+    private boolean trackScores;
+    private boolean version;
 
     public TopHitsContext(SearchContext context) {
         this.fetchSearchResult = new FetchSearchResult();
@@ -68,17 +98,15 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     protected void doClose() {
-
     }
 
     @Override
     public void preProcess() {
-
     }
 
     @Override
     public Filter searchFilter(String[] types) {
-        return null;
+        throw new UnsupportedOperationException("this context should be read only");
     }
 
     @Override
@@ -88,22 +116,22 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public String source() {
-        return null;
+        return context.source();
     }
 
     @Override
     public ShardSearchRequest request() {
-        return null;
+        return context.request();
     }
 
     @Override
     public SearchType searchType() {
-        return null;
+        return context.searchType();
     }
 
     @Override
     public SearchContext searchType(SearchType searchType) {
-        return null;
+        throw new UnsupportedOperationException("this context should be read only");
     }
 
     @Override
@@ -113,122 +141,129 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public int numberOfShards() {
-        return 0;
+        return context.numberOfShards();
     }
 
     @Override
     public boolean hasTypes() {
-        return false;
+        return context.hasTypes();
     }
 
     @Override
     public String[] types() {
-        return new String[0];
+        return context.types();
     }
 
     @Override
     public float queryBoost() {
-        return 0;
+        return context.queryBoost();
     }
 
     @Override
     public SearchContext queryBoost(float queryBoost) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public long nowInMillis() {
-        return 0;
+        return context.nowInMillis();
     }
 
     @Override
     public Scroll scroll() {
-        return null;
+        return context.scroll();
     }
 
     @Override
     public SearchContext scroll(Scroll scroll) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public SearchContextAggregations aggregations() {
-        return null;
+        return context.aggregations();
     }
 
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public SearchContextFacets facets() {
-        return null;
+        return context.facets();
     }
 
     @Override
     public SearchContext facets(SearchContextFacets facets) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
-    @Override
     public SearchContextHighlight highlight() {
-        return null;
+        return highlight;
     }
 
-    @Override
     public void highlight(SearchContextHighlight highlight) {
-
+        this.highlight = highlight;
     }
 
     @Override
     public SuggestionSearchContext suggest() {
-        return null;
+        return context.suggest();
     }
 
     @Override
     public void suggest(SuggestionSearchContext suggest) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public List<RescoreSearchContext> rescore() {
-        return null;
+        return context.rescore();
     }
 
     @Override
     public void addRescore(RescoreSearchContext rescore) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public boolean hasFieldDataFields() {
-        return false;
+        return fieldDataFields != null;
     }
 
     @Override
     public FieldDataFieldsContext fieldDataFields() {
-        return null;
+        if (fieldDataFields == null) {
+            fieldDataFields = new FieldDataFieldsContext();
+        }
+        return this.fieldDataFields;
     }
 
     @Override
     public boolean hasScriptFields() {
-        return false;
+        return scriptFields != null;
     }
 
     @Override
     public ScriptFieldsContext scriptFields() {
-        return null;
+        if (scriptFields == null) {
+            scriptFields = new ScriptFieldsContext();
+        }
+        return this.scriptFields;
     }
 
     @Override
     public boolean hasPartialFields() {
-        return false;
+        return partialFields != null;
     }
 
     @Override
     public PartialFieldsContext partialFields() {
-        return null;
+        if (partialFields == null) {
+            partialFields = new PartialFieldsContext();
+        }
+        return this.partialFields;
     }
 
     @Override
@@ -259,7 +294,7 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public IndexShard indexShard() {
-        return null;
+        return context.indexShard();
     }
 
     @Override
@@ -269,47 +304,47 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public AnalysisService analysisService() {
-        return null;
+        return context.analysisService();
     }
 
     @Override
     public IndexQueryParserService queryParserService() {
-        return null;
+        return context.queryParserService();
     }
 
     @Override
     public SimilarityService similarityService() {
-        return null;
+        return context.similarityService();
     }
 
     @Override
     public ScriptService scriptService() {
-        return null;
+        return context.scriptService();
     }
 
     @Override
     public CacheRecycler cacheRecycler() {
-        return null;
+        return context.cacheRecycler();
     }
 
     @Override
     public PageCacheRecycler pageCacheRecycler() {
-        return null;
+        return context.pageCacheRecycler();
     }
 
     @Override
     public BigArrays bigArrays() {
-        return null;
+        return context.bigArrays();
     }
 
     @Override
     public FilterCache filterCache() {
-        return null;
+        return context.filterCache();
     }
 
     @Override
     public DocSetCache docSetCache() {
-        return null;
+        return context.docSetCache();
     }
 
     @Override
@@ -319,22 +354,22 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public long timeoutInMillis() {
-        return 0;
+        return context.timeoutInMillis();
     }
 
     @Override
     public void timeoutInMillis(long timeoutInMillis) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public SearchContext minimumScore(float minimumScore) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public Float minimumScore() {
-        return null;
+        return context.minimumScore();
     }
 
     @Override
@@ -350,27 +385,28 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public SearchContext trackScores(boolean trackScores) {
-        return null;
+        this.trackScores = trackScores;
+        return this;
     }
 
     @Override
     public boolean trackScores() {
-        return false;
+        return trackScores;
     }
 
     @Override
     public SearchContext parsedPostFilter(ParsedFilter postFilter) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public ParsedFilter parsedPostFilter() {
-        return null;
+        return context.parsedPostFilter();
     }
 
     @Override
     public Filter aliasFilter() {
-        return null;
+        return context.aliasFilter();
     }
 
     @Override
@@ -395,17 +431,17 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public SearchContext updateRewriteQuery(Query rewriteQuery) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public int from() {
-        return 0;
+        return context.from();
     }
 
     @Override
     public SearchContext from(int from) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
@@ -421,47 +457,50 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public boolean hasFieldNames() {
-        return false;
+        return fieldNames != null;
     }
 
     @Override
     public List<String> fieldNames() {
-        return null;
+        if (fieldNames == null) {
+            fieldNames = Lists.newArrayList();
+        }
+        return fieldNames;
     }
 
     @Override
     public void emptyFieldNames() {
-
+        this.fieldNames = ImmutableList.of();
     }
 
     @Override
     public boolean explain() {
-        return false;
+        return explain;
     }
 
     @Override
     public void explain(boolean explain) {
-
+        this.explain = explain;
     }
 
     @Override
     public List<String> groupStats() {
-        return null;
+        return context.groupStats();
     }
 
     @Override
     public void groupStats(List<String> groupStats) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public boolean version() {
-        return false;
+        return version;
     }
 
     @Override
     public void version(boolean version) {
-
+        this.version = version;
     }
 
     @Override
@@ -489,32 +528,32 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public void accessed(long accessTime) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public long lastAccessTime() {
-        return 0;
+        return context.lastAccessTime();
     }
 
     @Override
     public long keepAlive() {
-        return 0;
+        return context.keepAlive();
     }
 
     @Override
     public void keepAlive(long keepAlive) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public void lastEmittedDoc(ScoreDoc doc) {
-
+        throw new UnsupportedOperationException("Not supported");
     }
 
     @Override
     public ScoreDoc lastEmittedDoc() {
-        return null;
+        return context.lastEmittedDoc();
     }
 
     @Override
@@ -524,7 +563,7 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public DfsSearchResult dfsResult() {
-        return null;
+        return context.dfsResult();
     }
 
     @Override
@@ -539,7 +578,7 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public ScanContext scanContext() {
-        return null;
+        return context.scanContext();
     }
 
     @Override
@@ -559,16 +598,16 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
-        return null;
+        return context.smartNameObjectMapper(name);
     }
 
     @Override
     public boolean useSlowScroll() {
-        return false;
+        return context.useSlowScroll();
     }
 
     @Override
     public SearchContext useSlowScroll(boolean useSlowScroll) {
-        return null;
+        throw new UnsupportedOperationException("Not supported");
     }
 }

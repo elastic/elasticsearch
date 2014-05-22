@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.search.aggregations.bucket.tophits;
 
 import org.apache.lucene.index.AtomicReaderContext;
@@ -24,7 +43,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
 
     private final FetchPhase fetchPhase;
     private final TopHitsContext topHitsContext;
-    private final LongObjectPagedHashMap<TopDocsCollector> topFields;
+    private final LongObjectPagedHashMap<TopDocsCollector> topDocsCollectors;
 
     private Scorer currentScorer;
     private AtomicReaderContext currentContext;
@@ -32,7 +51,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
     public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
         this.fetchPhase = fetchPhase;
-        topFields = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
+        topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
         this.topHitsContext = topHitsContext;
         context.registerScorerAware(this);
     }
@@ -44,7 +63,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TopDocsCollector topDocsCollector = topFields.get(owningBucketOrdinal);
+        TopDocsCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
         if (topDocsCollector == null) {
             return buildEmptyAggregation();
         } else {
@@ -78,11 +97,11 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
-        TopDocsCollector topDocsCollector = topFields.get(bucketOrdinal);
+        TopDocsCollector topDocsCollector = topDocsCollectors.get(bucketOrdinal);
         if (topDocsCollector == null) {
             Sort sort = topHitsContext.sort();
             int size = topHitsContext.size();
-            topFields.put(
+            topDocsCollectors.put(
                     bucketOrdinal,
                     topDocsCollector = sort != null ? TopFieldCollector.create(sort, size, true, false, true, false) : TopScoreDocCollector.create(size, false)
             );
@@ -95,7 +114,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
     @Override
     public void setNextReader(AtomicReaderContext context) {
         this.currentContext = context;
-        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topFields) {
+        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
             try {
                 cursor.value.setNextReader(context);
             } catch (IOException e) {
@@ -107,7 +126,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
     @Override
     public void setScorer(Scorer scorer) {
         this.currentScorer = scorer;
-        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topFields) {
+        for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
             try {
                 cursor.value.setScorer(scorer);
             } catch (IOException e) {
@@ -118,7 +137,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
 
     @Override
     protected void doClose() {
-        Releasables.close(topFields);
+        Releasables.close(topDocsCollectors);
     }
 
     public static class Factory extends AggregatorFactory {

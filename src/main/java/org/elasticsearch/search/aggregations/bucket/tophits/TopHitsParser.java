@@ -25,7 +25,10 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
+import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
 import org.elasticsearch.search.fetch.source.FetchSourceParseElement;
+import org.elasticsearch.search.highlight.HighlighterParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 
@@ -39,12 +42,18 @@ public class TopHitsParser implements Aggregator.Parser {
     private final FetchPhase fetchPhase;
     private final SortParseElement sortParseElement;
     private final FetchSourceParseElement sourceParseElement;
+    private final HighlighterParseElement highlighterParseElement;
+    private final FieldDataFieldsParseElement fieldDataFieldsParseElement;
+    private final ScriptFieldsParseElement scriptFieldsParseElement;
 
     @Inject
-    public TopHitsParser(FetchPhase fetchPhase, SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement) {
+    public TopHitsParser(FetchPhase fetchPhase, SortParseElement sortParseElement, FetchSourceParseElement sourceParseElement, HighlighterParseElement highlighterParseElement, FieldDataFieldsParseElement fieldDataFieldsParseElement, ScriptFieldsParseElement scriptFieldsParseElement) {
         this.fetchPhase = fetchPhase;
         this.sortParseElement = sortParseElement;
         this.sourceParseElement = sourceParseElement;
+        this.highlighterParseElement = highlighterParseElement;
+        this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
+        this.scriptFieldsParseElement = scriptFieldsParseElement;
     }
 
     @Override
@@ -61,24 +70,51 @@ public class TopHitsParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("size".equals(currentFieldName)) {
-                    topHitsContext.size(parser.intValue());
-                } else if ("sort".equals(currentFieldName)) {
-                    parseSort(parser, topHitsContext);
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                switch (currentFieldName) {
+                    case "size":
+                        topHitsContext.size(parser.intValue());
+                        break;
+                    case "sort":
+                        parseSort(parser, topHitsContext);
+                        break;
+                    case "track_scores":
+                    case "trackScores":
+                        topHitsContext.trackScores(parser.booleanValue());
+                        break;
+                    case "version":
+                        topHitsContext.version(parser.booleanValue());
+                        break;
+                    case "explain":
+                        topHitsContext.explain(parser.booleanValue());
+                        break;
+                    default:
+                        throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("sort".equals(currentFieldName)) {
-                    parseSort(parser, topHitsContext);
-                } else if ("_source".equals(currentFieldName)) {
-                    try {
-                        sourceParseElement.parse(parser, topHitsContext);
-                    } catch (Exception e) {
-                        throw ExceptionsHelper.convertToElastic(e);
+                try {
+                    switch (currentFieldName) {
+                        case "sort":
+                            parseSort(parser, topHitsContext);
+                            break;
+                        case "_source":
+                            sourceParseElement.parse(parser, topHitsContext);
+                            break;
+                        case "highlight":
+                            highlighterParseElement.parse(parser, topHitsContext);
+                            break;
+                        case "scriptFields":
+                        case "script_fields":
+                            scriptFieldsParseElement.parse(parser, topHitsContext);
+                            break;
+                        case "fielddataFields":
+                        case "fielddata_fields":
+                            fieldDataFieldsParseElement.parse(parser, topHitsContext);
+                            break;
+                        default:
+                            throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                     }
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                } catch (Exception e) {
+                    throw ExceptionsHelper.convertToElastic(e);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("sort".equals(currentFieldName)) {

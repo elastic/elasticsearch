@@ -80,7 +80,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
     private static String filter(String uncachedFilter) {
         String filter = uncachedFilter;
         if (cluster().hasFilterCache()) {
-            filter = "cached(" + filter + ")";
+            filter = "cache(" + filter + ")";
         }
         return filter;
     }

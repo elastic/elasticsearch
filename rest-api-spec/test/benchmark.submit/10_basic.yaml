@@ -1,0 +1,111 @@
+---
+setup:
+
+  - skip:
+      features: gtelte
+
+  - do:
+      index:
+        index:  test_1
+        type:   type_1
+        id:     1
+        body:   {  a: x, b: y, c: z }
+
+  - do:
+      index:
+        index:  test_1
+        type:   type_1
+        id:     2
+        body:   {  a: xx, b: yy, c: zz }
+
+  - do:
+      index:
+        index:  test_1
+        type:   type_1
+        id:     3
+        body:   {  a: xxx, b: yyy, c: zzz }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Submit a benchmark":
+
+  - do:
+      benchmark.submit:
+        body: {
+                name:               test_benchmark,
+                verbose:            true,
+                num_executor_nodes: 1,
+                iterations:         3,
+                multiplier:         5,
+                concurrency:        2,
+                num_slowest:        1,
+                competitors: [ {
+                                    name:         test_competitor_1,
+                                    concurrency:  3,
+                                    requests: [ {
+                                                  query: { term: { a: x } }
+                                    }, {
+                                                  query: { term: { b: yy } }
+                                    } ]
+                },
+                {
+                                    name:         test_competitor_2,
+                                    concurrency:  1,
+                                    requests: [ {
+                                                  query: { match: { _all: a } }
+                                    }, {
+                                                  query: { match: { _all: c } }
+                                    } ]
+                }]
+              }
+
+  - match:  { benchmark.id:       "test_benchmark"    }
+  - match:  { benchmark.status:   "COMPLETED"         }
+
+  - match:  { benchmark.competitors.test_competitor_1.summary.concurrency:                3         }
+  - match:  { benchmark.competitors.test_competitor_1.summary.total_iterations:           3         }
+  - match:  { benchmark.competitors.test_competitor_1.summary.completed_iterations:       3         }
+  - match:  { benchmark.competitors.test_competitor_1.summary.multiplier:                 5         }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.avg_warmup_time:            0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.min:             0         }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.max:             0         }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.mean:            0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.qps:             0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.millis_per_hit:  0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.percentile_10:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.percentile_25:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.percentile_50:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.percentile_75:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.percentile_90:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.percentile_99:   0.0       }
+  - length: { benchmark.competitors.test_competitor_1.summary.slowest:                    1         }
+  - length: { benchmark.competitors.test_competitor_1.iterations:                         3         }
+
+  - match:  { benchmark.competitors.test_competitor_2.summary.concurrency:                1         }
+  - match:  { benchmark.competitors.test_competitor_2.summary.total_iterations:           3         }
+  - match:  { benchmark.competitors.test_competitor_2.summary.completed_iterations:       3         }
+  - match:  { benchmark.competitors.test_competitor_2.summary.multiplier:                 5         }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.avg_warmup_time:            0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.min:             0         }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.max:             0         }
+  - gte:    { benchmark.competitors.test_competitor_1.summary.statistics.mean:            0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.qps:             0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.millis_per_hit:  0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.percentile_10:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.percentile_25:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.percentile_50:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.percentile_75:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.percentile_90:   0.0       }
+  - gte:    { benchmark.competitors.test_competitor_2.summary.statistics.percentile_99:   0.0       }
+  - length: { benchmark.competitors.test_competitor_2.summary.slowest:                    1         }
+  - length: { benchmark.competitors.test_competitor_2.iterations:                         3         }
+
+  - length: { benchmark.errors:         0 }
+  - length: { benchmark.competitors:    2 }
+

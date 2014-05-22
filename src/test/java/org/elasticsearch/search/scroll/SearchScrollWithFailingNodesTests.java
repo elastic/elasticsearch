@@ -88,7 +88,7 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
         assertThat(numHits, equalTo(100l));
         clearScroll("_all");
 
-        cluster().stopRandomDataNode();
+        cluster().stopRandomNonMasterNode();
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())

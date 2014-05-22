@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.text.DecimalFormat;
 
 /**
  */
@@ -112,11 +113,14 @@ public class FilterCacheStats implements Streamable, ToXContent {
         builder.startObject(Fields.FILTER_CACHE);
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
-        builder.startArray(Fields.RATES);
-        builder.value(getEvictionsOneMinuteRate());
-        builder.value(getEvictionsFiveMinuteRate());
-        builder.value(getEvictionsFifteenMinuteRate());
-        builder.endArray();
+
+        DecimalFormat threeDecimal = new DecimalFormat("#.###");
+        builder.startObject(Fields.RATES);
+        builder.field(Fields.ONE_MIN, Double.valueOf(threeDecimal.format(getEvictionsOneMinuteRate())));
+        builder.field(Fields.FIVE_MIN, Double.valueOf(threeDecimal.format(getEvictionsFiveMinuteRate())));
+        builder.field(Fields.FIFTEEN_MIN, Double.valueOf(threeDecimal.format(getEvictionsFifteenMinuteRate())));
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }
@@ -127,5 +131,8 @@ public class FilterCacheStats implements Streamable, ToXContent {
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
         static final XContentBuilderString RATES = new XContentBuilderString("rates");
+        static final XContentBuilderString ONE_MIN = new XContentBuilderString("1_min");
+        static final XContentBuilderString FIVE_MIN = new XContentBuilderString("5_min");
+        static final XContentBuilderString FIFTEEN_MIN = new XContentBuilderString("15_min");
     }
 }

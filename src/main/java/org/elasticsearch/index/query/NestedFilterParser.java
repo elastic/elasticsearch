@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.FixedBitSetCachingWrapperFilter;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
@@ -150,6 +151,9 @@ public class NestedFilterParser implements FilterParser {
                 //}
                 parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
+            // if the filter cache is disabled, then we still have a filter that is not cached while ToParentBlockJoinQuery
+            // expects FixedBitSet instances
+            parentFilter = new FixedBitSetCachingWrapperFilter(parentFilter);
 
             Filter nestedFilter;
             if (join) {

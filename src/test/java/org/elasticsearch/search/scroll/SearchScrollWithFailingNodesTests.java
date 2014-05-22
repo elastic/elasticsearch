@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 2)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -55,6 +55,8 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging("action.search:TRACE")
     public void testScanScrollWithShardExceptions() throws Exception {
+        cluster().startNode();
+        cluster().startNode();
         assertAcked(
                 prepareCreate("test")
                         // Enforces that only one shard can only be allocated to a single node

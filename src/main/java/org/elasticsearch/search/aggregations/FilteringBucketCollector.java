@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -34,8 +35,8 @@ import java.io.IOException;
  */
 public class FilteringBucketCollector extends BucketCollector implements Releasable {
     
-    private LongHash denseMap;
-    private BucketCollector delegate;
+    private final LongHash denseMap;
+    private final BucketCollector delegate;
     
     /**
      * 
@@ -78,6 +79,8 @@ public class FilteringBucketCollector extends BucketCollector implements Releasa
         long ordinal = denseMap.find(bucketOrdinal);
         if (ordinal >= 0) {
             delegate.gatherAnalysis(analysisCollector, ordinal);
+        } else {
+            throw new ElasticsearchIllegalArgumentException("Aggregation requested on a missing bucket #" + bucketOrdinal);
         }
     }
 }

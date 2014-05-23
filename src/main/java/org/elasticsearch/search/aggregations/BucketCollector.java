@@ -37,9 +37,9 @@ public abstract class BucketCollector implements ReaderContextAware {
     public interface BucketAnalysisCollector{
         /**
          * Used to ask {@link BucketCollector}s for their analysis of the content collected in a bucket
-         * @param analysis an object that represents the summary e.g. an {@link Aggregation}
+         * @param analysis an object that represents the summary of a bucket as an {@link Aggregation}
          */
-        void add(Object analysis);
+        void add(Aggregation aggregation);
     }
 
     public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {

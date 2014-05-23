@@ -20,10 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -114,7 +111,7 @@ public abstract class BucketsAggregator extends Aggregator {
         } else {
             BucketAnalysisCollector analysisCollector = new BucketAnalysisCollector() {               
                 @Override
-                public void add(Object analysis) {
+                public void add(Aggregation analysis) {
                     childAggs.add((InternalAggregation) analysis);
                 }
             };

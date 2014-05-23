@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import java.io.IOException;
 
@@ -29,8 +30,8 @@ import java.io.IOException;
  */
 public class FilteringSingleBucketCollector extends BucketCollector {
     
-    private long ord;
-    private BucketCollector delegate;
+    private final long ord;
+    private final BucketCollector delegate;
 
     /**
      * 
@@ -55,7 +56,10 @@ public class FilteringSingleBucketCollector extends BucketCollector {
     }
 
     @Override
-    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal){        
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal){
+        if (bucketOrdinal != ord) {
+            throw new ElasticsearchIllegalArgumentException("Aggregation requested on a missing bucket #" + bucketOrdinal);
+        }
         delegate.gatherAnalysis(analysisCollector, 0);
     }
 

@@ -20,26 +20,33 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongHash;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * Filters a collection stream of docIds and related buckets using a sorted 
  * list of valid bucket ordinals.
  */
-public class FilteringBucketCollector extends BucketCollector {
+public class FilteringBucketCollector extends BucketCollector implements Releasable {
     
-    private long[] sortedOrds;
+    private LongHash denseMap;
     private BucketCollector delegate;
-
+    
     /**
      * 
-     * @param sortedBucketOrds the list of valid BucketOrds - this array must be sorted!
+     * @param the  valid BucketOrds
      * @param delegate The collector that will be called for any buckets listed in sortedBucketOrds
      */
-    public FilteringBucketCollector(long[] sortedBucketOrds, BucketCollector delegate) {
-        this.sortedOrds = sortedBucketOrds;
+    public FilteringBucketCollector(long[] validBucketOrds, BucketCollector delegate, BigArrays bigArrays) {
+        denseMap = new LongHash(validBucketOrds.length, bigArrays);
+        for (int i = 0; i < validBucketOrds.length; i++) {
+            denseMap.add(validBucketOrds[i]);
+        }
         this.delegate = delegate;
     }
 
@@ -50,14 +57,27 @@ public class FilteringBucketCollector extends BucketCollector {
 
     @Override
     public final void collect(int docId, long bucketOrdinal) throws IOException {
-        int pos = Arrays.binarySearch(sortedOrds, bucketOrdinal);
-        if(pos>=0){
-            delegate.collect(docId, bucketOrdinal);
+        long ordinal = denseMap.find(bucketOrdinal);
+        if(ordinal>=0){
+            delegate.collect(docId, ordinal);
         }        
     }
 
     @Override
     public final void postCollection() throws IOException {
         delegate.postCollection();
+    }
+
+    @Override
+    public void close() throws ElasticsearchException {
+        Releasables.close(denseMap);
+    }
+
+    @Override
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal){        
+        long ordinal = denseMap.find(bucketOrdinal);
+        if (ordinal >= 0) {
+            delegate.gatherAnalysis(analysisCollector, ordinal);
+        }
     }
 }

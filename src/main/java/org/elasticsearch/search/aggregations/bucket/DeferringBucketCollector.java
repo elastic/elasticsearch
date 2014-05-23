@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * Buffers the matches in a collect stream and can replay a subset of the collected buckets
@@ -47,6 +46,9 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     private final BucketCollector deferred;
     private final RecordingBucketCollector recording;
     private final AggregationContext context;
+    private FilteringBucketCollector releasableCollector;
+    private BucketCollector filteredCollector;
+
 
     public DeferringBucketCollector (BucketCollector deferred, AggregationContext context) {
         this.deferred = deferred;
@@ -72,7 +74,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     /**
      * Plays a selection of the data cached from previous collect calls to the deferred
      * collector.
-     * @param survivingBucketOrds CAUTION! This method will sort the contents of this array 
+     * @param survivingBucketOrds the valid bucket ords for which deferred collection should be attempted 
      */
     public void prepareSelectedBuckets(long... survivingBucketOrds) {
         
@@ -92,15 +94,20 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
             @Override
             public void postCollection() throws IOException {
                 deferred.postCollection();
-            }};
-        BucketCollector filteredCollector;
+            }
+
+            @Override
+            public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+                deferred.gatherAnalysis(results, bucketOrdinal);
+            }
+        };
+
         //Optimize choice of collector for the simple case of a single bucket
         if(survivingBucketOrds.length==1){
             filteredCollector = new FilteringSingleBucketCollector(survivingBucketOrds[0],subs);
-        }else{
-            //Filter expects sorted bucketOrds 
-            Arrays.sort(survivingBucketOrds); 
-            filteredCollector = new FilteringBucketCollector(survivingBucketOrds, subs);            
+        }else{            
+            releasableCollector = new FilteringBucketCollector(survivingBucketOrds, subs, context.bigArrays());
+            filteredCollector = releasableCollector;
         }
         try {
             recording.replayCollection(filteredCollector);
@@ -113,7 +120,12 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
 
     @Override
     public void close() throws ElasticsearchException {
-        Releasables.close(recording);
-    }    
+        Releasables.close(recording, releasableCollector);
+    }
+
+    @Override
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal)  {
+        filteredCollector.gatherAnalysis(analysisCollector, bucketOrdinal);
+    }
 
 }

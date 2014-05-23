@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -112,6 +113,12 @@ public class RecordingBucketCollector extends BucketCollector implements Releasa
 
     @Override
     public void postCollection() throws IOException {
+    }
+
+
+    @Override
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) {
+        throw new ElasticsearchIllegalStateException("gatherAnalysis not supported");
     }
     
 }

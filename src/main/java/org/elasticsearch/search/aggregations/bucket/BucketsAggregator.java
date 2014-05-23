@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
@@ -100,18 +101,43 @@ public abstract class BucketsAggregator extends Aggregator {
     }
 
     /**
-     * Utility method to build the aggregations of the given bucket (identified by the bucket ordinal)
+     * Required method to build the child aggregations of the given bucket (identified by the bucket ordinal).
      */
     protected final InternalAggregations bucketAggregations(long bucketOrd) {
-        final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
+        final ArrayList<InternalAggregation> childAggs = new ArrayList<>();
         final long bucketDocCount = bucketDocCount(bucketOrd);
-        for (int i = 0; i < subAggregators.length; i++) {
-            aggregations[i] = bucketDocCount == 0L
-                    ? subAggregators[i].buildEmptyAggregation()
-                    : subAggregators[i].buildAggregation(bucketOrd);
+        if (bucketDocCount == 0L) {
+            // All child aggs marked as empty
+            for (int i = 0; i < subAggregators.length; i++) {
+                childAggs.add(subAggregators[i].buildEmptyAggregation());
+            }
+        } else {
+            BucketAnalysisCollector analysisCollector = new BucketAnalysisCollector() {               
+                @Override
+                public void add(Object analysis) {
+                    childAggs.add((InternalAggregation) analysis);
+                }
+            };
+            // Add the collectable sub aggs by asking the collect tree to gather
+            // results using ordinals that may have undergone transformation as the 
+            // result of the collection process e.g. filtering
+            // to a subset of buckets then rebasing the numbers in the deferred collection
+            collectableSubAggregators.gatherAnalysis(analysisCollector, bucketOrd);
+
+            // Also add the results of any non-collecting sub aggs using the top-level ordinals
+            for (int i = 0; i < subAggregators.length; i++) {
+                if (!subAggregators[i].shouldCollect()) {
+                    // Agg is not part of the collect tree - call directly
+                    childAggs.add(subAggregators[i].buildAggregation(bucketOrd));
+                }
+            }
         }
-        return new InternalAggregations(Arrays.asList(aggregations));
+
+        return new InternalAggregations(childAggs);
+        
     }
+    
+    
 
     /**
      * Utility method to build empty aggregations of the sub aggregators.

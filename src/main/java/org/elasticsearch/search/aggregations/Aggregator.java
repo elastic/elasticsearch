@@ -24,7 +24,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
@@ -154,22 +153,29 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         context.searchContext().addReleasable(this, Lifetime.PHASE);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent initialize call)
         collectableSubAggregators = new BucketCollector() {
+            static final String ERR="Initialize not called on new Aggregator before use";
+            void badState(){
+                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
+                        "Initialize not called on new Aggregator before use", null);                
+            }
             @Override
             public void setNextReader(AtomicReaderContext reader) {
-                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
-                        "Initialize not called on new Aggregator before use", null);
+                badState();
             }
 
             @Override
             public void postCollection() throws IOException {
-                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
-                        "Initialize not called on new Aggregator before use", null);
+                badState();
             }
 
             @Override
             public void collect(int docId, long bucketOrdinal) throws IOException {
-                throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
-                        "Initialize not called on new Aggregator before use", null);
+                badState();
+            }
+
+            @Override
+            public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+                badState();
             }
         };
     }
@@ -285,8 +291,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
-        Releasables.close(recordingWrapper);
-        doClose();
+        try (Releasable _ = recordingWrapper) {
+            doClose();
+        }
     }
 
     /** Release instance-specific data. */
@@ -302,6 +309,14 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @return  The aggregated & built aggregation
      */
     public abstract InternalAggregation buildAggregation(long owningBucketOrdinal);
+    
+    @Override
+    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+        results.add(buildAggregation(bucketOrdinal));
+    }
+    
+    
+    
 
     public abstract InternalAggregation buildEmptyAggregation();
 

@@ -30,6 +30,17 @@ import java.io.IOException;
  * A Collector that can collect data in separate buckets.
  */
 public abstract class BucketCollector implements ReaderContextAware {
+    
+    /**
+     * Used to gather a summary from a bucket
+     */
+    public interface BucketAnalysisCollector{
+        /**
+         * Used to ask {@link BucketCollector}s for their analysis of the content collected in a bucket
+         * @param analysis an object that represents the summary e.g. an {@link Aggregation}
+         */
+        void add(Object analysis);
+    }
 
     public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
@@ -37,14 +48,16 @@ public abstract class BucketCollector implements ReaderContextAware {
         public void collect(int docId, long bucketOrdinal) throws IOException {
             // no-op
         }
-
         @Override
         public void setNextReader(AtomicReaderContext reader) {
             // no-op
         }
-
         @Override
         public void postCollection() throws IOException {
+            // no-op
+        }
+        @Override
+        public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) {
             // no-op
         }
     };
@@ -83,6 +96,13 @@ public abstract class BucketCollector implements ReaderContextAware {
                         }
                     }
 
+                    @Override
+                    public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+                        for (BucketCollector collector : collectors) {
+                            collector.gatherAnalysis(results, bucketOrdinal);
+                        }
+                    }
+
                 };
         }
     }
@@ -105,4 +125,10 @@ public abstract class BucketCollector implements ReaderContextAware {
      */
     public abstract void postCollection() throws IOException;
 
+    /**
+     * Called post-collection to gather the results from surviving buckets.
+     * @param analysisCollector
+     * @param bucketOrdinal
+     */
+    public abstract void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal);
 }

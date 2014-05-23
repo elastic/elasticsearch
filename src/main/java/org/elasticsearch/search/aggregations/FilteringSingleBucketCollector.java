@@ -50,9 +50,15 @@ public class FilteringSingleBucketCollector extends BucketCollector {
     @Override
     public final void collect(int docId, long bucketOrdinal) throws IOException {
         if (bucketOrdinal == ord) {
-            delegate.collect(docId, bucketOrdinal);
+            delegate.collect(docId, 0); //rebased ordinal
         }
     }
+
+    @Override
+    public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal){        
+        delegate.gatherAnalysis(analysisCollector, 0);
+    }
+
 
     @Override
     public final void postCollection() throws IOException {

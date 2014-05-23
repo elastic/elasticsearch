@@ -224,6 +224,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/sunnygleason/elasticsearch-river-st9[St9 River Plugin] (by Sunny Gleason)
 * https://github.com/plombard/SubversionRiver[Subversion River Plugin] (by Pascal Lombard)
 * https://github.com/kzwang/elasticsearch-river-dynamodb[DynamoDB River Plugin] (by Kevin Wang)
+* https://github.com/salyh/elasticsearch-river-imap[IMAP/POP3 Email River Plugin] (by Hendrik Saly)
 
 [float]
 [[transport]]
@@ -296,5 +297,5 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 * https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
-
+* https://github.com/salyh/elasticsearch-security-plugin[Elasticsearch Security Plugin] (by Hendrik Saly)
 

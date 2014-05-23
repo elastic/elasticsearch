@@ -63,6 +63,11 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
+    public boolean sandboxed() {
+        return false;
+    }
+
+    @Override
     public Object compile(String script) {
         return interp.compile(script);
     }

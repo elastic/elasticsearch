@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.tophits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -32,7 +32,7 @@ import java.util.Map;
 
 /**
  */
-public class TopHitsBuilder extends AggregationBuilder<TopHitsBuilder> {
+public class TopHitsBuilder extends AbstractAggregationBuilder {
 
     private SearchSourceBuilder sourceBuilder;
 
@@ -366,9 +366,10 @@ public class TopHitsBuilder extends AggregationBuilder<TopHitsBuilder> {
     }
 
     @Override
-    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(name).field(type);
         sourceBuilder.toXContent(builder, params);
-        return builder;
+        return builder.endObject();
     }
 
     private SearchSourceBuilder sourceBuilder() {

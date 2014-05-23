@@ -25,10 +25,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -154,6 +151,11 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
         @Override
         public Aggregator create(AggregationContext aggregationContext, Aggregator parent, long expectedBucketsCount) {
             return new TopHitsAggregator(fetchPhase, topHitsContext, name, expectedBucketsCount, aggregationContext, parent);
+        }
+
+        @Override
+        public AggregatorFactory subFactories(AggregatorFactories subFactories) {
+            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
         }
 
     }

@@ -20,7 +20,9 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -35,6 +37,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -71,6 +74,54 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .field("field1", 5)
                     .endObject()));
         }
+
+        // Use routing to make sure all docs are in the same shard for consistent scoring
+        builders.add(client().prepareIndex("idx", "field-collapsing", "1").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "a")
+                .field("text", "term x y z b")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "2").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "a")
+                .field("text", "term x y z n rare")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "3").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "b")
+                .field("text", "x y z term")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "4").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "b")
+                .field("text", "x y term")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "5").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "b")
+                .field("text", "x term")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "6").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "b")
+                .field("text", "term rare")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "7").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "c")
+                .field("text", "x y z term")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "8").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "c")
+                .field("text", "x y term b")
+                .endObject()));
+        builders.add(client().prepareIndex("idx", "field-collapsing", "9").setSource(jsonBuilder()
+                .startObject()
+                .field("group", "c")
+                .field("text", "rare x term")
+                .endObject()));
+
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -158,6 +209,56 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testFieldCollapsing() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("field-collapsing")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(matchQuery("text", "term rare"))
+                .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field("group")
+                                .order(Terms.Order.aggregation("max_score", false))
+                                .subAggregation(
+                                        topHits("hits").setSize(1)
+                                )
+                                .subAggregation(
+                                        max("max_score").script("_doc.score")
+                                )
+                )
+                .get();
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(3));
+
+        Iterator<Terms.Bucket> bucketIterator = terms.getBuckets().iterator();
+        Terms.Bucket bucket = bucketIterator.next();
+        assertThat(key(bucket), equalTo("b"));
+        TopHits topHits = bucket.getAggregations().get("hits");
+        SearchHits hits = topHits.getHits();
+        assertThat(hits.totalHits(), equalTo(4l));
+        assertThat(hits.getHits().length, equalTo(1));
+        assertThat(hits.getAt(0).id(), equalTo("6"));
+
+        bucket = bucketIterator.next();
+        assertThat(key(bucket), equalTo("c"));
+        topHits = bucket.getAggregations().get("hits");
+        hits = topHits.getHits();
+        assertThat(hits.totalHits(), equalTo(3l));
+        assertThat(hits.getHits().length, equalTo(1));
+        assertThat(hits.getAt(0).id(), equalTo("9"));
+
+        bucket = bucketIterator.next();
+        assertThat(key(bucket), equalTo("a"));
+        topHits = bucket.getAggregations().get("hits");
+        hits = topHits.getHits();
+        assertThat(hits.totalHits(), equalTo(2l));
+        assertThat(hits.getHits().length, equalTo(1));
+        assertThat(hits.getAt(0).id(), equalTo("2"));
+    }
+
+    @Test
     public void testFetchFeatures() {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .setQuery(matchQuery("text", "text").queryName("test"))
@@ -209,6 +310,56 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
             assertThat(hit.sourceAsMap().size(), equalTo(1));
             assertThat(hit.sourceAsMap().get("text").toString(), equalTo("some text to entertain"));
+        }
+    }
+
+    @Test
+    public void testInvalidSortField() throws Exception {
+        try {
+            client().prepareSearch("idx").setTypes("type")
+                    .addAggregation(terms("terms")
+                                    .executionHint(randomExecutionHint())
+                                    .field(TERMS_AGGS_FIELD)
+                                    .subAggregation(
+                                            topHits("hits").addSort(SortBuilders.fieldSort("xyz").order(SortOrder.DESC))
+                                    )
+                    ).get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("No mapping found for [xyz] in order to sort on"));
+        }
+    }
+
+    @Test
+    public void testFailWithSubAgg() throws Exception {
+        String source = "{\n" +
+                "  \"aggs\": {\n" +
+                "    \"top-tags\": {\n" +
+                "      \"terms\": {\n" +
+                "        \"field\": \"tags\"\n" +
+                "      },\n" +
+                "      \"aggs\": {\n" +
+                "        \"top_tags_hits\": {\n" +
+                "          \"top_hits\": {},\n" +
+                "          \"aggs\": {\n" +
+                "            \"max\": {\n" +
+                "              \"max\": {\n" +
+                "                \"field\": \"age\"\n" +
+                "              }\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        try {
+            client().prepareSearch("idx").setTypes("type")
+                    .setSource(source)
+                    .get();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
     }
 

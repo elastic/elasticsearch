@@ -42,12 +42,17 @@ only the title field is being included in the source.
                 "top_tag_hits": {
                     "top_hits": {
                         "sort": [
-                        {
-                            "last_activity_date": {
-                                "order": "desc"
+                            {
+                                "last_activity_date": {
+                                    "order": "desc"
+                                }
                             }
-                        }
                         ],
+                        "_source": {
+                            "include": [
+                                "title"
+                            ]
+                        },
                         "size" : 1
                     }
                 }

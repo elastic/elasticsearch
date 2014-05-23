@@ -52,7 +52,7 @@ public class Natives {
             if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("linux")) {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out."
-                        + " Increase RLIMIT_MEMLOCK or run elasticsearch as root.");
+                        + " Increase RLIMIT_MEMLOCK (ulimit).");
             } else if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
                 // OS X allows mlockall to be called, but always returns an error
                 logger.warn("Unknown mlockall error " + errno);

@@ -50,7 +50,7 @@ public class CustomHighlighter implements Highlighter {
             if (cacheEntry.docId == docId) {
                 cacheEntry.position++;
             } else {
-                cacheEntry.docId = highlighterContext.hitContext.docId();
+                cacheEntry.docId = docId;
                 cacheEntry.position = 1;
             }
         }

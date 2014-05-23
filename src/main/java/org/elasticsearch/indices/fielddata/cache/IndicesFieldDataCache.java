@@ -217,11 +217,24 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         @Override
         public void clear() {
+            // TODO: determine whether there is ever anything in this cache that doesn't share the index and consider .invalidateAll() instead
             for (Key key : cache.asMap().keySet()) {
                 if (key.indexCache.index.equals(index)) {
                     cache.invalidate(key);
                 }
             }
+            // There is an explicit call to cache.cleanUp() here because cache
+            // invalidation in Guava does not immediately remove values from the
+            // cache. In the case of a cache with a rare write or read rate,
+            // it's possible for values to persist longer than desired. In the
+            // case of the circuit breaker, when clearing the entire cache all
+            // entries should immediately be evicted so that their sizes are
+            // removed from the breaker estimates.
+            //
+            // Note this is intended by the Guava developers, see:
+            // https://code.google.com/p/guava-libraries/wiki/CachesExplained#Eviction
+            // (the "When Does Cleanup Happen" section)
+            cache.cleanUp();
         }
 
         @Override

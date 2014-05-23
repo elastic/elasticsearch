@@ -6,6 +6,7 @@ The JavaScript language plugin allows to have `javascript` (or `js`) as the lang
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-javascript/2.1.0`.
 
 * For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/master).
+* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-1.3).
 * For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-1.2).
 * For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-1.1).
 * For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-lang-javascript/tree/es-1.0).

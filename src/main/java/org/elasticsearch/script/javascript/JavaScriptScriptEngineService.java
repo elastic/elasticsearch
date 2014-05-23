@@ -82,6 +82,11 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
+    public boolean sandboxed() {
+        return false;
+    }
+
+    @Override
     public Object compile(String script) {
         Context ctx = Context.enter();
         try {

@@ -20,7 +20,6 @@
 package org.elasticsearch.script.javascript;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.util.concurrent.jsr166y.ThreadLocalRandom;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -29,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;

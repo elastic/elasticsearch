@@ -26,15 +26,25 @@ import java.io.IOException;
 public class LimitFilterBuilder extends BaseFilterBuilder {
 
     private final int limit;
+    private final boolean short_circuit;
 
     public LimitFilterBuilder(int limit) {
         this.limit = limit;
+        this.short_circuit = false;
+    }
+
+    public LimitFilterBuilder(int limit, boolean short_circuit) {
+        this.limit = limit;
+        this.short_circuit = short_circuit;
     }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(LimitFilterParser.NAME);
         builder.field("value", limit);
+        if (short_circuit) {
+          builder.field("short_circuit", short_circuit);
+        }
         builder.endObject();
     }
 }

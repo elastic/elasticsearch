@@ -30,14 +30,20 @@ import java.io.IOException;
 public class LimitFilter extends NoCacheFilter {
 
     private final int limit;
+    private final boolean short_circuit;
     private int counter;
 
-    public LimitFilter(int limit) {
+    public LimitFilter(int limit, boolean short_circuit) {
         this.limit = limit;
+        this.short_circuit = short_circuit;
     }
 
     public int getLimit() {
         return limit;
+    }
+
+    public boolean getShortCircuit() {
+        return short_circuit;
     }
 
     @Override
@@ -45,21 +51,20 @@ public class LimitFilter extends NoCacheFilter {
         if (counter > limit) {
             return null;
         }
-        return new LimitDocIdSet(context.reader().maxDoc(), acceptDocs, limit);
+        return new LimitDocIdSet(context.reader().maxDoc(), acceptDocs);
     }
 
     public class LimitDocIdSet extends MatchDocIdSet {
 
-        private final int limit;
-
-        public LimitDocIdSet(int maxDoc, @Nullable Bits acceptDocs, int limit) {
+        public LimitDocIdSet(int maxDoc, @Nullable Bits acceptDocs) {
             super(maxDoc, acceptDocs);
-            this.limit = limit;
         }
 
         @Override
         protected boolean matchDoc(int doc) {
             if (++counter > limit) {
+                if (short_circuit)
+                    throw new RuntimeException("Limited results to: " + counter);
                 return false;
             }
             return true;

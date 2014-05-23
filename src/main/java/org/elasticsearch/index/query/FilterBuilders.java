@@ -43,6 +43,10 @@ public abstract class FilterBuilders {
         return new LimitFilterBuilder(limit);
     }
 
+    public static LimitFilterBuilder limitFilter(int limit, boolean short_circuit) {
+        return new LimitFilterBuilder(limit, short_circuit);
+    }
+
     public static NestedFilterBuilder nestedFilter(String path, QueryBuilder query) {
         return new NestedFilterBuilder(path, query);
     }
@@ -400,7 +404,7 @@ public abstract class FilterBuilders {
     public static GeohashCellFilter.Builder geoHashCellFilter(String name, String geohash, boolean neighbors) {
         return new GeohashCellFilter.Builder(name, geohash, neighbors);
     }
-    
+
     /**
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *

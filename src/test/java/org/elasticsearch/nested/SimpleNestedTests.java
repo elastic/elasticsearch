@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -41,6 +42,9 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -169,6 +173,99 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void simpleNestedMatchQueries() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("type1")
+                    .startObject("properties")
+                        .startObject("nested1")
+                            .field("type", "nested")
+                        .endObject()
+                        .startObject("field1")
+                            .field("type", "long")
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", builder));
+        ensureGreen();
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = randomIntBetween(2, 35);
+        requests.add(client().prepareIndex("test", "type1", "0").setSource(jsonBuilder().startObject()
+                .field("field1", 0)
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()));
+        requests.add(client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_8")
+                .field("n_field2", "n_value2_5")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_3")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .endArray()
+                .endObject()));
+
+        for (int i = 2; i < numDocs; i++) {
+            requests.add(client().prepareIndex("test", "type1", String.valueOf(i)).setSource(jsonBuilder().startObject()
+                    .field("field1", i)
+                    .startArray("nested1")
+                    .startObject()
+                    .field("n_field1", "n_value1_8")
+                    .field("n_field2", "n_value2_5")
+                    .endObject()
+                    .startObject()
+                    .field("n_field1", "n_value1_2")
+                    .field("n_field2", "n_value2_2")
+                    .endObject()
+                    .endArray()
+                    .endObject()));
+        }
+
+        indexRandom(true, requests);
+        waitForRelocation(ClusterHealthStatus.GREEN);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(nestedQuery("nested1", boolQuery()
+                        .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
+                        .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
+                        .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
+                ))
+                .setSize(numDocs)
+                .addSort("field1", SortOrder.ASC)
+                .get();
+        assertNoFailures(searchResponse);
+        assertAllSuccessful(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("0"));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries().length, equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries()[0], equalTo("test1"));
+        assertThat(searchResponse.getHits().getAt(0).matchedQueries()[1], equalTo("test3"));
+
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).matchedQueries().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(1).matchedQueries()[0], equalTo("test2"));
+
+        for (int i = 2; i < numDocs; i++) {
+            assertThat(searchResponse.getHits().getAt(i).id(), equalTo(String.valueOf(i)));
+            assertThat(searchResponse.getHits().getAt(i).matchedQueries().length, equalTo(1));
+            assertThat(searchResponse.getHits().getAt(i).matchedQueries()[0], equalTo("test3"));
+        }
     }
 
     @Test

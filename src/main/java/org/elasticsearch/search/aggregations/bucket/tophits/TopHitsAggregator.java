@@ -79,9 +79,14 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
             FetchSearchResult fetchResult = topHitsContext.fetchResult();
             InternalSearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
             for (int i = 0; i < internalHits.length; i++) {
+                ScoreDoc scoreDoc = topDocs.scoreDocs[i];
                 InternalSearchHit searchHitFields = internalHits[i];
                 searchHitFields.shard(topHitsContext.shardTarget());
-                searchHitFields.score(topDocs.scoreDocs[i].score);
+                searchHitFields.score(scoreDoc.score);
+                if (scoreDoc instanceof FieldDoc) {
+                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
+                    searchHitFields.sortValues(fieldDoc.fields);
+                }
             }
             return new InternalTopHits(name, topHitsContext.size(), topHitsContext.sort(), topDocs, fetchResult.hits());
         }

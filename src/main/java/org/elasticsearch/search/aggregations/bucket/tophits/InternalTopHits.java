@@ -109,10 +109,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
             for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
                 ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
                 hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(tracker[scoreDoc.shardIndex]++);
-                if (scoreDoc instanceof FieldDoc) {
-                    FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                    hits[i].sortValues(fieldDoc.fields);
-                }
             }
             return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
         } catch (IOException e) {

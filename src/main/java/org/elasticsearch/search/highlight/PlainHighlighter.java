@@ -102,9 +102,7 @@ public class PlainHighlighter implements Highlighter {
         
         AnalyzerMapper analyzerMapper = context.mapperService().documentMapper(hitContext.hit().type()).analyzerMapper();
         
-        analyzerMapper.postHighlight(highlighterContext);
-            
-        Analyzer analyzer = highlighterContext.analyzer();
+        Analyzer analyzer = analyzerMapper.setAnalyzer(highlighterContext);
         
         try {
             textsToHighlight = HighlightUtils.loadFieldValues(field, mapper, context, hitContext);

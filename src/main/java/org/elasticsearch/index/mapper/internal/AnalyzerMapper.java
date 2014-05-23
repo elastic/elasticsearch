@@ -130,18 +130,24 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
         return false;
     }
     
-    public void postHighlight(HighlighterContext context){
+    public Analyzer setAnalyzer(HighlighterContext context){
+        if (context.analyzer() != null){
+            return context.analyzer();
+        }
+        
         Analyzer analyzer = null;
         
         if (path != null) {
-            String analyzerName = (String)context.context.lookup().source().extractValue(path);
+            String analyzerName = (String) context.context.lookup().source().extractValue(path);
             analyzer = context.context.mapperService().analysisService().analyzer(analyzerName);
         }
         
-        if(analyzer == null){
+        if (analyzer == null) {
             analyzer = context.context.mapperService().documentMapper(context.hitContext.hit().type()).mappers().indexAnalyzer();  
         }
         context.analyzer(analyzer);
+        
+        return analyzer;
     }
     
     @Override

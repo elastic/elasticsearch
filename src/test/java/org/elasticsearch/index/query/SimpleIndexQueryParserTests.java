@@ -2355,4 +2355,24 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
     }
+
+    @Test
+    public void testMatchWithFuzzyTranspositions() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-with-fuzzy-transpositions.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(true));
+    }
+
+    @Test
+    public void testMatchWithoutFuzzyTranspositions() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/match-without-fuzzy-transpositions.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
+        assertThat( ((FuzzyQuery) parsedQuery).getTranspositions(), equalTo(false));
+    }
+
+
 }

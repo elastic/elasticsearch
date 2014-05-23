@@ -29,8 +29,9 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
-import org.elasticsearch.index.search.child.CountChildrenConstantScoreQuery;
+import org.elasticsearch.index.search.child.ChildrenQuery;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
@@ -152,9 +153,7 @@ public class HasChildFilterParser implements FilterParser {
 
         Query childrenQuery;
         if (minimumChildren > 1) {
-            childrenQuery = new CountChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter,
-                    shortCircuitParentDocSet, nonNestedDocsFilter, minimumChildren);
-
+            childrenQuery = new ChildrenQuery(parentChildIndexFieldData,  parentType, childType, parentFilter,query,ScoreType.NONE,minimumChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
             childrenQuery = new ChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter,
                     shortCircuitParentDocSet, nonNestedDocsFilter);

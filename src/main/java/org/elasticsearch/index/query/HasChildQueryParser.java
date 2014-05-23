@@ -29,7 +29,10 @@ import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.support.XContentStructure;
-import org.elasticsearch.index.search.child.*;
+import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
+import org.elasticsearch.index.search.child.ChildrenQuery;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
@@ -60,7 +63,7 @@ public class HasChildQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
-        ScoreType scoreType = null;
+        ScoreType scoreType = ScoreType.NONE;
         int minimumChildren = 0;
         int shortCircuitParentDocSet = 8192;
         String queryName = null;
@@ -88,15 +91,9 @@ public class HasChildQueryParser implements QueryParser {
                 } else if ("_scope".equals(currentFieldName)) {
                     throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    String scoreTypeValue = parser.text();
-                    if (!"none".equals(scoreTypeValue)) {
-                        scoreType = ScoreType.fromString(scoreTypeValue);
-                    }
+                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
-                    String scoreModeValue = parser.text();
-                    if (!"none".equals(scoreModeValue)) {
-                        scoreType = ScoreType.fromString(scoreModeValue);
-                    }
+                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("minimum_children".equals(currentFieldName)|| "minimumChildren".equals(currentFieldName)) {
@@ -154,12 +151,9 @@ public class HasChildQueryParser implements QueryParser {
         Query query;
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
-        if (scoreType != null) {
+        if (minimumChildren > 1 || scoreType != ScoreType.NONE) {
             query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType,
                     minimumChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
-        } else if (minimumChildren > 1) {
-            query = new CountChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
-                    shortCircuitParentDocSet, nonNestedDocsFilter, minimumChildren);
         } else {
             query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
                     shortCircuitParentDocSet, nonNestedDocsFilter);

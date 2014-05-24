@@ -34,7 +34,7 @@ public class LookupScriptTests extends AbstractSearchScriptTests {
                 .string();
         
         assertAcked(prepareCreate("lookup")
-                .addMapping("type", lookup_mapping));
+                .addMapping("state", lookup_mapping));
 
         // Create a new test index
         String test_mapping = XContentFactory.jsonBuilder().startObject().startObject("city")

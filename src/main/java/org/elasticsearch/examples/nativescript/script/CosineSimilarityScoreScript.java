@@ -4,7 +4,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
-import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.script.ScriptException;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -46,7 +47,7 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
          * @return new native script
          */
         @Override
-        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
+        public ExecutableScript newScript(@Nullable Map<String, Object> params) throws ScriptException {
             return new CosineSimilarityScoreScript(params);
         }
     }
@@ -55,8 +56,9 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
      * @param params
      *            terms that a scored are placed in this parameter. Initialize
      *            them here.
+     * @throws ScriptException 
      */
-    private CosineSimilarityScoreScript(Map<String, Object> params) {
+    private CosineSimilarityScoreScript(Map<String, Object> params) throws ScriptException {
         params.entrySet();
         // get the terms
         terms = (ArrayList<String>) params.get("terms");
@@ -64,10 +66,10 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
         // get the field
         field = (String) params.get("field");
         if (field == null || terms == null || weights == null) {
-            throw new ElasticSearchException("cannot initialize " + SCRIPT_NAME + ": field, terms or weights parameter missing!");
+            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": field, terms or weights parameter missing!");
         }
         if (weights.size() != terms.size()) {
-            throw new ElasticSearchException("cannot initialize " + SCRIPT_NAME + ": terms and weights array must have same length!");
+            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": terms and weights array must have same length!");
         }
     }
 
@@ -95,7 +97,7 @@ public class CosineSimilarityScoreScript extends AbstractSearchScript {
             }
             return score / (Math.sqrt(docWeightSum) * Math.sqrt(queryWeightSum));
         } catch (IOException ex) {
-            throw new ElasticSearchException("Could not compute cosine similarity: ", ex);
+            throw new ScriptException("Could not compute cosine similarity: ", ex);
         }
     }
 

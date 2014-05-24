@@ -1,6 +1,5 @@
 package org.elasticsearch.examples.nativescript.script;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -77,19 +76,19 @@ public class LookupScript extends AbstractSearchScript {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             if (params == null) {
-                throw new ElasticSearchIllegalArgumentException("Missing script parameters");
+                throw new ScriptException("Missing script parameters");
             }
             String lookupIndex = XContentMapValues.nodeStringValue(params.get("lookup_index"), null);
             if (lookupIndex == null) {
-                throw new ElasticSearchIllegalArgumentException("Missing the index parameter");
+                throw new ScriptException("Missing the index parameter");
             }
             String lookupType = XContentMapValues.nodeStringValue(params.get("lookup_type"), null);
             if (lookupType == null) {
-                throw new ElasticSearchIllegalArgumentException("Missing the index parameter");
+                throw new ScriptException("Missing the index parameter");
             }
             String field = XContentMapValues.nodeStringValue(params.get("field"), null);
             if (field == null) {
-                throw new ElasticSearchIllegalArgumentException("Missing the field parameter");
+                throw new ScriptException("Missing the field parameter");
             }
             return new LookupScript(node.client(), logger, cache, lookupIndex, lookupType, field);
         }

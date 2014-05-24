@@ -4,12 +4,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.IndexField;
 import org.elasticsearch.search.lookup.IndexFieldTerm;
 
@@ -70,7 +70,7 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
         // get lambda
         lambda = ((Double) params.get("lambda")).floatValue();
         if (field == null || terms == null || docLengthField == null) {
-            throw new ElasticSearchException("cannot initialize " + SCRIPT_NAME + ": field, terms or length field parameter missing!");
+            throw new ScriptException("cannot initialize " + SCRIPT_NAME + ": field, terms or length field parameter missing!");
         }
     }
 
@@ -120,11 +120,11 @@ public class LanguageModelScoreScript extends AbstractSearchScript {
                 }
                 return score;
             } else {
-                throw new ElasticSearchException("Could not compute language model score, word count field missing.");
+                throw new ScriptException("Could not compute language model score, word count field missing.");
             }
 
         } catch (IOException ex) {
-            throw new ElasticSearchException("Could not compute language model score: ", ex);
+            throw new ScriptException("Could not compute language model score: ", ex);
         }
     }
 

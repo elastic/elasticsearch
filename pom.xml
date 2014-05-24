@@ -38,8 +38,8 @@
     <!-- The Elasticsearch version that the project will be built with -->
     <!-- ============================================================= -->
     <properties>
-        <elasticsearch.version>0.90.10</elasticsearch.version>
-        <lucene.version>4.6.0</lucene.version>
+        <elasticsearch.version>1.2.0</elasticsearch.version>
+        <lucene.version>4.8.1</lucene.version>
     </properties>
 
     <!-- ============================================================= -->
@@ -98,15 +98,15 @@
     <build>
         <plugins>
             <!-- ============================================================= -->
-            <!-- Elasticsearch is using java 1.6 at the moment.                -->
+            <!-- Elasticsearch is using java 1.7 at the moment.                -->
             <!-- ============================================================= -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.3.2</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.7</source>
+                    <target>1.7</target>
                 </configuration>
             </plugin>
             <!-- ============================================================= -->

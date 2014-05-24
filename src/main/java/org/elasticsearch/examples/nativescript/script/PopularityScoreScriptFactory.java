@@ -1,12 +1,12 @@
 package org.elasticsearch.examples.nativescript.script;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AbstractFloatSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.ScriptException;
 
 import java.util.Map;
 
@@ -21,7 +21,7 @@ public class PopularityScoreScriptFactory implements NativeScriptFactory {
     public ExecutableScript newScript(@Nullable Map<String, Object> params) {
         String fieldName = params == null ? null : XContentMapValues.nodeStringValue(params.get("field"), null);
         if (fieldName == null) {
-            throw new ElasticSearchIllegalArgumentException("Missing the field parameter");
+            throw new ScriptException("Missing the field parameter");
         }
         return new PopularityScoreScript(fieldName);
     }

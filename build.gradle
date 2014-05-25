@@ -10,7 +10,7 @@ dependencies {
 	provided("org.apache.hadoop:hadoop-core:$hadoop12Version")
 	provided("org.elasticsearch:elasticsearch:$esVersion")
 	testCompile "org.elasticsearch:elasticsearch:$esVersion:tests"
-	testCompile "org.apache.lucene:lucene-test-framework:4.7.0"
+	testCompile "org.apache.lucene:lucene-test-framework:$luceneVersion"
 	
 	hadoop1("org.apache.hadoop:hadoop-core:$hadoop12Version") {
 		exclude module: "commons-cli"

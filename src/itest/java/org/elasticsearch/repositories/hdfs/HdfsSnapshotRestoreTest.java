@@ -43,7 +43,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 2)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 2)
 public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
 
     @Override

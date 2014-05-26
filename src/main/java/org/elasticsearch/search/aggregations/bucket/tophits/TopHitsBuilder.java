@@ -41,6 +41,15 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
     }
 
     /**
+     * The index to start to return hits from. Defaults to <tt>0</tt>.
+     */
+    public TopHitsBuilder setFrom(int from) {
+        sourceBuilder().from(from);
+        return this;
+    }
+
+
+    /**
      * The number of search hits to return. Defaults to <tt>10</tt>.
      */
     public TopHitsBuilder setSize(int size) {

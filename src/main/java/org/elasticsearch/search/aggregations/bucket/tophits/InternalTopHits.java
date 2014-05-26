@@ -54,6 +54,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
 
+    private int from;
     private int size;
     private Sort sort;
     private TopDocs topDocs;
@@ -62,8 +63,9 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
     InternalTopHits() {
     }
 
-    public InternalTopHits(String name, int size, Sort sort, TopDocs topDocs, InternalSearchHits searchHits) {
+    public InternalTopHits(String name, int from, int size, Sort sort, TopDocs topDocs, InternalSearchHits searchHits) {
         this.name = name;
+        this.from = from;
         this.size = size;
         this.sort = sort;
         this.topDocs = topDocs;
@@ -104,7 +106,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
 
         try {
             int[] tracker = new int[shardHits.length];
-            TopDocs reducedTopDocs = TopDocs.merge(sort, size, shardDocs);
+            TopDocs reducedTopDocs = TopDocs.merge(sort, from, size, shardDocs);
             InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
             for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
                 ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
@@ -119,6 +121,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readString();
+        from = in.readVInt();
         size = in.readVInt();
         topDocs = Lucene.readTopDocs(in);
         if (topDocs instanceof TopFieldDocs) {
@@ -130,6 +133,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeVInt(from);
         out.writeVInt(size);
         Lucene.writeTopDocs(out, topDocs, 0);
         searchHits.writeTo(out);

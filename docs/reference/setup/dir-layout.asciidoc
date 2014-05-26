@@ -45,3 +45,7 @@ Or the in an array format:
 ----------------------------------------
 path.data: ["/mnt/first", "/mnt/second"]
 ----------------------------------------
+
+Note also that the translog is also striped by creating new files on each disk
+and this can become a bottlekneck.  If it does then look to RAID.  Even
+software RAID 0 will help here.

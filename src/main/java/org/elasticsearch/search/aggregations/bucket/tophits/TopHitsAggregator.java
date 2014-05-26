@@ -88,7 +88,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            return new InternalTopHits(name, topHitsContext.size(), topHitsContext.sort(), topDocs, fetchResult.hits());
+            return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), topDocs, fetchResult.hits());
         }
     }
 
@@ -102,10 +102,10 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
         TopDocsCollector topDocsCollector = topDocsCollectors.get(bucketOrdinal);
         if (topDocsCollector == null) {
             Sort sort = topHitsContext.sort();
-            int size = topHitsContext.size();
+            int topN = topHitsContext.from() + topHitsContext.size();
             topDocsCollectors.put(
                     bucketOrdinal,
-                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, size, true, topHitsContext.trackScores(), true, false) : TopScoreDocCollector.create(size, false)
+                    topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), true, false) : TopScoreDocCollector.create(topN, false)
             );
             topDocsCollector.setNextReader(currentContext);
             topDocsCollector.setScorer(currentScorer);

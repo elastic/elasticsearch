@@ -22,9 +22,13 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 
 /**
+ * Accumulation of the most relevant hits for a bucket this aggregation falls into.
  */
 public interface TopHits extends Aggregation {
 
+    /**
+     * @return The top matching hits for the bucket
+     */
     SearchHits getHits();
 
 }

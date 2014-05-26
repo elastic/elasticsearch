@@ -13,6 +13,7 @@ This aggregator can't hold any sub-aggregators and therefor can only be used as 
 
 ==== Options
 
+* `from` - The index from which to include matching hits.
 * `size` - The maximum number of top matching hits to return per bucket. By default the top three matching hits are returned.
 * `sort` - How the top matching hits should be sorted. By default the hits are sorted by the score of the main query.
 

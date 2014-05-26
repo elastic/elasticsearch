@@ -64,23 +64,28 @@ public class ChildrenQuery extends Query {
     protected final Filter parentFilter;
     protected final ScoreType scoreType;
     protected Query originalChildQuery;
-    protected final int minimumChildren;
+    protected final int minChildren;
+    protected final int maxChildren;
     protected final int shortCircuitParentDocSet;
     protected final Filter nonNestedDocsFilter;
 
     protected Query rewrittenChildQuery;
     protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minimumChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = parentFilter;
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
-        this.minimumChildren = minimumChildren > 1 ? minimumChildren : 0;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
+        this.minChildren = minChildren > 1 ? minChildren : 0;
+        this.maxChildren =
+                 maxChildren >= this.minChildren ? maxChildren
+               : maxChildren != 0                ? this.minChildren
+               :                                   0;
     }
 
     @Override
@@ -102,7 +107,10 @@ public class ChildrenQuery extends Query {
         if (getBoost() != that.getBoost()) {
             return false;
         }
-        if (minimumChildren != that.minimumChildren) {
+        if (minChildren != that.minChildren) {
+            return false;
+        }
+        if (maxChildren != that.maxChildren) {
             return false;
         }
         return true;
@@ -113,13 +121,19 @@ public class ChildrenQuery extends Query {
         int result = originalChildQuery.hashCode();
         result = 31 * result + childType.hashCode();
         result = 31 * result + Float.floatToIntBits(getBoost());
-        result = 31 * result + minimumChildren;
+        result = 31 * result + minChildren;
+        result = 31 * result + maxChildren;
         return result;
     }
 
     @Override
     public String toString(String field) {
-        return "ChildrenQuery[min(" + Integer.toString(minimumChildren) + ") of " + childType + "/" + parentType + "]("
+        if (minChildren != 0||maxChildren != 0 ) {
+            int max = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
+            return "ChildrenQuery[min(" + Integer.toString(minChildren) + ") max(" + Integer.toString(max) + ")of " + childType + "/" + parentType + "]("
+                    + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
+        }
+        return "ChildrenQuery[" + childType + "/" + parentType + "]("
                 + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
@@ -167,7 +181,7 @@ public class ChildrenQuery extends Query {
         long numFoundParents;
         ParentCollector collector = null;
         try {
-            if (minChildren == 0 && scoreType != ScoreType.NONE) {
+            if (minChildren == 0 && maxChildren == 0  && scoreType != ScoreType.NONE) {
                 switch (scoreType) {
                 case MAX:
                     collector = new MaxCollector(globalIfd, sc);
@@ -175,7 +189,6 @@ public class ChildrenQuery extends Query {
                 case SUM:
                     collector = new SumCollector(globalIfd, sc);
                     break;
-                // TODO: case NONE for filter?
                 default:
                     break;
                 }
@@ -218,26 +231,29 @@ public class ChildrenQuery extends Query {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
         return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector,
-                minimumChildren);
+                minChildren,maxChildren);
     }
+
 
     protected class ParentWeight extends Weight {
 
         protected final Weight childWeight;
         protected final Filter parentFilter;
         protected final ParentCollector collector;
-        protected final int minimumChildren;
+        protected final int minChildren;
+        protected final int maxChildren;
 
         protected long remaining;
         protected float queryNorm;
         protected float queryWeight;
 
-        protected ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentCollector collector, int minimumChildren) {
+        protected ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentCollector collector, int minChildren, int maxChildren) {
             this.childWeight = childWeight;
             this.parentFilter = parentFilter;
             this.remaining = remaining;
             this.collector = collector;
-            this.minimumChildren = minimumChildren;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren;
         }
 
         @Override
@@ -284,18 +300,18 @@ public class ChildrenQuery extends Query {
 
                 Ordinals.Docs globalOrdinals = bytesValues.ordinals();
 
-                if (minimumChildren > 0) {
+                if (minChildren > 0 || maxChildren != 0 || scoreType == ScoreType.NONE) {
                     switch (scoreType) {
                     case NONE:
                         DocIdSetIterator parentIdIterator = new CountParentOrdIterator(this, parents, (CountCollector) collector, globalOrdinals,
-                                minimumChildren);
+                                minChildren,maxChildren);
                         return ConstantScorer.create(parentIdIterator, this, queryWeight);
                     case AVG:
                         return new AvgParentCountScorer(this, parents, (ParentScoreCountCollector) collector, globalOrdinals,
-                                minimumChildren);
+                                minChildren,maxChildren);
                     default:
                         return new ParentCountScorer(this, parents, (ParentScoreCountCollector) collector, globalOrdinals,
-                                minimumChildren);
+                                minChildren,maxChildren);
                     }
                 }
                 switch (scoreType) {
@@ -608,16 +624,18 @@ public class ChildrenQuery extends Query {
     private static class ParentCountScorer extends ParentScorer {
 
         protected final IntArray occurrences;
-        protected final int minimumChildren;
+        protected final int minChildren;
+        protected final int maxChildren;
 
-        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentScoreCountCollector collector, Ordinals.Docs globalOrdinals,int mininumShouldMatch) {
+        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentScoreCountCollector collector, Ordinals.Docs globalOrdinals,int minChildren, int maxChildren) {
             super(parentWeight, parentsIterator,  (ParentScoreCollector) collector, globalOrdinals);
-            this.minimumChildren = mininumShouldMatch;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
             this.occurrences = collector.occurrences;
         }
 
         protected boolean acceptAndScore(long parentIdx) {
-            if (occurrences.get(parentIdx) < minimumChildren) {
+            if (occurrences.get(parentIdx) < minChildren) {
                 return false;
             }
             currentScore = scores.get(parentIdx);
@@ -628,7 +646,7 @@ public class ChildrenQuery extends Query {
     private static final class AvgParentScorer extends ParentCountScorer {
 
         AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentScoreCountCollector collector, Ordinals.Docs globalOrdinals) {
-            super(weight, parentsIterator, collector, globalOrdinals, 0);
+            super(weight, parentsIterator, collector, globalOrdinals, 0, 0);
         }
 
         @Override
@@ -642,13 +660,14 @@ public class ChildrenQuery extends Query {
 
     private static final class AvgParentCountScorer extends ParentCountScorer {
 
-        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentScoreCountCollector collector, Ordinals.Docs globalOrdinals, int mininmumShouldMatch) {
-            super(weight, parentsIterator, collector, globalOrdinals, mininmumShouldMatch);
+        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentScoreCountCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+            super(weight, parentsIterator, collector, globalOrdinals, minChildren,maxChildren);
         }
 
         @Override
         protected boolean acceptAndScore(long parentIdx) {
-            if (occurrences.get(parentIdx) < minimumChildren) {
+            int count = occurrences.get(parentIdx);
+            if (count < minChildren || count >= maxChildren) {
                 return false;
             }
             currentScore = scores.get(parentIdx);
@@ -661,17 +680,19 @@ public class ChildrenQuery extends Query {
 
         private final LongHash parentIds;
         protected final IntArray occurrences;
-        private final int minimumChildren;
+        private final int minChildren;
+        private final int maxChildren;
         private final Ordinals.Docs ordinals;
         private final ParentWeight parentWeight;
 
-        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator,CountCollector collector, Ordinals.Docs ordinals, int minimumChildren) {
+        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator,CountCollector collector, Ordinals.Docs ordinals, int minChildren, int maxChildren) {
             super(innerIterator);
             this.parentIds = collector.parentIdxs;
             this.occurrences = collector.occurrences;
             this.ordinals = ordinals;
             this.parentWeight = parentWeight;
-            this.minimumChildren = minimumChildren;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
         }
 
         @Override
@@ -690,7 +711,8 @@ public class ChildrenQuery extends Query {
                 final long parentIdx = parentIds.find(parentOrd);
                 if (parentIdx != -1) {
                     parentWeight.remaining--;
-                    if (occurrences.get(parentIdx) >= minimumChildren) {
+                    int count = occurrences.get(parentIdx);
+                    if (count >= minChildren && count <= maxChildren) {
                         return true;
                     }
                 }

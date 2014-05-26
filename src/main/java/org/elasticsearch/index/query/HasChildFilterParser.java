@@ -63,7 +63,8 @@ public class HasChildFilterParser implements FilterParser {
         boolean filterFound = false;
         String childType = null;
         int shortCircuitParentDocSet = 8192; // Tests show a cut of point between 8192 and 16384.
-        int minimumChildren = 0;
+        int minChildren = 0;
+        int maxChildren = 0;
 
         String filterName = null;
         String currentFieldName = null;
@@ -100,8 +101,10 @@ public class HasChildFilterParser implements FilterParser {
                     // noop to be backwards compatible
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
-                } else if ("minimum_children".equals(currentFieldName) || "minimumChildren".equals(currentFieldName)) {
-                    minimumChildren = parser.intValue(true);
+                } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
+                    minChildren = parser.intValue(true);
+                } else if ("max_children".equals(currentFieldName) || "maxChildren".equals(currentFieldName)) {
+                    maxChildren = parser.intValue(true);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -143,6 +146,10 @@ public class HasChildFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
+        if (maxChildren > 0 && maxChildren < minChildren) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
+        }
+
         Filter nonNestedDocsFilter = null;
         if (parentDocMapper.hasNestedObjects()) {
             nonNestedDocsFilter = parseContext.cacheFilter(NonNestedDocsFilter.INSTANCE, null);
@@ -152,8 +159,8 @@ public class HasChildFilterParser implements FilterParser {
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
 
         Query childrenQuery;
-        if (minimumChildren > 1) {
-            childrenQuery = new ChildrenQuery(parentChildIndexFieldData,  parentType, childType, parentFilter,query,ScoreType.NONE,minimumChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
+        if (minChildren > 1 || maxChildren > 0) {
+            childrenQuery = new ChildrenQuery(parentChildIndexFieldData,  parentType, childType, parentFilter,query,ScoreType.NONE,minChildren, maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
             childrenQuery = new ChildrenConstantScoreQuery(parentChildIndexFieldData, query, parentType, childType, parentFilter,
                     shortCircuitParentDocSet, nonNestedDocsFilter);

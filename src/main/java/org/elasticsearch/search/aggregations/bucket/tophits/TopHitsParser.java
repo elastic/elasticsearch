@@ -72,6 +72,9 @@ public class TopHitsParser implements Aggregator.Parser {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     switch (currentFieldName) {
+                        case "from":
+                            topHitsContext.from(parser.intValue());
+                            break;
                         case "size":
                             topHitsContext.size(parser.intValue());
                             break;

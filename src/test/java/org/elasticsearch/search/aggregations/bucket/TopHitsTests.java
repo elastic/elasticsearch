@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -76,7 +77,6 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .endObject()));
         }
 
-        // Use routing to make sure all docs are in the same shard for consistent scoring
         builders.add(client().prepareIndex("idx", "field-collapsing", "1").setSource(jsonBuilder()
                 .startObject()
                 .field("group", "a")
@@ -166,6 +166,51 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat((Long) hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+        }
+    }
+
+    @Test
+    public void testPagination() throws Exception {
+        int size = randomIntBetween(0, 10);
+        int from = randomIntBetween(0, 10);
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(TERMS_AGGS_FIELD)
+                                .subAggregation(
+                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                                .setFrom(from)
+                                                .setSize(size)
+                                )
+                )
+                .get();
+        assertSearchResponse(response);
+
+        SearchResponse control = client().prepareSearch("idx")
+                .setTypes("type")
+                .setFrom(from)
+                .setSize(size)
+                .setPostFilter(FilterBuilders.termFilter(TERMS_AGGS_FIELD, "val0"))
+                .addSort(SORT_FIELD, SortOrder.DESC)
+                .get();
+        assertSearchResponse(control);
+        SearchHits controlHits = control.getHits();
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        Terms.Bucket bucket = terms.getBucketByKey("val0");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getDocCount(), equalTo(10l));
+        TopHits topHits = bucket.getAggregations().get("hits");
+        SearchHits hits = topHits.getHits();
+        assertThat(hits.totalHits(), equalTo(controlHits.totalHits()));
+        assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
+        for (int i = 0; i < hits.getHits().length; i++) {
+            assertThat(hits.getAt(i).id(), equalTo(controlHits.getAt(i).id()));
+            assertThat(hits.getAt(i).sortValues()[0], equalTo(controlHits.getAt(i).sortValues()[0]));
         }
     }
 

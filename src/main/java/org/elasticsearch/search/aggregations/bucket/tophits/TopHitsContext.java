@@ -71,6 +71,7 @@ public class TopHitsContext extends SearchContext {
     // the to hits are returned per bucket.
     private final static int DEFAULT_SIZE = 3;
 
+    private int from;
     private int size = DEFAULT_SIZE;
     private Sort sort;
 
@@ -440,12 +441,13 @@ public class TopHitsContext extends SearchContext {
 
     @Override
     public int from() {
-        return context.from();
+        return from;
     }
 
     @Override
     public SearchContext from(int from) {
-        throw new UnsupportedOperationException("Not supported");
+        this.from = from;
+        return this;
     }
 
     @Override

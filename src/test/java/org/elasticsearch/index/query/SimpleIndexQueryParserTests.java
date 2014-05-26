@@ -1676,7 +1676,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testMoreLikeThisIds() throws Exception {
+    public void testMoreLikeThisItems() throws Exception {
         MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
         parser.setFetchService(new MockMoreLikeThisFetchService());
 
@@ -1692,7 +1692,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         }
 
         IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-ids.json");
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
@@ -1715,6 +1715,39 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClause.getQuery();
         assertArrayEquals("Not the same more like this 'fields'", new String[] {"name.first", "name.last"}, mltQuery.getMoreLikeFields());
         assertThat(mltQuery.getLikeText(), equalTo("Apache Lucene"));
+    }
+
+    @Test
+    public void testMoreLikeThisItemsExtendedSyntax() throws Exception {
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        List<MoreLikeThisFetchService.LikeText> likeTexts = new ArrayList<>();
+        String index = "test";
+        String type = "person";
+        for (int i = 1; i <= 6; i++) {
+            for (String field : new String[]{"name.first", "name.last"}) {
+                MoreLikeThisFetchService.LikeText likeText = new MoreLikeThisFetchService.LikeText(
+                        field, index + " " + type + " " + i + " " + field);
+                likeTexts.add(likeText);
+            }
+        }
+
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items-extended-syntax.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat(booleanQuery.getClauses().length, is(likeTexts.size()));
+
+        BooleanClause[] boolClauses = booleanQuery.getClauses();
+        for (int i = 0; i < likeTexts.size(); i++) {
+            assertThat(boolClauses[i].getOccur(), is(BooleanClause.Occur.SHOULD));
+            assertThat(boolClauses[i].getQuery(), instanceOf(MoreLikeThisQuery.class));
+            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClauses[i].getQuery();
+            assertThat(mltQuery.getLikeText(), is(likeTexts.get(i).text));
+            assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
+        }
     }
 
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {

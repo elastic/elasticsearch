@@ -1,0 +1,24 @@
+{
+    more_like_this:{
+        "fields" : ["name.first", "name.last"],
+        "docs" : {
+            "_index" : "test",
+            "_type" : "person",
+            "_id" : "1"
+        },
+        "doc": {
+            "_index" : "test",
+            "_type" : "person",
+            "_id" : "2"
+        },
+        "ids" : "3",
+        "id" : "4",
+        "like_doc" : {
+            "_index" : "test",
+            "_type" : "person",
+            "_id" : "5"
+        },
+        "like_id" : "6",
+        "include": true
+    }
+}

@@ -53,6 +53,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
 
     public static class Fields {
         public static final ParseField LIKE_TEXT = new ParseField("like_text");
+        public static final ParseField FIELDS = new ParseField("fields");
         public static final ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         public static final ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
@@ -63,9 +64,12 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField PERCENT_TERMS_TO_MATCH = new ParseField("percent_terms_to_match");
         public static final ParseField FAIL_ON_UNSUPPORTED_FIELD = new ParseField("fail_on_unsupported_field");
         public static final ParseField STOP_WORDS = new ParseField("stop_words");
-        public static final ParseField DOCUMENT_IDS = new ParseField("ids");
-        public static final ParseField DOCUMENTS = new ParseField("docs");
+        public static final ParseField ID = new ParseField("id", "like_id");
+        public static final ParseField DOCUMENT_IDS = new ParseField("ids", "like_ids");
+        public static final ParseField DOCUMENT = new ParseField("doc", "like_doc");
+        public static final ParseField DOCUMENTS = new ParseField("docs", "like_docs");
         public static final ParseField INCLUDE = new ParseField("include");
+        public static final ParseField ANALYZER = new ParseField("analyzer");
     }
 
     public MoreLikeThisQueryParser() {
@@ -123,7 +127,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     }
                 } else if (Fields.PERCENT_TERMS_TO_MATCH.match(currentFieldName, parseContext.parseFlags())) {
                     mltQuery.setPercentTermsToMatch(parser.floatValue());
-                } else if ("analyzer".equals(currentFieldName)) {
+                } else if (Fields.ANALYZER.match(currentFieldName, parseContext.parseFlags())) {
                     analyzer = parseContext.analysisService().analyzer(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     mltQuery.setBoost(parser.floatValue());
@@ -133,6 +137,9 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     queryName = parser.text();
                 } else if (Fields.INCLUDE.match(currentFieldName, parseContext.parseFlags())) {
                     include = parser.booleanValue();
+                } else if (Fields.DOCUMENT_IDS.match(currentFieldName, parseContext.parseFlags())
+                        || Fields.ID.match(currentFieldName, parseContext.parseFlags())) {
+                    MultiGetRequest.parseId(parser, items);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -143,7 +150,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
                         stopWords.add(parser.text());
                     }
                     mltQuery.setStopWords(stopWords);
-                } else if ("fields".equals(currentFieldName)) {
+                } else if (Fields.FIELDS.match(currentFieldName, parseContext.parseFlags())) {
                     moreLikeFields = Lists.newLinkedList();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         moreLikeFields.add(parseContext.indexName(parser.text()));
@@ -152,6 +159,13 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     MultiGetRequest.parseIds(parser, items);
                 } else if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())) {
                     MultiGetRequest.parseDocuments(parser, items);
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (Fields.DOCUMENTS.match(currentFieldName, parseContext.parseFlags())
+                        || Fields.DOCUMENT.match(currentFieldName, parseContext.parseFlags())) {
+                    MultiGetRequest.parseDocument(parser, items);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }

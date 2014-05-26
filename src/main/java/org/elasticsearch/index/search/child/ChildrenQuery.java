@@ -167,7 +167,7 @@ public class ChildrenQuery extends Query {
         long numFoundParents;
         ParentCollector collector = null;
         try {
-            if (minimumChildren == 0) {
+            if (minChildren == 0 && scoreType != ScoreType.NONE) {
                 switch (scoreType) {
                 case MAX:
                     collector = new MaxCollector(globalIfd, sc);

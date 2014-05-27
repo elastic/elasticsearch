@@ -49,9 +49,9 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
     }
 
 
-        /**
-         * The number of search hits to return. Defaults to <tt>10</tt>.
-         */
+    /**
+     * The number of search hits to return. Defaults to <tt>10</tt>.
+     */
     public TopHitsBuilder setSize(int size) {
         sourceBuilder().size(size);
         return this;

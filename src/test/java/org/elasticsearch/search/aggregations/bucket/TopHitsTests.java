@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -169,17 +170,30 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPagination() throws Exception {
+        int size = randomIntBetween(0, 10);
+        int from = randomIntBetween(0, 10);
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                                 .executionHint(randomExecutionHint())
                                 .field(TERMS_AGGS_FIELD)
                                 .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)).setSize(2)
+                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                                                .setFrom(from)
+                                                .setSize(size)
                                 )
                 )
                 .get();
-
         assertSearchResponse(response);
+
+        SearchResponse control = client().prepareSearch("idx")
+                .setTypes("type")
+                .setFrom(from)
+                .setSize(size)
+                .setPostFilter(FilterBuilders.termFilter(TERMS_AGGS_FIELD, "val0"))
+                .addSort(SORT_FIELD, SortOrder.DESC)
+                .get();
+        assertSearchResponse(control);
+        SearchHits controlHits = control.getHits();
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -191,133 +205,12 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(10l));
         TopHits topHits = bucket.getAggregations().get("hits");
         SearchHits hits = topHits.getHits();
-        assertThat(hits.totalHits(), equalTo(10l));
-        assertThat(hits.getHits().length, equalTo(2));
-        assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(10l));
-        assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(9l));
-
-        response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field(TERMS_AGGS_FIELD)
-                                .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                                .setSize(2)
-                                                .setFrom(2)
-                                )
-                )
-                .get();
-
-        assertSearchResponse(response);
-
-        terms = response.getAggregations().get("terms");
-        bucket = terms.getBucketByKey("val0");
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(10l));
-        topHits = bucket.getAggregations().get("hits");
-        hits = topHits.getHits();
-        assertThat(hits.totalHits(), equalTo(10l));
-        assertThat(hits.getHits().length, equalTo(2));
-        assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(8l));
-        assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(7l));
-
-        response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field(TERMS_AGGS_FIELD)
-                                .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                                .setSize(2)
-                                                .setFrom(4)
-                                )
-                )
-                .get();
-
-        assertSearchResponse(response);
-
-        terms = response.getAggregations().get("terms");
-        bucket = terms.getBucketByKey("val0");
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(10l));
-        topHits = bucket.getAggregations().get("hits");
-        hits = topHits.getHits();
-        assertThat(hits.totalHits(), equalTo(10l));
-        assertThat(hits.getHits().length, equalTo(2));
-        assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(6l));
-        assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(5l));
-
-        response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field(TERMS_AGGS_FIELD)
-                                .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                                .setSize(2)
-                                                .setFrom(6)
-                                )
-                )
-                .get();
-
-        assertSearchResponse(response);
-
-        terms = response.getAggregations().get("terms");
-        bucket = terms.getBucketByKey("val0");
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(10l));
-        topHits = bucket.getAggregations().get("hits");
-        hits = topHits.getHits();
-        assertThat(hits.totalHits(), equalTo(10l));
-        assertThat(hits.getHits().length, equalTo(2));
-        assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(4l));
-        assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(3l));
-
-        response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field(TERMS_AGGS_FIELD)
-                                .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                                .setSize(2)
-                                                .setFrom(8)
-                                )
-                )
-                .get();
-
-        assertSearchResponse(response);
-
-        terms = response.getAggregations().get("terms");
-        bucket = terms.getBucketByKey("val0");
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(10l));
-        topHits = bucket.getAggregations().get("hits");
-        hits = topHits.getHits();
-        assertThat(hits.totalHits(), equalTo(10l));
-        assertThat(hits.getHits().length, equalTo(2));
-        assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(2l));
-        assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(1l));
-
-        response = client().prepareSearch("idx").setTypes("type")
-                .addAggregation(terms("terms")
-                                .executionHint(randomExecutionHint())
-                                .field(TERMS_AGGS_FIELD)
-                                .subAggregation(
-                                        topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                                                .setSize(2)
-                                                .setFrom(10)
-                                )
-                )
-                .get();
-
-        assertSearchResponse(response);
-
-        terms = response.getAggregations().get("terms");
-        bucket = terms.getBucketByKey("val0");
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getDocCount(), equalTo(10l));
-        topHits = bucket.getAggregations().get("hits");
-        hits = topHits.getHits();
-        assertThat(hits.totalHits(), equalTo(10l));
-        assertThat(hits.getHits().length, equalTo(0));
+        assertThat(hits.totalHits(), equalTo(controlHits.totalHits()));
+        assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
+        for (int i = 0; i < hits.getHits().length; i++) {
+            assertThat(hits.getAt(i).id(), equalTo(controlHits.getAt(i).id()));
+            assertThat(hits.getAt(i).sortValues()[0], equalTo(controlHits.getAt(i).sortValues()[0]));
+        }
     }
 
     @Test

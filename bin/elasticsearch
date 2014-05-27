@@ -135,6 +135,11 @@ launch_service()
         es_parms="$es_parms -Des.pidfile=$pidpath"
     fi
 
+    # Make sure we dont use any predefined locale, as we check some exception message strings and rely on english language
+    # As those strings are created by the OS, they are dependant on the configured locale
+    LANG=en_US.UTF-8
+    LC_ALL=en_US.UTF-8
+
     # The es-foreground option will tell Elasticsearch not to close stdout/stderr, but it's up to us not to daemonize.
     if [ "x$daemonized" = "x" ]; then
         es_parms="$es_parms -Des.foreground=yes"

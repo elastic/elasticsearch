@@ -20,7 +20,7 @@ tribe:
     t2: <1>
         cluster.name:   cluster_two
 --------------------------------
-<1> `t1` and `t2` are aribitrary names representing the connection to each
+<1> `t1` and `t2` are arbitrary names representing the connection to each
     cluster.
 
 The example above configures connections to two clusters, name `t1` and `t2`

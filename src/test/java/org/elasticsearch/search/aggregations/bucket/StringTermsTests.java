@@ -1197,6 +1197,51 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         }
 
     }
+    
+    @Test
+    public void singleValuedField_OrderedByStatsAggAscWithTermsSubAgg() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(Terms.Order.aggregation("stats.sum_of_squares", asc))
+                        .subAggregation(extendedStats("stats").field("i")).subAggregation(terms("subTerms").field("s_values")
+                                .collectMode(randomFrom(SubAggCollectionMode.values())))
+                ).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        int i = 0;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+
+            ExtendedStats stats = bucket.getAggregations().get("stats");
+            assertThat(stats, notNullValue());
+            assertThat(stats.getMax(), equalTo((double) i));
+            
+            Terms subTermsAgg = bucket.getAggregations().get("subTerms");
+            assertThat(subTermsAgg, notNullValue());
+            assertThat(subTermsAgg.getBuckets().size(), equalTo(2));
+            int j = i;
+            for (Terms.Bucket subBucket : subTermsAgg.getBuckets()) {
+                assertThat(subBucket, notNullValue());
+                assertThat(key(subBucket), equalTo("val" + j));
+                assertThat(subBucket.getDocCount(), equalTo(1l));
+                j++;
+            }
+            i++;
+        }
+
+    }
 
     @Test
     public void indexMetaField() throws Exception {

@@ -681,6 +681,49 @@ public class LongTermsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void singleValuedField_OrderedBySingleValueSubAggregationAscWithTermsSubAgg() throws Exception {
+        boolean asc = true;
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(Terms.Order.aggregation("avg_i", asc))
+                        .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME)).subAggregation(terms("subTerms").field(MULTI_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values())))
+                ).execute().actionGet();
+
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("" + i));
+            assertThat(bucket.getDocCount(), equalTo(1l));
+            
+            Avg avg = bucket.getAggregations().get("avg_i");
+            assertThat(avg, notNullValue());
+            assertThat(avg.getValue(), equalTo((double) i));
+            
+            Terms subTermsAgg = bucket.getAggregations().get("subTerms");
+            assertThat(subTermsAgg, notNullValue());
+            assertThat(subTermsAgg.getBuckets().size(), equalTo(2));
+            int j = i;
+            for (Terms.Bucket subBucket : subTermsAgg.getBuckets()) {
+                assertThat(subBucket, notNullValue());
+                assertThat(key(subBucket), equalTo(String.valueOf(j)));
+                assertThat(subBucket.getDocCount(), equalTo(1l));
+                j++;
+            }
+        }
+    }
+
+    @Test
     public void singleValuedField_OrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("idx").setTypes("type")

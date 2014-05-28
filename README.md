@@ -28,25 +28,30 @@ A `phonetic` token filter that can be configured with different `encoder` types:
 The `replace` parameter (defaults to `true`) controls if the token processed 
 should be replaced with the encoded one (set it to `true`), or added (set it to `false`).
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "my_analyzer" : {
-                        "tokenizer" : "standard",
-                        "filter" : ["standard", "lowercase", "my_metaphone"]
-                    }
-                },
-                "filter" : {
-                    "my_metaphone" : {
-                        "type" : "phonetic",
-                        "encoder" : "metaphone",
-                        "replace" : false
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "my_analyzer" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["standard", "lowercase", "my_metaphone"]
+                }
+            },
+            "filter" : {
+                "my_metaphone" : {
+                    "type" : "phonetic",
+                    "encoder" : "metaphone",
+                    "replace" : false
                 }
             }
         }
     }
+}
+```
+
+Note that `beidermorse` does not support `replace` parameter.
+
 
 Questions
 ---------

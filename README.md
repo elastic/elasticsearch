@@ -25,11 +25,12 @@ Please read documentation relative to the version you are using:
 
 The plugin will automatically use the instance level security credentials (as of 1.7.0), but they can be provided explicitly using `cloud.aws.access_key` and `cloud.aws.secret_key`:
 
-    cloud:
-        aws:
-            access_key: AKVAIQBF2RECL7FJWGJQ
-            secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
-
+```
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+```
 
 ### Region
 
@@ -51,13 +52,13 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 
 ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar to multicast in non hostile multicast environments). Here is a simple sample configuration:
 
-    cloud:
-        aws:
-            access_key: AKVAIQBF2RECL7FJWGJQ
-            secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+```
+discovery:
+    type: ec2
+```
 
-    discovery:
-        type: ec2
+The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
+See [Generic Configuration](#generic-configuration) for details.
 
 The following are a list of settings (prefixed with `discovery.ec2`) that can further control the discovery:
 
@@ -82,13 +83,15 @@ Though not dependent on actually using `ec2` as discovery (but still requires th
 
 The S3 repository is using S3 to store snapshots. The S3 repository can be created using the following command:
 
-    $ curl -XPUT 'http://localhost:9200/_snapshot/my_s3_repository' -d '{
-        "type": "s3",
-        "settings": {
-            "bucket": "my_bucket_name",
-            "region": "us-west"
-        }
-    }'
+```sh
+$ curl -XPUT 'http://localhost:9200/_snapshot/my_s3_repository' -d '{
+    "type": "s3",
+    "settings": {
+        "bucket": "my_bucket_name",
+        "region": "us-west"
+    }
+}'
+```
 
 The following settings are supported:
 
@@ -101,13 +104,8 @@ The following settings are supported:
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
 * `server_side_encryption`: When set to `true` files are encrypted on server side using AES256 algorithm. Defaults to `false`.
 
-The S3 repositories are using the same credentials as the rest of the AWS services provided by this plugin (`discovery` and `gateway`). They can be configured the following way:
-
-    cloud:
-        aws:
-            access_key: AKVAIQBF2RECL7FJWGJQ
-            secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
-
+The S3 repositories are using the same credentials as the rest of the AWS services provided by this plugin (`discovery`).
+See [Generic Configuration](#generic-configuration) for details.
 
 Multiple S3 repositories can be created. If the buckets require different credentials, then define them as part of the repository settings.
 

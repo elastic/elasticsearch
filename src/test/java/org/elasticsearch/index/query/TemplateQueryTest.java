@@ -171,6 +171,28 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    // Releates to #6318
+    public void testSearchRequestFail() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        try {
+            String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  } }";
+            BytesReference bytesRef = new BytesArray(query);
+            searchRequest.templateSource(bytesRef, false);
+            client().search(searchRequest).get();
+            fail("expected exception");
+        } catch (Throwable ex) {
+            // expected - no params
+        }
+        String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }, \"params\" : { \"my_size\": 1 } }";
+        BytesReference bytesRef = new BytesArray(query);
+        searchRequest.templateSource(bytesRef, false);
+
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+    }
+
+    @Test
     public void testThatParametersCanBeSet() throws Exception {
         index("test", "type", "1", jsonBuilder().startObject().field("theField", "foo").endObject());
         index("test", "type", "2", jsonBuilder().startObject().field("theField", "foo 2").endObject());

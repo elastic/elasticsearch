@@ -20,7 +20,10 @@
 package org.elasticsearch.index.query;
 
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Maps;
 import com.google.common.collect.Lists;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.*;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
@@ -50,6 +53,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.codec.CodecModule;
@@ -85,6 +89,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -1715,6 +1720,37 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClause.getQuery();
         assertArrayEquals("Not the same more like this 'fields'", new String[] {"name.first", "name.last"}, mltQuery.getMoreLikeFields());
         assertThat(mltQuery.getLikeText(), equalTo("Apache Lucene"));
+    }
+
+    @Test
+    public void testMoreLikeThisFieldsAnalyzer() throws Exception {
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        Map<String, String> analyzers = Maps.newHashMap();
+        analyzers.put("tags", "keyword");
+        analyzers.put("description", "whitespace");
+
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-fields-analyzer.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
+        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
+        assertThat(booleanQuery.getClauses().length, is(6));
+
+        for (BooleanClause boolClause : booleanQuery.getClauses()) {
+            assertThat(boolClause.getOccur(), is(BooleanClause.Occur.SHOULD));
+            assertThat(boolClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
+            MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) boolClause.getQuery();
+            Analyzer analyzer = mltQuery.getAnalyzer();
+            String field = mltQuery.getMoreLikeFields()[0];
+            if (field.equals("title")) {
+                assertThat(analyzer, instanceOf(AnalyzerWrapper.class));
+            } else {
+                assertThat(analyzer, instanceOf(NamedAnalyzer.class));
+                assertEquals(((NamedAnalyzer) analyzer).name(), analyzers.get(field));
+            }
+        }
     }
 
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {

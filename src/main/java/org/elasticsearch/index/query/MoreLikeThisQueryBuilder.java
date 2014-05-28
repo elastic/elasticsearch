@@ -29,10 +29,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 /**
  * A more like this query that finds documents that are "like" the provided {@link #likeText(String)}
@@ -114,6 +111,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
+    private Map<String, String> fieldsAnalyzer;
     private Boolean failOnUnsupportedField;
     private String queryName;
 
@@ -244,10 +242,26 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     }
 
     /**
-     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the fied.
+     * The analyzer that will be used to analyze the text. Defaults to the analyzer associated with the field.
      */
     public MoreLikeThisQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
+        return this;
+    }
+
+    public MoreLikeThisQueryBuilder addFieldAnalyzer(String field, String analyzer) {
+        if (this.fieldsAnalyzer == null) {
+            this.fieldsAnalyzer = new HashMap<>();
+        }
+        this.fieldsAnalyzer.put(field, analyzer);
+        return this;
+    }
+
+    /**
+     * The analyzers that will be used for each field. Unspecified keys default to the analyzer associated with the field.
+     */
+    public MoreLikeThisQueryBuilder fieldsAnalyzer(Map<String, String> fieldsAnalyzer) {
+        this.fieldsAnalyzer = fieldsAnalyzer;
         return this;
     }
 
@@ -322,7 +336,14 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
             builder.field("boost", boost);
         }
         if (analyzer != null) {
-            builder.field("analyzer", analyzer);
+            builder.field(MoreLikeThisQueryParser.Fields.ANALYZER.getPreferredName(), analyzer);
+        }
+        if (fieldsAnalyzer != null) {
+            builder.startObject(MoreLikeThisQueryParser.Fields.FIELDS_ANALYZER.getPreferredName());
+            for (String field : fieldsAnalyzer.keySet()) {
+                builder.field(field, fieldsAnalyzer.get(field));
+            }
+            builder.endObject();
         }
         if (failOnUnsupportedField != null) {
             builder.field(MoreLikeThisQueryParser.Fields.FAIL_ON_UNSUPPORTED_FIELD.getPreferredName(), failOnUnsupportedField);

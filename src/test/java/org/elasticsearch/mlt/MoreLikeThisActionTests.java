@@ -483,4 +483,40 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertHitCount(mltResponse, numOfTypes);
     }
 
+    @Test
+    public void testSimpleFieldsAnalyzer() throws Exception {
+        logger.info("Creating index test");
+        assertAcked(prepareCreate("test").addMapping("type1",
+                jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("text").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
+
+        logger.info("Running Cluster Health");
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("Indexing...");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "type1")
+                .setSource("title", "aaaa bbbb", "text", "Software Foundation").setId("1"));
+        builders.add(client().prepareIndex("test", "type1")
+                .setSource("title", "aaaa cccc", "text", "Software License").setId("2"));
+        builders.add(client().prepareIndex("test", "type1")
+                .setSource("title", "aaaa dddd", "text", "Apache Lucene").setId("3"));
+        indexRandom(true, builders);
+
+        logger.info("Running MoreLikeThis");
+        MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery("title", "text").ids("1").minTermFreq(1).minDocFreq(1);
+        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
+        assertHitCount(mltResponse, 2l);
+
+        queryBuilder = QueryBuilders.moreLikeThisQuery("title", "text").ids("1").minTermFreq(1).minDocFreq(1)
+                .addFieldAnalyzer("title", "keyword");
+        mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
+        assertHitCount(mltResponse, 1l);
+
+        queryBuilder = QueryBuilders.moreLikeThisQuery("title", "text").ids("2").minTermFreq(1).minDocFreq(1)
+                .addFieldAnalyzer("title", "keyword").addFieldAnalyzer("text", "keyword");
+        mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).execute().actionGet();
+        assertHitCount(mltResponse, 0l);
+    }
 }

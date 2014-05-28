@@ -121,5 +121,9 @@ boost factor.
 
 |`analyzer` |The analyzer that will be used to analyze the text.
 Defaults to the analyzer associated with the field.
+
+|`fields_analyzer` |When using `ids` or `docs`, a key-value pair object
+specifying the analyzer for each field. Unspecified keys default to the
+analyzer associated with the field.
 |=======================================================================
 

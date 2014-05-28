@@ -1,0 +1,11 @@
+{
+    "more_like_this" : {
+        "fields" : ["title", "tags", "description"],
+        "fields_analyzer" : {
+            "tags" : "keyword",
+            "description" : "whitespace"
+        },
+        "ids" : ["1", "2"],
+        "include" : true
+    }
+}

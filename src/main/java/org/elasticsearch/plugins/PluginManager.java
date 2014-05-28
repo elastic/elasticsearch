@@ -482,7 +482,7 @@ public class PluginManager {
                 // Sonatype repository
                 addUrl(urls, "https://oss.sonatype.org/service/local/repositories/releases/content/" + user.replace('.', '/') + "/" + repo + "/" + version + "/" + repo + "-" + version + ".zip");
                 // Github repository
-                addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/v" + version + ".zip");
+                addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/" + version + ".zip");
             }
             // Github repository for master branch (assume site)
             addUrl(urls, "https://github.com/" + user + "/" + repo + "/archive/master.zip");

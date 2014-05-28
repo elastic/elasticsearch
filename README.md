@@ -96,7 +96,6 @@ The following settings are supported:
 * `base_path`: Specifies the path within bucket to repository data. Defaults to root directory.
 * `access_key`: The access key to use for authentication. Defaults to value of `cloud.aws.access_key`.
 * `secret_key`: The secret key to use for authentication. Defaults to value of `cloud.aws.secret_key`.
-* `concurrent_streams`: Throttles the number of streams (per node) preforming snapshot operation. Defaults to `5`.
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
 

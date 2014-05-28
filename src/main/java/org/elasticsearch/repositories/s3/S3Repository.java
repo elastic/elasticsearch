@@ -27,12 +27,12 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -74,7 +74,7 @@ public class S3Repository extends BlobStoreRepository {
      * @throws IOException
      */
     @Inject
-    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AwsS3Service s3Service) throws IOException {
+    public S3Repository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository, AwsS3Service s3Service, ThreadPool threadPool) throws IOException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
         String bucket = repositorySettings.settings().get("bucket", componentSettings.get("bucket"));
@@ -120,11 +120,9 @@ public class S3Repository extends BlobStoreRepository {
                 }
             }
         }
-        int concurrentStreams = repositorySettings.settings().getAsInt("concurrent_streams", componentSettings.getAsInt("concurrent_streams", 5));
-        ExecutorService concurrentStreamPool = EsExecutors.newScaling(1, concurrentStreams, 5, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[s3_stream]"));
 
-        logger.debug("using bucket [{}], region [{}], chunk_size [{}], concurrent_streams [{}]", bucket, region, chunkSize, concurrentStreams);
-        blobStore = new S3BlobStore(settings, s3Service.client(region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key")), bucket, region, concurrentStreamPool);
+        logger.debug("using bucket [{}], region [{}], chunk_size [{}]", bucket, region, chunkSize);
+        blobStore = new S3BlobStore(settings, s3Service.client(region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key")), bucket, region, threadPool);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
         String basePath = repositorySettings.settings().get("base_path", null);

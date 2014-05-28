@@ -21,6 +21,7 @@ package org.elasticsearch.search.warmer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -145,20 +146,26 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.START_ARRAY) {
+                        } else {
                             if ("types".equals(currentFieldName)) {
-                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                    types.add(parser.text());
+                                if (token == XContentParser.Token.START_ARRAY) {
+                                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                        types.add(parser.text());
+                                    }
+                                } else {
+                                    throw new ElasticsearchIllegalArgumentException("warmer configuration error: [type] field can only accepts an array");
                                 }
-                            }
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            if ("source".equals(currentFieldName)) {
-                                XContentBuilder builder = XContentFactory.jsonBuilder().map(parser.mapOrdered());
-                                source = builder.bytes();
-                            }
-                        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                            if ("source".equals(currentFieldName)) {
-                                source = new BytesArray(parser.binaryValue());
+                            } else if ("source".equals(currentFieldName)) {
+                                if (token == XContentParser.Token.START_OBJECT) {
+                                    XContentBuilder builder = XContentFactory.jsonBuilder().map(parser.mapOrdered());
+                                    source = builder.bytes();
+                                } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                                    source = new BytesArray(parser.binaryValue());
+                                } else {
+                                    throw new ElasticsearchIllegalArgumentException("warmer configuration error: [source] field can only accepts an object");
+                                }
+                            } else {
+                                throw new ElasticsearchIllegalArgumentException("warmer configuration error: unknown field name [" + currentFieldName + "]");
                             }
                         }
                     }

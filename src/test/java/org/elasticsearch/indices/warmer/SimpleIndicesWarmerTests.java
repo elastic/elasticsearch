@@ -21,6 +21,7 @@ package org.elasticsearch.indices.warmer;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -134,6 +135,58 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
+    }
+
+    @Test
+    public void templateWarmerWithASyntaxError() {
+
+        String [] brokenTemplates = new String[] {
+                "{\n" +
+                "    \"template\" : \"*\",\n" +
+                "    \"warmers\" : {\n" +
+                "        \"warmer_1\" : {\n" +
+                "            \"types\" : 2,\n" +
+                "            \"source\" : {\n" +
+                "                \"query\" : {\n" +
+                "                }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}",
+                "{\n" +
+                "    \"template\" : \"*\",\n" +
+                "    \"warmers\" : {\n" +
+                "        \"warmer_1\" : {\n" +
+                "            \"types\" : [\"type\"],\n" +
+                "            \"query: {}\n" +
+                "            \"source\" : {\n" +
+                "                \"facets\" : {\n" +
+                "                }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}",
+                "{\n" +
+                "    \"template\" : \"*\",\n" +
+                "    \"warmers\" : {\n" +
+                "        \"warmer_1\" : {\n" +
+                "            \"types\" : [\"type\"],\n" +
+                "            \"source\" : 1\n"+
+                "        }\n" +
+                "    }\n" +
+                "}"
+        };
+
+        for (String brokenTemplate : brokenTemplates) {
+            try {
+                client().admin().indices().preparePutTemplate("template_1").setSource(brokenTemplate);
+                fail("failed to throw an exception for:\n" + brokenTemplate);
+            } catch (Throwable t) {
+                if (!(t instanceof ElasticsearchIllegalArgumentException)) {
+                    fail("unexpected exception [" + t + "]");
+                }
+            }
+        }
     }
 
     @Test

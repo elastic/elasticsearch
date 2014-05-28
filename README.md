@@ -4,9 +4,10 @@ AWS Cloud Plugin for Elasticsearch
 The Amazon Web Service (AWS) Cloud plugin allows to use [AWS API](https://github.com/aws/aws-sdk-java)
 for the unicast discovery mechanism and add S3 repositories.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.0.0.RC1`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.1.1`.
 
 * For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/master).
+* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.3).
 * For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.2).
 * For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.1).
 * For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.0).
@@ -84,7 +85,7 @@ The S3 repository is using S3 to store snapshots. The S3 repository can be creat
     $ curl -XPUT 'http://localhost:9200/_snapshot/my_s3_repository' -d '{
         "type": "s3",
         "settings": {
-            "bucket": "my-bucket-name",
+            "bucket": "my_bucket_name",
             "region": "us-west"
         }
     }'
@@ -206,7 +207,7 @@ cloud:
 
 repositories:
     s3:
-        bucket: "bucket-name"
+        bucket: "bucket_name"
         region: "us-west-2"
         private-bucket:
             bucket: <bucket not accessible by default key>

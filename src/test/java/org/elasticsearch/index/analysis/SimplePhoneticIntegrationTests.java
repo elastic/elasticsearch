@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -37,6 +38,14 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 1, scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class SimplePhoneticIntegrationTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .build();
+    }
 
     @Override
     public Settings indexSettings() {

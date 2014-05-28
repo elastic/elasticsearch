@@ -24,6 +24,11 @@ package org.elasticsearch.index.analysis;
 public class IcuAnalysisBinderProcessor extends AnalysisModule.AnalysisBinderProcessor {
 
     @Override
+    public void processCharFilters(CharFiltersBindings charFiltersBindings) {
+        charFiltersBindings.processCharFilter("icu_normalizer", IcuNormalizerCharFilterFactory.class);
+    }
+
+    @Override
     public void processTokenizers(TokenizersBindings tokenizersBindings) {
         tokenizersBindings.processTokenizer("icu_tokenizer", IcuTokenizerFactory.class);
     }

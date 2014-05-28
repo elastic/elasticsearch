@@ -65,5 +65,8 @@ public class SimpleIcuAnalysisTests extends ElasticsearchTestCase {
 
         filterFactory = analysisService.tokenFilter("icu_transform");
         assertThat(filterFactory, instanceOf(IcuTransformTokenFilterFactory.class));
+
+        CharFilterFactory charFilterFactory = analysisService.charFilter("icu_normalizer");
+        assertThat(charFilterFactory, instanceOf(IcuNormalizerCharFilterFactory.class));
     }
 }

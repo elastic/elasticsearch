@@ -184,6 +184,31 @@ Breaks text into words according to [UAX #29: Unicode Text Segmentation](http://
 ```
 
 
+ICU Normalization CharFilter
+-----------------
+
+Normalizes characters as explained [here](http://userguide.icu-project.org/transforms/normalization).
+It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings.
+Allows for the name parameter to be provided which can include the following values: `nfc`, `nfkc`, and `nfkc_cf`.
+Allows for the mode parameter to be provided which can include the following values: `compose` and `decompose`.
+Use `decompose` with `nfc` or `nfkc`, to get `nfd` or `nfkd`, respectively.
+Here is a sample settings:
+
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "char_filter" : ["icu_normalizer"]
+                }
+            }
+        }
+    }
+}
+```
+
 License
 -------
 

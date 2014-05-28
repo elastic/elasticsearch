@@ -52,7 +52,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
 
     public DeferringBucketCollector (BucketCollector deferred, AggregationContext context) {
         this.deferred = deferred;
-        this.recording = new RecordingBucketCollector(context.bigArrays());
+        this.recording = new RecordingBucketCollector();
         this.context = context;
     }
 
@@ -120,7 +120,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
 
     @Override
     public void close() throws ElasticsearchException {
-        Releasables.close(recording, releasableCollector);
+        Releasables.close(releasableCollector);
     }
 
     @Override

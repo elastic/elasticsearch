@@ -20,74 +20,127 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.util.LongArray;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Records a "collect" stream for subsequent play-back
  */
-public class RecordingBucketCollector extends BucketCollector implements Releasable {
+public class RecordingBucketCollector extends BucketCollector  {
 
-    protected static final int INITIAL_CAPACITY = 50; // TODO sizing
-    protected IntArray docs;
-    protected IntArray readerIds;
-    private LongArray buckets;
-    protected int collectedItemNumber = 0;
-    int readerNum = -1;    
-    ArrayList<AtomicReaderContext> readers = new ArrayList<AtomicReaderContext>();
-    private BigArrays bigArrays;
+    List<PerSegmentCollects> perSegmentCollections = new ArrayList<>();
+    private PerSegmentCollects currentCollection;
+    private boolean recordingComplete;
     
-    public RecordingBucketCollector(BigArrays bigArrays) {
-        this.bigArrays = bigArrays;
-        docs=bigArrays.newIntArray(INITIAL_CAPACITY); //parent.estimatedBucketCount won't help - need to size for number of docs, not buckets so impossible to predict without executing query
-        readerIds = bigArrays.newIntArray(INITIAL_CAPACITY);
-        //Create the buckets array lazily - we may be collecting all-zero bucket Ords in many cases due to the wrapping that goes on with single-bucket Aggs  
+    class PerSegmentCollects {
+        AtomicReaderContext readerContext;
+        AppendingPackedLongBuffer docs;
+        AppendingPackedLongBuffer buckets;
+
+        PerSegmentCollects(AtomicReaderContext readerContext) {
+            this.readerContext = readerContext;
+        }
+
+        void collect(int doc, long owningBucketOrdinal) throws IOException {
+            if (docs == null) {
+                //TODO unclear what might be reasonable constructor args to pass to this collection
+                // No way of accurately predicting how many docs will be collected 
+                docs = new AppendingPackedLongBuffer();
+            }
+            docs.add(doc);
+            if (buckets == null) {
+                if (owningBucketOrdinal != 0) {
+                    // Store all of the prior bucketOrds (which up until now have
+                    // all been zero based)
+                    buckets = new AppendingPackedLongBuffer();
+                    for (int i = 0; i < docs.size() - 1; i++) {
+                        buckets.add(0);
+                    }
+                    //record the new non-zero bucketID
+                    buckets.add(owningBucketOrdinal);
+                }
+            } else {
+                buckets.add(owningBucketOrdinal);
+            }
+        }
+        void endCollect() {
+            if (docs != null) {
+                docs.freeze();
+            }
+            if (buckets != null) {
+                buckets.freeze();
+            }
+        }
+
+        boolean hasItems() {
+            return docs != null;
+        }
+
+        void replay(BucketCollector collector) throws IOException {
+            collector.setNextReader(readerContext);
+            if (!hasItems()) {
+                return;
+            }           
+            if (buckets == null) {
+                // Collect all docs under the same bucket zero
+                long[] docsBuffer = new long[(int) Math.min(1024, docs.size())];
+                long pos = 0;
+                while (pos < docs.size()) {
+                    int numDocs = docs.get(pos, docsBuffer, 0, docsBuffer.length);
+                    for (int i = 0; i < numDocs; i++) {
+                        collector.collect((int) docsBuffer[i], 0);
+                    }
+                    pos += numDocs;
+                }
+            } else {
+                assert docs.size() == buckets.size();
+                // Collect all docs and parallel collection of buckets
+                long[] docsBuffer = new long[(int) Math.min(1024, docs.size())];
+                long[] bucketsBuffer = new long[(int) Math.min(1024, buckets.size())];
+                long pos = 0;
+                while (pos < docs.size()) {
+                    int numDocs = docs.get(pos, docsBuffer, 0, docsBuffer.length);
+                    int numBuckets = buckets.get(pos, bucketsBuffer, 0, bucketsBuffer.length);
+                    // TODO not sure why numDocs and numBuckets differs, but
+                    // they do and this min statement was required!
+                    for (int i = 0; i < Math.min(numDocs, numBuckets); i++) {
+                        collector.collect((int) docsBuffer[i], bucketsBuffer[i]);
+                    }
+                    pos += numDocs;
+                }
+            }
+        }
     }
-    
     
     @Override
     public void setNextReader(AtomicReaderContext reader) {
-        readerNum = readers.size();
-        readers.add(reader);
+        if(recordingComplete){
+            // The way registration works for listening on reader changes we have the potential to be called > once
+            // TODO fixup the aggs framework so setNextReader calls are delegated to child aggs and not reliant on 
+            // registering a listener.
+            return;
+        }
+        stowLastSegmentCollection();
+        currentCollection = new PerSegmentCollects(reader);
+    }
+
+    private void stowLastSegmentCollection() {
+        if (currentCollection != null) {
+            if (currentCollection.hasItems()) {
+                currentCollection.endCollect();
+                perSegmentCollections.add(currentCollection);
+            }
+            currentCollection = null;
+        }
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        // Record all docIDs and the associated buckets in respective arrays
-        docs = bigArrays.grow(docs, collectedItemNumber + 1);
-        readerIds = bigArrays.grow(readerIds, collectedItemNumber + 1);
-        docs.set(collectedItemNumber, doc);
-        if (buckets == null) {
-            if (owningBucketOrdinal != 0) {
-                buckets = bigArrays.newLongArray(INITIAL_CAPACITY);
-                // Store all of the prior bucketOrds (which up until now have
-                // been zero based)
-                buckets = bigArrays.grow(buckets, collectedItemNumber + 1);
-                for (int i = 0; i < collectedItemNumber; i++) {
-                    buckets.set(i, 0);
-                }
-                //record the new non-zero bucketID
-                buckets.set(collectedItemNumber, owningBucketOrdinal);
-            }
-        } else {
-            buckets = bigArrays.grow(buckets, collectedItemNumber + 1);
-            buckets.set(collectedItemNumber, owningBucketOrdinal);
-        }
-        readerIds.set(collectedItemNumber, readerNum);
-        collectedItemNumber++;
-    }
-
-
-    @Override
-    public void close() {
-        Releasables.close(docs, buckets, readerIds);
+        currentCollection.collect(doc, owningBucketOrdinal);
     }
 
     /*
@@ -95,30 +148,20 @@ public class RecordingBucketCollector extends BucketCollector implements Releasa
      * 
      */
     public void replayCollection(BucketCollector collector) throws IOException{
-        int readerId=-1;
-        for (int i = 0; i < collectedItemNumber; i++) {
-            long bucket = buckets==null?0:buckets.get(i);
-            int doc = docs.get(i);
-            int readerContext = readerIds.get(i);
-            // establish the context for the doc id before asking child aggs
-            // to collect it
-            if (readerContext != readerId) {
-                readerId = readerContext;
-                collector.setNextReader(readers.get(readerId));
-            }
-            collector.collect(doc, bucket);
-        }
+        for (PerSegmentCollects collection : perSegmentCollections) {
+            collection.replay(collector);
+        }        
         collector.postCollection();
     }
 
     @Override
     public void postCollection() throws IOException {
+        recordingComplete = true;
+        stowLastSegmentCollection();
     }
-
 
     @Override
     public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) {
         throw new ElasticsearchIllegalStateException("gatherAnalysis not supported");
-    }
-    
+    }    
 }

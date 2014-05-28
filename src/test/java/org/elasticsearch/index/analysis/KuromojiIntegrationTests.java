@@ -19,14 +19,19 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -55,5 +60,32 @@ public class KuromojiIntegrationTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < expectedTokens.length; i++) {
             assertThat(response.getTokens().get(i).getTerm(), is(expectedTokens[i]));
         }
+    }
+
+    @Test
+    public void testKuromojiAnalyzerInMapping() throws ExecutionException, InterruptedException, IOException {
+        createIndex("test");
+        ensureGreen("test");
+        final XContentBuilder mapping = jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "string")
+                .field("analyzer", "kuromoji")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+
+        client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
+
+        index("test", "type", "1", "foo", "JR新宿駅の近くにビールを飲みに行こうか");
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test").setQuery(
+                QueryBuilders.matchQuery("foo", "jr")
+        ).execute().actionGet();
+
+        assertThat(response.getHits().getTotalHits(), is(1L));
     }
 }

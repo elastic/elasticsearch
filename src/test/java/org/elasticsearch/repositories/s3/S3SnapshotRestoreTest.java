@@ -180,6 +180,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
                         .put("base_path", basePath)
+                        .put("region", bucketSettings.get("region"))
                         .put("access_key", bucketSettings.get("access_key"))
                         .put("secret_key", bucketSettings.get("secret_key"))
                         .put("bucket", bucketSettings.get("bucket"))
@@ -292,10 +293,11 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
                 settings.getByPrefix("repositories.s3.remote-bucket.")
             };
         for (Settings bucket : buckets) {
-            AmazonS3 client = cluster().getInstance(AwsS3Service.class).client(
-                    bucket.get("region", settings.get("repositories.s3.region")),
-                    bucket.get("access_key", settings.get("cloud.aws.access_key")),
-                    bucket.get("secret_key", settings.get("cloud.aws.secret_key")));
+            String region = bucket.get("region", settings.get("repositories.s3.region"));
+            String accessKey = bucket.get("access_key", settings.get("cloud.aws.access_key"));
+            String secretKey = bucket.get("secret_key", settings.get("cloud.aws.secret_key"));
+            String bucketName = bucket.get("bucket");
+            AmazonS3 client = cluster().getInstance(AwsS3Service.class).client(region, accessKey, secretKey);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html
@@ -308,7 +310,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
                     if (prevListing != null) {
                         list = client.listNextBatchOfObjects(prevListing);
                     } else {
-                        list = client.listObjects(bucket.get("bucket"), basePath);
+                        list = client.listObjects(bucketName, basePath);
                         multiObjectDeleteRequest = new DeleteObjectsRequest(list.getBucketName());
                     }
                     for (S3ObjectSummary summary : list.getObjectSummaries()) {
@@ -332,7 +334,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
                     client.deleteObjects(multiObjectDeleteRequest);
                 }
             } catch (Throwable ex) {
-                logger.warn("Failed to delete S3 repository", ex);
+                logger.warn("Failed to delete S3 repository [{}] in [{}]", ex, bucketName, region);
             }
         }
     }

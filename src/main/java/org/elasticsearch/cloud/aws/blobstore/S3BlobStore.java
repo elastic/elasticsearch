@@ -32,6 +32,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.concurrent.Executor;
@@ -47,16 +48,16 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final String region;
 
-    private final Executor executor;
+    private final ThreadPool threadPool;
 
     private final int bufferSizeInBytes;
 
-    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, Executor executor) {
+    public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, ThreadPool threadPool) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
         this.region = region;
-        this.executor = executor;
+        this.threadPool = threadPool;
 
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
 
@@ -83,7 +84,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
     }
 
     public Executor executor() {
-        return executor;
+        return threadPool.executor(ThreadPool.Names.SNAPSHOT_DATA);
     }
 
     public int bufferSizeInBytes() {

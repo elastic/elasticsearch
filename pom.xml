@@ -245,7 +245,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.9.0.Final</version>
+            <version>3.9.1.Final</version>
             <scope>compile</scope>
         </dependency>
 

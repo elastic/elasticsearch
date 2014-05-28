@@ -1073,7 +1073,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (!bogusIds.isEmpty()) {
            // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
            for (Tuple<String, String> doc : bogusIds) {
-               client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
+               assertTrue("failed to delete a dummy doc", client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
            }
         }
         if (forceRefresh) {

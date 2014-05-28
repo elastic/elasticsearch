@@ -36,8 +36,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -121,8 +119,9 @@ public class S3Repository extends BlobStoreRepository {
             }
         }
 
-        logger.debug("using bucket [{}], region [{}], chunk_size [{}]", bucket, region, chunkSize);
-        blobStore = new S3BlobStore(settings, s3Service.client(region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key")), bucket, region, threadPool);
+        boolean serverSideEncryption = repositorySettings.settings().getAsBoolean("server_side_encryption", componentSettings.getAsBoolean("server_side_encryption", false));
+        logger.debug("using bucket [{}], region [{}], chunk_size [{}], server_side_encryption [{}]", bucket, region, chunkSize, serverSideEncryption);
+        blobStore = new S3BlobStore(settings, s3Service.client(region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key")), bucket, region, threadPool, serverSideEncryption);
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", componentSettings.getAsBytesSize("chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.compress = repositorySettings.settings().getAsBoolean("compress", componentSettings.getAsBoolean("compress", false));
         String basePath = repositorySettings.settings().get("base_path", null);

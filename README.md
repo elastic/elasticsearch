@@ -99,8 +99,9 @@ The following settings are supported:
 * `secret_key`: The secret key to use for authentication. Defaults to value of `cloud.aws.secret_key`.
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
+* `server_side_encryption`: When set to `true` files are encrypted on server side using AES256 algorithm. Defaults to `false`.
 
-The S3 repositories are using the same credentials as the rest of the AWSS3 Repo documentation #83 services provided by this plugin (`discovery` and `gateway`). They can be configured the following way:
+The S3 repositories are using the same credentials as the rest of the AWS services provided by this plugin (`discovery` and `gateway`). They can be configured the following way:
 
     cloud:
         aws:

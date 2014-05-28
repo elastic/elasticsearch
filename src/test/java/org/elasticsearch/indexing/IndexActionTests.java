@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
      * while the index is being created.
      */
     @Test
+    @TestLogging("action.search:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = randomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
@@ -57,6 +59,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                 builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
             }
             indexRandom(true, builders);
+            logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(5, 10);
             for (int j = 0; j < numOfChecks; j++) {
                 assertHitCount(client().prepareSearch("test").get(), numOfDocs);

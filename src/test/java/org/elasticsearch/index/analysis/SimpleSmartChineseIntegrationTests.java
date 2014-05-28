@@ -20,6 +20,9 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -29,6 +32,14 @@ import static org.hamcrest.CoreMatchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 1, scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class SimpleSmartChineseIntegrationTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .build();
+    }
 
     @Test
     public void testSmartcnAnalyzer() throws ExecutionException, InterruptedException {

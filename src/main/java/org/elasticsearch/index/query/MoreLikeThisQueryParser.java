@@ -166,7 +166,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         assert token == XContentParser.Token.FIELD_NAME;
                         String field = parseContext.indexName(parser.text());
-                        assert parser.nextToken().isValue();
+                        token = parser.nextToken();
+                        assert token.isValue();
                         Analyzer _analyzer = parseContext.analysisService().analyzer(parser.text());
                         fieldsAnalyzer.put(field, _analyzer);
                     }

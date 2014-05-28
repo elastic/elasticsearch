@@ -24,36 +24,40 @@ ICU Normalization
 
 Normalizes characters as explained [here](http://userguide.icu-project.org/transforms/normalization). It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings. Allows for the name parameter to be provided which can include the following values: `nfc`, `nfkc`, and `nfkc_cf`. Here is a sample settings:
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "collation" : {
-                        "tokenizer" : "keyword",
-                        "filter" : ["icu_normalizer"]
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["icu_normalizer"]
                 }
             }
         }
     }
+}
+```
 
 ICU Folding
 -----------
 
 Folding of unicode characters based on `UTR#30`. It registers itself under `icu_folding` and `icuFolding` names. Sample setting:
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "collation" : {
-                        "tokenizer" : "keyword",
-                        "filter" : ["icu_folding"]
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["icu_folding"]
                 }
             }
         }
     }
+}
+```
 
 ICU Filtering
 -------------
@@ -64,24 +68,26 @@ language is wanted. See syntax for the UnicodeSet [here](http://icu-project.org/
 
 The Following example exempts Swedish characters from the folding. Note that the filtered characters are NOT lowercased which is why we add that filter below.
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "folding" : {
-                        "tokenizer" : "standard",
-                        "filter" : ["my_icu_folding", "lowercase"]
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "folding" : {
+                    "tokenizer" : "standard",
+                    "filter" : ["my_icu_folding", "lowercase"]
                 }
-                "filter" : {
-                    "my_icu_folding" : {
-                        "type" : "icu_folding"
-                        "unicodeSetFilter" : "[^åäöÅÄÖ]"
-                    }
+            }
+            "filter" : {
+                "my_icu_folding" : {
+                    "type" : "icu_folding"
+                    "unicodeSetFilter" : "[^åäöÅÄÖ]"
                 }
             }
         }
     }
+}
+```
 
 ICU Collation
 -------------
@@ -94,39 +100,43 @@ Uses collation token filter. Allows to either specify the rules for collation
 
 Here is a sample settings:
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "collation" : {
-                        "tokenizer" : "keyword",
-                        "filter" : ["icu_collation"]
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["icu_collation"]
                 }
             }
         }
     }
+}
+```
 
 And here is a sample of custom collation:
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "collation" : {
-                        "tokenizer" : "keyword",
-                        "filter" : ["myCollator"]
-                    }
-                },
-                "filter" : {
-                    "myCollator" : {
-                        "type" : "icu_collation",
-                        "language" : "en"
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "keyword",
+                    "filter" : ["myCollator"]
+                }
+            },
+            "filter" : {
+                "myCollator" : {
+                    "type" : "icu_collation",
+                    "language" : "en"
                 }
             }
         }
     }
+}
+```
 
 Optional options:
 * `strength` - The strength property determines the minimum level of difference considered significant during comparison.
@@ -159,17 +169,19 @@ ICU Tokenizer
 
 Breaks text into words according to [UAX #29: Unicode Text Segmentation](http://www.unicode.org/reports/tr29/).
 
-    {
-        "index" : {
-            "analysis" : {
-                "analyzer" : {
-                    "collation" : {
-                        "tokenizer" : "icu_tokenizer",
-                    }
+```js
+{
+    "index" : {
+        "analysis" : {
+            "analyzer" : {
+                "collation" : {
+                    "tokenizer" : "icu_tokenizer",
                 }
             }
         }
     }
+}
+```
 
 
 License

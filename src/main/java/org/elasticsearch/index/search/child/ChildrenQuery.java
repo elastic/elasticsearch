@@ -654,7 +654,7 @@ public class ChildrenQuery extends Query {
         @Override
         protected boolean acceptAndScore(long parentIdx) {
             int count = occurrences.get(parentIdx);
-            if (count < minChildren || count >= maxChildren) {
+            if (count < minChildren || count > maxChildren) {
                 return false;
             }
             currentScore = scores.get(parentIdx);

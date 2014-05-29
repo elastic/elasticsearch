@@ -157,7 +157,7 @@ it avoids the overhead of scripting. If used on a multi-valued field, only the
 first value of the field is used in calculations.
 
 As an example, imagine you have a document indexed with a numeric `popularity`
-field and wish in influence the score of a document with this field, an example
+field and wish to influence the score of a document with this field, an example
 doing so would look like:
 
 [source,js]

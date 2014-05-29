@@ -93,6 +93,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
 
     private final TimeValue pingTimeout;
+    private final TimeValue joinTimeout;
 
     // a flag that should be used only for testing
     private final boolean sendLeaveRequest;
@@ -134,12 +135,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         // also support direct discovery.zen settings, for cases when it gets extended
         this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
+        this.joinTimeout = settings.getAsTime("discovery.zen.join_timeout", TimeValue.timeValueMillis(pingTimeout.millis() * 10));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean("discovery.zen.master_election.filter_data", false);
 
-        logger.debug("using ping.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
+        logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
         this.electMaster = new ElectMasterService(settings);
         nodeSettingsService.addListener(new ApplySettings());
@@ -343,7 +345,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
                 // send join request
                 try {
-                    membership.sendJoinRequestBlocking(masterNode, localNode, pingTimeout);
+                    membership.sendJoinRequestBlocking(masterNode, localNode, joinTimeout);
                 } catch (Exception e) {
                     if (e instanceof ElasticsearchException) {
                         logger.info("failed to send join request to master [{}], reason [{}]", masterNode, ((ElasticsearchException) e).getDetailedMessage());
@@ -713,7 +715,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
-            membership.sendValidateJoinRequestBlocking(node, state, pingTimeout);
+            membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
 
             clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
                 @Override

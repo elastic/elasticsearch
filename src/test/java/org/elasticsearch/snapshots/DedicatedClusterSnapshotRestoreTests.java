@@ -20,6 +20,8 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.randomizedtesting.LifecycleScope;
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -247,11 +249,37 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.FAILED));
 
-        createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setPartial(true).execute().actionGet();
-        logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(12));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
+        if (randomBoolean()) {
+            logger.info("checking snapshot completion using status");
+            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(false).setPartial(true).execute().actionGet();
+            awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object o) {
+                    SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
+                    ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
+                    if(snapshotStatuses.size() == 1) {
+                        logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
+                        return snapshotStatuses.get(0).getState().completed();
+                    }
+                    return false;
+                }
+            });
+            SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
+            ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
+            assertThat(snapshotStatuses.size(), equalTo(1));
+            SnapshotStatus snapshotStatus = snapshotStatuses.get(0);
+            logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
+            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(12));
+            assertThat(snapshotStatus.getShardsStats().getDoneShards(), lessThan(12));
+            assertThat(snapshotStatus.getShardsStats().getDoneShards(), greaterThan(6));
+        } else {
+            logger.info("checking snapshot completion using wait_for_completion flag");
+            createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setPartial(true).execute().actionGet();
+            logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
+            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(12));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
+            assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
+        }
         assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));
 
         assertAcked(client().admin().indices().prepareClose("test-idx-1", "test-idx-2").execute().actionGet());

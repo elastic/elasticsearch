@@ -125,13 +125,9 @@ public class ChildrenQuery extends Query {
 
     @Override
     public String toString(String field) {
-        if (minChildren != 0||maxChildren != 0 ) {
-            int max = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
-            return "ChildrenQuery[min(" + Integer.toString(minChildren) + ") max(" + Integer.toString(max) + ")of " + childType + "/" + parentType + "]("
-                    + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
-        }
-        return "ChildrenQuery[" + childType + "/" + parentType + "]("
-                + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
+        int max = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
+        return "ChildrenQuery[min(" + Integer.toString(minChildren) + ") max(" + Integer.toString(max) + ")of " + childType + "/"
+                + parentType + "](" + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override

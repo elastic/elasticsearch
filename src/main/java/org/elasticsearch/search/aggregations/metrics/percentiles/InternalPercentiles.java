@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -37,7 +37,7 @@ import java.util.List;
 /**
 *
 */
-public class InternalPercentiles extends MetricsAggregation.MultiValue implements Percentiles {
+public class InternalPercentiles extends InternalNumericMetricsAggregation.MultiValue implements Percentiles {
 
     public final static Type TYPE = new Type("percentiles");
 

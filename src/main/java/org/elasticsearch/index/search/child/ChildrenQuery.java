@@ -54,9 +54,7 @@ import java.util.Set;
  * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
  * a score based on the aggregated child scores and score type.
  */
-@SuppressWarnings("rawtypes")
 public class ChildrenQuery extends Query {
-
 
     protected final ParentChildIndexFieldData ifd;
     protected final String parentType;
@@ -159,7 +157,8 @@ public class ChildrenQuery extends Query {
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext sc = SearchContext.current();
         assert rewrittenChildQuery != null;
-        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader
+                + " searcher.getIndexReader()=" + searcher.getIndexReader();
         final Query childQuery = rewrittenChildQuery;
 
         if (this.maxChildren > 0 && this.maxChildren < this.minChildren) {
@@ -200,8 +199,8 @@ public class ChildrenQuery extends Query {
                     collector = new SumCountAndAvgCollector(globalIfd, sc);
                     break;
                 case NONE:
-                     collector = new CountCollector(globalIfd,sc);
-                     break;
+                    collector = new CountCollector(globalIfd, sc);
+                    break;
                 default:
                     throw new RuntimeException("Are we missing a score type here? -- " + scoreType);
                 }
@@ -221,16 +220,14 @@ public class ChildrenQuery extends Query {
         sc.addReleasable(collector, Lifetime.COLLECTION);
         final Filter parentFilter;
         if (numFoundParents <= shortCircuitParentDocSet) {
-            parentFilter = ParentIdsFilter.createShortCircuitFilter(
-                    nonNestedDocsFilter, sc, parentType, collector.values, collector.parentIdxs, numFoundParents
-            );
+            parentFilter = ParentIdsFilter.createShortCircuitFilter(nonNestedDocsFilter, sc, parentType, collector.values,
+                    collector.parentIdxs, numFoundParents);
         } else {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
-        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector,
-                minChildren,maxChildren);
+        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector, minChildren,
+                maxChildren);
     }
-
 
     protected class ParentWeight extends Weight {
 
@@ -288,7 +285,6 @@ public class ChildrenQuery extends Query {
             // count down (short circuit) logic will then work as expected.
             DocIdSetIterator parents = BitsFilteredDocIdSet.wrap(parentsSet, context.reader().getLiveDocs()).iterator();
 
-            // TODO: THE NEXT LINE IS FROM THE CONSTANT SCORE - STILL APPLIES HERE?
             if (parents != null) {
                 BytesValues.WithOrdinals bytesValues = collector.globalIfd.load(context).getBytesValues(false);
                 if (bytesValues == null) {
@@ -320,7 +316,6 @@ public class ChildrenQuery extends Query {
         }
     }
 
-
     protected abstract static class ParentCollector extends NoopCollector implements Releasable {
 
         protected final IndexFieldData.WithOrdinals globalIfd;
@@ -338,7 +333,6 @@ public class ChildrenQuery extends Query {
             this.bigArrays = searchContext.bigArrays();
             this.parentIdxs = new LongHash(512, bigArrays);
         }
-
 
         @Override
         public final void collect(int doc) throws IOException {
@@ -361,7 +355,6 @@ public class ChildrenQuery extends Query {
 
         protected void existingParent(long parentIdx) throws IOException {
         }
-
 
         public long foundParents() {
             return parentIdxs.size();
@@ -391,7 +384,7 @@ public class ChildrenQuery extends Query {
         protected FloatArray scores;
 
         protected ParentScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd,searchContext);
+            super(globalIfd, searchContext);
             this.scores = this.bigArrays.newFloatArray(512, false);
         }
 
@@ -411,7 +404,7 @@ public class ChildrenQuery extends Query {
         protected IntArray occurrences;
 
         protected ParentScoreCountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd,searchContext);
+            super(globalIfd, searchContext);
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
@@ -431,8 +424,9 @@ public class ChildrenQuery extends Query {
     private final static class CountCollector extends ParentCollector implements Releasable {
 
         protected IntArray occurrences;
+
         protected CountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd,searchContext);
+            super(globalIfd, searchContext);
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
@@ -447,18 +441,16 @@ public class ChildrenQuery extends Query {
             occurrences.increment(parentIdx, 1);
         }
 
-
         @Override
         public void close() throws ElasticsearchException {
             Releasables.close(parentIdxs, occurrences);
         }
     }
 
-
     private final static class SumCollector extends ParentScoreCollector {
 
         private SumCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
-            super(globalIfd,searchContext);
+            super(globalIfd, searchContext);
         }
 
         @Override
@@ -510,8 +502,6 @@ public class ChildrenQuery extends Query {
             occurrences.increment(parentIdx, 1);
         }
     }
-
-
 
     private static class ParentScorer extends Scorer {
 

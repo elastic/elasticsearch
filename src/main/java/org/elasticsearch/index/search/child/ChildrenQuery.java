@@ -269,6 +269,9 @@ public class ChildrenQuery extends Query {
         @Override
         public float getValueForNormalization() throws IOException {
             queryWeight = getBoost();
+            if (scoreType == ScoreType.NONE) {
+                return queryWeight * queryWeight;
+            }
             float sum = childWeight.getValueForNormalization();
             sum *= queryWeight * queryWeight;
             return sum;

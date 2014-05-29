@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.MurmurHash3Values;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
@@ -46,7 +46,7 @@ import java.io.IOException;
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-public class CardinalityAggregator extends MetricsAggregator.SingleValue {
+public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final int precision;
     private final boolean rehash;

@@ -16,59 +16,53 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.metrics;
+
+package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.GeoPoint;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
-/**
- *
- */
-public abstract class NumericValuesSourceMetricsAggregatorParser<S extends InternalNumericMetricsAggregation> implements Aggregator.Parser {
-
-    protected final InternalAggregation.Type aggType;
-
-    protected NumericValuesSourceMetricsAggregatorParser(InternalAggregation.Type aggType) {
-        this.aggType = aggType;
-    }
+public class GeoBoundsParser implements Aggregator.Parser {
 
     @Override
     public String type() {
-        return aggType.name();
-    }
-
-    protected boolean requiresSortedValues() {
-        return false;
+        return InternalGeoBounds.TYPE.name();
     }
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-
-        ValuesSourceParser<ValuesSource.Numeric> vsParser = ValuesSourceParser.numeric(aggregationName, aggType, context)
-                .requiresSortedValues(requiresSortedValues())
+        ValuesSourceParser<GeoPoint> vsParser = ValuesSourceParser.geoPoint(aggregationName, InternalGeoBounds.TYPE, context)
+                .targetValueType(ValueType.GEOPOINT)
+                .formattable(true)
                 .build();
-
+        boolean wrapLongitude = true;
         XContentParser.Token token;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (!vsParser.token(currentFieldName, token, parser)) {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
+            } else if (vsParser.token(currentFieldName, token, parser)) {
+                continue;
+                
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if ("wrap_longitude".equals(currentFieldName) || "wrapLongitude".equals(currentFieldName)) {
+                    wrapLongitude = parser.booleanValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else {
+                throw new SearchParseException(context, "Unknown key for a " + token + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
             }
         }
-
-        return createFactory(aggregationName, vsParser.config());
+        return new GeoBoundsAggregator.Factory(aggregationName, vsParser.config(), wrapLongitude);
     }
 
-    protected abstract AggregatorFactory createFactory(String aggregationName, ValuesSourceConfig<ValuesSource.Numeric> config);
 }

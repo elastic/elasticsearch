@@ -17,15 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.search.aggregations.metrics.geobounds;
 
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.search.aggregations.Aggregation;
 
-public abstract class MetricsAggregator extends Aggregator {
-
-    protected MetricsAggregator(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
-    }
+public interface GeoBounds extends Aggregation {
+    
+    GeoPoint topLeft();
+    
+    GeoPoint bottomRight();
 }

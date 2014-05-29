@@ -17,3 +17,5 @@ include::metrics/valuecount-aggregation.asciidoc[]
 include::metrics/percentile-aggregation.asciidoc[]
 
 include::metrics/cardinality-aggregation.asciidoc[]
+
+include::metrics/geobounds-aggregation.asciidoc[]

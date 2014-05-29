@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ import java.util.List;
 /**
 *
 */
-public class InternalStats extends MetricsAggregation.MultiValue implements Stats {
+public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
 
     public final static Type TYPE = new Type("stats");
 

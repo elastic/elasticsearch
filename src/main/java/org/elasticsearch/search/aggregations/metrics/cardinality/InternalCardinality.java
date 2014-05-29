@@ -25,13 +25,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class InternalCardinality extends MetricsAggregation.SingleValue implements Cardinality {
+public final class InternalCardinality extends InternalNumericMetricsAggregation.SingleValue implements Cardinality {
 
     public final static Type TYPE = new Type("cardinality");
 

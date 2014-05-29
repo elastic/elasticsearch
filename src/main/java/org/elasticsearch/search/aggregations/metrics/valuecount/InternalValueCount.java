@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.List;
 /**
  * An internal implementation of {@link ValueCount}.
  */
-public class InternalValueCount extends MetricsAggregation implements ValueCount {
+public class InternalValueCount extends InternalNumericMetricsAggregation implements ValueCount {
 
     public static final Type TYPE = new Type("value_count", "vcount");
 

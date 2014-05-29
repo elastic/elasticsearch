@@ -59,6 +59,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -1998,6 +1999,480 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
     }
+
+    List<IndexRequestBuilder> createMinMaxDocBuilders() {
+        List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
+        // Parent 1 and its children
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("1").setIndex("test").setSource("id",1));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("10").setIndex("test")
+                .setSource("foo", "one").setParent("1"));
+
+        // Parent 2 and its children
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("2").setIndex("test").setSource("id",2));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("11").setIndex("test")
+                .setSource("foo", "one").setParent("2"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("12").setIndex("test")
+                .setSource("foo", "one two").setParent("2"));
+
+        // Parent 3 and its children
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("3").setIndex("test").setSource("id",3));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("13").setIndex("test")
+                .setSource("foo", "one").setParent("3"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("14").setIndex("test")
+                .setSource("foo", "one two").setParent("3"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("15").setIndex("test")
+                .setSource("foo", "one two three").setParent("3"));
+
+        // Parent 4 and its children
+        indexBuilders.add(client().prepareIndex().setType("parent").setId("4").setIndex("test").setSource("id",4));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("16").setIndex("test")
+                .setSource("foo", "one").setParent("4"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("17").setIndex("test")
+                .setSource("foo", "one two").setParent("4"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("18").setIndex("test")
+                .setSource("foo", "one two three").setParent("4"));
+        indexBuilders.add(client().prepareIndex().setType("child").setId("19").setIndex("test")
+                .setSource("foo", "one two three four").setParent("4"));
+
+        return indexBuilders;
+    }
+
+    SearchResponse MinMaxQuery(String scoreType, int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
+        return client()
+                .prepareSearch("test")
+                .setQuery(
+                        QueryBuilders
+                                .hasChildQuery(
+                                        "child",
+                                        QueryBuilders.functionScoreQuery(constantScoreQuery(FilterBuilders.termFilter("foo", "two"))).boostMode("replace").scoreMode("sum")
+                                                .add(FilterBuilders.matchAllFilter(), factorFunction(1))
+                                                .add(FilterBuilders.termFilter("foo", "three"), factorFunction(1))
+                                                .add(FilterBuilders.termFilter("foo", "four"), factorFunction(1))).scoreType(scoreType)
+                                .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff))
+                .addSort("_score", SortOrder.DESC).addSort("id", SortOrder.ASC).get();
+    }
+
+    SearchResponse MinMaxFilter( int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
+        return client()
+                .prepareSearch("test")
+                .setQuery(
+                        QueryBuilders.constantScoreQuery(FilterBuilders.hasChildFilter("child", termFilter("foo", "two"))
+                                .minChildren(minChildren).maxChildren(maxChildren).setShortCircuitCutoff(cutoff)))
+                .addSort("id", SortOrder.ASC).setTrackScores(true).get();
+    }
+
+
+    @Test
+    public void testMinMaxChildren() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        indexRandom(true, createMinMaxDocBuilders().toArray(new IndexRequestBuilder[0]));
+        SearchResponse response;
+        int cutoff = getRandom().nextInt(4);
+
+        // Score mode = NONE
+        response = MinMaxQuery("none", 0, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 1, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 2, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 3, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 4, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(0l));
+
+        response = MinMaxQuery("none", 0, 4, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 0, 3, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 0, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxQuery("none", 2, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+
+        try {
+            response = MinMaxQuery("none", 3, 2, cutoff);
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+        }
+
+        // Score mode = SUM
+        response = MinMaxQuery("sum", 0, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("sum", 1, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("sum", 2, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+
+        response = MinMaxQuery("sum", 3, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+
+        response = MinMaxQuery("sum", 4, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(0l));
+
+        response = MinMaxQuery("sum", 0, 4, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("sum", 0, 3, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(6f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("sum", 0, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxQuery("sum", 2, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+
+        try {
+            response = MinMaxQuery("sum", 3, 2, cutoff);
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+        }
+
+        // Score mode = MAX
+        response = MinMaxQuery("max", 0, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("max", 1, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("max", 2, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(2f));
+
+        response = MinMaxQuery("max", 3, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+
+        response = MinMaxQuery("max", 4, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(0l));
+
+        response = MinMaxQuery("max", 0, 4, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("max", 0, 3, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(3f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("max", 0, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxQuery("max", 2, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+
+        try {
+            response = MinMaxQuery("max", 3, 2, cutoff);
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+        }
+
+        // Score mode = AVG
+        response = MinMaxQuery("avg", 0, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("avg", 1, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("avg", 2, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
+
+        response = MinMaxQuery("avg", 3, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+
+        response = MinMaxQuery("avg", 4, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(0l));
+
+        response = MinMaxQuery("avg", 0, 4, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("avg", 0, 3, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(2f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxQuery("avg", 0, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1.5f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxQuery("avg", 2, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1.5f));
+
+        try {
+            response = MinMaxQuery("avg", 3, 2, cutoff);
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+        }
+
+        // HasChildFilter
+        response = MinMaxFilter(0, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxFilter(1, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxFilter(2, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxFilter(3, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+
+        response = MinMaxFilter(4, 0, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(0l));
+
+        response = MinMaxFilter(0, 4, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxFilter(0, 3, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[2].id(), equalTo("4"));
+        assertThat(response.getHits().hits()[2].score(), equalTo(1f));
+
+        response = MinMaxFilter(0, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+        assertThat(response.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[1].score(), equalTo(1f));
+
+        response = MinMaxFilter(2, 2, cutoff);
+
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(response.getHits().hits()[0].score(), equalTo(1f));
+
+        try {
+            response = MinMaxFilter(3, 2, cutoff);
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
+        }
+
+    }
+
 
     private static HasChildFilterBuilder hasChildFilter(String type, QueryBuilder queryBuilder) {
         HasChildFilterBuilder hasChildFilterBuilder = FilterBuilders.hasChildFilter(type, queryBuilder);

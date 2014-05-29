@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.OrderPath;
 
 import java.io.IOException;
@@ -171,13 +171,13 @@ class InternalOrder extends Terms.Order {
             // with only support single-bucket aggregators
             assert !(aggregator instanceof BucketsAggregator) : "this should be picked up before the aggregation is executed - on validate";
 
-            if (aggregator instanceof MetricsAggregator.MultiValue) {
+            if (aggregator instanceof NumericMetricsAggregator.MultiValue) {
                 assert key != null : "this should be picked up before the aggregation is executed - on validate";
                 return new Comparator<Terms.Bucket>() {
                     @Override
                     public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                        double v1 = ((MetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o1).bucketOrd);
-                        double v2 = ((MetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o2).bucketOrd);
+                        double v1 = ((NumericMetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o1).bucketOrd);
+                        double v2 = ((NumericMetricsAggregator.MultiValue) aggregator).metric(key, ((InternalTerms.Bucket) o2).bucketOrd);
                         // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                         // the bottom
                         return Comparators.compareDiscardNaN(v1, v2, asc);
@@ -189,8 +189,8 @@ class InternalOrder extends Terms.Order {
             return new Comparator<Terms.Bucket>() {
                 @Override
                 public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                    double v1 = ((MetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o1).bucketOrd);
-                    double v2 = ((MetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o2).bucketOrd);
+                    double v1 = ((NumericMetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o1).bucketOrd);
+                    double v2 = ((NumericMetricsAggregator.SingleValue) aggregator).metric(((InternalTerms.Bucket) o2).bucketOrd);
                     // some metrics may return NaN (eg. avg, variance, etc...) in which case we'd like to push all of those to
                     // the bottom
                     return Comparators.compareDiscardNaN(v1, v2, asc);

@@ -16,45 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-/**
- *
- */
-public abstract class MetricsAggregation extends InternalAggregation {
+public abstract class InternalMetricsAggregation extends InternalAggregation {
 
-    protected ValueFormatter valueFormatter;
+    protected InternalMetricsAggregation() {} // for serialization
 
-    public static abstract class SingleValue extends MetricsAggregation {
-
-        protected SingleValue() {}
-
-        protected SingleValue(String name) {
-            super(name);
-        }
-
-        public abstract double value();
-    }
-
-    public static abstract class MultiValue extends MetricsAggregation {
-
-        protected MultiValue() {}
-
-        protected MultiValue(String name) {
-            super(name);
-        }
-
-        public abstract double value(String name);
-
-    }
-
-    protected MetricsAggregation() {} // for serialization
-
-    protected MetricsAggregation(String name) {
+    protected InternalMetricsAggregation(String name) {
         super(name);
     }
-
 }

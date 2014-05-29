@@ -629,11 +629,11 @@ public class ChildrenQuery extends Query {
         }
 
         protected boolean acceptAndScore(long parentIdx) {
-            if (occurrences.get(parentIdx) < minChildren) {
+            int count = occurrences.get(parentIdx);
+            if (count < minChildren || count > maxChildren) {
                 return false;
             }
-            currentScore = scores.get(parentIdx);
-            return true;
+            return super.acceptAndScore(parentIdx);
         }
     }
 

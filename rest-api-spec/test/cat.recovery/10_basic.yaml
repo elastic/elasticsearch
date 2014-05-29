@@ -24,7 +24,7 @@
   - match:
       $body: |
               /^
-              (?>
+              (
                 index1      \s+
                 \d          \s+                                 # shard
                 \d+         \s+                                 # time
@@ -35,9 +35,9 @@
                 [-\w./]+    \s+                                 # repository
                 [-\w./]+    \s+                                 # snapshot
                 \d+         \s+                                 # files
-                \d+\.\d+%    \s+                                # files_percent
+                \d+\.\d+%   \s+                                 # files_percent
                 \d+         \s+                                 # bytes
-                \d+\.\d+%    \s+                                # bytes_percent
+                \d+\.\d+%   \s+                                 # bytes_percent
                 \n
               )+
               $/

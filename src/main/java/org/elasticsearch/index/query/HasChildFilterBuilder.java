@@ -32,8 +32,8 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private String childType;
     private String filterName;
     private Integer shortCircuitCutoff;
-    private int minChildren = 0;
-    private int maxChildren = 0;
+    private Integer minChildren;
+    private Integer maxChildren;
 
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
@@ -107,8 +107,12 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
             filterBuilder.toXContent(builder, params);
         }
         builder.field("child_type", childType);
-        builder.field("min_children", minChildren);
-        builder.field("max_children", maxChildren);
+        if (minChildren != null) {
+            builder.field("min_children", minChildren);
+        }
+        if (maxChildren != null) {
+            builder.field("max_children", maxChildren);
+        }
         if (filterName != null) {
             builder.field("_name", filterName);
         }

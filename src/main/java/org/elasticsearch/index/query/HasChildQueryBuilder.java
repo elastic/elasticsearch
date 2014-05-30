@@ -35,9 +35,9 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private String scoreType;
 
-    private int minChildren = 0;
+    private Integer minChildren;
 
-    private int maxChildren = 0;
+    private Integer maxChildren;
 
     private Integer shortCircuitCutoff;
 
@@ -110,8 +110,12 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         if (scoreType != null) {
             builder.field("score_type", scoreType);
         }
-        builder.field("min_children", minChildren);
-        builder.field("max_children", maxChildren);
+        if (minChildren != null) {
+            builder.field("min_children", minChildren);
+        }
+        if (maxChildren != null) {
+            builder.field("max_children", maxChildren);
+        }
         if (shortCircuitCutoff != null) {
             builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }

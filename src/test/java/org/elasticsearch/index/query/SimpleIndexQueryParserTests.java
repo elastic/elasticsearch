@@ -1723,7 +1723,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testMoreLikeThisFieldsAnalyzer() throws Exception {
+    public void testMoreLikeThisFieldAnalyzers() throws Exception {
         MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
         parser.setFetchService(new MockMoreLikeThisFetchService());
 

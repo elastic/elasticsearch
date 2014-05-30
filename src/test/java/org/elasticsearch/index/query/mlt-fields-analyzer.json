@@ -1,7 +1,7 @@
 {
     "more_like_this" : {
         "fields" : ["title", "tags", "description"],
-        "fields_analyzer" : {
+        "field_analyzers" : {
             "tags" : "keyword",
             "description" : "whitespace"
         },

@@ -111,7 +111,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     private float boostTerms = -1;
     private float boost = -1;
     private String analyzer;
-    private Map<String, String> fieldsAnalyzer;
+    private Map<String, String> fieldAnalyzers;
     private Boolean failOnUnsupportedField;
     private String queryName;
 
@@ -250,18 +250,18 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
     }
 
     public MoreLikeThisQueryBuilder addFieldAnalyzer(String field, String analyzer) {
-        if (this.fieldsAnalyzer == null) {
-            this.fieldsAnalyzer = new HashMap<>();
+        if (this.fieldAnalyzers == null) {
+            this.fieldAnalyzers = new HashMap<>();
         }
-        this.fieldsAnalyzer.put(field, analyzer);
+        this.fieldAnalyzers.put(field, analyzer);
         return this;
     }
 
     /**
      * The analyzers that will be used for each field. Unspecified keys default to the analyzer associated with the field.
      */
-    public MoreLikeThisQueryBuilder fieldsAnalyzer(Map<String, String> fieldsAnalyzer) {
-        this.fieldsAnalyzer = fieldsAnalyzer;
+    public MoreLikeThisQueryBuilder fieldAnalyzers(Map<String, String> fieldAnalyzers) {
+        this.fieldAnalyzers = fieldAnalyzers;
         return this;
     }
 
@@ -338,10 +338,10 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         if (analyzer != null) {
             builder.field(MoreLikeThisQueryParser.Fields.ANALYZER.getPreferredName(), analyzer);
         }
-        if (fieldsAnalyzer != null) {
-            builder.startObject(MoreLikeThisQueryParser.Fields.FIELDS_ANALYZER.getPreferredName());
-            for (String field : fieldsAnalyzer.keySet()) {
-                builder.field(field, fieldsAnalyzer.get(field));
+        if (fieldAnalyzers != null) {
+            builder.startObject(MoreLikeThisQueryParser.Fields.FIELD_ANALYZERS.getPreferredName());
+            for (String field : fieldAnalyzers.keySet()) {
+                builder.field(field, fieldAnalyzers.get(field));
             }
             builder.endObject();
         }

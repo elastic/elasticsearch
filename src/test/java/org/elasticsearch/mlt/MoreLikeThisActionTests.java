@@ -484,7 +484,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testSimpleFieldsAnalyzer() throws Exception {
+    public void testSimpleFieldAnalyzers() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties")

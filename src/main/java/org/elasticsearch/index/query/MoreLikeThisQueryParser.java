@@ -56,7 +56,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         public static final ParseField LIKE_TEXT = new ParseField("like_text");
         public static final ParseField FIELDS = new ParseField("fields");
         public static final ParseField ANALYZER = new ParseField("analyzer");
-        public static final ParseField FIELDS_ANALYZER = new ParseField("fields_analyzer");
+        public static final ParseField FIELD_ANALYZERS = new ParseField("field_analyzers");
         public static final ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         public static final ParseField MAX_QUERY_TERMS = new ParseField("max_query_terms");
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
@@ -93,7 +93,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
         mltQuery.setSimilarity(parseContext.searchSimilarity());
         Analyzer analyzer = null;
-        Map<String, Analyzer> fieldsAnalyzer = null;
+        Map<String, Analyzer> fieldAnalyzers = null;
         List<String> moreLikeFields = null;
         boolean failOnUnsupportedField = true;
         String queryName = null;
@@ -161,15 +161,15 @@ public class MoreLikeThisQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.FIELDS_ANALYZER.match(currentFieldName, parseContext.parseFlags())) {
-                    fieldsAnalyzer = Maps.newHashMap();
+                if (Fields.FIELD_ANALYZERS.match(currentFieldName, parseContext.parseFlags())) {
+                    fieldAnalyzers = Maps.newHashMap();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         assert token == XContentParser.Token.FIELD_NAME;
                         String field = parseContext.indexName(parser.text());
                         token = parser.nextToken();
                         assert token.isValue();
                         Analyzer _analyzer = parseContext.analysisService().analyzer(parser.text());
-                        fieldsAnalyzer.put(field, _analyzer);
+                        fieldAnalyzers.put(field, _analyzer);
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[mlt] query does not support [" + currentFieldName + "]");
@@ -229,7 +229,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             // right now we are just building a boolean query
             BooleanQuery boolQuery = new BooleanQuery();
             for (MoreLikeThisFetchService.LikeText likeText : likeTexts) {
-                addMoreLikeThis(boolQuery, mltQuery, likeText.field, likeText.text, fieldsAnalyzer, defaultAnalyzer);
+                addMoreLikeThis(boolQuery, mltQuery, likeText.field, likeText.text, fieldAnalyzers, defaultAnalyzer);
             }
             // exclude the items from the search
             if (!include) {
@@ -247,12 +247,12 @@ public class MoreLikeThisQueryParser implements QueryParser {
         return mltQuery;
     }
 
-    private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, String fieldName, String likeText, Map<String, Analyzer> fieldsAnalyzer, Analyzer defaultAnalyzer) {
+    private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, String fieldName, String likeText, Map<String, Analyzer> fieldAnalyzers, Analyzer defaultAnalyzer) {
         MoreLikeThisQuery mlt = new MoreLikeThisQuery();
         mlt.setMoreLikeFields(new String[] {fieldName});
         mlt.setLikeText(likeText);
-        if (fieldsAnalyzer != null) {
-            Analyzer a = fieldsAnalyzer.get(fieldName);
+        if (fieldAnalyzers != null) {
+            Analyzer a = fieldAnalyzers.get(fieldName);
             if (a != null) {
                 mlt.setAnalyzer(a);
             } else {

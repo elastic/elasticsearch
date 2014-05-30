@@ -93,7 +93,7 @@ With that out of the way, let's get started with the fun part...
 
 == Installation
 
-Elasticsearch requires Java. Specifically as of this writing, it is recommended that you use the Oracle JDK version 1.7.0_55. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version 1.7.0_55. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
 
 [source,sh]
 --------------------------------------------------

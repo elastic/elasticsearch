@@ -1079,6 +1079,7 @@
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
+                                <exclude>org/elasticsearch/index/PrintIndexFieldTypeStats.class</exclude>
                                 <!-- end excludes for valid system-out -->
                                 <!-- start excludes for Unsafe -->
                                 <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>

@@ -52,7 +52,7 @@ public class HasChildQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[]{NAME, Strings.toCamelCase(NAME)};
+        return new String[] { NAME, Strings.toCamelCase(NAME) };
     }
 
     @Override
@@ -63,7 +63,9 @@ public class HasChildQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
-        ScoreType scoreType = null;
+        ScoreType scoreType = ScoreType.NONE;
+        int minChildren = 0;
+        int maxChildren = 0;
         int shortCircuitParentDocSet = 8192;
         String queryName = null;
 
@@ -79,7 +81,7 @@ public class HasChildQueryParser implements QueryParser {
                 // XContentStructure.<type> facade to parse if available,
                 // or delay parsing if not.
                 if ("query".equals(currentFieldName)) {
-                    iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] {childType});
+                    iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] { childType });
                     queryFound = true;
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
@@ -88,19 +90,18 @@ public class HasChildQueryParser implements QueryParser {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
-                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] query has been removed, use a filter as a facet_filter in the relevant global facet");
+                    throw new QueryParsingException(parseContext.index(),
+                            "the [_scope] support in [has_child] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
-                    String scoreTypeValue = parser.text();
-                    if (!"none".equals(scoreTypeValue)) {
-                        scoreType = ScoreType.fromString(scoreTypeValue);
-                    }
+                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
-                    String scoreModeValue = parser.text();
-                    if (!"none".equals(scoreModeValue)) {
-                        scoreType = ScoreType.fromString(scoreModeValue);
-                    }
+                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("min_children".equals(currentFieldName) || "minChildren".equals(currentFieldName)) {
+                    minChildren = parser.intValue(true);
+                } else if ("max_children".equals(currentFieldName) || "maxChildren".equals(currentFieldName)) {
+                    maxChildren = parser.intValue(true);
                 } else if ("short_circuit_cutoff".equals(currentFieldName)) {
                     shortCircuitParentDocSet = parser.intValue();
                 } else if ("_name".equals(currentFieldName)) {
@@ -140,7 +141,12 @@ public class HasChildQueryParser implements QueryParser {
         String parentType = parentFieldMapper.type();
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType
+                    + "] points to a non existent parent type [" + parentType + "]");
+        }
+
+        if (maxChildren > 0 && maxChildren < minChildren) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] 'max_children' is less than 'min_children'");
         }
 
         Filter nonNestedDocsFilter = null;
@@ -154,10 +160,12 @@ public class HasChildQueryParser implements QueryParser {
         Query query;
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         ParentChildIndexFieldData parentChildIndexFieldData = parseContext.fieldData().getForField(parentFieldMapper);
-        if (scoreType != null) {
-            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet, nonNestedDocsFilter);
+        if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
+            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,
+                    maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
         } else {
-            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter, shortCircuitParentDocSet, nonNestedDocsFilter);
+            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
+                    shortCircuitParentDocSet, nonNestedDocsFilter);
         }
         if (queryName != null) {
             parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));

@@ -35,6 +35,9 @@ class MockScorer extends Scorer {
 
     @Override
     public float score() throws IOException {
+        if (scoreType == ScoreType.NONE) {
+            return 1.0f;
+        }
         float aggregateScore = 0;
         for (int i = 0; i < scores.elementsCount; i++) {
             float score = scores.buffer[i];

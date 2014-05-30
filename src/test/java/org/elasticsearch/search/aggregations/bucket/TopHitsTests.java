@@ -209,6 +209,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(hits.totalHits(), equalTo(controlHits.totalHits()));
         assertThat(hits.getHits().length, equalTo(controlHits.getHits().length));
         for (int i = 0; i < hits.getHits().length; i++) {
+            logger.info(i + ": top_hits: [" + hits.getAt(i).id() + "][" + hits.getAt(i).sortValues()[0] + "] control: [" + controlHits.getAt(i).id() + "][" + controlHits.getAt(i).sortValues()[0] + "]");
             assertThat(hits.getAt(i).id(), equalTo(controlHits.getAt(i).id()));
             assertThat(hits.getAt(i).sortValues()[0], equalTo(controlHits.getAt(i).sortValues()[0]));
         }

@@ -73,7 +73,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
     public InternalTopHits(String name, InternalSearchHits searchHits) {
         this.name = name;
         this.searchHits = searchHits;
-        this.topDocs = new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0);
+        this.topDocs = Lucene.EMPTY_TOP_DOCS;
     }
 
 

@@ -41,7 +41,7 @@ import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHit
 public class InternalSearchResponse implements Streamable, ToXContent {
 
     public static InternalSearchResponse empty() {
-        return new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, null, false);
+        return new InternalSearchResponse(InternalSearchHits.empty(), null, null, null, false);
     }
 
     private InternalSearchHits hits;

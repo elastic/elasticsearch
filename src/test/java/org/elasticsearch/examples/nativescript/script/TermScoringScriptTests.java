@@ -38,6 +38,12 @@ public class TermScoringScriptTests extends AbstractSearchScriptTests {
     final static int numDocs = 100;
 
     @Test
+    public void testNoOfShardsIs1() {
+        assertAcked(prepareCreate("test").get());
+        assertThat(client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_shards"), equalTo("1"));
+    }
+
+    @Test
     public void testTFIDF() throws Exception {
 
         initData();
@@ -148,7 +154,7 @@ public class TermScoringScriptTests extends AbstractSearchScriptTests {
                 .field("type", "multi_field").startObject("fields").startObject(field).field("type", "String").endObject()
                 .startObject("word_count").field("analyzer", "standard").field("type", "token_count").startObject("fielddata")
                 .field("format", "doc_values").endObject().endObject().endObject().endObject().endObject().endObject().endObject().string();
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("type", mapping));
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<IndexRequestBuilder>();
         // Index numDocs records (0..99)

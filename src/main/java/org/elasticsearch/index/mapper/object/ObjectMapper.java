@@ -211,6 +211,9 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     parseProperties(builder, (Map<String, Object>) fieldNode, parserContext);
                 }
                 return true;
+            } else if (fieldName.equals("include_in_all")) {
+                builder.includeInAll(nodeBooleanValue(fieldNode));
+                return true;
             }
             return false;
         }
@@ -218,8 +221,6 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         protected static void parseObjectProperties(String name, String fieldName, Object fieldNode, ObjectMapper.Builder builder) {
            if (fieldName.equals("path")) {
                 builder.pathType(parsePathType(name, fieldNode.toString()));
-            } else if (fieldName.equals("include_in_all")) {
-                builder.includeInAll(nodeBooleanValue(fieldNode));
             }
         }
 

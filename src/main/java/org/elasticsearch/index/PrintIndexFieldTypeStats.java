@@ -61,7 +61,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 //     "all" or something and remove from prints
 //   - sampling
 
-// From ES dir: java -cp lib/lucene-suggest-4.8.1.jar:lib/lucene-core-4.8.1.jar:lib/elasticsearch-2.0.0-SNAPSHOT.jar org.elasticsearch.index.PrintIndexFieldTypeStats /l/indices/test
+// From ES dir: java -cp lib/lucene-suggest-4.8.1.jar:lib/lucene-core-4.8.1.jar:lib/elasticsearch-2.0.0-SNAPSHOT.jar org.elasticsearch.index.PrintIndexFieldTypeStats data/elasticsearch/nodes/0/indices/logs/0/index
 
 /** Produces summary stored fields and postings statistics of all type X fields in the index. */
 public class PrintIndexFieldTypeStats {

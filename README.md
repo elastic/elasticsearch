@@ -23,8 +23,10 @@ Please read documentation relative to the version you are using:
 
 ## Generic Configuration
 
-The plugin will automatically use the instance level security credentials (as of 1.7.0), but they can be provided explicitly using `cloud.aws.access_key` and `cloud.aws.secret_key`:
-
+The plugin will default to using [IAM Role](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html) credentials 
+for authentication. These can be overridden by, in increasing order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`, 
+environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+ 
 ```
 cloud:
     aws:

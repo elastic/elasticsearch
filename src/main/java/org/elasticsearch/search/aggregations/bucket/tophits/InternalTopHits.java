@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.tophits;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -110,7 +113,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
             InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
             for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
                 ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
-                hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(tracker[scoreDoc.shardIndex]++);
+                int position;
+                do {
+                    position = tracker[scoreDoc.shardIndex]++;
+                } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
+                hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
             }
             return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
         } catch (IOException e) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.cache.filter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.text.DecimalFormat;
 
 /**
  */
@@ -126,11 +126,10 @@ public class FilterCacheStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
 
-        DecimalFormat threeDecimal = new DecimalFormat("#.###");
         builder.startObject(Fields.RATES);
-        builder.field(Fields.ONE_MIN, Double.valueOf(threeDecimal.format(getEvictionsOneMinuteRate())));
-        builder.field(Fields.FIVE_MIN, Double.valueOf(threeDecimal.format(getEvictionsFiveMinuteRate())));
-        builder.field(Fields.FIFTEEN_MIN, Double.valueOf(threeDecimal.format(getEvictionsFifteenMinuteRate())));
+        builder.field(Fields.ONE_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsOneMinuteRate(), "")));
+        builder.field(Fields.FIVE_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsFiveMinuteRate(), "")));
+        builder.field(Fields.FIFTEEN_MIN, Double.valueOf(Strings.format1Decimals(getEvictionsFifteenMinuteRate(), "")));
         builder.endObject();
 
         builder.endObject();
@@ -142,9 +141,9 @@ public class FilterCacheStats implements Streamable, ToXContent {
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
-        static final XContentBuilderString RATES = new XContentBuilderString("rates");
-        static final XContentBuilderString ONE_MIN = new XContentBuilderString("1_min");
-        static final XContentBuilderString FIVE_MIN = new XContentBuilderString("5_min");
-        static final XContentBuilderString FIFTEEN_MIN = new XContentBuilderString("15_min");
+        static final XContentBuilderString RATES = new XContentBuilderString("evictions_per_sec");
+        static final XContentBuilderString ONE_MIN = new XContentBuilderString("1m");
+        static final XContentBuilderString FIVE_MIN = new XContentBuilderString("5m");
+        static final XContentBuilderString FIFTEEN_MIN = new XContentBuilderString("15m");
     }
 }

@@ -368,7 +368,7 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name).field(type);
-        sourceBuilder.toXContent(builder, params);
+        sourceBuilder().toXContent(builder, params);
         return builder.endObject();
     }
 

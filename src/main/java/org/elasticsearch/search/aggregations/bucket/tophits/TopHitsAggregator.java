@@ -96,7 +96,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits(name, topHitsContext.size(), topHitsContext.sort(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
+        return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
     }
 
     @Override

@@ -26,10 +26,8 @@ import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.OrderPath;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -43,26 +41,16 @@ import java.util.Collections;
  */
 public class LongTermsAggregator extends TermsAggregator {
 
-    private final InternalOrder order;
     protected final ValuesSource.Numeric valuesSource;
     protected final @Nullable ValueFormatter formatter;
     protected final LongHash bucketOrds;
     private LongValues values;
-    private Aggregator aggUsedForSorting;
-    private SubAggCollectionMode subAggCollectMode;
 
     public LongTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
                                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds);
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, subAggCollectMode);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
-        this.order = InternalOrder.validate(order, this);
-        this.subAggCollectMode = subAggCollectMode;
-        //Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation){
-            OrderPath path = ((Aggregation) order).path();
-            aggUsedForSorting = path.resolveTopmostAggregator(this, false);
-        }
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
     
@@ -151,12 +139,6 @@ public class LongTermsAggregator extends TermsAggregator {
     }
     
     
-
-    @Override
-    protected boolean shouldDefer(Aggregator aggregator) {
-        return (subAggCollectMode == SubAggCollectionMode.PRUNE_FIRST) && (aggregator != aggUsedForSorting);
-    }
-
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());

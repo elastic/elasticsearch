@@ -211,22 +211,22 @@ public class SubAggregationSearchCollectModeBenchmark {
         System.out.println("--> Number of docs in index: " + COUNT);
 
         List<StatsResult> stats = Lists.newArrayList();
-        stats.add(runTest("0000", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("0001", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("0010", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("0011", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("0100", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("0101", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("0110", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("0111", new SubAggCollectionMode[] {SubAggCollectionMode.SINGLE_PASS,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("1000", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("1001", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("1010", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("1011", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("1100", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("1101", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS, SubAggCollectionMode.PRUNE_FIRST}));
-        stats.add(runTest("1110", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.SINGLE_PASS}));
-        stats.add(runTest("1111", new SubAggCollectionMode[] {SubAggCollectionMode.PRUNE_FIRST,SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST, SubAggCollectionMode.PRUNE_FIRST}));
+        stats.add(runTest("0000", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("0001", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("0010", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("0011", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("0100", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("0101", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("0110", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("0111", new SubAggCollectionMode[] {SubAggCollectionMode.DEPTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("1000", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("1001", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("1010", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("1011", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("1100", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("1101", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
+        stats.add(runTest("1110", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.DEPTH_FIRST}));
+        stats.add(runTest("1111", new SubAggCollectionMode[] {SubAggCollectionMode.BREADTH_FIRST,SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST, SubAggCollectionMode.BREADTH_FIRST}));
 
         System.out.println("------------------ SUMMARY ----------------------------------------------");
         System.out.format(Locale.ENGLISH, "%35s%10s%10s%15s%15s\n", "name", "took", "millis", "fieldata size", "heap used");

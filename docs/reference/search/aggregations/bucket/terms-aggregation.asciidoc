@@ -326,7 +326,7 @@ coming[1.2.0] Deferring calculation of child aggregations
 
 For fields with many unique terms and a small number of required results it can be more efficient to delay the calculation
 of child aggregations until the top parent-level aggs have been pruned. Ordinarily, all branches of the aggregation tree
-are expanded in one pass and only then any pruning occurs. In some rare scenarios this can be very wasteful and can hit memory constraints.
+are expanded in one depth-first pass and only then any pruning occurs. In some rare scenarios this can be very wasteful and can hit memory constraints.
 An example problem scenario is querying a movie database for the 10 most popular actors and their 5 most common co-stars: 
 
 [source,js]
@@ -353,8 +353,8 @@ An example problem scenario is querying a movie database for the 10 most popular
 
 Even though the number of movies may be comparatively small and we want only 50 result buckets there is a combinatorial explosion of buckets 
 during calculation - a single movie will produce n² buckets where n is the number of actors. The sane option would be to first determine 
-the 10 most popular actors and only then examine the top co-stars for these 10 actors. This alternative strategy is what we call the `prune_first` collection
-mode as opposed to the default `single_pass` mode:
+the 10 most popular actors and only then examine the top co-stars for these 10 actors. This alternative strategy is what we call the `breadth_first` collection
+mode as opposed to the default `depth_first` mode:
  
 [source,js]
 --------------------------------------------------
@@ -364,7 +364,7 @@ mode as opposed to the default `single_pass` mode:
              "terms" : {
                  "field" : "actors",
                  "size" : 10,
-                 "collect_mode" : "prune_first"
+                 "collect_mode" : "breadth_first"
              },
             "aggs" : {
                 "costars" : {
@@ -380,11 +380,11 @@ mode as opposed to the default `single_pass` mode:
 --------------------------------------------------
 
 
-When using `prune_first` mode the set of documents that fall into the uppermost buckets are
+When using `breadth_first` mode the set of documents that fall into the uppermost buckets are
 cached for subsequent replay so there is a memory overhead in doing this which is linear with the number of matching documents. 
-In most requests the volume of buckets generated is smaller than the number of documents that fall into them so the default `single_pass`
-collection mode is normally the best bet but occasionally the `prune_first` strategy can be significantly more efficient. Currently 
-elasticsearch will always use the `single_pass` collect_mode unless explicitly instructed to use `prune_first` as in the above example
+In most requests the volume of buckets generated is smaller than the number of documents that fall into them so the default `depth_first`
+collection mode is normally the best bet but occasionally the `breadth_first` strategy can be significantly more efficient. Currently 
+elasticsearch will always use the `depth_first` collect_mode unless explicitly instructed to use `breadth_first` as in the above example
 
 ==== Execution hint
 

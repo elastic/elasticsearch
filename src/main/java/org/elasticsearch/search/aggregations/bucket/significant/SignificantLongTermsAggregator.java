@@ -42,7 +42,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
               long estimatedBucketCount, BucketCountThresholds bucketCountThresholds,
               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
 
-        super(name, factories, valuesSource, format, estimatedBucketCount, null, bucketCountThresholds, aggregationContext, parent, SubAggCollectionMode.SINGLE_PASS);
+        super(name, factories, valuesSource, format, estimatedBucketCount, null, bucketCountThresholds, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST);
         this.termsAggFactory = termsAggFactory;
     }
 

@@ -79,14 +79,14 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * Creates buckets and delegates to child aggregators in a single pass over
          * the matching documents
          */
-        SINGLE_PASS(new ParseField("single_pass")),
+        DEPTH_FIRST(new ParseField("depth_first")),
 
         /**
          * Creates buckets for all matching docs and then prunes to top-scoring buckets
          * before a second pass over the data when child aggregators are called
          * but only for docs from the top-scoring buckets
          */
-        PRUNE_FIRST(new ParseField("prune_first"));
+        BREADTH_FIRST(new ParseField("breadth_first"));
 
         private final ParseField parseField;
 

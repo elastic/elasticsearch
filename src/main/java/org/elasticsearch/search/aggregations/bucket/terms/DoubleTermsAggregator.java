@@ -25,10 +25,8 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.OrderPath;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
@@ -42,27 +40,16 @@ import java.util.Collections;
  */
 public class DoubleTermsAggregator extends TermsAggregator {
 
-    private final InternalOrder order;
     private final ValuesSource.Numeric valuesSource;
     private final ValueFormatter formatter;
     private final LongHash bucketOrds;
     private DoubleValues values;
-    private Aggregator aggUsedForSorting;
-    private SubAggCollectionMode collectionMode;
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format, long estimatedBucketCount,
                                InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
-        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds);
+        super(name, BucketAggregationMode.PER_BUCKET, factories, estimatedBucketCount, aggregationContext, parent, bucketCountThresholds, order, collectionMode);
         this.valuesSource = valuesSource;
         this.formatter = format != null ? format.formatter() : null;
-        this.order = InternalOrder.validate(order, this);
-        this.collectionMode = collectionMode;
-        //Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation){
-            OrderPath path = ((Aggregation) order).path();
-            aggUsedForSorting = path.resolveTopmostAggregator(this, false);
-        }
-        
         bucketOrds = new LongHash(estimatedBucketCount, aggregationContext.bigArrays());
     }
 
@@ -146,11 +133,6 @@ public class DoubleTermsAggregator extends TermsAggregator {
         
         return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
     }
-    
-    @Override
-    protected boolean shouldDefer(Aggregator aggregator) {
-        return (collectionMode == SubAggCollectionMode.PRUNE_FIRST) && (aggregator != aggUsedForSorting);
-    }    
 
     @Override
     public DoubleTerms buildEmptyAggregation() {

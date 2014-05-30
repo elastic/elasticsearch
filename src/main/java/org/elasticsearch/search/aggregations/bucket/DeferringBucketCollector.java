@@ -25,8 +25,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.FilteringBucketCollector;
-import org.elasticsearch.search.aggregations.FilteringSingleBucketCollector;
 import org.elasticsearch.search.aggregations.RecordingBucketCollector;
+import org.elasticsearch.search.aggregations.RecordingPerReaderBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -46,13 +46,12 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     private final BucketCollector deferred;
     private final RecordingBucketCollector recording;
     private final AggregationContext context;
-    private FilteringBucketCollector releasableCollector;
-    private BucketCollector filteredCollector;
+    private FilteringBucketCollector filteredCollector;
 
 
     public DeferringBucketCollector (BucketCollector deferred, AggregationContext context) {
         this.deferred = deferred;
-        this.recording = new RecordingBucketCollector();
+        this.recording = new RecordingPerReaderBucketCollector(context);
         this.context = context;
     }
 
@@ -102,13 +101,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
             }
         };
 
-        //Optimize choice of collector for the simple case of a single bucket
-        if(survivingBucketOrds.length==1){
-            filteredCollector = new FilteringSingleBucketCollector(survivingBucketOrds[0],subs);
-        }else{            
-            releasableCollector = new FilteringBucketCollector(survivingBucketOrds, subs, context.bigArrays());
-            filteredCollector = releasableCollector;
-        }
+        filteredCollector = new FilteringBucketCollector(survivingBucketOrds, subs, context.bigArrays());
         try {
             recording.replayCollection(filteredCollector);
         } catch (IOException e) {
@@ -120,7 +113,7 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
 
     @Override
     public void close() throws ElasticsearchException {
-        Releasables.close(releasableCollector);
+        Releasables.close(recording, filteredCollector);
     }
 
     @Override

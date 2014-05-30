@@ -43,7 +43,7 @@ public abstract class AbstractTermsParametersParser {
 
     private String executionHint = null;
     
-    private SubAggCollectionMode collectMode = SubAggCollectionMode.SINGLE_PASS;
+    private SubAggCollectionMode collectMode = SubAggCollectionMode.DEPTH_FIRST;
 
 
     IncludeExclude includeExclude;

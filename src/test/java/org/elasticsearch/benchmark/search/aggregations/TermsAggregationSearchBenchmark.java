@@ -100,12 +100,12 @@ public class TermsAggregationSearchBenchmark {
         AGGREGATION_DEFERRED {
             @Override
             SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint) {
-                return builder.addAggregation(AggregationBuilders.terms(name).executionHint(executionHint).field(field).collectMode(SubAggCollectionMode.PRUNE_FIRST));
+                return builder.addAggregation(AggregationBuilders.terms(name).executionHint(executionHint).field(field).collectMode(SubAggCollectionMode.BREADTH_FIRST));
             }
 
             @Override
             SearchRequestBuilder addTermsStatsAgg(SearchRequestBuilder builder, String name, String keyField, String valueField) {
-                return builder.addAggregation(AggregationBuilders.terms(name).field(keyField).collectMode(SubAggCollectionMode.PRUNE_FIRST).subAggregation(AggregationBuilders.stats("stats").field(valueField)));
+                return builder.addAggregation(AggregationBuilders.terms(name).field(keyField).collectMode(SubAggCollectionMode.BREADTH_FIRST).subAggregation(AggregationBuilders.stats("stats").field(valueField)));
             }
         };
         abstract SearchRequestBuilder addTermsAgg(SearchRequestBuilder builder, String name, String field, String executionHint);

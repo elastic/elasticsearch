@@ -67,7 +67,6 @@ public class PostingFormats {
         for (String luceneName : PostingsFormat.availablePostingsFormats()) {
             buildInPostingFormatsX.put(luceneName, new PreBuiltPostingsFormatProvider.Factory(PostingsFormat.forName(luceneName)));
         }
-        // nocommit can we disable bloom by default
         final PostingsFormat defaultFormat = new Elasticsearch090PostingsFormat();
         //final PostingsFormat defaultFormat = PostingsFormat.forName("Lucene41");
         buildInPostingFormatsX.put("direct", new PreBuiltPostingsFormatProvider.Factory("direct", PostingsFormat.forName("Direct")));

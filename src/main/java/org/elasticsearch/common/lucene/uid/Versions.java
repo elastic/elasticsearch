@@ -39,13 +39,13 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 public class Versions {
 
     public static final long MATCH_ANY = -3L; // Version was not specified by the user
-    // nocommit can we remove this now?  rolling upgrades only need to handle prev (not older than that) version...?
+    // TODO: can we remove this now?  rolling upgrades only need to handle prev (not older than that) version...?
     // the value for MATCH_ANY before ES 1.2.0 - will be removed
     public static final long MATCH_ANY_PRE_1_2_0 = 0L;
     public static final long NOT_FOUND = -1L;
     public static final long NOT_SET = -2L;
 
-    // nocommit is there somewhere else we can store these, not using ThreadLocal?
+    // TODO: is there somewhere else we can store these?
     private static final ConcurrentHashMap<IndexReader,CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = new ConcurrentHashMap<>();
 
     // Evict this reader from lookupStates once it's closed:

@@ -66,16 +66,6 @@ final class PerThreadIDAndVersionLookup {
 
         List<AtomicReaderContext> leaves = new ArrayList<>(r.leaves());
 
-        // nocommit but ES goes backwards today... is that really best?  backwards is not necessarily reverse time order (TMP merges out of
-        // order)
-        // Larger segments are more likely to have the id, so we sort largest to smallest by numDocs:
-        CollectionUtil.timSort(leaves, new Comparator<AtomicReaderContext>() {
-                @Override
-                public int compare(AtomicReaderContext c1, AtomicReaderContext c2) {
-                    return c2.reader().numDocs() - c1.reader().numDocs();
-                }
-            });
-
         readerContexts = leaves.toArray(new AtomicReaderContext[leaves.size()]);
         termsEnums = new TermsEnum[leaves.size()];
         docsEnums = new DocsEnum[leaves.size()];
@@ -87,8 +77,7 @@ final class PerThreadIDAndVersionLookup {
         boolean hasDeletions = false;
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
-        //for(int i=leaves.size()-1;i>=0;i--) {
-        for(int i=0;i<leaves.size();i++) {
+        for(int i=leaves.size()-1;i>=0;i--) {
             AtomicReaderContext readerContext = leaves.get(i);
             Fields fields = readerContext.reader().fields();
             if (fields != null) {
@@ -147,7 +136,7 @@ final class PerThreadIDAndVersionLookup {
                     dpe.nextPosition();
                     final BytesRef payload = dpe.getPayload();
                     if (payload != null && payload.length == 8) {
-                        // nocommit does this break the nested docs case?  we are not returning the last matching docID here?
+                        // TODO: does this break the nested docs case?  we are not returning the last matching docID here?
                         return new DocIdAndVersion(d, Numbers.bytesToLong(payload), readerContexts[seg]);
                     }
                 }

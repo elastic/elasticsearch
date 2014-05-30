@@ -79,6 +79,7 @@ public class ChildrenQuery extends Query {
         this.scoreType = scoreType;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
+        assert maxChildren == 0 || minChildren <= maxChildren;
         this.minChildren = minChildren > 1 ? minChildren : 0;
         this.maxChildren = maxChildren;
     }
@@ -160,10 +161,6 @@ public class ChildrenQuery extends Query {
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader
                 + " searcher.getIndexReader()=" + searcher.getIndexReader();
         final Query childQuery = rewrittenChildQuery;
-
-        if (this.maxChildren > 0 && this.maxChildren < this.minChildren) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
-        }
 
         IndexFieldData.WithOrdinals globalIfd = ifd.getGlobalParentChild(parentType, searcher.getIndexReader());
         if (globalIfd == null) {

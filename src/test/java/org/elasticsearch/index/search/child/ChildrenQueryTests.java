@@ -79,7 +79,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
         ParentChildIndexFieldData parentChildIndexFieldData = SearchContext.current().fieldData().getForField(parentFieldMapper);
         Filter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
         int minChildren = random().nextInt(10);
-        int maxChildren = random().nextInt(10);
+        int maxChildren = scaledRandomIntBetween(minChildren, 10);
         Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
                 maxChildren, 12, NonNestedDocsFilter.INSTANCE);
         QueryUtils.check(query);
@@ -225,7 +225,7 @@ public class ChildrenQueryTests extends ElasticsearchLuceneTestCase {
 
             // leave min/max set to 0 half the time
             int minChildren = random().nextInt(2) * scaledRandomIntBetween(0, 110);
-            int maxChildren = random().nextInt(2) * scaledRandomIntBetween(0, 110);
+            int maxChildren = random().nextInt(2) * scaledRandomIntBetween(minChildren, 110);
 
             Query query = new ChildrenQuery(parentChildIndexFieldData, "parent", "child", parentFilter, childQuery, scoreType, minChildren,
                     maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);

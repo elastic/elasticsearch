@@ -65,7 +65,7 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Defines the minimum number of children that are required to match for the parent to be considered a match.
+     * Defines the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildFilterBuilder maxChildren(int maxChildren) {
         this.maxChildren = maxChildren;

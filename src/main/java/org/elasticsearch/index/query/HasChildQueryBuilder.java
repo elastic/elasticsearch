@@ -74,7 +74,7 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
     }
 
     /**
-     * Defines the minimum number of children that are required to match for the parent to be considered a match.
+     * Defines the maximum number of children that are required to match for the parent to be considered a match.
      */
     public HasChildQueryBuilder maxChildren(int maxChildren) {
         this.maxChildren = maxChildren;

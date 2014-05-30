@@ -158,7 +158,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new PortugueseLightStemFilter(tokenStream);
         } else if ("minimal_portuguese".equalsIgnoreCase(language) || "minimalPortuguese".equalsIgnoreCase(language)) {
             return new PortugueseMinimalStemFilter(tokenStream);
-        } else if ("portuguese".equalsIgnoreCase(language)) {
+        } else if ("rslp_portuguese".equalsIgnoreCase(language)  || "rslpPortuguese".equalsIgnoreCase(language)) {
             return new PortugueseStemFilter(tokenStream);
         } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
             return new RussianLightStemFilter(tokenStream);

@@ -126,6 +126,7 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("porterstem",                PorterStemTokenFilterFactory.class);
         put("portugueselightstem",       StemmerTokenFilterFactory.class);
         put("portugueseminimalstem",     StemmerTokenFilterFactory.class);
+        put("portuguesestem",            StemmerTokenFilterFactory.class);
         put("reversestring",             ReverseTokenFilterFactory.class);
         put("russianlightstem",          StemmerTokenFilterFactory.class);
         put("shingle",                   ShingleTokenFilterFactory.class);
@@ -171,8 +172,6 @@ public class AnalysisFactoryTests extends ElasticsearchTestCase {
         put("limittokenposition",        Void.class);
         // ???
         put("numericpayload",            Void.class);
-        // RSLP stemmer for portuguese
-        put("portuguesestem",            Void.class);
         // light stemming for norwegian (has nb/nn options too)
         put("norwegianlightstem",        Void.class);
         // removes duplicates at the same position (this should be used by the existing factory)

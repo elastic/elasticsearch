@@ -182,8 +182,6 @@ public class ChildrenQuery extends Query {
                 case SUM:
                     collector = new SumCollector(globalIfd, sc);
                     break;
-                default:
-                    break;
                 }
             }
             if (collector == null) {

@@ -64,6 +64,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
+        createIndex("empty");
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
             builders.add(client().prepareIndex("idx", "type", Integer.toString(i)).setSource(jsonBuilder()
@@ -361,6 +362,19 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
         }
+    }
+
+    @Test
+    public void testEmptyIndex() throws Exception {
+        SearchResponse response = client().prepareSearch("empty").setTypes("type")
+                .addAggregation(topHits("hits"))
+                .get();
+        assertSearchResponse(response);
+
+        TopHits hits = response.getAggregations().get("hits");
+        assertThat(hits, notNullValue());
+        assertThat(hits.getName(), equalTo("hits"));
+        assertThat(hits.getHits().totalHits(), equalTo(0l));
     }
 
 }

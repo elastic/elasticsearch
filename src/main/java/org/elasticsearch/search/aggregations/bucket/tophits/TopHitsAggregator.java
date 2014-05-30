@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.search.aggregations.*;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.internal.InternalSearchHits;
 
 import java.io.IOException;
 
@@ -94,7 +96,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits();
+        return new InternalTopHits(name, topHitsContext.size(), topHitsContext.sort(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
     }
 
     @Override

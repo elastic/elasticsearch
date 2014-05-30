@@ -54,6 +54,36 @@ inside the `has_child` query:
 --------------------------------------------------
 
 [float]
+==== Min/Max Children
+
+coming[1.3.0]
+
+The `has_child` query allows you to specify that a minimum and/or maximum
+number of children are required to match for the parent doc to be considered
+a match:
+
+[source,js]
+--------------------------------------------------
+{
+    "has_child" : {
+        "type" : "blog_tag",
+        "score_mode" : "sum",
+        "min_children": 2, <1>
+        "max_children": 10, <1>
+        "query" : {
+            "term" : {
+                "tag" : "something"
+            }
+        }
+    }
+}
+--------------------------------------------------
+<1> Both `min_children` and `max_children` are optional.
+
+The  `min_children` and `max_children` parameters can be combined with
+the `score_mode` parameter.
+
+[float]
 ==== Memory Considerations
 
 With the current implementation, all `_parent` field values and all `_id`

@@ -56,19 +56,21 @@ import java.util.Set;
  */
 public class ChildrenQuery extends Query {
 
-    private final ParentChildIndexFieldData ifd;
-    private final String parentType;
-    private final String childType;
-    private final Filter parentFilter;
-    private final ScoreType scoreType;
-    private Query originalChildQuery;
-    private final int shortCircuitParentDocSet;
-    private final Filter nonNestedDocsFilter;
+    protected final ParentChildIndexFieldData ifd;
+    protected final String parentType;
+    protected final String childType;
+    protected final Filter parentFilter;
+    protected final ScoreType scoreType;
+    protected Query originalChildQuery;
+    protected final int minChildren;
+    protected final int maxChildren;
+    protected final int shortCircuitParentDocSet;
+    protected final Filter nonNestedDocsFilter;
 
-    private Query rewrittenChildQuery;
-    private IndexReader rewriteIndexReader;
+    protected Query rewrittenChildQuery;
+    protected IndexReader rewriteIndexReader;
 
-    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
+    public ChildrenQuery(ParentChildIndexFieldData ifd, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Filter nonNestedDocsFilter) {
         this.ifd = ifd;
         this.parentType = parentType;
         this.childType = childType;
@@ -77,6 +79,9 @@ public class ChildrenQuery extends Query {
         this.scoreType = scoreType;
         this.shortCircuitParentDocSet = shortCircuitParentDocSet;
         this.nonNestedDocsFilter = nonNestedDocsFilter;
+        assert maxChildren == 0 || minChildren <= maxChildren;
+        this.minChildren = minChildren > 1 ? minChildren : 0;
+        this.maxChildren = maxChildren;
     }
 
     @Override
@@ -98,6 +103,12 @@ public class ChildrenQuery extends Query {
         if (getBoost() != that.getBoost()) {
             return false;
         }
+        if (minChildren != that.minChildren) {
+            return false;
+        }
+        if (maxChildren != that.maxChildren) {
+            return false;
+        }
         return true;
     }
 
@@ -106,13 +117,16 @@ public class ChildrenQuery extends Query {
         int result = originalChildQuery.hashCode();
         result = 31 * result + childType.hashCode();
         result = 31 * result + Float.floatToIntBits(getBoost());
+        result = 31 * result + minChildren;
+        result = 31 * result + maxChildren;
         return result;
     }
 
     @Override
     public String toString(String field) {
-        return "ChildrenQuery[" + childType + "/" + parentType + "](" + originalChildQuery
-                .toString(field) + ')' + ToStringUtils.boost(getBoost());
+        int max = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
+        return "ChildrenQuery[min(" + Integer.toString(minChildren) + ") max(" + Integer.toString(max) + ")of " + childType + "/"
+                + parentType + "](" + originalChildQuery.toString(field) + ')' + ToStringUtils.boost(getBoost());
     }
 
     @Override
@@ -144,12 +158,13 @@ public class ChildrenQuery extends Query {
     public Weight createWeight(IndexSearcher searcher) throws IOException {
         SearchContext sc = SearchContext.current();
         assert rewrittenChildQuery != null;
-        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
+        assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader
+                + " searcher.getIndexReader()=" + searcher.getIndexReader();
         final Query childQuery = rewrittenChildQuery;
 
         IndexFieldData.WithOrdinals globalIfd = ifd.getGlobalParentChild(parentType, searcher.getIndexReader());
         if (globalIfd == null) {
-            // No docs of the specified type don't exist on this shard
+            // No docs of the specified type exist on this shard
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
@@ -157,21 +172,35 @@ public class ChildrenQuery extends Query {
 
         boolean abort = true;
         long numFoundParents;
-        ParentOrdAndScoreCollector collector = null;
+        ParentCollector collector = null;
         try {
-            switch (scoreType) {
+            if (minChildren == 0 && maxChildren == 0 && scoreType != ScoreType.NONE) {
+                switch (scoreType) {
                 case MAX:
                     collector = new MaxCollector(globalIfd, sc);
                     break;
                 case SUM:
                     collector = new SumCollector(globalIfd, sc);
                     break;
+                }
+            }
+            if (collector == null) {
+                switch (scoreType) {
+                case MAX:
+                    collector = new MaxCountCollector(globalIfd, sc);
+                    break;
+                case SUM:
                 case AVG:
-                    collector = new AvgCollector(globalIfd, sc);
+                    collector = new SumCountAndAvgCollector(globalIfd, sc);
+                    break;
+                case NONE:
+                    collector = new CountCollector(globalIfd, sc);
                     break;
                 default:
                     throw new RuntimeException("Are we missing a score type here? -- " + scoreType);
+                }
             }
+
             indexSearcher.search(childQuery, collector);
             numFoundParents = collector.foundParents();
             if (numFoundParents == 0) {
@@ -186,28 +215,34 @@ public class ChildrenQuery extends Query {
         sc.addReleasable(collector, Lifetime.COLLECTION);
         final Filter parentFilter;
         if (numFoundParents <= shortCircuitParentDocSet) {
-            parentFilter = ParentIdsFilter.createShortCircuitFilter(
-                    nonNestedDocsFilter, sc, parentType, collector.values, collector.parentIdxs, numFoundParents
-            );
+            parentFilter = ParentIdsFilter.createShortCircuitFilter(nonNestedDocsFilter, sc, parentType, collector.values,
+                    collector.parentIdxs, numFoundParents);
         } else {
             parentFilter = new ApplyAcceptedDocsFilter(this.parentFilter);
         }
-        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector);
+        return new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentFilter, numFoundParents, collector, minChildren,
+                maxChildren);
     }
 
-    private final class ParentWeight extends Weight {
+    protected class ParentWeight extends Weight {
 
-        private final Weight childWeight;
-        private final Filter parentFilter;
-        private final ParentOrdAndScoreCollector collector;
+        protected final Weight childWeight;
+        protected final Filter parentFilter;
+        protected final ParentCollector collector;
+        protected final int minChildren;
+        protected final int maxChildren;
 
-        private long remaining;
+        protected long remaining;
+        protected float queryNorm;
+        protected float queryWeight;
 
-        private ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentOrdAndScoreCollector collector) {
+        protected ParentWeight(Weight childWeight, Filter parentFilter, long remaining, ParentCollector collector, int minChildren, int maxChildren) {
             this.childWeight = childWeight;
             this.parentFilter = parentFilter;
             this.remaining = remaining;
             this.collector = collector;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren;
         }
 
         @Override
@@ -221,14 +256,20 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
-        public float getValueForNormalization() throws IOException {
-            float sum = childWeight.getValueForNormalization();
-            sum *= getBoost() * getBoost();
-            return sum;
+        public void normalize(float norm, float topLevelBoost) {
+            this.queryNorm = norm * topLevelBoost;
+            queryWeight *= this.queryNorm;
         }
 
         @Override
-        public void normalize(float norm, float topLevelBoost) {
+        public float getValueForNormalization() throws IOException {
+            queryWeight = getBoost();
+            if (scoreType == ScoreType.NONE) {
+                return queryWeight * queryWeight;
+            }
+            float sum = childWeight.getValueForNormalization();
+            sum *= queryWeight * queryWeight;
+            return sum;
         }
 
         @Override
@@ -241,59 +282,80 @@ public class ChildrenQuery extends Query {
             // We can't be sure of the fact that liveDocs have been applied, so we apply it here. The "remaining"
             // count down (short circuit) logic will then work as expected.
             DocIdSetIterator parents = BitsFilteredDocIdSet.wrap(parentsSet, context.reader().getLiveDocs()).iterator();
-            BytesValues.WithOrdinals bytesValues = collector.globalIfd.load(context).getBytesValues(false);
-            if (bytesValues == null) {
-                return null;
-            }
-            switch (scoreType) {
-                case AVG:
-                    return new AvgParentScorer(this, parents, collector, bytesValues.ordinals());
-                default:
-                    return new ParentScorer(this, parents, collector, bytesValues.ordinals());
-            }
-        }
 
+            if (parents != null) {
+                BytesValues.WithOrdinals bytesValues = collector.globalIfd.load(context).getBytesValues(false);
+                if (bytesValues == null) {
+                    return null;
+                }
+
+                Ordinals.Docs globalOrdinals = bytesValues.ordinals();
+
+                if (minChildren > 0 || maxChildren != 0 || scoreType == ScoreType.NONE) {
+                    switch (scoreType) {
+                    case NONE:
+                        DocIdSetIterator parentIdIterator = new CountParentOrdIterator(this, parents, collector, globalOrdinals,
+                                minChildren, maxChildren);
+                        return ConstantScorer.create(parentIdIterator, this, queryWeight);
+                    case AVG:
+                        return new AvgParentCountScorer(this, parents, collector, globalOrdinals, minChildren, maxChildren);
+                    default:
+                        return new ParentCountScorer(this, parents, collector, globalOrdinals, minChildren, maxChildren);
+                    }
+                }
+                switch (scoreType) {
+                case AVG:
+                    return new AvgParentScorer(this, parents, collector, globalOrdinals);
+                default:
+                    return new ParentScorer(this, parents, collector, globalOrdinals);
+                }
+            }
+            return null;
+        }
     }
 
-    private abstract static class ParentOrdAndScoreCollector extends NoopCollector implements Releasable {
+    protected abstract static class ParentCollector extends NoopCollector implements Releasable {
 
-        private final IndexFieldData.WithOrdinals globalIfd;
+        protected final IndexFieldData.WithOrdinals globalIfd;
         protected final LongHash parentIdxs;
         protected final BigArrays bigArrays;
-        protected FloatArray scores;
         protected final SearchContext searchContext;
 
         protected Ordinals.Docs globalOrdinals;
         protected BytesValues.WithOrdinals values;
         protected Scorer scorer;
 
-        private ParentOrdAndScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+        protected ParentCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             this.globalIfd = globalIfd;
+            this.searchContext = searchContext;
             this.bigArrays = searchContext.bigArrays();
             this.parentIdxs = new LongHash(512, bigArrays);
-            this.scores = bigArrays.newFloatArray(512, false);
-            this.searchContext = searchContext;
         }
 
-
         @Override
-        public void collect(int doc) throws IOException {
+        public final void collect(int doc) throws IOException {
             if (globalOrdinals != null) {
                 final long globalOrdinal = globalOrdinals.getOrd(doc);
                 if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
                     long parentIdx = parentIdxs.add(globalOrdinal);
                     if (parentIdx >= 0) {
-                        scores = bigArrays.grow(scores, parentIdx + 1);
-                        scores.set(parentIdx, scorer.score());
+                        newParent(parentIdx);
                     } else {
                         parentIdx = -1 - parentIdx;
-                        doScore(parentIdx);
+                        existingParent(parentIdx);
                     }
                 }
             }
         }
 
-        protected void doScore(long index) throws IOException {
+        protected void newParent(long parentIdx) throws IOException {
+        }
+
+        protected void existingParent(long parentIdx) throws IOException {
+        }
+
+        public long foundParents() {
+            return parentIdxs.size();
         }
 
         @Override
@@ -302,11 +364,6 @@ public class ChildrenQuery extends Query {
             if (values != null) {
                 globalOrdinals = values.ordinals();
             }
-
-        }
-
-        public long foundParents() {
-            return parentIdxs.size();
         }
 
         @Override
@@ -316,69 +373,131 @@ public class ChildrenQuery extends Query {
 
         @Override
         public void close() throws ElasticsearchException {
+            Releasables.close(parentIdxs);
+        }
+    }
+
+    protected abstract static class ParentScoreCollector extends ParentCollector implements Releasable {
+
+        protected FloatArray scores;
+
+        protected ParentScoreCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
+            this.scores = this.bigArrays.newFloatArray(512, false);
+        }
+
+        protected void newParent(long parentIdx) throws IOException {
+            scores = bigArrays.grow(scores, parentIdx + 1);
+            scores.set(parentIdx, scorer.score());
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
             Releasables.close(parentIdxs, scores);
         }
     }
 
-    private final static class SumCollector extends ParentOrdAndScoreCollector {
+    protected abstract static class ParentScoreCountCollector extends ParentScoreCollector implements Releasable {
+
+        protected IntArray occurrences;
+
+        protected ParentScoreCountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
+            this.occurrences = bigArrays.newIntArray(512, false);
+        }
+
+        protected void newParent(long parentIdx) throws IOException {
+            scores = bigArrays.grow(scores, parentIdx + 1);
+            scores.set(parentIdx, scorer.score());
+            occurrences = bigArrays.grow(occurrences, parentIdx + 1);
+            occurrences.set(parentIdx, 1);
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIdxs, scores, occurrences);
+        }
+    }
+
+    private final static class CountCollector extends ParentCollector implements Releasable {
+
+        protected IntArray occurrences;
+
+        protected CountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
+            this.occurrences = bigArrays.newIntArray(512, false);
+        }
+
+        @Override
+        protected void newParent(long parentIdx) throws IOException {
+            occurrences = bigArrays.grow(occurrences, parentIdx + 1);
+            occurrences.set(parentIdx, 1);
+        }
+
+        @Override
+        protected void existingParent(long parentIdx) throws IOException {
+            occurrences.increment(parentIdx, 1);
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            Releasables.close(parentIdxs, occurrences);
+        }
+    }
+
+    private final static class SumCollector extends ParentScoreCollector {
 
         private SumCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             super(globalIfd, searchContext);
         }
 
         @Override
-        protected void doScore(long index) throws IOException {
-            scores.increment(index, scorer.score());
+        protected void existingParent(long parentIdx) throws IOException {
+            scores.increment(parentIdx, scorer.score());
         }
     }
 
-    private final static class MaxCollector extends ParentOrdAndScoreCollector {
+    private final static class MaxCollector extends ParentScoreCollector {
 
         private MaxCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             super(globalIfd, searchContext);
         }
 
         @Override
-        protected void doScore(long index) throws IOException {
+        protected void existingParent(long parentIdx) throws IOException {
             float currentScore = scorer.score();
-            if (currentScore > scores.get(index)) {
-                scores.set(index, currentScore);
+            if (currentScore > scores.get(parentIdx)) {
+                scores.set(parentIdx, currentScore);
             }
         }
     }
 
-    private final static class AvgCollector extends ParentOrdAndScoreCollector {
+    private final static class MaxCountCollector extends ParentScoreCountCollector {
 
-        private IntArray occurrences;
-
-        AvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+        private MaxCountCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
             super(globalIfd, searchContext);
-            this.occurrences = bigArrays.newIntArray(512, false);
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            if (globalOrdinals != null) {
-                final long globalOrdinal = globalOrdinals.getOrd(doc);
-                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
-                    long parentIdx = parentIdxs.add(globalOrdinal);
-                    if (parentIdx >= 0) {
-                        scores = bigArrays.grow(scores, parentIdx + 1);
-                        occurrences = bigArrays.grow(occurrences, parentIdx + 1);
-                        scores.set(parentIdx, scorer.score());
-                        occurrences.set(parentIdx, 1);
-                    } else {
-                        parentIdx = -1 - parentIdx;
-                        scores.increment(parentIdx, scorer.score());
-                        occurrences.increment(parentIdx, 1);
-                    }
-                }
+        protected void existingParent(long parentIdx) throws IOException {
+            float currentScore = scorer.score();
+            if (currentScore > scores.get(parentIdx)) {
+                scores.set(parentIdx, currentScore);
             }
+            occurrences.increment(parentIdx, 1);
+        }
+    }
+
+    private final static class SumCountAndAvgCollector extends ParentScoreCountCollector {
+
+        SumCountAndAvgCollector(IndexFieldData.WithOrdinals globalIfd, SearchContext searchContext) {
+            super(globalIfd, searchContext);
         }
 
         @Override
-        public void close() throws ElasticsearchException {
-            Releasables.close(parentIdxs, scores, occurrences);
+        protected void existingParent(long parentIdx) throws IOException {
+            scores.increment(parentIdx, scorer.score());
+            occurrences.increment(parentIdx, 1);
         }
     }
 
@@ -394,18 +513,23 @@ public class ChildrenQuery extends Query {
         int currentDocId = -1;
         float currentScore;
 
-        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentOrdAndScoreCollector collector, Ordinals.Docs globalOrdinals) {
+        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals) {
             super(parentWeight);
             this.parentWeight = parentWeight;
             this.globalOrdinals = globalOrdinals;
             this.parentsIterator = parentsIterator;
             this.parentIds = collector.parentIdxs;
-            this.scores = collector.scores;
+            this.scores = ((ParentScoreCollector) collector).scores;
         }
 
         @Override
         public float score() throws IOException {
             return currentScore;
+        }
+
+        protected boolean acceptAndScore(long parentIdx) {
+            currentScore = scores.get(parentIdx);
+            return true;
         }
 
         @Override
@@ -439,9 +563,10 @@ public class ChildrenQuery extends Query {
 
                 final long parentIdx = parentIds.find(globalOrdinal);
                 if (parentIdx != -1) {
-                    currentScore = scores.get(parentIdx);
                     parentWeight.remaining--;
-                    return currentDocId;
+                    if (acceptAndScore(parentIdx)) {
+                        return currentDocId;
+                    }
                 }
             }
         }
@@ -464,12 +589,12 @@ public class ChildrenQuery extends Query {
 
             final long parentIdx = parentIds.find(globalOrdinal);
             if (parentIdx != -1) {
-                currentScore = scores.get(parentIdx);
                 parentWeight.remaining--;
-                return currentDocId;
-            } else {
-                return nextDoc();
+                if (acceptAndScore(parentIdx)) {
+                    return currentDocId;
+                }
             }
+            return nextDoc();
         }
 
         @Override
@@ -478,67 +603,103 @@ public class ChildrenQuery extends Query {
         }
     }
 
-    private static final class AvgParentScorer extends ParentScorer {
+    private static class ParentCountScorer extends ParentScorer {
 
-        private final IntArray occurrences;
+        protected final IntArray occurrences;
+        protected final int minChildren;
+        protected final int maxChildren;
 
-        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentOrdAndScoreCollector collector, Ordinals.Docs globalOrdinals) {
-            super(weight, parentsIterator, collector, globalOrdinals);
-            this.occurrences = ((AvgCollector) collector).occurrences;
+        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+            super(parentWeight, parentsIterator, (ParentScoreCollector) collector, globalOrdinals);
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
+            this.occurrences = ((ParentScoreCountCollector) collector).occurrences;
+        }
+
+        protected boolean acceptAndScore(long parentIdx) {
+            int count = occurrences.get(parentIdx);
+            if (count < minChildren || count > maxChildren) {
+                return false;
+            }
+            return super.acceptAndScore(parentIdx);
+        }
+    }
+
+    private static final class AvgParentScorer extends ParentCountScorer {
+
+        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals) {
+            super(weight, parentsIterator, collector, globalOrdinals, 0, 0);
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        protected boolean acceptAndScore(long parentIdx) {
+            currentScore = scores.get(parentIdx);
+            currentScore /= occurrences.get(parentIdx);
+            return true;
+        }
+
+    }
+
+    private static final class AvgParentCountScorer extends ParentCountScorer {
+
+        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+            super(weight, parentsIterator, collector, globalOrdinals, minChildren, maxChildren);
+        }
+
+        @Override
+        protected boolean acceptAndScore(long parentIdx) {
+            int count = occurrences.get(parentIdx);
+            if (count < minChildren || count > maxChildren) {
+                return false;
+            }
+            currentScore = scores.get(parentIdx);
+            currentScore /= occurrences.get(parentIdx);
+            return true;
+        }
+    }
+
+    private final static class CountParentOrdIterator extends FilteredDocIdSetIterator {
+
+        private final LongHash parentIds;
+        protected final IntArray occurrences;
+        private final int minChildren;
+        private final int maxChildren;
+        private final Ordinals.Docs ordinals;
+        private final ParentWeight parentWeight;
+
+        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator, ParentCollector collector, Ordinals.Docs ordinals, int minChildren, int maxChildren) {
+            super(innerIterator);
+            this.parentIds = ((CountCollector) collector).parentIdxs;
+            this.occurrences = ((CountCollector) collector).occurrences;
+            this.ordinals = ordinals;
+            this.parentWeight = parentWeight;
+            this.minChildren = minChildren;
+            this.maxChildren = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
+        }
+
+        @Override
+        protected boolean match(int doc) {
             if (parentWeight.remaining == 0) {
-                return currentDocId = NO_MORE_DOCS;
+                try {
+                    advance(DocIdSetIterator.NO_MORE_DOCS);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                return false;
             }
 
-            while (true) {
-                currentDocId = parentsIterator.nextDoc();
-                if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                    return currentDocId;
-                }
-
-                final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-                if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
-                    continue;
-                }
-
-                final long parentIdx = parentIds.find(globalOrdinal);
+            final long parentOrd = ordinals.getOrd(doc);
+            if (parentOrd != Ordinals.MISSING_ORDINAL) {
+                final long parentIdx = parentIds.find(parentOrd);
                 if (parentIdx != -1) {
-                    currentScore = scores.get(parentIdx);
-                    currentScore /= occurrences.get(parentIdx);
                     parentWeight.remaining--;
-                    return currentDocId;
+                    int count = occurrences.get(parentIdx);
+                    if (count >= minChildren && count <= maxChildren) {
+                        return true;
+                    }
                 }
             }
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            if (parentWeight.remaining == 0) {
-                return currentDocId = NO_MORE_DOCS;
-            }
-
-            currentDocId = parentsIterator.advance(target);
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentDocId;
-            }
-
-            final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-            if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
-                return nextDoc();
-            }
-
-            final long parentIdx = parentIds.find(globalOrdinal);
-            if (parentIdx != -1) {
-                currentScore = scores.get(parentIdx);
-                currentScore /= occurrences.get(parentIdx);
-                parentWeight.remaining--;
-                return currentDocId;
-            } else {
-                return nextDoc();
-            }
+            return false;
         }
     }
 

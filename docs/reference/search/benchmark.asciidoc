@@ -70,13 +70,7 @@ Response:
           "percentile_75" : 5,
           "percentile_90" : 7,
           "percentile_99" : 10
-        },
-        "slowest" : [ {
-          "node" : "localhost",
-          "max_time" : 15,
-          "avg_time" : 4,
-          "request":{"query":{"match":{"_all":"a*"}}}
-        } ]
+        }
       }
     }
   }
@@ -202,8 +196,7 @@ Response:
           "percentile_25" : 0.0,
           "percentile_50" : 1.0,
           "percentile_75" : 1.0
-        },
-        "slowest" : [ ]
+        }
       }
     },
     "competitor_2" : {
@@ -225,8 +218,7 @@ Response:
           "percentile_25" : 0.0,
           "percentile_50" : 0.0,
           "percentile_75" : 1.0
-        },
-        "slowest" : [ ]
+        }
       }
     }
   }

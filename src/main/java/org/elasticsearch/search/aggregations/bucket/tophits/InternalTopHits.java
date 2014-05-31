@@ -95,7 +95,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits, ToX
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
+        if (aggregations.size() == 1 && from == 0) {
             return aggregations.get(0);
         }
 

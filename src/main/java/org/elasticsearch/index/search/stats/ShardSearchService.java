@@ -24,6 +24,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.slowlog.ShardSlowLogSearchService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -61,17 +62,17 @@ public class ShardSearchService extends AbstractIndexShardComponent {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
         if (groups != null && groups.length > 0) {
+            groupsSt = new HashMap<>(groupsStats.size());
             if (groups.length == 1 && groups[0].equals("_all")) {
-                groupsSt = new HashMap<>(groupsStats.size());
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
                     groupsSt.put(entry.getKey(), entry.getValue().stats());
                 }
             } else {
-                groupsSt = new HashMap<>(groups.length);
-                for (String group : groups) {
-                    StatsHolder statsHolder = groupsStats.get(group);
-                    if (statsHolder != null) {
-                        groupsSt.put(group, statsHolder.stats());
+                for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
+                    for (String group : groups) {
+                        if (Regex.simpleMatch(group, entry.getKey())) {
+                            groupsSt.put(entry.getKey(), entry.getValue().stats());
+                        }
                     }
                 }
             }

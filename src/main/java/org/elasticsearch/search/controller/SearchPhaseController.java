@@ -177,9 +177,13 @@ public class SearchPhaseController extends AbstractComponent {
                     return EMPTY_DOCS;
                 }
                 int resultDocsSize = scoreDocs.length < result.size() ? scoreDocs.length : result.size();
+                int offset = result.from();
+                if (scrollSort) {
+                    offset = 0;
+                }
                 ScoreDoc[] docs = new ScoreDoc[resultDocsSize];
                 for (int i = 0; i < resultDocsSize; i++) {
-                    ScoreDoc scoreDoc = scoreDocs[i];
+                    ScoreDoc scoreDoc = scoreDocs[offset + i];
                     scoreDoc.shardIndex = shardIndex;
                     docs[i] = scoreDoc;
                 }

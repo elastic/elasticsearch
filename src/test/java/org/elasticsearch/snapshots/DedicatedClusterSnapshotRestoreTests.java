@@ -210,33 +210,41 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         cluster().wipeIndices("_all");
 
-        assertAcked(prepareCreate("test-idx-1", 2, settingsBuilder().put("number_of_shards", 6)
+        logger.info("--> create an index that will have some unallocated shards");
+        assertAcked(prepareCreate("test-idx-some", 2, settingsBuilder().put("number_of_shards", 6)
                 .put("number_of_replicas", 0)
                 .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
         ensureGreen();
 
-        logger.info("--> indexing some data into test-idx-1");
+        logger.info("--> indexing some data into test-idx-some");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-some", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client().prepareCount("test-idx-some").get().getCount(), equalTo(100L));
 
         logger.info("--> shutdown one of the nodes");
         internalCluster().stopRandomDataNode();
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForNodes("<2").execute().actionGet().isTimedOut(), equalTo(false));
 
-        assertAcked(prepareCreate("test-idx-2", 1, settingsBuilder().put("number_of_shards", 6)
+        logger.info("--> create an index that will have all allocated shards");
+        assertAcked(prepareCreate("test-idx-all", 1, settingsBuilder().put("number_of_shards", 6)
                 .put("number_of_replicas", 0)
                 .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
-        ensureGreen("test-idx-2");
+        ensureGreen("test-idx-all");
 
-        logger.info("--> indexing some data into test-idx-2");
+        logger.info("--> indexing some data into test-idx-all");
         for (int i = 0; i < 100; i++) {
-            index("test-idx-2", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-all", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client().prepareCount("test-idx-all").get().getCount(), equalTo(100L));
+
+        logger.info("--> create an index that will have no allocated shards");
+        assertAcked(prepareCreate("test-idx-none", 1, settingsBuilder().put("number_of_shards", 6)
+                .put("index.routing.allocation.include.tag", "nowhere")
+                .put("number_of_replicas", 0)
+                .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
 
         logger.info("--> create repository");
         logger.info("--> creating repository");
@@ -257,7 +265,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 public boolean apply(Object o) {
                     SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
                     ImmutableList<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
-                    if(snapshotStatuses.size() == 1) {
+                    if (snapshotStatuses.size() == 1) {
                         logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
                         return snapshotStatuses.get(0).getState().completed();
                     }
@@ -269,34 +277,58 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             assertThat(snapshotStatuses.size(), equalTo(1));
             SnapshotStatus snapshotStatus = snapshotStatuses.get(0);
             logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(12));
+            assertThat(snapshotStatus.getShardsStats().getTotalShards(), equalTo(18));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), lessThan(12));
             assertThat(snapshotStatus.getShardsStats().getDoneShards(), greaterThan(6));
         } else {
             logger.info("checking snapshot completion using wait_for_completion flag");
             createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2").setWaitForCompletion(true).setPartial(true).execute().actionGet();
             logger.info("State: [{}], Reason: [{}]", createSnapshotResponse.getSnapshotInfo().state(), createSnapshotResponse.getSnapshotInfo().reason());
-            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(12));
+            assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(18));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(12));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(6));
         }
         assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.PARTIAL));
 
-        assertAcked(client().admin().indices().prepareClose("test-idx-1", "test-idx-2").execute().actionGet());
+        assertAcked(client().admin().indices().prepareClose("test-idx-some", "test-idx-all").execute().actionGet());
 
         logger.info("--> restore incomplete snapshot - should fail");
         assertThrows(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false).setWaitForCompletion(true).execute(), SnapshotRestoreException.class);
 
         logger.info("--> restore snapshot for the index that was snapshotted completely");
-        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false).setIndices("test-idx-2").setWaitForCompletion(true).execute().actionGet();
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2").setRestoreGlobalState(false).setIndices("test-idx-all").setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo(), notNullValue());
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(6));
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(6));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        ensureGreen("test-idx-2");
+        ensureGreen("test-idx-all");
 
-        assertThat(client().prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client().prepareCount("test-idx-all").get().getCount(), equalTo(100L));
+
+        logger.info("--> restore snapshot for the partial index");
+        cluster().wipeIndices("test-idx-some");
+        restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2")
+                .setRestoreGlobalState(false).setIndices("test-idx-some").setPartial(true).setWaitForCompletion(true).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo(), notNullValue());
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(6));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), allOf(greaterThan(0), lessThan(6)));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), greaterThan(0));
+
+        ensureGreen("test-idx-some");
+        assertThat(client().prepareCount("test-idx-some").get().getCount(), allOf(greaterThan(0L), lessThan(100L)));
+
+        logger.info("--> restore snapshot for the index that didn't have any shards snapshotted successfully");
+        cluster().wipeIndices("test-idx-none");
+        restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-2")
+                .setRestoreGlobalState(false).setIndices("test-idx-none").setPartial(true).setWaitForCompletion(true).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo(), notNullValue());
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(6));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(6));
+
+        ensureGreen("test-idx-some");
+        assertThat(client().prepareCount("test-idx-some").get().getCount(), allOf(greaterThan(0L), lessThan(100L)));
     }
 
     @Test
@@ -387,7 +419,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> update index settings to back to normal");
         assertAcked(client().admin().indices().prepareUpdateSettings("test-*").setSettings(ImmutableSettings.builder()
-                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "node")
         ));
 
         // Make sure that snapshot finished - doesn't matter if it failed or succeeded
@@ -434,8 +466,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         }
 
         assertAcked(client().admin().indices().prepareUpdateSettings(name).setSettings(ImmutableSettings.builder()
-                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
-                .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE, "all")
+                        .put(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, between(100, 50000))
         ));
     }
 }

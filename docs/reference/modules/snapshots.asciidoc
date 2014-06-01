@@ -207,6 +207,16 @@ didn't exist in the cluster. If cluster state is restored, the restored template
 cluster are added and existing templates with the same name are replaced by the restored templates. The restored
 persistent settings are added to the existing persistent settings.
 
+[float]
+=== Partial restore
+
+added[1.3.0]
+
+By default, entire restore operation will fail if one or more indices participating in the operation don't have
+snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to
+restore such indices by setting `partial` to `true`. Please note, that only successfully snapshotted shards will be
+restored in this case and all missing shards will be recreated empty.
+
 
 [float]
 === Snapshot status

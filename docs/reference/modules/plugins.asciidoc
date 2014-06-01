@@ -258,6 +258,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/mobz/elasticsearch-head[Elasticsearch Head Plugin] (by Ben Birch)
 * https://github.com/royrusso/elasticsearch-HQ[Elasticsearch HQ] (by Roy Russo)
 * https://github.com/andrewvc/elastic-hammer[Hammer Plugin] (by Andrew Cholakian)
+* https://github.com/lmenezes/elasticsearch-kopf/[Kopf Plugin] (by Leonardo Menezes)
 * https://github.com/polyfractal/elasticsearch-inquisitor[Inquisitor Plugin] (by Zachary Tong)
 * https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)

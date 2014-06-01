@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.*;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -417,9 +418,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             return this;
         }
 
-        public Builder addAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource) {
+        public Builder addAsNewRestore(IndexMetaData indexMetaData, RestoreSource restoreSource, IntSet ignoreShards) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetaData.index())
-                    .initializeAsNewRestore(indexMetaData, restoreSource);
+                    .initializeAsNewRestore(indexMetaData, restoreSource, ignoreShards);
             add(indexRoutingBuilder);
             return this;
         }

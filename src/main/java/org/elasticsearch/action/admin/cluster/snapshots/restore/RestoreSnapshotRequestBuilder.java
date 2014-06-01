@@ -208,6 +208,17 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
         return this;
     }
 
+    /**
+     * If set to true the restore procedure will restore partially snapshotted indices
+     *
+     * @param partial true if partially snapshotted indices should be restored
+     * @return this request
+     */
+    public RestoreSnapshotRequestBuilder setPartial(boolean partial) {
+        request.partial(partial);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<RestoreSnapshotResponse> listener) {
         client.restoreSnapshot(request, listener);

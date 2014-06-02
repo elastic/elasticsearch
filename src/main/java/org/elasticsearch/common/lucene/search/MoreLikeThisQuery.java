@@ -147,11 +147,11 @@ public class MoreLikeThisQuery extends Query {
         mlt.setBoostFactor(boostTermsFactor);
 
         Reader[] readers = new Reader[likeText.length];
-        for (int i = 0; i < likeText.length; i++) {
+        for (int i = 0; i < readers.length; i++) {
             readers[i] = new FastStringReader(likeText[i]);
         }
         //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
-        BooleanQuery bq = (BooleanQuery) mlt.like(readers, moreLikeFields[0]);
+        BooleanQuery bq = (BooleanQuery) mlt.like(moreLikeFields[0], readers);
 
         BooleanClause[] clauses = bq.getClauses();
         bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));

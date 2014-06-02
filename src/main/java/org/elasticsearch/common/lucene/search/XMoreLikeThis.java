@@ -58,6 +58,9 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
 
+/**
+ * Should be removed in Lucene 4.9.
+ */
 
 /**
  * Generate "more like this" similarity queries.
@@ -155,6 +158,7 @@ import org.apache.lucene.util.UnicodeUtil;
  * - optimise: when no termvector support available - used maxNumTermsParsed to limit amount of tokenization
  * </pre>
  */
+
 public final class XMoreLikeThis {
 
     /**
@@ -604,8 +608,9 @@ public final class XMoreLikeThis {
      *
      * @return a query that will return docs like the passed Reader.
      */
+    @Deprecated
     public Query like(Reader r, String fieldName) throws IOException {
-        return createQuery(retrieveTerms(r, fieldName));
+        return like(fieldName, r);
     }
 
     /**
@@ -614,7 +619,7 @@ public final class XMoreLikeThis {
      *
      * @return a query that will return docs like the passed Readers.
      */
-    public Query like(Reader[] readers, String fieldName) throws IOException {
+    public Query like(String fieldName, Reader... readers) throws IOException {
         Map<String, Int> words = new HashMap<>();
         for (Reader r : readers) {
             addTermFrequencies(r, words, fieldName);

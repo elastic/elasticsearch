@@ -368,7 +368,7 @@ public class BigArrays extends AbstractComponent {
 
     @Inject
     public BigArrays(Settings settings, PageCacheRecycler recycler) {
-        this(settings, recycler, settings.getAsMemory(MAX_SIZE_IN_BYTES_SETTING, "20%").bytes());
+        this(settings, recycler, settings.getAsMemory(MAX_SIZE_IN_BYTES_SETTING, Long.toString(Long.MAX_VALUE)).bytes());
     }
 
     private BigArrays(Settings settings, PageCacheRecycler recycler, final long maxSizeInBytes) {

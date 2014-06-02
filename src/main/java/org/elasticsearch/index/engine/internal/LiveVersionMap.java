@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 import org.apache.lucene.search.ReferenceManager;
-import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 // TODO: use Lucene's LiveFieldValues, but we need to somehow extend it to handle SearcherManager changing, and to handle long-lasting (GC'd
@@ -33,24 +33,25 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 /** Maps _uid value to its version information. */
 class LiveVersionMap implements ReferenceManager.RefreshListener {
 
-    // nocommit we can split VersionValue into the add & delete case to save some RAM, e.g. time, deleted are not needed for the adds
-
-    // nocommit use ordinary (not Hash) BytesRef?
-
     // All writes go into here:
-    private volatile Map<HashedBytesRef,VersionValue> addsCurrent = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private volatile Map<BytesRef,VersionValue> addsCurrent = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Only used while refresh is running:
-    private volatile Map<HashedBytesRef,VersionValue> addsOld = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private volatile Map<BytesRef,VersionValue> addsOld = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Holds tombstones for deleted docs, expiring by their own schedule; not private so InternalEngine can prune:
-    final Map<HashedBytesRef,VersionValue> deletes = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    final Map<BytesRef,VersionValue> deletes = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public void setManager(ReferenceManager mgr) {
+    private ReferenceManager mgr;
+
+    public void setManager(ReferenceManager newMgr) {
+        if (mgr != null) {
+            mgr.removeListener(this);
+        }
+        mgr = newMgr;
+
         // So we are notified when reopen starts and finishes
         mgr.addListener(this);
-
-        // nocommit we never .removeListener...
     }
 
     @Override
@@ -75,7 +76,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     }
 
     /** Caller has a lock, so that this uid will not be concurrently added/deleted by another thread. */
-    public VersionValue getUnderLock(HashedBytesRef uid) {
+    public VersionValue getUnderLock(BytesRef uid) {
         // First try to get the "live" value:
         VersionValue value = addsCurrent.get(uid);
         if (value != null) {
@@ -95,12 +96,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         return null;
     }
 
-    public void putUnderLock(HashedBytesRef uid, VersionValue value) {
+    public void putUnderLock(BytesRef uid, VersionValue value) {
         deletes.remove(uid);
         addsCurrent.put(uid, value);
     }
 
-    public void putDeleteUnderLock(HashedBytesRef uid, VersionValue value) {
+    public void putDeleteUnderLock(BytesRef uid, VersionValue value) {
         addsCurrent.remove(uid);
         addsOld.remove(uid);
         deletes.put(uid, value);
@@ -111,5 +112,9 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         addsCurrent.clear();
         addsOld.clear();
         deletes.clear();
+        if (mgr != null) {
+            mgr.removeListener(this);
+            mgr = null;
+        }
     }
 }

@@ -512,6 +512,17 @@
                 <version>1.7</version>
                 <executions>
                     <execution>
+                    <phase>validate</phase>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                    <configuration>
+                           <target>
+                               <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
+                           </target>
+                    </configuration>
+                    </execution>
+                    <execution>
                         <id>tests</id>
                         <phase>test</phase>
                         <configuration>
@@ -1133,27 +1144,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <artifactId>exec-maven-plugin</artifactId>
-                <groupId>org.codehaus.mojo</groupId>
-                <version>1.2.1</version>
-                <executions>
-                    <execution>
-                        <id>Java Version</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <executable>java</executable>
-                            <arguments>
-                                <argument>-version</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

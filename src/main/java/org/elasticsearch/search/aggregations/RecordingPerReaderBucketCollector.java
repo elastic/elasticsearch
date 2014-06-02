@@ -92,7 +92,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
             collector.setNextReader(readerContext);
             if (!hasItems()) {
                 return;
-            }           
+            }
             if (buckets == null) {
                 final AppendingDeltaPackedLongBuffer.Iterator docsIter = docs.iterator();
                 while (docsIter.hasNext()) {
@@ -151,7 +151,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
     public void replayCollection(BucketCollector collector) throws IOException{
         for (PerSegmentCollects collection : perSegmentCollections) {
             collection.replay(collector);
-        }        
+        }
         collector.postCollection();
     }
 

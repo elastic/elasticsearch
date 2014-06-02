@@ -59,9 +59,9 @@ public class FilteringBucketCollector extends BucketCollector implements Releasa
     @Override
     public final void collect(int docId, long bucketOrdinal) throws IOException {
         long ordinal = denseMap.find(bucketOrdinal);
-        if(ordinal>=0){
+        if (ordinal >= 0) {
             delegate.collect(docId, ordinal);
-        }        
+        }
     }
 
     @Override

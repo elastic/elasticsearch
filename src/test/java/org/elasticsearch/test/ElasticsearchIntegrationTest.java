@@ -102,6 +102,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.TestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -504,6 +505,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
                 }
+                ensureClusterSizeConsistency();
                 immutableCluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
                 immutableCluster().assertAfterTest();
             } finally {
@@ -837,6 +839,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return actionGet.getStatus();
     }
 
+    private void ensureClusterSizeConsistency() {
+        assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(immutableCluster().size())).get());
+    }
 
     /**
      * Ensures the cluster is in a searchable state for the given indices. This means a searchable copy of each

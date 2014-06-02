@@ -384,7 +384,14 @@ When using `breadth_first` mode the set of documents that fall into the uppermos
 cached for subsequent replay so there is a memory overhead in doing this which is linear with the number of matching documents. 
 In most requests the volume of buckets generated is smaller than the number of documents that fall into them so the default `depth_first`
 collection mode is normally the best bet but occasionally the `breadth_first` strategy can be significantly more efficient. Currently 
-elasticsearch will always use the `depth_first` collect_mode unless explicitly instructed to use `breadth_first` as in the above example
+elasticsearch will always use the `depth_first` collect_mode unless explicitly instructed to use `breadth_first` as in the above example.
+Note that the `order` parameter can still be used to refer to data from a child aggregation when using the `breadth_first` setting - the parent
+aggregation understands that this child aggregation will need to be called first before any of the other child aggregations.
+
+WARNING: It is not possible to nest aggregations such as `top_hits` which require access to match score information under an aggregation that uses
+the `breadth_first` collection mode. This is because this would require a RAM buffer to hold the float score value for every document and
+this would typically be too costly in terms of RAM. 
+
 
 ==== Execution hint
 

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
@@ -112,6 +113,42 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             throw new ElasticsearchParseException("No collectionMode found for value [" + value + "]");
         }
     }
+    
+    // A scorer used for the deferred collection mode to handle any child aggs asking for scores that are not 
+    // recorded.
+    static final Scorer unavailableScorer=new Scorer(null){
+        private final String MSG="A limitation of the "+SubAggCollectionMode.DEPTH_FIRST.parseField.getPreferredName()+
+                " collection mode is that scores cannot be buffered along with document IDs";
+
+        @Override
+        public float score() throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int freq() throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int advance(int arg0) throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public long cost() {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int docID() {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }};
     
 
     protected final String name;
@@ -213,6 +250,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     protected void runDeferredCollections(long... bucketOrds){
         //Being lenient here - ignore calls where there are no deferred collections to playback
         if (recordingWrapper != null) {
+            context.setScorer(unavailableScorer);
             recordingWrapper.prepareSelectedBuckets(bucketOrds);
         } 
     }

@@ -1,0 +1,20 @@
+{
+  "indexed_template.get": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_search/template/{id}",
+      "paths": [ "/_search/template/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Document ID"
+        }
+      }
+    },
+    "body": {
+      "description" : "The document",
+      "required" : false
+    }
+  }
+}

@@ -103,7 +103,6 @@ public class MapperService extends AbstractIndexComponent  {
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String scriptIndexDefaultsSource;
     private volatile String defaultPercolatorMappingSource;
 
 
@@ -139,38 +138,35 @@ public class MapperService extends AbstractIndexComponent  {
 
         this.dynamic = componentSettings.getAsBoolean("dynamic", true);
         String defaultMappingLocation = componentSettings.get("default_mapping_location");
-        URL defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
-        URL scriptIndexDefaultsUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-index-defaults.json","org/elasticsearch/index/mapper/script-index-defaults.json");
+        final URL defaultMappingUrl;
+        if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"script-index-defaults.json","org/elasticsearch/index/mapper/script-index-defaults.json");
+        } else {
+            defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation,"default-mapping.json","org/elasticsearch/index/mapper/default-mapping.json");
+        }
 
         if (defaultMappingUrl == null) {
             logger.info("failed to find default-mapping.json in the classpath, using the default template");
-            defaultMappingSource = "{\n" +
-                    "    \"_default_\":{\n" +
-                    "    }\n" +
-                    "}";
+            if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
+                defaultMappingSource =  "{" +
+                        "\"_default_\": {" +
+                        "\"properties\": {" +
+                        "\"script\": { \"enabled\": false }," +
+                        "\"template\": { \"enabled\": false }" +
+                        "}" +
+                        "}" +
+                        "}";
+            } else {
+                defaultMappingSource = "{\n" +
+                        "    \"_default_\":{\n" +
+                        "    }\n" +
+                        "}";
+            }
         } else {
             try {
                 defaultMappingSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
             } catch (IOException e) {
                 throw new MapperException("Failed to load default mapping source from [" + defaultMappingLocation + "]", e);
-            }
-        }
-
-        if (scriptIndexDefaultsUrl== null) {
-            logger.info("failed to find script-index-defaults.json in the classpath, using the default template");
-            scriptIndexDefaultsSource =  "{" +
-                                            "\"_default_\": {" +
-                                                "\"properties\": {" +
-                                                     "\"script\": { \"enabled\": false }," +
-                                                     "\"template\": { \"enabled\": false }" +
-                                                 "}" +
-                                             "}" +
-                                     "}";
-        } else {
-            try {
-                scriptIndexDefaultsSource = Streams.copyToString(new InputStreamReader(defaultMappingUrl.openStream(), Charsets.UTF_8));
-            } catch (IOException e) {
-                throw new MapperException("Failed to load scripts index defaults source from [" + defaultMappingLocation + "]", e);
             }
         }
 
@@ -444,9 +440,7 @@ public class MapperService extends AbstractIndexComponent  {
         String defaultMappingSource;
         if (PercolatorService.TYPE_NAME.equals(mappingType)) {
             defaultMappingSource = this.defaultPercolatorMappingSource;
-        } else if (this.index.getName().equals(ScriptService.SCRIPT_INDEX) ) {
-            defaultMappingSource = this.scriptIndexDefaultsSource;
-        } else {
+        }  else {
             defaultMappingSource = this.defaultMappingSource;
         }
         return documentParser.parseCompressed(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);

@@ -110,6 +110,18 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
                 throw new ElasticsearchIllegalArgumentException("No type match for [" + id + "]");
             }
         }
+
+        public static OpType fromString(String sOpType) throws ElasticsearchIllegalArgumentException {
+            if (Strings.hasLength(sOpType)){
+                if ("index".equals(sOpType)) {
+                    return INDEX;
+                } else if ("create".equals(sOpType)) {
+                    return CREATE;
+                }
+            }
+            throw new ElasticsearchIllegalArgumentException("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");
+        }
+
     }
 
     private String type;

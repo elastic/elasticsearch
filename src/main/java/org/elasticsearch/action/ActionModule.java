@@ -144,6 +144,8 @@ import org.elasticsearch.action.search.type.*;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.template.get.GetSearchTemplatesAction;
+import org.elasticsearch.action.template.get.TransportGetSearchTemplatesAction;
 import org.elasticsearch.action.termvector.*;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
@@ -285,6 +287,7 @@ public class ActionModule extends AbstractModule {
         registerAction(BenchmarkAction.INSTANCE, TransportBenchmarkAction.class);
         registerAction(AbortBenchmarkAction.INSTANCE, TransportAbortBenchmarkAction.class);
         registerAction(BenchmarkStatusAction.INSTANCE, TransportBenchmarkStatusAction.class);
+        registerAction(GetSearchTemplatesAction.INSTANCE, TransportGetSearchTemplatesAction.class);
 
         // register Name -> GenericAction Map that can be injected to instances.
         MapBinder<String, GenericAction> actionsBinder

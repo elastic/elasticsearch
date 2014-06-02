@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -66,6 +67,7 @@ public class ScriptService extends AbstractComponent {
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
     public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
+    public static final String SCRIPT_INDEX = ".scripts";
 
     private final String defaultLang;
 
@@ -77,6 +79,8 @@ public class ScriptService extends AbstractComponent {
     private final File scriptsDirectory;
 
     private final DynamicScriptDisabling dynamicScriptingDisabled;
+
+    private Client client = null;
 
     /**
      * Enum defining the different dynamic settings for scripting, either
@@ -108,8 +112,6 @@ public class ScriptService extends AbstractComponent {
             }
         }
     }
-    private Client client = null;
-    public static final String SCRIPT_INDEX = ".script";
 
     public enum ScriptType {
         INLINE,
@@ -117,18 +119,25 @@ public class ScriptService extends AbstractComponent {
         FILE
     }
 
-
     class IndexedScript {
-        String type;
+        String lang;
         String id;
-        IndexedScript(String script) {
-            String[] parts = script.split("/");
-            if (parts.length != 3) {
-                throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
-                        " should be /lang/id");
+
+        IndexedScript(String lang, String script) {
+            this.lang = lang;
+            final String[] parts = script.split("/");
+            if (parts.length == 1) {
+                this.id = script;
             } else {
-                this.type = parts[1];
-                this.id = parts[2];
+                if (parts.length != 3) {
+                    throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
+                            " should be /lang/id");
+                } else {
+                    if (!parts[1].equals(this.lang)) {
+                        throw new ElasticsearchIllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
+                    }
+                    this.id = parts[2];
+                }
             }
         }
     }
@@ -195,32 +204,65 @@ public class ScriptService extends AbstractComponent {
     }
 
     public CompiledScript compile(String lang, String script) {
+        return compile(lang, script, ScriptType.INLINE);
+    }
+
+    public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
+        logger.trace("Compiling " + lang + " " + script + scriptType);
         CacheKey cacheKey = null;
+        CompiledScript compiled;
 
-        String scriptContent = null;
-        CompiledScript compiled = null;
-
-        if (script.startsWith("/")){ //This is how we determine if we need to search the index for the script
-            if ( client == null ){
+        if(scriptType == ScriptType.INDEXED) {
+            if (client == null) {
                 throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
             }
-            IndexedScript indexedScript = new IndexedScript(script);
 
-            if (lang != null && !lang.equals(indexedScript.type)){
-                logger.trace("Overriding lang to " + indexedScript.type);
-                lang = indexedScript.type;
+            final IndexedScript indexedScript = new IndexedScript(lang,script);
+
+            if (lang != null && !lang.equals(indexedScript.lang)) {
+                logger.trace("Overriding lang to " + indexedScript.lang);
+                lang = indexedScript.lang;
             }
-            scriptContent = getScriptFromIndex(script, SCRIPT_INDEX, indexedScript.type, indexedScript.id);
+
+            verifyDynamicScripting(lang); //Since anyone can index a script, disable indexed scripting
+                                          // if dynamic scripting is disabled, perhaps its own setting ?
+
+
+
+            script = getScriptFromIndex(client, SCRIPT_INDEX, indexedScript.lang, indexedScript.id);
+        } else if (scriptType == ScriptType.FILE) {
+
+            compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
+
+            if (compiled != null) {
+                return compiled;
+            } else {
+                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script + "." + lang);
+            }
+
         } else {
-            compiled = staticCache.get(script); //Indexed scripts will never be in the static cache
+            //This is an inline script check to see if we have it in the cache
+            verifyDynamicScripting(lang);
+
+            if (lang == null) {
+                lang = defaultLang;
+            }
+	    
+	    if (lang == null) {
+		lang = defaultLang;
+	    }
+
+	    if (cacheKey == null) {
+		cacheKey = new CacheKey(lang, script);
+	    }
+		
+            compiled = cache.getIfPresent(cacheKey);
             if (compiled != null) {
                 return compiled;
             }
         }
 
-        if (lang == null) {
-            lang = defaultLang;
-        }
+        //Either an un-cached inline script or an indexed script
 
         if (!dynamicScriptEnabled(lang)) {
             throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
@@ -229,31 +271,34 @@ public class ScriptService extends AbstractComponent {
         if (cacheKey == null) {
             cacheKey = new CacheKey(lang, script);
         }
-
-        compiled = cache.getIfPresent(cacheKey);
-        if (compiled != null) {
-            return compiled;
-        }
-
         // not the end of the world if we compile it twice...
-        ScriptEngineService service = scriptEngines.get(lang);
-        if (service == null) {
-            throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
+        compiled = getCompiledScript(lang, script);
+        if (scriptType != ScriptType.INDEXED ) {
+            cache.put(cacheKey, compiled); //Only cache non indexed scripts
         }
-        if (scriptContent != null) {
-            compiled = new CompiledScript(lang, service.compile(scriptContent)); //We have loaded the script from the index
-        } else {
-            compiled = new CompiledScript(lang, service.compile(script));
-            cache.put(cacheKey, compiled); //Only cache non indexed scripts here
-        }
-
 
         return compiled;
     }
 
-    private String getScriptFromIndex(String script, String index, String scriptLang, String id) {
+    private CompiledScript getCompiledScript(String lang, String script) {
+        CompiledScript compiled;ScriptEngineService service = scriptEngines.get(lang);
+        if (service == null) {
+            throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
+        }
+
+        compiled = new CompiledScript(lang, service.compile(script));
+        return compiled;
+    }
+
+    private void verifyDynamicScripting(String lang) {
+        if (!dynamicScriptEnabled(lang)) {
+            throw new ScriptException("dynamic scripting disabled for [" + lang + "]");
+        }
+    }
+
+    public static String getScriptFromIndex(Client client, String index, String scriptLang, String id) {
         GetResponse responseFields = client.prepareGet(index, scriptLang, id).get();
-        if (responseFields.isExists() ) {
+        if (responseFields.isExists()) {
             Map<String, Object> source = responseFields.getSourceAsMap();
             if (source.containsKey("template")) {
                 try {
@@ -266,10 +311,23 @@ public class ScriptService extends AbstractComponent {
                 }
             } else  if (source.containsKey("script")) {
                 return source.get("script").toString();
+            } else {
+                try {
+                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                    builder.map((Map<String, Object>) responseFields.getSource());
+                    return builder.string();
+                } catch( IOException|ClassCastException e ){
+                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json",e);
+                }
             }
         }
-        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + script + "]");
+        throw new ElasticsearchIllegalArgumentException("Unable to find script [" + index + "/" + scriptLang + "/" + id + "]");
 
+    }
+
+
+    public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map vars) {
+        return executable(compile(lang, script, scriptType), vars);
     }
 
     public ExecutableScript executable(String lang, String script, Map vars) {

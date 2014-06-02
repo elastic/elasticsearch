@@ -19,9 +19,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,7 +50,7 @@ public class TemplateQueryParser implements QueryParser {
 
     private final ScriptService scriptService;
 
-    private static Map<String,ScriptService.ScriptType> parametersToTypes = new HashMap<>();
+    private final static Map<String,ScriptService.ScriptType> parametersToTypes = new HashMap<>();
 
     static {
         parametersToTypes.put("query",ScriptService.ScriptType.INLINE);
@@ -78,13 +81,7 @@ public class TemplateQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TemplateContext templateContext = parse(parser, PARAMS, parametersToTypes);
-        ExecutableScript executable = null;
-        if (templateContext.type == ScriptService.ScriptType.INDEXED && !templateContext.template().startsWith("/mustache/")) {
-            //If we are referencing a just the id glue the type to it so the script service can find it
-            executable = this.scriptService.executable("mustache", "/mustache/"+templateContext.template(), templateContext.params());
-        } else {
-            executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.params());
-        }
+        ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params());
 
         BytesReference querySource = (BytesReference) executable.run();
 
@@ -138,9 +135,9 @@ public class TemplateQueryParser implements QueryParser {
         private String template;
         private ScriptService.ScriptType type;
 
-        public TemplateContext(ScriptService.ScriptType type, String templateName, Map<String, Object> params) {
+        public TemplateContext(ScriptService.ScriptType type, String template, Map<String, Object> params) {
             this.params = params;
-            this.template = templateName;
+            this.template = template;
             this.type = type;
         }
 
@@ -150,6 +147,15 @@ public class TemplateQueryParser implements QueryParser {
 
         public String template() {
             return template;
+        }
+
+        public ScriptService.ScriptType scriptType(){
+            return type;
+        }
+
+        @Override
+        public String toString(){
+            return type + " " + template;
         }
     }
 }

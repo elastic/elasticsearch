@@ -1,0 +1,21 @@
+{
+  "indexed_template.create": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indexed-scripts.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/_search/template/{id}",
+      "paths": [ "/_search/template/{id}" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Document ID",
+          "required" : true
+        }
+      }
+    },
+    "body": {
+      "description" : "The document",
+      "required" : true
+    }
+  }
+}

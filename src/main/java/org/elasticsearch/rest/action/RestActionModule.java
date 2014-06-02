@@ -98,6 +98,9 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
+import org.elasticsearch.rest.action.template.RestDeleteSearchTemplateAction;
+import org.elasticsearch.rest.action.template.RestGetSearchTemplateAction;
+import org.elasticsearch.rest.action.template.RestPutSearchTemplateAction;
 import org.elasticsearch.rest.action.termvector.RestMultiTermVectorsAction;
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
 import org.elasticsearch.rest.action.update.RestUpdateAction;
@@ -212,6 +215,10 @@ public class RestActionModule extends AbstractModule {
         bind(RestRecoveryAction.class).asEagerSingleton();
         // Benchmark API
         bind(RestBenchAction.class).asEagerSingleton();
+
+        bind(RestGetSearchTemplateAction.class).asEagerSingleton();
+        bind(RestPutSearchTemplateAction.class).asEagerSingleton();
+        bind(RestDeleteSearchTemplateAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

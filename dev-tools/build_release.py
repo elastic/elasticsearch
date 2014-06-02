@@ -197,6 +197,19 @@ def update_reference_docs(release_version, path='docs'):
         pending_files.append(os.path.join(root, file_name))
   return pending_files
 
+# Checks all source files for //nocommit comments
+def check_nocommits(path='src'):
+  pattern = re.compile(r'\bnocommit\b')
+  for root, _, file_names in os.walk(path):
+    for file_name in fnmatch.filter(file_names, '*.java'):
+      full_path = os.path.join(root, file_name)
+      line_number = 0
+      with open(full_path, 'r', encoding='utf-8') as current_file:
+        for line in current_file:
+          line_number = line_number + 1
+          if pattern.search(line):
+            raise RuntimeError('Found nocommit in %s line %s' % (full_path, line_number))
+
 # Moves the pom.xml file from a snapshot to a release
 def remove_maven_snapshot(pom, release):
   pattern = '<version>%s-SNAPSHOT</version>' % (release)
@@ -541,7 +554,7 @@ if __name__ == '__main__':
   print('Preparing Release from branch [%s] running tests: [%s] dryrun: [%s]' % (src_branch, run_tests, dry_run))
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
-
+  check_nocommits(path='src')
   if build:
     release_version = find_release_version(src_branch)
     ensure_no_open_tickets(release_version)

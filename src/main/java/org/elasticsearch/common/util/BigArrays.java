@@ -41,7 +41,7 @@ public class BigArrays extends AbstractComponent {
 
     // TODO: switch to a circuit breaker that is shared not only on big arrays level, and applies to other request level data structures
     public static final String MAX_SIZE_IN_BYTES_SETTING = "requests.memory.breaker.limit";
-    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, Long.MAX_VALUE);
+    public static final BigArrays NON_RECYCLING_INSTANCE = new BigArrays(ImmutableSettings.EMPTY, null, Long.MAX_VALUE, null);
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -362,40 +362,52 @@ public class BigArrays extends AbstractComponent {
 
     }
 
-    final PageCacheRecycler recycler;
-    final AtomicLong ramBytesUsed;
+    protected final PageCacheRecycler recycler;
+    protected final AtomicLong ramBytesUsed;
     final long maxSizeInBytes;
 
     @Inject
     public BigArrays(Settings settings, PageCacheRecycler recycler) {
-        this(settings, recycler, settings.getAsMemory(MAX_SIZE_IN_BYTES_SETTING, "20%").bytes());
+        this(settings, recycler, settings.getAsMemory(MAX_SIZE_IN_BYTES_SETTING, "20%").bytes(), new AtomicLong());
     }
 
-    private BigArrays(Settings settings, PageCacheRecycler recycler, final long maxSizeInBytes) {
+    // protected for testing
+    protected BigArrays(Settings settings, PageCacheRecycler recycler, final long maxSizeInBytes, AtomicLong counter) {
         super(settings);
         this.maxSizeInBytes = maxSizeInBytes;
         this.recycler = recycler;
-        ramBytesUsed = new AtomicLong();
+        ramBytesUsed = counter;
     }
 
-    private void validate(long delta) {
-        final long totalSizeInBytes = ramBytesUsed.addAndGet(delta);
-        if (totalSizeInBytes > maxSizeInBytes) {
-            throw new ElasticsearchIllegalStateException("Maximum number of bytes allocated exceeded: [" + totalSizeInBytes + "] (> " + maxSizeInBytes + ")");
+    /**
+     * Return a new {@link BigArrays} instance that shares the same {@link PageCacheRecycler} and the same counter for bytes
+     * used but has a different limit. This is typically useful for having component-specific limits that would be different
+     * from the default one.
+     */
+    public BigArrays limit(long newMaxSizeInBytes) {
+        return new BigArrays(settings, recycler, newMaxSizeInBytes, ramBytesUsed);
+    }
+
+    void updateMemoryUsage(long delta) {
+        if (ramBytesUsed != null && delta != 0) {
+            final long totalSizeInBytes = ramBytesUsed.addAndGet(delta);
+            if (delta > 0 && totalSizeInBytes > maxSizeInBytes) {
+                throw new ElasticsearchIllegalStateException("Maximum number of bytes allocated exceeded: [" + totalSizeInBytes + "] (> " + maxSizeInBytes + ")");
+            }
         }
     }
 
     private <T extends AbstractBigArray> T resizeInPlace(T array, long newSize) {
         final long oldMemSize = array.sizeInBytes();
         array.resize(newSize);
-        validate(array.sizeInBytes() - oldMemSize);
+        updateMemoryUsage(array.sizeInBytes() - oldMemSize);
         return array;
     }
 
     private <T extends BigArray> T validate(T array) {
         boolean success = false;
         try {
-            validate(array.sizeInBytes());
+            updateMemoryUsage(array.sizeInBytes());
             success = true;
         } finally {
             if (!success) {
@@ -725,6 +737,6 @@ public class BigArrays extends AbstractComponent {
      * Return an approximate number of bytes that have been allocated but not released yet.
      */
     public long sizeInBytes() {
-        return ramBytesUsed.get();
+        return ramBytesUsed == null ? -1L : ramBytesUsed.get();
     }
 }

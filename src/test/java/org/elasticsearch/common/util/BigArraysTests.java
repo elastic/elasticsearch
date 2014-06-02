@@ -384,4 +384,25 @@ public class BigArraysTests extends ElasticsearchTestCase {
         }
     }
 
+    public void testLimit() throws Exception {
+        final long maxSize = randomIntBetween(100, 1000);
+        final BigArrays bigArrays1 = new BigArrays(ImmutableSettings.builder().put(BigArrays.MAX_SIZE_IN_BYTES_SETTING, maxSize).build(), null);
+        final BigArrays bigArrays2 = bigArrays1.limit(Long.MAX_VALUE);
+        // Make sure both instances still report the same number of bytes used
+        for (int i = 0; i < 100; ++i) {
+            final BigArrays bigArrays = randomFrom(bigArrays1, bigArrays2);
+            final long sizeInBytes = bigArrays.sizeInBytes();
+            try {
+                bigArrays.newByteArray(randomIntBetween(5, 20));
+                if (bigArrays.sizeInBytes() > maxSize) {
+                    assertEquals(bigArrays2, bigArrays); // 1st should have raised an error
+                }
+            } catch (ElasticsearchIllegalStateException e) {
+                assertEquals(bigArrays1, bigArrays); // 2nd should NOT raise errors
+                assertEquals(sizeInBytes, bigArrays.sizeInBytes());
+            }
+            assertEquals(bigArrays1.sizeInBytes(), bigArrays2.sizeInBytes());
+        }
+    }
+
 }

@@ -35,6 +35,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MockBigArrays extends BigArrays {
 
@@ -99,6 +100,17 @@ public class MockBigArrays extends BigArrays {
         }
         random = new Random(seed);
         INSTANCES.add(this);
+    }
+
+    private MockBigArrays(Settings settings, PageCacheRecycler recycler, long maxSizeInBytes, AtomicLong counter, Random random) {
+        super(settings, recycler, maxSizeInBytes, counter);
+        this.random = random;
+        INSTANCES.add(this);
+    }
+
+    @Override
+    public BigArrays limit(long newMaxSizeInBytes) {
+        return new MockBigArrays(settings, recycler, newMaxSizeInBytes, ramBytesUsed, random);
     }
 
     @Override

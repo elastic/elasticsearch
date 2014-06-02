@@ -85,7 +85,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     public FsTranslog(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, NodeEnvironment nodeEnv, BigArrays bigArrays) {
         super(shardId, indexSettings);
         this.indexSettingsService = indexSettingsService;
-        this.bigArrays = bigArrays;
+        // Ignore the default limit
+        this.bigArrays = bigArrays.limit(Long.MAX_VALUE);
         File[] shardLocations = nodeEnv.shardLocations(shardId);
         this.locations = new File[shardLocations.length];
         for (int i = 0; i < shardLocations.length; i++) {

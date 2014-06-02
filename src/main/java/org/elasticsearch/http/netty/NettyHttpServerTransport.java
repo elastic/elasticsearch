@@ -115,7 +115,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
         super(settings);
         this.networkService = networkService;
-        this.bigArrays = bigArrays;
+        // We ignore the default limit in the transport layer so that monitoring APIs remain accessible even in case of high
+        // memory usage
+        this.bigArrays = bigArrays.limit(Long.MAX_VALUE);
 
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {
             System.setProperty("org.jboss.netty.epollBugWorkaround", "true");

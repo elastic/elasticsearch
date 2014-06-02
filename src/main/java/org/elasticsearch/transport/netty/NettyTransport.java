@@ -175,7 +175,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         super(settings);
         this.threadPool = threadPool;
         this.networkService = networkService;
-        this.bigArrays = bigArrays;
+        // We ignore the default limit in the netty layer in order to always be able to handle cluster management
+        // operations such as pings, etc.
+        this.bigArrays = bigArrays.limit(Long.MAX_VALUE);
         this.version = version;
 
         if (settings.getAsBoolean("netty.epollBugWorkaround", false)) {

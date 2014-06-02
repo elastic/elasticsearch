@@ -150,7 +150,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final ConcurrentMap<HashedBytesRef, VersionValue> versionMap;
+    private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
 
@@ -198,7 +198,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.codecService = codecService;
         this.compoundOnFlush = indexSettings.getAsBoolean(INDEX_COMPOUND_ON_FLUSH, this.compoundOnFlush);
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
-        this.versionMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        this.versionMap = new LiveVersionMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();
@@ -289,6 +289,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 translog.newTranslog(translogIdGenerator.get());
                 this.searcherManager = buildSearchManager(indexWriter);
+                versionMap.setManager(searcherManager);
                 readLastCommittedSegmentsInfo();
             } catch (IOException e) {
                 try {
@@ -582,22 +583,21 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
 
+            final boolean found;
             if (currentVersion == Versions.NOT_FOUND) {
                 // doc does not exists and no prior deletes
-                delete.updateVersion(updatedVersion, false);
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                found = false;
             } else if (versionValue != null && versionValue.delete()) {
                 // a "delete on delete", in this case, we still increment the version, log it, and return that version
-                delete.updateVersion(updatedVersion, false);
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                found = false;
             } else {
-                delete.updateVersion(updatedVersion, true);
-                writer.deleteDocuments(delete.uid());
-                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                // we deleted a currently existing document
+                found = true;
             }
+
+            delete.updateVersion(updatedVersion, found);
+            Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+            versionMap.putDelete(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }
@@ -771,6 +771,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
                         SearcherManager current = this.searcherManager;
                         this.searcherManager = buildSearchManager(indexWriter);
+                        versionMap.setManager(searcherManager);
+
                         try {
                             IOUtils.close(current);
                         } catch (Throwable t) {
@@ -868,22 +870,22 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private void refreshVersioningTable(long time) {
         // we need to refresh in order to clear older version values
         refresh(new Refresh("version_table").force(true));
-        for (Map.Entry<HashedBytesRef, VersionValue> entry : versionMap.entrySet()) {
+
+        // we only need to prune deletes; the adds/updates are cleared whenever reader is refreshed:
+        for (Map.Entry<HashedBytesRef, VersionValue> entry : versionMap.deletes.entrySet()) {
             HashedBytesRef uid = entry.getKey();
             synchronized (dirtyLock(uid.bytes)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-                VersionValue versionValue = versionMap.get(uid);
+                VersionValue versionValue = versionMap.deletes.get(uid);
                 if (versionValue == null) {
+                    // another thread has re-added this uid since we started refreshing:
                     continue;
                 }
                 if (time - versionValue.time() <= 0) {
                     continue; // its a newer value, from after/during we refreshed, don't clear it
                 }
-                if (versionValue.delete()) {
-                    if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
-                        versionMap.remove(uid);
-                    }
-                } else {
-                    versionMap.remove(uid);
+                assert versionValue.delete();
+                if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
+                    versionMap.deletes.remove(uid);
                 }
             }
         }
@@ -1412,36 +1414,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             } finally {
                 store.decRef();
             }
-        }
-    }
-
-    static class VersionValue {
-        private final long version;
-        private final boolean delete;
-        private final long time;
-        private final Translog.Location translogLocation;
-
-        VersionValue(long version, boolean delete, long time, Translog.Location translogLocation) {
-            this.version = version;
-            this.delete = delete;
-            this.time = time;
-            this.translogLocation = translogLocation;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public long version() {
-            return version;
-        }
-
-        public boolean delete() {
-            return delete;
-        }
-
-        public Translog.Location translogLocation() {
-            return this.translogLocation;
         }
     }
 

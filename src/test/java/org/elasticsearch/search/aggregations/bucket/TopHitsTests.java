@@ -171,7 +171,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPagination() throws Exception {
-        int size = randomIntBetween(0, 10);
+        int size = randomIntBetween(1, 10);
         int from = randomIntBetween(0, 10);
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")

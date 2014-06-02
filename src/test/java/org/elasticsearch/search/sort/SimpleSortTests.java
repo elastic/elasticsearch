@@ -28,6 +28,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -51,7 +52,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 
@@ -1576,6 +1576,41 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             assertThat(o instanceof StringAndBytesText, is(true));
             StringAndBytesText text = (StringAndBytesText) o;
             assertThat(text.string(), is("bar bar"));
+        }
+    }
+
+    @Test
+    public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
+        String sortField = "sortField";
+        assertAcked(prepareCreate("test1")
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards()))
+                .addMapping("type", sortField, "type=long").get());
+        assertAcked(prepareCreate("test2")
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .addMapping("type", sortField, "type=long").get());
+
+        for (String index : new String[]{"test1", "test2"}) {
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < 256; i++) {
+                docs.add(client().prepareIndex(index, "type", Integer.toString(i)).setSource(sortField, i));
+            }
+            indexRandom(true, docs);
+        }
+
+        ensureSearchable("test1", "test2");
+        SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
+        int from = between(0, 256);
+        int size = between(0, 256);
+        SearchResponse multiShardResponse = client().prepareSearch("test1").setFrom(from).setSize(size).addSort(sortField, order).get();
+        assertNoFailures(multiShardResponse);
+        SearchResponse singleShardResponse = client().prepareSearch("test2").setFrom(from).setSize(size).addSort(sortField, order).get();
+        assertNoFailures(singleShardResponse);
+
+        assertThat(multiShardResponse.getHits().totalHits(), equalTo(singleShardResponse.getHits().totalHits()));
+        assertThat(multiShardResponse.getHits().getHits().length, equalTo(singleShardResponse.getHits().getHits().length));
+        for (int i = 0; i < multiShardResponse.getHits().getHits().length; i++) {
+            assertThat(multiShardResponse.getHits().getAt(i).sortValues()[0], equalTo(singleShardResponse.getHits().getAt(i).sortValues()[0]));
+            assertThat(multiShardResponse.getHits().getAt(i).id(), equalTo(singleShardResponse.getHits().getAt(i).id()));
         }
     }
 

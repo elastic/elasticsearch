@@ -192,40 +192,31 @@ public class TransportClientNodesService extends AbstractComponent {
 
     public <T> T execute(NodeCallback<T> callback) throws ElasticsearchException {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
-        if (nodes.isEmpty()) {
-            throw new NoNodeAvailableException();
-        }
-        int index = randomNodeGenerator.incrementAndGet();
-        if (index < 0) {
-            index = 0;
-            randomNodeGenerator.set(0);
-        }
+        ensureNodesAreAvailable(nodes);
+        int index = getNodeNumber();
         for (int i = 0; i < nodes.size(); i++) {
             DiscoveryNode node = nodes.get((index + i) % nodes.size());
             try {
                 return callback.doWithNode(node);
             } catch (ElasticsearchException e) {
-                if (!(e.unwrapCause() instanceof ConnectTransportException)) {
+                if (e.unwrapCause() instanceof ConnectTransportException) {
+                    logConnectTransportException((ConnectTransportException) e.unwrapCause());
+                } else {
                     throw e;
                 }
             }
         }
-        throw new NoNodeAvailableException();
+        throw new NoNodeAvailableException("None of the configured nodes were available: " + nodes);
     }
 
     public <Response> void execute(NodeListenerCallback<Response> callback, ActionListener<Response> listener) throws ElasticsearchException {
         ImmutableList<DiscoveryNode> nodes = this.nodes;
-        if (nodes.isEmpty()) {
-            throw new NoNodeAvailableException();
-        }
-        int index = randomNodeGenerator.incrementAndGet();
-        if (index < 0) {
-            index = 0;
-            randomNodeGenerator.set(0);
-        }
+        ensureNodesAreAvailable(nodes);
+        int index = getNodeNumber();
         RetryListener<Response> retryListener = new RetryListener<>(callback, listener, nodes, index);
+        DiscoveryNode node = nodes.get((index) % nodes.size());
         try {
-            callback.doWithNode(nodes.get((index) % nodes.size()), retryListener);
+            callback.doWithNode(node, retryListener);
         } catch (ElasticsearchException e) {
             if (e.unwrapCause() instanceof ConnectTransportException) {
                 retryListener.onFailure(e);
@@ -260,13 +251,13 @@ public class TransportClientNodesService extends AbstractComponent {
             if (ExceptionsHelper.unwrapCause(e) instanceof ConnectTransportException) {
                 int i = ++this.i;
                 if (i >= nodes.size()) {
-                    listener.onFailure(new NoNodeAvailableException());
+                    listener.onFailure(new NoNodeAvailableException("None of the configured nodes were available: " + nodes, e));
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
                     } catch (Throwable e1) {
                         // retry the next one...
-                        onFailure(e);
+                        onFailure(e1);
                     }
                 }
             } else {
@@ -289,6 +280,30 @@ public class TransportClientNodesService extends AbstractComponent {
                 transportService.disconnectFromNode(listedNode);
             }
             nodes = ImmutableList.of();
+        }
+    }
+
+    private int getNodeNumber() {
+        int index = randomNodeGenerator.incrementAndGet();
+        if (index < 0) {
+            index = 0;
+            randomNodeGenerator.set(0);
+        }
+        return index;
+    }
+
+    private void ensureNodesAreAvailable(ImmutableList<DiscoveryNode> nodes) {
+        if (nodes.isEmpty()) {
+            String message = String.format(Locale.ROOT, "None of the configured nodes are available: %s", nodes);
+            throw new NoNodeAvailableException(message);
+        }
+    }
+
+    private void logConnectTransportException(ConnectTransportException connectTransportException) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Could not connect to [{}] for action [{}], error [{}] [{}]", connectTransportException, connectTransportException.node(), connectTransportException.action(), connectTransportException.status().name(), connectTransportException.getMessage());
+        } else {
+            logger.debug("Could not connect to [{}] for action [{}], error [{}] [{}]", connectTransportException.node(), connectTransportException.action(), connectTransportException.status().name(), connectTransportException.getMessage());
         }
     }
 

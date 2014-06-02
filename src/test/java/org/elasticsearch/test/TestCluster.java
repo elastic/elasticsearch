@@ -94,6 +94,7 @@ import static org.apache.lucene.util.LuceneTestCase.rarely;
 import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 /**
  * TestCluster manages a set of JVM private nodes and allows convenient access to them.
@@ -396,6 +397,11 @@ public final class TestCluster extends ImmutableTestCluster {
         } catch (Exception e) {
             throw new ElasticsearchException("failed to start nodes", e);
         }
+        if (!futures.isEmpty()) {
+            synchronized (this) {
+                assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodes.size())).get());
+            }
+        }
     }
 
     /**
@@ -422,6 +428,9 @@ public final class TestCluster extends ImmutableTestCluster {
         }
         for (NodeAndClient toRemove : nodesToRemove) {
             nodes.remove(toRemove.name);
+        }
+        if (!nodesToRemove.isEmpty() && size() > 0) {
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodes.size())).get());
         }
     }
 

@@ -434,7 +434,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
 
-            // if the doc does not exists or it exists but not delete
+            // if the doc does not exist or it exists but is not deleted
             if (versionValue != null) {
                 if (!versionValue.delete()) {
                     if (create.origin() == Operation.Origin.RECOVERY) {
@@ -461,7 +461,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
-            versionMap.putUnderLock(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(versionKey, new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postCreateUnderLock(create);
         }
@@ -534,7 +534,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.putUnderLock(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(versionKey, new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postIndexUnderLock(index);
         }
@@ -598,7 +598,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putDeleteUnderLock(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putDeleteUnderLock(versionKey, new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }

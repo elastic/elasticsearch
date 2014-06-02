@@ -21,28 +21,23 @@ package org.elasticsearch.index.engine.internal;
 
 import org.elasticsearch.index.translog.Translog;
 
-class VersionValue {
-    private final long version;
-    private final Translog.Location translogLocation;
+/** Holds a deleted version, which just adds a timestmap to {@link VersionValue} so we know when we can expire the deletion. */
 
-    public VersionValue(long version, Translog.Location translogLocation) {
-        this.version = version;
-        this.translogLocation = translogLocation;
+class DeleteVersionValue extends VersionValue {
+    private final long time;
+
+    public DeleteVersionValue(long version, long time, Translog.Location translogLocation) {
+        super(version, translogLocation);
+        this.time = time;
     }
 
+    @Override
     public long time() {
-        throw new UnsupportedOperationException();
+        return this.time;
     }
 
-    public long version() {
-        return version;
-    }
-
+    @Override
     public boolean delete() {
-        return false;
-    }
-
-    public Translog.Location translogLocation() {
-        return this.translogLocation;
+        return true;
     }
 }

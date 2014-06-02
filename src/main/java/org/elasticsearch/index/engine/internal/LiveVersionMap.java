@@ -75,12 +75,13 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     }
 
     /** Caller has a lock, so that this uid will not be concurrently added/deleted by another thread. */
-    public VersionValue get(HashedBytesRef uid) {
+    public VersionValue getUnderLock(HashedBytesRef uid) {
         // First try to get the "live" value:
         VersionValue value = addsCurrent.get(uid);
         if (value != null) {
             return value;
         }
+
         value = addsOld.get(uid);
         if (value != null) {
             return value;
@@ -94,12 +95,12 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         return null;
     }
 
-    public void put(HashedBytesRef uid, VersionValue value) {
+    public void putUnderLock(HashedBytesRef uid, VersionValue value) {
         deletes.remove(uid);
         addsCurrent.put(uid, value);
     }
 
-    public void putDelete(HashedBytesRef uid, VersionValue value) {
+    public void putDeleteUnderLock(HashedBytesRef uid, VersionValue value) {
         addsCurrent.remove(uid);
         addsOld.remove(uid);
         deletes.put(uid, value);

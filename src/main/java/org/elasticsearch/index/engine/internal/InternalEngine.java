@@ -323,7 +323,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     public GetResult get(Get get) throws EngineException {
         try (InternalLock _ = readLock.acquire()) {
             if (get.realtime()) {
-                VersionValue versionValue = versionMap.get(versionKey(get.uid()));
+                VersionValue versionValue = versionMap.getUnderLock(versionKey(get.uid()));
                 if (versionValue != null) {
                     if (versionValue.delete()) {
                         return GetResult.NOT_EXISTS;
@@ -410,7 +410,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 currentVersion = Versions.NOT_FOUND;
                 versionValue = null;
             } else {
-                versionValue = versionMap.get(versionKey);
+                versionValue = versionMap.getUnderLock(versionKey);
                 if (versionValue == null) {
                     currentVersion = loadCurrentVersionFromIndex(create.uid());
                 } else {
@@ -461,7 +461,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
-            versionMap.put(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postCreateUnderLock(create);
         }
@@ -490,7 +490,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         synchronized (dirtyLock(index.uid())) {
             HashedBytesRef versionKey = versionKey(index.uid());
             final long currentVersion;
-            VersionValue versionValue = versionMap.get(versionKey);
+            VersionValue versionValue = versionMap.getUnderLock(versionKey);
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(index.uid());
             } else {
@@ -534,7 +534,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.put(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postIndexUnderLock(index);
         }
@@ -561,7 +561,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         synchronized (dirtyLock(delete.uid())) {
             final long currentVersion;
             HashedBytesRef versionKey = versionKey(delete.uid());
-            VersionValue versionValue = versionMap.get(versionKey);
+            VersionValue versionValue = versionMap.getUnderLock(versionKey);
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(delete.uid());
             } else {
@@ -585,19 +585,20 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             final boolean found;
             if (currentVersion == Versions.NOT_FOUND) {
-                // doc does not exists and no prior deletes
+                // doc does not exist and no prior deletes
                 found = false;
             } else if (versionValue != null && versionValue.delete()) {
                 // a "delete on delete", in this case, we still increment the version, log it, and return that version
                 found = false;
             } else {
                 // we deleted a currently existing document
+                writer.deleteDocuments(delete.uid());
                 found = true;
             }
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putDelete(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putDeleteUnderLock(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }
@@ -870,6 +871,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private void refreshVersioningTable(long time) {
         // we need to refresh in order to clear older version values
         refresh(new Refresh("version_table").force(true));
+
+        // nocommit sort of weird reach-in here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 
         // we only need to prune deletes; the adds/updates are cleared whenever reader is refreshed:
         for (Map.Entry<HashedBytesRef, VersionValue> entry : versionMap.deletes.entrySet()) {

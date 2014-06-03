@@ -307,7 +307,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         // support for getting fields by regex as in fielddata
                         if (Regex.simpleMatch(field, entry.getKey())) {
                             long fstSize = entry.getValue().fst.sizeInBytes();
-                            completionFields.addTo(field, fstSize);
+                            completionFields.addTo(entry.getKey(), fstSize);
                         }
                     }
                 }

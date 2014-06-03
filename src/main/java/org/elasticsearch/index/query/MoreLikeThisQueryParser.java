@@ -207,6 +207,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
             // fetching the items with multi-get
             List<LikeText> likeTexts = fetchService.fetch(items);
+            // collapse the text onto the same field name
+            collapseTextOnField(likeTexts);
             // right now we are just building a boolean query
             BooleanQuery boolQuery = new BooleanQuery();
             for (LikeText likeText : likeTexts) {
@@ -231,7 +233,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
     private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, LikeText likeText) {
         MoreLikeThisQuery mlt = new MoreLikeThisQuery();
         mlt.setMoreLikeFields(new String[] {likeText.field});
-        mlt.setLikeText(likeText.text);
+        mlt.setLikeText(likeText.getText());
         mlt.setAnalyzer(mltQuery.getAnalyzer());
         mlt.setPercentTermsToMatch(mltQuery.getPercentTermsToMatch());
         mlt.setBoostTerms(mltQuery.isBoostTerms());
@@ -258,6 +260,19 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
         }
         return moreLikeFields;
+    }
+
+    public static void collapseTextOnField (Collection<LikeText> likeTexts) {
+        Map<String, LikeText> keptLikeTexts = new HashMap<>();
+        for (Iterator<LikeText> it = likeTexts.iterator(); it.hasNext();) {
+            final LikeText likeText = it.next();
+            if (keptLikeTexts.containsKey(likeText.field)) {
+                keptLikeTexts.get(likeText.field).addText(likeText.getText());
+                it.remove();
+            } else {
+                keptLikeTexts.put(likeText.field, likeText);
+            }
+        }
     }
 
     private void removeUnsupportedFields(MultiGetRequest.Item item, Analyzer analyzer, boolean failOnUnsupportedField) throws IOException {

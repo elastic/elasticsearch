@@ -31,6 +31,7 @@ import org.elasticsearch.index.get.GetField;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -40,16 +41,30 @@ public class MoreLikeThisFetchService extends AbstractComponent {
 
     public static final class LikeText {
         public final String field;
-        public final String[] text;
+        private List<String> text;
 
         public LikeText(String field, String text) {
             this.field = field;
-            this.text = new String[]{text};
+            this.text = new ArrayList<>();
+            addText(text);
         }
 
         public LikeText(String field, String... text) {
             this.field = field;
-            this.text = text;
+            this.text = new ArrayList<>();
+            addText(text);
+        }
+
+        public List<String> getText() {
+            return text;
+        }
+
+        public void addText(List<String> text) {
+            this.text.addAll(text);
+        }
+
+        public void addText(String... text) {
+            addText(Arrays.asList(text));
         }
     }
 

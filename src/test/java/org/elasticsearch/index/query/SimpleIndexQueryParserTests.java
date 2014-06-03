@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -65,6 +66,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
+import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService.LikeText;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
@@ -1680,16 +1682,11 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
         MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
         parser.setFetchService(new MockMoreLikeThisFetchService());
 
-        List<MoreLikeThisFetchService.LikeText> likeTexts = new ArrayList<>();
-        String index = "test";
-        String type = "person";
-        for (int i = 1; i < 5; i++) {
-            for (String field : new String[]{"name.first", "name.last"}) {
-                MoreLikeThisFetchService.LikeText likeText = new MoreLikeThisFetchService.LikeText(
-                        field, index + " " + type + " " + i + " " + field);
-                likeTexts.add(likeText);
-            }
-        }
+        List<LikeText> likeTexts = new ArrayList<>();
+        likeTexts.add(new LikeText("name.first", new String[]{
+                "test person 1 name.first", "test person 2 name.first", "test person 3 name.first", "test person 4 name.first"}));
+        likeTexts.add(new LikeText("name.last", new String[]{
+                "test person 1 name.last", "test person 2 name.last", "test person 3 name.last", "test person 4 name.last"}));
 
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-ids.json");
@@ -1700,12 +1697,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
 
         // check each clause is for each item
         BooleanClause[] boolClauses = booleanQuery.getClauses();
-        for (int i=0; i<likeTexts.size(); i++) {
+        for (int i = 0; i < likeTexts.size(); i++) {
             BooleanClause booleanClause = booleanQuery.getClauses()[i];
             assertThat(booleanClause.getOccur(), is(BooleanClause.Occur.SHOULD));
             assertThat(booleanClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
             MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) booleanClause.getQuery();
-            assertThat(mltQuery.getLikeTexts(), is(likeTexts.get(i).text));
+            assertThat(mltQuery.getLikeTexts(), is(likeTexts.get(i).getText().toArray(Strings.EMPTY_ARRAY)));
             assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
         }
 

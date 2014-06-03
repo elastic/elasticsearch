@@ -178,6 +178,8 @@ public class Version implements Serializable {
     public static final Version V_1_1_2 = new Version(V_1_1_2_ID, false, org.apache.lucene.util.Version.LUCENE_47);
     public static final int V_1_2_0_ID = /*00*/1020099;
     public static final Version V_1_2_0 = new Version(V_1_2_0_ID, false, org.apache.lucene.util.Version.LUCENE_48);
+    public static final int V_1_2_1_ID = /*00*/1020199;
+    public static final Version V_1_2_1 = new Version(V_1_2_1_ID, false, org.apache.lucene.util.Version.LUCENE_48);
     public static final int V_1_3_0_ID = /*00*/1030099;
     public static final Version V_1_3_0 = new Version(V_1_3_0_ID, false, org.apache.lucene.util.Version.LUCENE_48);
     public static final int V_2_0_0_ID = /*00*/2000099;
@@ -199,6 +201,8 @@ public class Version implements Serializable {
                 return V_2_0_0;
             case V_1_3_0_ID:
                 return V_1_3_0;
+            case V_1_2_1_ID:
+                return V_1_2_1;
             case V_1_2_0_ID:
                 return V_1_2_0;
             case V_1_1_2_ID:

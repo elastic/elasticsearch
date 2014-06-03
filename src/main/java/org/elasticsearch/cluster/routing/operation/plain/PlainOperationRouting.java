@@ -35,7 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexShardMissingException;
@@ -266,12 +265,12 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
     private int shardId(ClusterState clusterState, String index, String type, @Nullable String id, @Nullable String routing) {
         if (routing == null) {
             if (!useType) {
-                return MathUtils.mod(hash(id), indexMetaData(clusterState, index).numberOfShards());
+                return Math.abs(hash(id) % indexMetaData(clusterState, index).numberOfShards());
             } else {
-                return MathUtils.mod(hash(type, id), indexMetaData(clusterState, index).numberOfShards());
+                return Math.abs(hash(type, id) % indexMetaData(clusterState, index).numberOfShards());
             }
         }
-        return MathUtils.mod(hash(routing), indexMetaData(clusterState, index).numberOfShards());
+        return Math.abs(hash(routing) % indexMetaData(clusterState, index).numberOfShards());
     }
 
     protected int hash(String routing) {

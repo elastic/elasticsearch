@@ -1086,6 +1086,7 @@
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class</exclude>
                                 <!-- end excludes for Math.abs -->
                                 <!-- start exclude for FilteredQuery -->
                                 <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>

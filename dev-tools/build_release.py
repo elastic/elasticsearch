@@ -334,12 +334,7 @@ class Artifact:
     self.path = path  # path/to
     self.name = name  # elasticsearch-9.9.99
     self.ext = ext    # tar.gz
-    self.fullpath = None
-
-  def fullpath(self):
-    if not self.fullpath:
-      self.fullpath = os.path.join(self.path, "%s.%s" % (self.name, self.ext))
-    return self.fullpath
+    self.fullpath = os.path.join(self.path, "%s.%s" % (self.name, self.ext))
 
 def artifacts(release, path = ''):
   return [Artifact(path, "elasticsearch-%s" % release, t) for t in ['deb', 'tar.gz', 'zip']]

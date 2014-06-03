@@ -52,6 +52,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = randomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
+            Throwable firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
@@ -62,7 +63,25 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
             logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(5, 10);
             for (int j = 0; j < numOfChecks; j++) {
-                assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                try {
+                    assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                } catch (Throwable t) {
+                    logger.error("search for all docs types failed", t);
+                    if (firstError == null) {
+                        firstError = t;
+                    }
+                }
+                try {
+                    assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
+                } catch (Throwable t) {
+                    logger.error("search for all docs of a specific type failed", t);
+                    if (firstError == null) {
+                        firstError = t;
+                    }
+                }
+            }
+            if (firstError != null) {
+                fail(firstError.getMessage());
             }
             cluster().wipeIndices("test");
         }

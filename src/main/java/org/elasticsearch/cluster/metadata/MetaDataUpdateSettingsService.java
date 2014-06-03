@@ -75,8 +75,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         // we need to do this each time in case it was changed by update settings
         for (final IndexMetaData indexMetaData : event.state().metaData()) {
-            final String autoExpandSettingName = IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
-            String autoExpandReplicas = indexMetaData.settings().get(autoExpandSettingName);
+            String autoExpandReplicas = indexMetaData.settings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
             if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
                 try {
                     int min;
@@ -85,7 +84,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         final int dash = autoExpandReplicas.indexOf('-');
                         if (-1 == dash) {
                             logger.warn("Unexpected value [{}] for setting [{}]; it should be dash delimited",
-                                    autoExpandReplicas, autoExpandSettingName);
+                                    autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
                             throw new IllegalArgumentException(String.format(
                                     "Cannot parse [%s] into upper and lower", autoExpandReplicas));
                         }
@@ -97,7 +96,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             max = Integer.parseInt(sMax);
                         }
                     } catch (Exception e) {
-                        logger.warn("failed to set [{}], wrong format [{}]", e, autoExpandSettingName, autoExpandReplicas);
+                        logger.warn("failed to set [{}], wrong format [{}]", e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, autoExpandReplicas);
                         continue;
                     }
 

@@ -629,7 +629,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new DeleteByQueryFailedEngineException(shardId, delete, t);
         }
         //TODO: This is heavy, since we refresh, but we really have to...
-        refreshVersioningTable(System.currentTimeMillis());
+        pruneDeletedVersions(System.currentTimeMillis());
     }
 
     @Override
@@ -775,7 +775,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         } catch (Throwable t) {
                             logger.warn("Failed to close current SearcherManager", t);
                         }
-                        refreshVersioningTable(threadPool.estimatedTimeInMillis());
+                        pruneDeletedVersions(threadPool.estimatedTimeInMillis());
                     } catch (Throwable t) {
                         throw new FlushFailedEngineException(shardId, t);
                     }
@@ -794,7 +794,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             translog.newTransientTranslog(translogId);
                             indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             indexWriter.commit();
-                            refreshVersioningTable(threadPool.estimatedTimeInMillis());
+                            pruneDeletedVersions(threadPool.estimatedTimeInMillis());
                             // we need to move transient to current only after we refresh
                             // so items added to current will still be around for realtime get
                             // when tans overrides it
@@ -864,17 +864,19 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return writer;
     }
 
-    private void refreshVersioningTable(long time) {
+    private void pruneDeletedVersions(long time) {
         // we need to refresh in order to clear older version values
         refresh(new Refresh("version_table").force(true));
 
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 
         // we only need to prune deletes; the adds/updates are cleared whenever reader is refreshed:
-        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.deletes.entrySet()) {
+        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllDeletes()) {
             BytesRef uid = entry.getKey();
             synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
-                VersionValue versionValue = versionMap.deletes.get(uid);
+
+                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+                VersionValue versionValue = versionMap.getDeleteUnderLock(uid);
                 if (versionValue == null) {
                     // another thread has re-added this uid since we started refreshing:
                     continue;
@@ -884,7 +886,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
                 assert versionValue.delete();
                 if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
-                    versionMap.deletes.remove(uid);
+                    versionMap.removeDeleteUnderLock(uid);
                 }
             }
         }

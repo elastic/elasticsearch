@@ -40,7 +40,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     private volatile Map<BytesRef,VersionValue> addsOld = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Holds tombstones for deleted docs, expiring by their own schedule; not private so InternalEngine can prune:
-    final Map<BytesRef,VersionValue> deletes = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final Map<BytesRef,VersionValue> deletes = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private ReferenceManager mgr;
 
@@ -96,15 +96,32 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         return null;
     }
 
-    public void putUnderLock(BytesRef uid, VersionValue value) {
+    /** Adds this uid/version to the pending adds map. */
+    public void putUnderLock(BytesRef uid, VersionValue version) {
         deletes.remove(uid);
-        addsCurrent.put(uid, value);
+        addsCurrent.put(uid, version);
     }
 
-    public void putDeleteUnderLock(BytesRef uid, VersionValue value) {
+    /** Adds this uid/version to the pending deletes map. */
+    public void putDeleteUnderLock(BytesRef uid, VersionValue version) {
         addsCurrent.remove(uid);
         addsOld.remove(uid);
-        deletes.put(uid, value);
+        deletes.put(uid, version);
+    }
+
+    /** Returns the current deleted version for this uid. */
+    public VersionValue getDeleteUnderLock(BytesRef uid) {
+        return deletes.get(uid);
+    }
+
+    /** Removes this uid from the pending deletes map. */
+    public void removeDeleteUnderLock(BytesRef uid) {
+        deletes.remove(uid);
+    }
+
+    /** Iterates over all pending deletions. */
+    public Iterable<Map.Entry<BytesRef,VersionValue>> getAllDeletes() {
+        return deletes.entrySet();
     }
 
     /** Called when this index is closed. */

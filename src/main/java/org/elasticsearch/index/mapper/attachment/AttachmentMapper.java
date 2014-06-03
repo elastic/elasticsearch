@@ -351,10 +351,6 @@ public class AttachmentMapper implements Mapper {
                         contentType = parser.text();
                     } else if ("_name".equals(currentFieldName)) {
                         name = parser.text();
-                    } else if ("language".equals(currentFieldName)) {
-                        // TODO deprecated form. Will be removed in 2.3
-                    	language = parser.text();
-                        logger.debug("`language` is now deprecated. Use `_language`. See https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/68");
                     } else if ("_language".equals(currentFieldName)) {
                         language = parser.text();
                     }

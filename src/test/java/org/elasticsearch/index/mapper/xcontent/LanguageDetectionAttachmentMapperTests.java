@@ -74,7 +74,7 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
                         .field("content", html);
 
         if (forcedLanguage.length > 0) {
-            xcb.field("language", forcedLanguage[0]);
+            xcb.field("_language", forcedLanguage[0]);
         }
 
         xcb.endObject().endObject();

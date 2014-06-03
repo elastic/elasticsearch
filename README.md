@@ -46,13 +46,14 @@ In this case, the JSON to index can be:
 }
 ```
 
-Or it is possible to use more elaborated JSON if content type or resource name need to be set explicitly:
+Or it is possible to use more elaborated JSON if content type, resource name or language need to be set explicitly:
 
 ```javascript
 {
     "my_attachment" : {
         "_content_type" : "application/pdf",
         "_name" : "resource/name/of/my.pdf",
+        "_language" : "en",
         "content" : "... base64 encoded attachment ..."
     }
 }
@@ -121,7 +122,16 @@ By default, language detection is disabled (`false`) as it could come with a cos
 This default value can be changed by setting the `index.mapping.attachment.detect_language` setting.
 It can also be provided on a per document indexed using the `_detect_language` parameter.
 
-Note, this feature is supported since `2.0.0` version.
+Note that you can force language using `_language` field when sending your actual document:
+
+```javascript
+{
+    "my_attachment" : {
+        "_language" : "en",
+        "content" : "... base64 encoded attachment ..."
+    }
+}
+```
 
 Highlighting attachments
 ------------------------

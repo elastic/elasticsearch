@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.ObjectArrays;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queries.TermsFilter;
@@ -207,9 +208,11 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
             // fetching the items with multi-get
             List<LikeText> likeTexts = fetchService.fetch(items);
+            // collapse the text onto the same field name
+            Collection<LikeText> likeTextsCollapsed = collapseTextOnField(likeTexts);
             // right now we are just building a boolean query
             BooleanQuery boolQuery = new BooleanQuery();
-            for (LikeText likeText : likeTexts) {
+            for (LikeText likeText : likeTextsCollapsed) {
                 addMoreLikeThis(boolQuery, mltQuery, likeText);
             }
             // exclude the items from the search
@@ -258,6 +261,19 @@ public class MoreLikeThisQueryParser implements QueryParser {
             }
         }
         return moreLikeFields;
+    }
+
+    public static Collection<LikeText> collapseTextOnField (Collection<LikeText> likeTexts) {
+        Map<String, LikeText> collapsedTexts = new HashMap<>();
+        for (LikeText likeText : likeTexts) {
+            String field = likeText.field;
+            String[] text = likeText.text;
+            if (collapsedTexts.containsKey(field)) {
+                text = ObjectArrays.concat(collapsedTexts.get(field).text, text, String.class);
+            }
+            collapsedTexts.put(field, new LikeText(field, text));
+        }
+        return collapsedTexts.values();
     }
 
     private void removeUnsupportedFields(MultiGetRequest.Item item, Analyzer analyzer, boolean failOnUnsupportedField) throws IOException {

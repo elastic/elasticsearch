@@ -352,6 +352,7 @@ public class AttachmentMapper implements Mapper {
                     } else if ("_name".equals(currentFieldName)) {
                         name = parser.text();
                     } else if ("language".equals(currentFieldName)) {
+                        // TODO should be _language
                     	language = parser.text();
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -448,7 +449,11 @@ public class AttachmentMapper implements Mapper {
         }
 
         try {
-            context.externalValue(metadata.get(Metadata.CONTENT_TYPE));
+            if (contentType != null) {
+                context.externalValue(contentType);
+            } else {
+                context.externalValue(metadata.get(Metadata.CONTENT_TYPE));
+            }
             contentTypeMapper.parse(context);
         } catch(MapperParsingException e){
             if (!ignoreErrors) throw e;

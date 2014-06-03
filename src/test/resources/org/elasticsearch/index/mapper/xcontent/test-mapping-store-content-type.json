@@ -1,0 +1,13 @@
+{
+    "person":{
+        "properties":{
+            "file":{
+                "type":"attachment",
+                "fields": {
+                    "content_type" : {"store" : "yes"},
+                    "name" : {"store" : "yes"}
+                }
+            }
+        }
+    }
+}

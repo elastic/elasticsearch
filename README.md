@@ -121,6 +121,27 @@ It can also be provided on a per document indexed using the `_detect_language` p
 
 Note, this feature is supported since `2.0.0` version.
 
+Highlighting attachments
+------------------------
+
+If you want to highlight your attachment content, you will need to store your file content and set `term_vector` as follow:
+
+```
+PUT test/my_type/_mapping
+{
+    "my_type" : {
+        "properties" : {
+            "my_html_file" : {
+                "type" : "attachment",
+                "fields" : {
+                    "title" : { "store" : "yes" },
+                    "my_html_file" : { "term_vector":"with_positions_offsets", "store":"yes" }
+                }
+            }
+        }
+    }
+}
+```
 
 License
 -------

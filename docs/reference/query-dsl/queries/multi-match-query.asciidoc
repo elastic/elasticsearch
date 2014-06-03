@@ -365,7 +365,7 @@ In other words, `first` and `last` would be grouped together and
 treated as a single field, and `first.edge` and `last.edge` would be
 grouped together and treated as a single field.
 
-Having multiple groups is fine but, when combined with `operator` or
+Having multiple groups is fine, but when combined with `operator` or
 `minimum_should_match`, it can suffer from the <<operator-min,same problem>>
 as `most_fields` or `best_fields`.
 

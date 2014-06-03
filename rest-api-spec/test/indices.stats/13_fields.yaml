@@ -1,0 +1,175 @@
+---
+  setup:
+
+    - do:
+        indices.create:
+            index:  test1
+            body:
+                mappings:
+                    bar:
+                        properties:
+                            bar:
+                                type: string
+                                fields:
+                                    completion:
+                                        type: completion
+                            baz:
+                                type: string
+                                fields:
+                                    completion:
+                                        type: completion
+    - do:
+        index:
+            index: test1
+            type:  bar
+            id:    1
+            body:  { "bar": "bar", "baz": "baz" }
+
+    - do:
+        index:
+            index: test2
+            type:  baz
+            id:    1
+            body:  { "bar": "bar", "baz": "baz" }
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            sort: bar,baz
+
+---
+"Fields - blank":
+  - do:
+      indices.stats: {}
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields
+
+---
+"Fields - one":
+  - do:
+      indices.stats: { fields: bar }
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.bar
+
+---
+"Fields - multi":
+  - do:
+      indices.stats: { fields: "bar,baz.completion" }
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.bar\\.completion
+  - gt:       { _all.primaries.completion.fields.baz\\.completion.size_in_bytes: 0 }
+
+---
+"Fields - star":
+  - do:
+      indices.stats: { fields: "*" }
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.baz\\.completion.size_in_bytes: 0 }
+
+---
+"Fields - pattern":
+  - do:
+      indices.stats: { fields: "bar*" }
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+
+---
+"Fielddata fields - one":
+  - do:
+      indices.stats: { fielddata_fields: bar }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - is_false:   _all.primaries.completion.fields
+
+---
+"Fielddata fields - multi":
+  - do:
+      indices.stats: { fielddata_fields: "bar,baz,baz.completion" }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields
+
+---
+"Fielddata fields - star":
+  - do:
+      indices.stats: { fielddata_fields: "*" }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.baz.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields
+
+---
+"Fields - pattern":
+  - do:
+      indices.stats: { fielddata_fields: "*r" }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - is_false:   _all.primaries.completion.fields
+
+
+
+
+---
+"Completion fields - one":
+  - do:
+      indices.stats: { completion_fields: bar.completion }
+
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+  - is_false:   _all.primaries.fielddata.fields
+
+---
+"Completion fields - multi":
+  - do:
+      indices.stats: { completion_fields: "bar.completion,baz,baz.completion" }
+
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.baz\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields
+
+---
+"Completion fields - star":
+  - do:
+      indices.stats: { completion_fields: "*" }
+
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.baz\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields
+
+---
+"Completion - pattern":
+  - do:
+      indices.stats: { completion_fields: "*r*" }
+
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+  - is_false:   _all.primaries.fielddata.fields
+
+
+

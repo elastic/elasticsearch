@@ -1,0 +1,54 @@
+---
+  setup:
+
+    - do:
+        index:
+            index: test1
+            type:  bar
+            id:    1
+            body:  { "bar": "bar", "baz": "baz" }
+
+    - do:
+        search:
+            body:
+                stats:  [ bar, baz ]
+
+---
+"Groups - blank":
+  - do:
+      indices.stats: {}
+
+  - gt:       { _all.primaries.search.query_total: 0 }
+  - is_false:   _all.primaries.search.groups
+
+---
+"Groups - one":
+  - do:
+      indices.stats: { groups: bar }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - is_false:   _all.primaries.search.groups.baz
+
+---
+"Groups - multi":
+  - do:
+      indices.stats: { groups: "bar,baz" }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - gt:       { _all.primaries.search.groups.baz.query_total: 0 }
+
+---
+"Groups - star":
+  - do:
+      indices.stats: { groups: "*" }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - gt:       { _all.primaries.search.groups.baz.query_total: 0 }
+
+---
+"Groups - pattern":
+  - do:
+      indices.stats: { groups: "*r" }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - is_false:   _all.primaries.search.groups.baz

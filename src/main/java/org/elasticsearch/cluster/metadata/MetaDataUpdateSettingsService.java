@@ -83,10 +83,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     try {
                         final int dash = autoExpandReplicas.indexOf('-');
                         if (-1 == dash) {
-                            logger.warn("Unexpected value [{}] for setting [{}]; it should be dash delimited",
-                                    autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
-                            throw new IllegalArgumentException(String.format(
-                                    "Cannot parse [%s] into upper and lower", autoExpandReplicas));
+                            final String errorMessage = String.format(
+                                    "Unexpected value [%s] for setting [%s]; it should be dash delimited",
+                            autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
+                            logger.warn(errorMessage);
+                            throw new ElasticsearchIllegalArgumentException(errorMessage);
                         }
                         min = Integer.parseInt(autoExpandReplicas.substring(0, dash));
                         String sMax = autoExpandReplicas.substring(dash + 1);

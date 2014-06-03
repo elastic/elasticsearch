@@ -57,10 +57,7 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.UnicodeUtil;
-
-/**
- * Should be removed in Lucene 4.9.
- */
+import org.elasticsearch.Version;
 
 /**
  * Generate "more like this" similarity queries.
@@ -160,6 +157,10 @@ import org.apache.lucene.util.UnicodeUtil;
  */
 
 public final class XMoreLikeThis {
+
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48: "Remove this class once we upgrade to Lucene 4.9";
+    }
 
     /**
      * Default maximum number of tokens to parse in each example doc field that is not stored with TermVector support.

@@ -27,11 +27,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -174,11 +176,15 @@ public class MoreLikeThisQuery extends Query {
     }
 
     public void setLikeText(String likeText) {
-        this.likeText = new String[]{likeText};
+        setLikeText(new String[]{likeText});
     }
 
     public void setLikeText(String... likeText) {
         this.likeText = likeText;
+    }
+
+    public void setLikeText(List<String> likeText) {
+        setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
     public String[] getMoreLikeFields() {

@@ -81,13 +81,13 @@ Both the meta data and the actual content are simple core type mappers (string, 
                 "type" : "attachment",
                 "fields" : {
                     "file" : {"index" : "no"},
-                    "title" : {store : "yes"},
+                    "title" : {"store" : "yes"},
                     "date" : {"store" : "yes"},
                     "author" : {"analyzer" : "myAnalyzer"},
-                    "keywords" : {store : "yes"},
-                    "content_type" : {store : "yes"},
-                    "content_length" : {store : "yes"},
-                    "language" : {store : "yes"}
+                    "keywords" : {"store" : "yes"},
+                    "content_type" : {"store" : "yes"},
+                    "content_length" : {"store" : "yes"},
+                    "language" : {"store" : "yes"}
                 }
             }
         }

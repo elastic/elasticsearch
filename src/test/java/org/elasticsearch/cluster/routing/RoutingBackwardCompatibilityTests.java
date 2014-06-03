@@ -35,7 +35,7 @@ public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
     public void testBackwardCompatibility() throws Exception {
         InternalNode node = new InternalNode();
         try {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org.elasticsearch.cluster.routing/shard_routes.txt"), "UTF-8"))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
                 for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                     if (line.startsWith("#")) { // comment
                         continue;

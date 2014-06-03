@@ -117,7 +117,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     // A scorer used for the deferred collection mode to handle any child aggs asking for scores that are not 
     // recorded.
     static final Scorer unavailableScorer=new Scorer(null){
-        private final String MSG="A limitation of the "+SubAggCollectionMode.DEPTH_FIRST.parseField.getPreferredName()+
+        private final String MSG="A limitation of the "+SubAggCollectionMode.BREADTH_FIRST.parseField.getPreferredName()+
                 " collection mode is that scores cannot be buffered along with document IDs";
 
         @Override

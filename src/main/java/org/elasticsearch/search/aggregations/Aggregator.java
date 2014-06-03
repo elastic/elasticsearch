@@ -58,6 +58,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         }
     }
 
+    public static final ParseField COLLECT_MODE = new ParseField("collect_mode");
+
     /**
      * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
      */
@@ -110,7 +112,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
                     return mode;
                 }
             }
-            throw new ElasticsearchParseException("No collectionMode found for value [" + value + "]");
+            throw new ElasticsearchParseException("No " + COLLECT_MODE.getPreferredName() + " found for value [" + value + "]");
         }
     }
     

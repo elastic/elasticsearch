@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.ValuesSourceAggregationBuilder;
 
@@ -165,7 +166,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
             order.toXContent(builder, params);
         }
         if (collectionMode != null) {
-            builder.field(AbstractTermsParametersParser.COLLECT_MODE.getPreferredName(), collectionMode.parseField().getPreferredName());
+            builder.field(Aggregator.COLLECT_MODE.getPreferredName(), collectionMode.parseField().getPreferredName());
         }
         if (includePattern != null) {
             if (includeFlags == 0) {

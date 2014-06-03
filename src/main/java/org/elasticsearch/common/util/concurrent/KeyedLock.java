@@ -20,11 +20,14 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+
+import jsr166e.ConcurrentHashMapV8;
 
 /**
  * This class manages locks. Locks can be accessed with an identifier and are
@@ -38,7 +41,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class KeyedLock<T> {
 
-    private final ConcurrentMap<T, KeyLock> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<T, KeyLock> map = ConcurrentCollections.newConcurrentMap();
 
     private final ThreadLocal<KeyLock> threadLocal = new ThreadLocal<>();
 

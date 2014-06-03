@@ -80,7 +80,8 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
         BucketCollector subs=new BucketCollector(){
             @Override
             public void setNextReader(AtomicReaderContext reader) {
-              //Need to set AggregationContext or ValueSources in aggs don't read any values
+                // Need to set AggregationContext otherwise ValueSources in aggs
+                // don't read any values
               context.setNextReader(reader);
               deferred.setNextReader(reader);
             }

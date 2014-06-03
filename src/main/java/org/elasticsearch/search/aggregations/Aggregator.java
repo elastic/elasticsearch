@@ -190,12 +190,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         this.factories = factories;
         this.subAggregators = factories.createSubAggregators(this, estimatedBucketsCount);
         context.searchContext().addReleasable(this, Lifetime.PHASE);
-        // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent initialize call)
+        // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            static final String ERR="Initialize not called on new Aggregator before use";
             void badState(){
                 throw new QueryPhaseExecutionException(Aggregator.this.context.searchContext(),
-                        "Initialize not called on new Aggregator before use", null);                
+                        "preCollection not called on new Aggregator before use", null);                
             }
             @Override
             public void setNextReader(AtomicReaderContext reader) {
@@ -218,7 +217,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             }
         };
     }
-    protected void initialize() {
+    protected void preCollection() {
         Iterable<Aggregator> collectables = Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR);
         List<BucketCollector> nextPassCollectors=new ArrayList<>();
         List<BucketCollector> thisPassCollectors=new ArrayList<>();
@@ -232,25 +231,33 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         if(nextPassCollectors.size()>0){
             BucketCollector deferreds=BucketCollector.wrap(nextPassCollectors);
             recordingWrapper=new DeferringBucketCollector(deferreds, context);
-//          //TODO. Without line below we are dependent on subclass aggs delegating setNextReader calls on to child aggs
-//          // which they don't seem to do as a matter of course? Is there a cleaner way around this?             
+            // TODO. Without line below we are dependent on subclass aggs
+            // delegating setNextReader calls on to child aggs
+            // which they don't seem to do as a matter of course. Need to move
+            // to a delegation model rather than broadcast
             context.registerReaderContextAware(recordingWrapper);
             thisPassCollectors.add(recordingWrapper);            
         }
         collectableSubAggregators=BucketCollector.wrap(thisPassCollectors);
     }
-    /*
-     * Subclasses can return true if the aggregator should be deferred
-     * until a first pass at collection has completed. Deferring collection
-     * will require the recording of all doc/bucketIds in a first pass and
-     * then the sub class should call runDeferred() for the selected set of buckets
+    
+    /**
+     * This method should be overidden by subclasses that want to defer calculation
+     * of a child aggregation until a first pass is complete and a set of buckets has 
+     * been pruned.
+     * Deferring collection will require the recording of all doc/bucketIds from the first 
+     * pass and then the sub class should call {@link #runDeferredCollections(long...)}  
+     * for the selected set of buckets that survive the pruning.
+     * @param aggregator the child aggregator 
+     * @return true if the aggregator should be deferred
+     * until a first pass at collection has completed
      */
     protected boolean shouldDefer(Aggregator aggregator) {
         return false;
     }
     
     protected void runDeferredCollections(long... bucketOrds){
-        //Being lenient here - ignore calls where there are no deferred collections to playback
+        // Being lenient here - ignore calls where there are no deferred collections to playback
         if (recordingWrapper != null) {
             context.setScorer(unavailableScorer);
             recordingWrapper.prepareSelectedBuckets(bucketOrds);

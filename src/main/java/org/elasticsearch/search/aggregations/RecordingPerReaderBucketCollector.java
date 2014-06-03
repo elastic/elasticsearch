@@ -36,7 +36,7 @@ import java.util.List;
  */
 public class RecordingPerReaderBucketCollector extends RecordingBucketCollector  {
 
-    List<PerSegmentCollects> perSegmentCollections = new ArrayList<>();
+    final List<PerSegmentCollects> perSegmentCollections = new ArrayList<>();
     private PerSegmentCollects currentCollection;
     private boolean recordingComplete;
     
@@ -52,11 +52,11 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
 
         void collect(int doc, long owningBucketOrdinal) throws IOException {
             if (docs == null) {
-                //TODO unclear what might be reasonable constructor args to pass to this collection
+                // TODO unclear what might be reasonable constructor args to pass to this collection
                 // No way of accurately predicting how many docs will be collected 
                 docs = new AppendingPackedLongBuffer();
             }
-            //Store as delta-encoded for better compression
+            // Store as delta-encoded for better compression
             docs.add(doc - lastDocId);
             lastDocId = doc;
             if (buckets == null) {
@@ -67,7 +67,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
                     for (int i = 0; i < docs.size() - 1; i++) {
                         buckets.add(0);
                     }
-                    //record the new non-zero bucketID
+                    // record the new non-zero bucketID
                     buckets.add(owningBucketOrdinal);
                 }
             } else {
@@ -112,7 +112,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
     }
     
     public RecordingPerReaderBucketCollector(AggregationContext context) {
-        //Call this method to achieve better compression in the recorded arrays of matches
+        // Call this method to achieve better compression in the recorded arrays of matches
         context.ensureScoreDocsInOrder();        
     }
 

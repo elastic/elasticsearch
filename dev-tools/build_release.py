@@ -329,21 +329,28 @@ def find_release_version(src_branch):
         return match.group(1)
     raise RuntimeError('Could not find release version in branch %s' % src_branch)
 
-def artifact_names(release, path = ''):
-  return [os.path.join(path, 'elasticsearch-%s.%s' % (release, t)) for t in ['deb', 'tar.gz', 'zip']]
+class Artifact:
+  def __init__(self, path, name, ext):
+    self.path = path  # path/to
+    self.name = name  # elasticsearch-9.9.99
+    self.ext = ext    # tar.gz
+    self.fullpath = os.path.join(self.path, "%s.%s" % (self.name, self.ext))
+
+def artifacts(release, path = ''):
+  return [Artifact(path, "elasticsearch-%s" % release, t) for t in ['deb', 'tar.gz', 'zip']]
 
 def get_artifacts(release):
-  common_artifacts = artifact_names(release, 'target/releases/')
-  for f in common_artifacts:
-    if not os.path.isfile(f):
-      raise RuntimeError('Could not find required artifact at %s' % f)
+  common_artifacts = artifacts(release, 'target/releases/')
+  for a in common_artifacts:
+    if not os.path.isfile(a.fullpath):
+      raise RuntimeError('Could not find required artifact at %s' % a.fullpath)
   rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s-1.noarch.rpm' % release)
   if os.path.isfile(rpm):
     log('RPM [%s] contains: ' % rpm)
     run('rpm -pqli %s' % rpm)
     # this is an oddness of RPM that is attches -1 so we have to rename it
-    renamed_rpm = os.path.join('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s.noarch.rpm' % release)
-    shutil.move(rpm, renamed_rpm)
+    renamed_rpm = Artifact('target/rpm/elasticsearch/RPMS/noarch/', 'elasticsearch-%s' % release, 'noarch.rpm')
+    shutil.move(rpm, renamed_rpm.fullpath)
     common_artifacts.append(renamed_rpm)
   else:
     raise RuntimeError('Could not find required artifact at %s' % rpm)
@@ -352,16 +359,17 @@ def get_artifacts(release):
 # Generates sha1 checsums for all files
 # and returns the checksum files as well
 # as the given files in a list
-def generate_checksums(files):
+def generate_checksums(artifacts):
   res = []
-  for release_file in files:
-    directory = os.path.dirname(release_file)
-    file = os.path.basename(release_file)
-    checksum_file = '%s.sha1.txt' % file
+  for a in artifacts:
+    directory = os.path.dirname(a.fullpath)
+    file = os.path.basename(a.fullpath)
+    ext = 'sha1.txt'
+    checksum_file = '%s.%s' % (file, ext)
     
     if os.system('cd %s; shasum %s > %s' % (directory, file, checksum_file)):
-      raise RuntimeError('Failed to generate checksum for file %s' % release_file)
-    res = res + [os.path.join(directory, checksum_file), release_file]
+      raise RuntimeError('Failed to generate checksum for file %s' % a)
+    res = res + [Artifact(directory, file, ext), a]
   return res
 
 def download_and_verify(release, files, plugins=None, base_url='https://download.elasticsearch.org/elasticsearch/elasticsearch'):
@@ -471,12 +479,13 @@ def merge_tag_push(remote, src_branch, release_version, dry_run):
 def publish_artifacts(artifacts, base='elasticsearch/elasticsearch', dry_run=True):
   location = os.path.dirname(os.path.realpath(__file__))
   for artifact in artifacts:
+    p = artifact.fullpath
     if dry_run:
-      print('Skip Uploading %s to Amazon S3' % artifact)
+      print('Skip Uploading %s to Amazon S3' % p)
     else:
-      print('Uploading %s to Amazon S3' % artifact)
+      print('Uploading %s to Amazon S3' % p)
       # requires boto to be installed but it is not available on python3k yet so we use a dedicated tool
-      run('python %s/upload-s3.py --file %s ' % (location, os.path.abspath(artifact)))
+      run('python %s/upload-s3.py --file %s ' % (location, p))
 
 def print_sonartype_notice():
   settings = os.path.join(os.path.expanduser('~'), '.m2/settings.xml')

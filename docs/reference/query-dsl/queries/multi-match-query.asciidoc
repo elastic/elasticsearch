@@ -254,7 +254,7 @@ in <<query-dsl-match-query>>.  Type `phrase_prefix` additionally accepts
 
 The `cross_fields` type is particularly useful with structured documents where
 multiple fields *should* match.  For instance, when querying the `first_name`
-and `last_name` fields for ``Will Smith'', the best match is like to have
+and `last_name` fields for ``Will Smith'', the best match is likely to have
 ``Will'' in one field and ``Smith'' in the other.
 
 ****

@@ -27,8 +27,7 @@ Benchmarking a search request is as simple as executing the following command:
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
-'{
+$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d '{
     "name": "my_benchmark",
     "competitors": [ {
         "name": "my_competitor",
@@ -117,8 +116,7 @@ Using these parameters it is possible to describe precisely how to execute a ben
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
-{
+$ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d '{
     "name": "my_benchmark",
     "num_executor_nodes": 1,
     "percentiles" : [ 25, 50, 75 ],
@@ -167,7 +165,7 @@ $ curl -XPUT 'localhost:9200/_bench/?pretty=true' -d
             "fields": ["title"]
         }
     } ]
-}
+}'
 --------------------------------------------------
 
 Response:

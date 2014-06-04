@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fields;
 
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
@@ -147,14 +148,17 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(3));
         assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
         assertThat((Double) response.getHits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
         assertThat((Long) response.getHits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).fields().size(), equalTo(3));
         assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat((Double) response.getHits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
         assertThat((Long) response.getHits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).fields().size(), equalTo(3));
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
         assertThat((Long) response.getHits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
@@ -169,11 +173,84 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).fields().size(), equalTo(1));
         assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).fields().size(), equalTo(1));
         assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
         assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).fields().size(), equalTo(1));
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
+    }
+
+    @Test
+    public void testUidBasedScriptFields() throws Exception {
+        createIndex("test");
+        ensureYellow();
+
+        int numDocs = randomIntBetween(1, 30);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "type1", Integer.toString(i))
+                    .setSource(jsonBuilder().startObject().field("num1", i).endObject());
+        }
+        indexRandom(true, indexRequestBuilders);
+
+        SearchResponse response = client().prepareSearch()
+                .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("uid", "_fields._uid.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            assertThat((String)response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
+        }
+
+        response = client().prepareSearch()
+                .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("id", "_fields._id.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            assertThat((String)response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
+        }
+
+        response = client().prepareSearch()
+                .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("type", "_fields._type.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(1));
+            assertThat((String)response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
+        }
+
+        response = client().prepareSearch()
+                .setQuery(matchAllQuery()).addSort("num1", SortOrder.ASC).setSize(numDocs)
+                .addScriptField("id", "_fields._id.value")
+                .addScriptField("uid", "_fields._uid.value")
+                .addScriptField("type", "_fields._type.value").get();
+
+        assertNoFailures(response);
+
+        assertThat(response.getHits().totalHits(), equalTo((long)numDocs));
+        for (int i = 0; i < numDocs; i++) {
+            assertThat(response.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
+            assertThat(response.getHits().getAt(i).fields().size(), equalTo(3));
+            assertThat((String)response.getHits().getAt(i).fields().get("uid").value(), equalTo("type1#" + Integer.toString(i)));
+            assertThat((String)response.getHits().getAt(i).fields().get("type").value(), equalTo("type1"));
+            assertThat((String)response.getHits().getAt(i).fields().get("id").value(), equalTo(Integer.toString(i)));
+        }
     }
 
     @Test
@@ -213,12 +290,12 @@ public class SearchFieldsTests extends ElasticsearchIntegrationTest {
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        sObj2Arr2 = (List) response.getHits().getAt(0).field("s_obj2_arr2").value();
+        sObj2Arr2 = response.getHits().getAt(0).field("s_obj2_arr2").value();
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        List sObj2Arr3 = (List) response.getHits().getAt(0).field("s_arr3").value();
+        List sObj2Arr3 = response.getHits().getAt(0).field("s_arr3").value();
         assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 

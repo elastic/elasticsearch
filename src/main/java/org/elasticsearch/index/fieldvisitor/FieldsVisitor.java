@@ -136,7 +136,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
         uid = null;
     }
 
-    private void addValue(String name, Object value) {
+    void addValue(String name, Object value) {
         if (fieldsValues == null) {
             fieldsValues = newHashMap();
         }

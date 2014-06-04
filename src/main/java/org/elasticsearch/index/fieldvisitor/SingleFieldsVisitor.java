@@ -20,6 +20,9 @@ package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,12 +39,15 @@ public class SingleFieldsVisitor extends FieldsVisitor {
 
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
-        // TODO we can potentially skip if we processed a field, the question is if it works for multi valued fields
         if (fieldInfo.name.equals(field)) {
             return Status.YES;
-        } else {
-            return Status.NO;
         }
+        if (fieldInfo.name.equals(UidFieldMapper.NAME)) {
+            if (TypeFieldMapper.NAME.equals(field) || IdFieldMapper.NAME.equals(field)) {
+                return Status.YES;
+            }
+        }
+        return Status.NO;
     }
 
     public void reset(String field) {
@@ -50,6 +56,14 @@ public class SingleFieldsVisitor extends FieldsVisitor {
     }
 
     public void postProcess(FieldMapper mapper) {
+        if (uid != null) {
+            switch (field) {
+                case UidFieldMapper.NAME: addValue(field, uid.toString());
+                case IdFieldMapper.NAME: addValue(field, uid.id());
+                case TypeFieldMapper.NAME: addValue(field, uid.type());
+            }
+        }
+
         if (fieldsValues == null) {
             return;
         }

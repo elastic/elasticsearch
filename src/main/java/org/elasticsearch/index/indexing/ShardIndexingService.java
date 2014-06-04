@@ -71,10 +71,8 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
                 }
             } else {
                 for (Map.Entry<String, StatsHolder> entry : typesStats.entrySet()) {
-                    for (String type : types) {
-                        if (Regex.simpleMatch(type, entry.getKey())) {
-                            typesSt.put(entry.getKey(), entry.getValue().stats());
-                        }
+                    if (Regex.simpleMatch(types, entry.getKey())) {
+                        typesSt.put(entry.getKey(), entry.getValue().stats());
                     }
                 }
             }

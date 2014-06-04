@@ -69,10 +69,8 @@ public class ShardSearchService extends AbstractIndexShardComponent {
                 }
             } else {
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
-                    for (String group : groups) {
-                        if (Regex.simpleMatch(group, entry.getKey())) {
-                            groupsSt.put(entry.getKey(), entry.getValue().stats());
-                        }
+                    if (Regex.simpleMatch(groups, entry.getKey())) {
+                        groupsSt.put(entry.getKey(), entry.getValue().stats());
                     }
                 }
             }
@@ -128,7 +126,6 @@ public class ShardSearchService extends AbstractIndexShardComponent {
             }
         }
     }
-
 
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         totalStats.fetchMetric.inc(tookInNanos);
@@ -188,8 +185,7 @@ public class ShardSearchService extends AbstractIndexShardComponent {
         public final CounterMetric fetchCurrent = new CounterMetric();
 
         public SearchStats.Stats stats() {
-            return new SearchStats.Stats(
-                    queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
+            return new SearchStats.Stats(queryMetric.count(), TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()), queryCurrent.count(),
                     fetchMetric.count(), TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()), fetchCurrent.count());
         }
 

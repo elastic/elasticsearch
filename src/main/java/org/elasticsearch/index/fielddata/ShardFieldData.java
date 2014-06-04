@@ -53,10 +53,8 @@ public class ShardFieldData extends AbstractIndexShardComponent implements Index
         if (fields != null && fields.length > 0) {
             fieldTotals = new ObjectLongOpenHashMap<>();
             for (Map.Entry<String, CounterMetric> entry : perFieldTotals.entrySet()) {
-                for (String field : fields) {
-                    if (Regex.simpleMatch(field, entry.getKey())) {
-                        fieldTotals.put(entry.getKey(), entry.getValue().count());
-                    }
+                if (Regex.simpleMatch(fields, entry.getKey())) {
+                    fieldTotals.put(entry.getKey(), entry.getValue().count());
                 }
             }
         }

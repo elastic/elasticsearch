@@ -32,11 +32,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.fst.ByteSequenceOutputs;
-import org.apache.lucene.util.fst.FST;
-import org.apache.lucene.util.fst.PairOutputs;
+import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
@@ -303,12 +300,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                     if (fields == null || fields.length == 0) {
                         continue;
                     }
-                    for (String field : fields) {
-                        // support for getting fields by regex as in fielddata
-                        if (Regex.simpleMatch(field, entry.getKey())) {
-                            long fstSize = entry.getValue().fst.sizeInBytes();
-                            completionFields.addTo(entry.getKey(), fstSize);
-                        }
+                    if (Regex.simpleMatch(fields, entry.getKey())) {
+                        long fstSize = entry.getValue().fst.sizeInBytes();
+                        completionFields.addTo(entry.getKey(), fstSize);
                     }
                 }
 

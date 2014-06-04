@@ -163,7 +163,7 @@ public class PrintIndexFieldTypeStats {
             r.close();
             return;
         }
-        System.out.println("\nReader maxDoc=" + r.maxDoc() + " delDocs=" + r.numDeletedDocs() + " (" + (100*r.numDeletedDocs()/r.maxDoc()) + "%)");
+        System.out.println("\nReader numSegs=" + r.leaves().size() + " maxDoc=" + r.maxDoc() + " delDocs=" + r.numDeletedDocs() + " (" + (100*r.numDeletedDocs()/r.maxDoc()) + "%) " + r);
         Map<Integer,Map<String,Double>> typeOrdToSourceBytes = new HashMap<>();
 
         Map<String,FieldPostingsStats[]> fieldToPostingsStats = new HashMap<>();
@@ -171,6 +171,7 @@ public class PrintIndexFieldTypeStats {
         DocToType docToType = null;
         for (AtomicReaderContext ctx : r.leaves()) {
             AtomicReader ar = ctx.reader();
+            System.out.println("  process seg=" + ar);
             FieldInfos fieldInfos = ar.getFieldInfos();
             allFieldInfos.add(fieldInfos);
             int maxDoc = ar.maxDoc();
@@ -181,7 +182,6 @@ public class PrintIndexFieldTypeStats {
             for (String field : fields) {
                 Terms terms = fields.terms(field);
                 int numTypes = docToType.ordToType.size();
-
                 FieldPostingsStats[] fieldPostingsStats = fieldToPostingsStats.get(field);
                 if (fieldPostingsStats == null) {
                     fieldPostingsStats = new FieldPostingsStats[numTypes];
@@ -266,6 +266,11 @@ public class PrintIndexFieldTypeStats {
                     typeSizes.put(field.name(), cur+size);
                 }
             }
+
+            System.out.println("\nstored fields bytes by _type & field:");
+            printDoubleMap(docToType, typeOrdToSourceBytes, null, true);
+
+            printPostingsStats(docToType, fieldToPostingsStats, allFieldInfos);
         }
 
         System.out.println("\nstored fields bytes by _type & field:");
@@ -301,20 +306,22 @@ public class PrintIndexFieldTypeStats {
         }
 
         for(Map.Entry<Integer,Map<String,Double>> ent : sizes) {
+            final List<Map.Entry<String,Double>> fieldSizes = new ArrayList<>(ent.getValue().entrySet());
+
             double sumSize = sumSizes(ent.getValue());
             if (isBytes) {
-                System.out.println(String.format(Locale.ROOT, "  %s: %.2f%%, %.1f MB",
+                System.out.println(String.format(Locale.ROOT, "  %s: %.3f%%, %.3f MB (%d fields)",
                                                  docToType.ordToType.get(ent.getKey()),
                                                  100*((double) sumSize)/totSize,
-                                                 sumSize/1024/1024.));
+                                                 sumSize/1024/1024.,
+                                                 fieldSizes.size()));
             } else {
-                System.out.println(String.format(Locale.ROOT, "  %s: %.2f%%, %.1f M",
+                System.out.println(String.format(Locale.ROOT, "  %s: %.3f%%, %.3f M (%d fields)",
                                                  docToType.ordToType.get(ent.getKey()),
                                                  100*((double) sumSize)/totSize,
-                                                 sumSize/1000000.));
+                                                 sumSize/1000000.,
+                                                 fieldSizes.size()));
             }
-
-            final List<Map.Entry<String,Double>> fieldSizes = new ArrayList<>(ent.getValue().entrySet());
 
             new InPlaceMergeSorter() {
 
@@ -388,12 +395,12 @@ public class PrintIndexFieldTypeStats {
                 }
 
                 if (isBytes) {
-                    System.out.println(String.format(Locale.ROOT, "    %s\n      %.2f%%, %.1f MB",
+                    System.out.println(String.format(Locale.ROOT, "    %s\n      %.3f%%, %.3f MB",
                                                      fieldName,
                                                      100*((double) ent2.getValue())/totFieldSize,
                                                      ent2.getValue()/1024/1024.));
                 } else {
-                    System.out.println(String.format(Locale.ROOT, "    %s\n      %s\n      %.2f%%, %.1f M",
+                    System.out.println(String.format(Locale.ROOT, "    %s\n      %s\n      %.3f%%, %.3f M",
                                                      fieldName,
                                                      b.toString(),
                                                      100*((double) ent2.getValue())/totFieldSize,
@@ -414,6 +421,9 @@ public class PrintIndexFieldTypeStats {
             FieldPostingsStats[] stats = ent.getValue();
             for(Map.Entry<Integer,String> ent2 : docToType.ordToType.entrySet()) {
                 int typeOrd = ent2.getKey();
+                if (typeOrd >= stats.length) {
+                    continue;
+                }
                 FieldPostingsStats typeStats = stats[typeOrd];
                 if (typeStats == null) {
                     // expected: this type never saw this field

@@ -26,7 +26,7 @@ import org.elasticsearch.transport.TransportResponse;
 import java.io.IOException;
 
 /**
- *
+ * Base class for responses to action requests.
  */
 public abstract class ActionResponse extends TransportResponse {
 

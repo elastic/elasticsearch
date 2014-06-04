@@ -52,3 +52,28 @@
 
   - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
   - is_false:   _all.primaries.search.groups.baz
+
+---
+"Groups - _all metric":
+  - do:
+      indices.stats: { groups: bar, metric: _all }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - is_false:   _all.primaries.search.groups.baz
+
+---
+"Groups - search metric":
+  - do:
+      indices.stats: { groups: bar, metric: search }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - is_false:   _all.primaries.search.groups.baz
+
+---
+"Groups - multi metric":
+  - do:
+      indices.stats: { groups: bar, metric: [ indexing, search] }
+
+  - gt:       { _all.primaries.search.groups.bar.query_total: 0 }
+  - is_false:   _all.primaries.search.groups.baz
+

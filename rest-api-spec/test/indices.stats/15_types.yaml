@@ -55,3 +55,28 @@
 
   - match:    { _all.primaries.indexing.types.bar.index_total: 1 }
   - is_false:   _all.primaries.indexing.types.baz
+
+---
+"Types - _all metric":
+  - do:
+      indices.stats: { types: bar, metric: _all }
+
+  - match:    { _all.primaries.indexing.types.bar.index_total: 1 }
+  - is_false:   _all.primaries.indexing.types.baz
+
+---
+"Types - indexing metric":
+  - do:
+      indices.stats: { types: bar, metric: indexing }
+
+  - match:    { _all.primaries.indexing.types.bar.index_total: 1 }
+  - is_false:   _all.primaries.indexing.types.baz
+
+---
+"Types - multi metric":
+  - do:
+      indices.stats: { types: bar, metric: [ indexing, search ] }
+
+  - match:    { _all.primaries.indexing.types.bar.index_total: 1 }
+  - is_false:   _all.primaries.indexing.types.baz
+

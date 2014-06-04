@@ -97,6 +97,50 @@
   - is_false:   _all.primaries.completion.fields.baz\\.completion
 
 ---
+"Fields - _all metric":
+  - do:
+      indices.stats: { fields: "bar*", metric: _all }
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+
+---
+"Fields - fielddata metric":
+  - do:
+      indices.stats: { fields: "bar*", metric: fielddata }
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - is_false:   _all.primaries.completion
+
+---
+"Fields - completion metric":
+  - do:
+      indices.stats: { fields: "bar*", metric: completion }
+
+  - is_false:   _all.primaries.fielddata
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+
+---
+"Fields - multi metric":
+  - do:
+      indices.stats: { fields: "bar*" , metric: [ completion, fielddata, search ]}
+
+  - gt:       { _all.primaries.fielddata.memory_size_in_bytes: 0 }
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - gt:       { _all.primaries.completion.size_in_bytes: 0 }
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+
+---
 "Fielddata fields - one":
   - do:
       indices.stats: { fielddata_fields: bar }
@@ -124,7 +168,7 @@
   - is_false:   _all.primaries.completion.fields
 
 ---
-"Fields - pattern":
+"Fielddata fields - pattern":
   - do:
       indices.stats: { fielddata_fields: "*r" }
 
@@ -133,6 +177,33 @@
   - is_false:   _all.primaries.completion.fields
 
 
+---
+"Fielddata fields - all metric":
+  - do:
+      indices.stats: { fielddata_fields: "*r", metric: _all }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - is_false:   _all.primaries.completion.fields
+
+---
+"Fielddata fields - one metric":
+  - do:
+      indices.stats: { fielddata_fields: "*r", metric: fielddata }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - is_false:   _all.primaries.completion.fields
+
+
+---
+"Fielddata fields - multi metric":
+  - do:
+      indices.stats: { fielddata_fields: "*r", metric: [ fielddata, search] }
+
+  - gt:       { _all.primaries.fielddata.fields.bar.memory_size_in_bytes: 0 }
+  - is_false:   _all.primaries.fielddata.fields.baz
+  - is_false:   _all.primaries.completion.fields
 
 
 ---
@@ -171,5 +242,30 @@
   - is_false:   _all.primaries.completion.fields.baz\\.completion
   - is_false:   _all.primaries.fielddata.fields
 
+---
+"Completion - all metric":
+  - do:
+      indices.stats: { completion_fields: "*r*", metric: _all }
 
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+  - is_false:   _all.primaries.fielddata.fields
+
+---
+"Completion - one metric":
+  - do:
+      indices.stats: { completion_fields: "*r*", metric: completion }
+
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+  - is_false:   _all.primaries.fielddata.fields
+
+---
+"Completion - multi metric":
+  - do:
+      indices.stats: { completion_fields: "*r*", metric: [ completion, search ] }
+
+  - gt:       { _all.primaries.completion.fields.bar\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.primaries.completion.fields.baz\\.completion
+  - is_false:   _all.primaries.fielddata.fields
 

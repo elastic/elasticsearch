@@ -40,7 +40,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -53,6 +54,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         final Settings settings = ImmutableSettings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
                 .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
+                .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
                 .build();
@@ -107,11 +109,19 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             assertThat(applied, is(true));
 
             // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
-            // continuously ping until network failures have been resolved.
-            Client isolatedNodeClient = internalCluster().client(unluckyNode);
-            ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
-            DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
-            assertThat(localDiscoveryNodes.masterNode(), nullValue());
+            // continuously ping until network failures have been resolved. However
+            final Client isolatedNodeClient = internalCluster().client(unluckyNode);
+            // It may a take a bit before the node detects it has been cut off from the elected master
+            applied = awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
+                    DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
+                    logger.info("localDiscoveryNodes=" + localDiscoveryNodes.toString());
+                    return localDiscoveryNodes.masterNode() == null;
+                }
+            }, 10, TimeUnit.SECONDS);
+            assertThat(applied, is(true));
         } finally {
             // stop simulating network failures, from this point on the unlucky node is able to rejoin
             // We also need to do this even if assertions fail, since otherwise the test framework can't work properly

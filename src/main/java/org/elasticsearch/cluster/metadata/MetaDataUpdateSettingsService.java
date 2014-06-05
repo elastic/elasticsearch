@@ -92,7 +92,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                                     "Unexpected value [%s] for setting [%s]; it should be dash delimited",
                             autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
                             logger.warn(errorMessage);
-                            throw new ElasticsearchIllegalArgumentException(errorMessage);
+                            continue;
                         }
                         min = Integer.parseInt(autoExpandReplicas.substring(0, dash));
                         String sMax = autoExpandReplicas.substring(dash + 1);

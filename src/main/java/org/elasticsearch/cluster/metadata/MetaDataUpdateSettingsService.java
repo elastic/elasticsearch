@@ -70,6 +70,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         if (!event.state().nodes().localNodeMaster()) {
             return;
         }
+        // we will want to know this for translating "all" to a number
+        final int dataNodeCount = event.state().nodes().dataNodes().size();
 
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
 
@@ -92,7 +94,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         min = Integer.parseInt(autoExpandReplicas.substring(0, dash));
                         String sMax = autoExpandReplicas.substring(dash + 1);
                         if (sMax.equals("all")) {
-                            max = event.state().nodes().dataNodes().size() - 1;
+                            max = dataNodeCount - 1;
                         } else {
                             max = Integer.parseInt(sMax);
                         }
@@ -101,7 +103,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         continue;
                     }
 
-                    int numberOfReplicas = event.state().nodes().dataNodes().size() - 1;
+                    int numberOfReplicas = dataNodeCount - 1;
                     if (numberOfReplicas < min) {
                         numberOfReplicas = min;
                     } else if (numberOfReplicas > max) {

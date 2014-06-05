@@ -71,13 +71,16 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     }
     
     /**
-     * Plays a selection of the data cached from previous collect calls to the deferred
-     * collector.
-     * @param survivingBucketOrds the valid bucket ords for which deferred collection should be attempted 
+     * Plays a selection of the data cached from previous collect calls to the
+     * deferred collector.
+     * 
+     * @param survivingBucketOrds
+     *            the valid bucket ords for which deferred collection should be
+     *            attempted
      */
     public void prepareSelectedBuckets(long... survivingBucketOrds) {
         
-        BucketCollector subs=new BucketCollector(){
+        BucketCollector subs = new BucketCollector() {
             @Override
             public void setNextReader(AtomicReaderContext reader) {
                 // Need to set AggregationContext otherwise ValueSources in aggs

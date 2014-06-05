@@ -81,7 +81,7 @@ public abstract class AbstractTermsParametersParser {
                 if (EXECUTION_HINT_FIELD_NAME.match(currentFieldName)) {
                     executionHint = parser.text();
                 } else if(Aggregator.COLLECT_MODE.match(currentFieldName)){
-                    collectMode=SubAggCollectionMode.parse(parser.text());
+                    collectMode = SubAggCollectionMode.parse(parser.text());
                 } else {
                     parseSpecial(aggregationName, parser, context, token, currentFieldName);
                 }

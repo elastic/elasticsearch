@@ -234,9 +234,9 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
-        //replay any deferred collections
+        // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);    
-        //Now build the aggs
+        // Now build the aggs
         for (int i = 0; i < list.length; i++) {
           final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
           bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);

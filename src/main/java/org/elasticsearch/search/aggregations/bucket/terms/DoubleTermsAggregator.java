@@ -123,9 +123,9 @@ public class DoubleTermsAggregator extends TermsAggregator {
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
         }
-        //replay any deferred collections
+        // replay any deferred collections
         runDeferredCollections(survivingBucketOrds);    
-        //Now build the aggs
+        // Now build the aggs
         for (int i = 0; i < list.length; i++) {
           list[i].aggregations = bucketAggregations(list[i].bucketOrd);
         }        

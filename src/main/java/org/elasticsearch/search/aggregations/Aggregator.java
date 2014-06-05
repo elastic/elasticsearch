@@ -119,8 +119,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     // A scorer used for the deferred collection mode to handle any child aggs asking for scores that are not 
     // recorded.
     static final Scorer unavailableScorer=new Scorer(null){
-        private final String MSG="A limitation of the "+SubAggCollectionMode.BREADTH_FIRST.parseField.getPreferredName()+
-                " collection mode is that scores cannot be buffered along with document IDs";
+        private final String MSG = "A limitation of the " + SubAggCollectionMode.BREADTH_FIRST.parseField.getPreferredName()
+                + " collection mode is that scores cannot be buffered along with document IDs";
 
         @Override
         public float score() throws IOException {
@@ -219,18 +219,18 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
     protected void preCollection() {
         Iterable<Aggregator> collectables = Iterables.filter(Arrays.asList(subAggregators), COLLECTABLE_AGGREGATOR);
-        List<BucketCollector> nextPassCollectors=new ArrayList<>();
-        List<BucketCollector> thisPassCollectors=new ArrayList<>();
+        List<BucketCollector> nextPassCollectors = new ArrayList<>();
+        List<BucketCollector> thisPassCollectors = new ArrayList<>();
         for (Aggregator aggregator : collectables) {
-            if(shouldDefer(aggregator)){
+            if (shouldDefer(aggregator)) {
                 nextPassCollectors.add(aggregator);
-            }else{
+            } else {
                 thisPassCollectors.add(aggregator);
             }
         }
-        if(nextPassCollectors.size()>0){
-            BucketCollector deferreds=BucketCollector.wrap(nextPassCollectors);
-            recordingWrapper=new DeferringBucketCollector(deferreds, context);
+        if (nextPassCollectors.size() > 0) {
+            BucketCollector deferreds = BucketCollector.wrap(nextPassCollectors);
+            recordingWrapper = new DeferringBucketCollector(deferreds, context);
             // TODO. Without line below we are dependent on subclass aggs
             // delegating setNextReader calls on to child aggs
             // which they don't seem to do as a matter of course. Need to move
@@ -238,7 +238,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             context.registerReaderContextAware(recordingWrapper);
             thisPassCollectors.add(recordingWrapper);            
         }
-        collectableSubAggregators=BucketCollector.wrap(thisPassCollectors);
+        collectableSubAggregators = BucketCollector.wrap(thisPassCollectors);
     }
     
     /**

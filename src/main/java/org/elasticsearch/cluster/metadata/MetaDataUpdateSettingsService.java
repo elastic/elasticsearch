@@ -88,10 +88,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                     final int dash = autoExpandReplicas.indexOf('-');
                     if (-1 == dash) {
-                        final String errorMessage = String.format(
-                                "Unexpected value [%s] for setting [%s]; it should be dash delimited",
-                        autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
-                        logger.warn(errorMessage);
+                        logger.warn("Unexpected value [{}] for setting [{}]; it should be dash delimited",
+                                autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
                         continue;
                     }
                     final String sMin = autoExpandReplicas.substring(0, dash);

@@ -85,34 +85,35 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 try {
                     final int min;
                     final int max;
-                        final int dash = autoExpandReplicas.indexOf('-');
-                        if (-1 == dash) {
-                            final String errorMessage = String.format(
-                                    "Unexpected value [%s] for setting [%s]; it should be dash delimited",
-                            autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
-                            logger.warn(errorMessage);
-                            continue;
-                        }
-                        final String sMin = autoExpandReplicas.substring(0, dash);
+
+                    final int dash = autoExpandReplicas.indexOf('-');
+                    if (-1 == dash) {
+                        final String errorMessage = String.format(
+                                "Unexpected value [%s] for setting [%s]; it should be dash delimited",
+                        autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
+                        logger.warn(errorMessage);
+                        continue;
+                    }
+                    final String sMin = autoExpandReplicas.substring(0, dash);
+                    try {
+                        min = Integer.parseInt(sMin);
+                    } catch (NumberFormatException e) {
+                        logger.warn("failed to set [{}], minimum value is non-numeric [{}]",
+                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, sMin);
+                        continue;
+                    }
+                    String sMax = autoExpandReplicas.substring(dash + 1);
+                    if (sMax.equals(ALL_NODES_VALUE)) {
+                        max = dataNodeCount - 1;
+                    } else {
                         try {
-                            min = Integer.parseInt(sMin);
+                            max = Integer.parseInt(sMax);
                         } catch (NumberFormatException e) {
-                            logger.warn("failed to set [{}], minimum value is non-numeric [{}]",
-                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, sMin);
+                            logger.warn("failed to set [{}], maximum value is neither \"{}\" nor a number [{}]",
+                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, ALL_NODES_VALUE, sMin);
                             continue;
                         }
-                        String sMax = autoExpandReplicas.substring(dash + 1);
-                        if (sMax.equals(ALL_NODES_VALUE)) {
-                            max = dataNodeCount - 1;
-                        } else {
-                            try {
-                                max = Integer.parseInt(sMax);
-                            } catch (NumberFormatException e) {
-                                logger.warn("failed to set [{}], maximum value is neither \"{}\" nor a number [{}]",
-                                        e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, ALL_NODES_VALUE, sMin);
-                                continue;
-                            }
-                        }
+                    }
 
                     int numberOfReplicas = dataNodeCount - 1;
                     if (numberOfReplicas < min) {

@@ -107,7 +107,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         try {
                             max = Integer.parseInt(sMax);
                         } catch (NumberFormatException e) {
-                            logger.warn("failed to set [{}], maximum value is neither \"{}\" nor a number [{}]",
+                            logger.warn("failed to set [{}], maximum value is neither [{}] nor a number [{}]",
                                     e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, ALL_NODES_VALUE, sMin);
                             continue;
                         }

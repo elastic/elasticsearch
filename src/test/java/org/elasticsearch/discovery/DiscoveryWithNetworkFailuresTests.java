@@ -117,7 +117,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 public boolean apply(Object input) {
                     ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
                     DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
-                    logger.info("localDiscoveryNodes=" + localDiscoveryNodes.toString());
+                    logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
                     return localDiscoveryNodes.masterNode() == null;
                 }
             }, 10, TimeUnit.SECONDS);

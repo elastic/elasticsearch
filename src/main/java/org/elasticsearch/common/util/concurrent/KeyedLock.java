@@ -27,8 +27,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
-import jsr166e.ConcurrentHashMapV8;
-
 /**
  * This class manages locks. Locks can be accessed with an identifier and are
  * created the first time they are acquired and removed if no thread hold the

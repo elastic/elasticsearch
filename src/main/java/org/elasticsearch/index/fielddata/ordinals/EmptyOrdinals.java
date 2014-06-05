@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.LongsRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 
 /**
@@ -39,7 +38,7 @@ public enum EmptyOrdinals implements Ordinals {
 
     @Override
     public long getMaxOrd() {
-        return 1;
+        return 0;
     }
 
     @Override
@@ -48,7 +47,6 @@ public enum EmptyOrdinals implements Ordinals {
     }
 
     public static class Docs extends Ordinals.AbstractDocs {
-        public static final LongsRef EMPTY_LONGS_REF = new LongsRef();
 
         public Docs(EmptyOrdinals parent) {
             super(parent);

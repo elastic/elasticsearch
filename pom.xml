@@ -474,6 +474,7 @@
                                 <tests.class>${tests.class}</tests.class>
                                 <tests.method>${tests.method}</tests.method>
                                 <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.verbose>${tests.verbose}</tests.verbose>
                                 <tests.badapples>${tests.badapples}</tests.badapples>
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>

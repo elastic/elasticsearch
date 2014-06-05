@@ -1702,7 +1702,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchTestCase {
             assertThat(booleanClause.getOccur(), is(BooleanClause.Occur.SHOULD));
             assertThat(booleanClause.getQuery(), instanceOf(MoreLikeThisQuery.class));
             MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) booleanClause.getQuery();
-            assertThat(mltQuery.getLikeTexts(), is(likeTexts.get(i).getText().toArray(Strings.EMPTY_ARRAY)));
+            assertThat(mltQuery.getLikeTexts(), is(likeTexts.get(i).text));
             assertThat(mltQuery.getMoreLikeFields()[0], equalTo(likeTexts.get(i).field));
         }
 

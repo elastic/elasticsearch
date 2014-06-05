@@ -96,7 +96,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     try {
                         min = Integer.parseInt(sMin);
                     } catch (NumberFormatException e) {
-                        logger.warn("failed to set [{}], minimum value is non-numeric [{}]",
+                        logger.warn("failed to set [{}], minimum value is not a number [{}]",
                                 e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, sMin);
                         continue;
                     }

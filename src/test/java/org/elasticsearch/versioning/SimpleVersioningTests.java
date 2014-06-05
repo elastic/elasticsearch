@@ -37,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -490,7 +491,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         int numIDs;
         if (isNightly()) {
-            numIDs = scaledRandomIntBetween(10000, 20000);
+            numIDs = scaledRandomIntBetween(3000, 10000);
         } else {
             numIDs = scaledRandomIntBetween(500, 1000);
         }
@@ -505,7 +506,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         // Attach random versions to them:
         long version = 0;
-        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(isNightly() ? 10 : 2))];
+        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(isNightly() ? 4 : 2))];
         final Map<String,IDAndVersion> truth = new HashMap<>();
 
         if (VERBOSE) {
@@ -613,11 +614,15 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
                                     }
                                 }
 
-                                if (threadRandom.nextInt(10) == 7) {
+                                if (threadRandom.nextInt(100) == 7) {
                                     refresh();
                                 }
-                                if (threadRandom.nextInt(20) == 7) {
-                                    flush();
+                                if (threadRandom.nextInt(100) == 7) {
+                                    try {
+                                        flush();
+                                    } catch (FlushNotAllowedEngineException fnaee) {
+                                        // OK
+                                    }
                                 }
                             }
                         } catch (Exception e) {

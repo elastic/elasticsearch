@@ -93,6 +93,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (bytesValues instanceof BytesValues.WithOrdinals) {
             BytesValues.WithOrdinals values = (BytesValues.WithOrdinals) bytesValues;
             final long maxOrd = values.ordinals().getMaxOrd();
+            if (maxOrd == 0) {
+                return new EmptyCollector();
+            }
+
             final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
             final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
             // only use ordinals if they don't increase memory usage by more than 25%
@@ -164,6 +168,24 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         void postCollect();
 
+    }
+
+    private static class EmptyCollector implements Collector {
+
+        @Override
+        public void collect(int doc, long bucketOrd) {
+            // no-op
+        }
+
+        @Override
+        public void postCollect() {
+            // no-op
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            // no-op
+        }
     }
 
     private static class DirectCollector implements Collector {

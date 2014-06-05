@@ -73,6 +73,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         // we will want to know this for translating "all" to a number
         final int dataNodeCount = event.state().nodes().dataNodes().size();
 
+        // the value we recognize in the "max" position to mean all the nodes
+        final String ALL_NODES_VALUE = "all";  // class constant?
+
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
 
         // we need to do this each time in case it was changed by update settings
@@ -93,7 +96,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         }
                         min = Integer.parseInt(autoExpandReplicas.substring(0, dash));
                         String sMax = autoExpandReplicas.substring(dash + 1);
-                        if (sMax.equals("all")) {
+                        if (sMax.equals(ALL_NODES_VALUE)) {
                             max = dataNodeCount - 1;
                         } else {
                             max = Integer.parseInt(sMax);

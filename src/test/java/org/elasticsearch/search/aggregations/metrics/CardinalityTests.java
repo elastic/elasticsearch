@@ -122,6 +122,13 @@ public class CardinalityTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, builders);
         createIndex("idx_unmapped");
+
+        IndexRequestBuilder[] dummyDocsBuilder = new IndexRequestBuilder[10];
+        for (int i = 0; i < dummyDocsBuilder.length; i++) {
+            dummyDocsBuilder[i] = client().prepareIndex("idx", "type").setSource("a_field", "1");
+        }
+        indexRandom(true, dummyDocsBuilder);
+
         ensureSearchable();
     }
 

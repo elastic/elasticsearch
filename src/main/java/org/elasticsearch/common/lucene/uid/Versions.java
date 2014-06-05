@@ -20,20 +20,16 @@
 package org.elasticsearch.common.lucene.uid;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.IndexReader.ReaderClosedListener;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
 public class Versions {
@@ -46,7 +42,7 @@ public class Versions {
     public static final long NOT_SET = -2L;
 
     // TODO: is there somewhere else we can store these?
-    private static final ConcurrentHashMap<IndexReader,CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<IndexReader,CloseableThreadLocal<PerThreadIDAndVersionLookup>> lookupStates = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
     private static final ReaderClosedListener removeLookupState = new ReaderClosedListener() {

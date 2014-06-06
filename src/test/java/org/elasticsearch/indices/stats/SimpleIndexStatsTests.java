@@ -20,17 +20,16 @@
 package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.Version;
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -39,7 +38,6 @@ import java.util.Random;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
@@ -321,6 +319,219 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < flags.length; i++) {
             assertThat("ordinal has changed - this breaks the wire protocol. Only append to new values", i, equalTo(flags[i].ordinal()));
         }
+    }
+
+    @Test
+    public void testMultiIndex() throws Exception {
+
+        createIndex("test1");
+        createIndex("test2");
+
+        ensureGreen();
+
+        client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        int numShards1 = getNumShards("test1").totalNumShards;
+        int numShards2 = getNumShards("test2").totalNumShards;
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        assertThat(stats.getTotalShards(), equalTo(numShards1 + numShards2));
+
+        stats = builder.setIndices("_all").execute().actionGet();
+        assertThat(stats.getTotalShards(), equalTo(numShards1 + numShards2));
+
+        stats = builder.setIndices("_all").execute().actionGet();
+        assertThat(stats.getTotalShards(), equalTo(numShards1 + numShards2));
+
+        stats = builder.setIndices("*").execute().actionGet();
+        assertThat(stats.getTotalShards(), equalTo(numShards1 + numShards2));
+
+        stats = builder.setIndices("test1").execute().actionGet();
+        assertThat(stats.getTotalShards(), equalTo(numShards1));
+
+        stats = builder.setIndices("test1", "test2").execute().actionGet();
+        assertThat(stats.getTotalShards(), equalTo(numShards1 + numShards2));
+
+        stats = builder.setIndices("*2").execute().actionGet();
+        assertThat(stats.getTotalShards(), equalTo(numShards2));
+
+    }
+
+    @Test
+    public void testFieldDataFieldsParam() throws Exception {
+
+        createIndex("test1");
+
+        ensureGreen();
+
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+        client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareSearch("_all").addSort("bar", SortOrder.ASC).addSort("baz", SortOrder.ASC).execute().actionGet();
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields(), is(nullValue()));
+
+        stats = builder.setFieldDataFields("bar").execute().actionGet();
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
+        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(false));
+
+        stats = builder.setFieldDataFields("bar", "baz").execute().actionGet();
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
+        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(true));
+        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+
+        stats = builder.setFieldDataFields("*").execute().actionGet();
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
+        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(true));
+        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+
+        stats = builder.setFieldDataFields("*r").execute().actionGet();
+        assertThat(stats.getTotal().fieldData.getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("bar"), is(true));
+        assertThat(stats.getTotal().fieldData.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().fieldData.getFields().containsKey("baz"), is(false));
+
+    }
+
+    @Test
+    public void testCompletionFieldsParam() throws Exception {
+
+        client().admin()
+                .indices()
+                .prepareCreate("test1")
+                .setSettings(indexSettings())
+                .addMapping(
+                        "bar",
+                        "{ \"properties\": { \"bar\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}")
+                .execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+        client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields(), is(nullValue()));
+
+        stats = builder.setCompletionFields("bar.completion").execute().actionGet();
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
+        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(false));
+
+        stats = builder.setCompletionFields("bar.completion", "baz.completion").execute().actionGet();
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
+        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(true));
+        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+
+        stats = builder.setCompletionFields("*").execute().actionGet();
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
+        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(true));
+        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+
+        stats = builder.setCompletionFields("*r*").execute().actionGet();
+        assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("bar.completion"), is(true));
+        assertThat(stats.getTotal().completion.getFields().lget(), greaterThan(0l));
+        assertThat(stats.getTotal().completion.getFields().containsKey("baz.completion"), is(false));
+
+    }
+
+    @Test
+    public void testGroupsParam() throws Exception {
+
+        createIndex("test1");
+
+        ensureGreen();
+
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        assertThat(stats.getTotal().search.getTotal().getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats(), is(nullValue()));
+
+        stats = builder.setGroups("bar").execute().actionGet();
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().containsKey("baz"), is(false));
+
+        stats = builder.setGroups("bar", "baz").execute().actionGet();
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().get("baz").getQueryCount(), greaterThan(0l));
+
+        stats = builder.setGroups("*").execute().actionGet();
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().get("baz").getQueryCount(), greaterThan(0l));
+
+        stats = builder.setGroups("*r").execute().actionGet();
+        assertThat(stats.getTotal().search.getGroupStats().get("bar").getQueryCount(), greaterThan(0l));
+        assertThat(stats.getTotal().search.getGroupStats().containsKey("baz"), is(false));
+
+    }
+
+    @Test
+    public void testTypesParam() throws Exception {
+
+        createIndex("test1");
+        createIndex("test2");
+
+        ensureGreen();
+
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
+        client().prepareIndex("test2", "baz", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
+
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
+        IndicesStatsResponse stats = builder.execute().actionGet();
+
+        assertThat(stats.getTotal().indexing.getTotal().getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats(), is(nullValue()));
+
+        stats = builder.setTypes("bar").execute().actionGet();
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
+
+        stats = builder.setTypes("bar", "baz").execute().actionGet();
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0l));
+
+        stats = builder.setTypes("*").execute().actionGet();
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().get("baz").getIndexCount(), greaterThan(0l));
+
+        stats = builder.setTypes("*r").execute().actionGet();
+        assertThat(stats.getTotal().indexing.getTypeStats().get("bar").getIndexCount(), greaterThan(0l));
+        assertThat(stats.getTotal().indexing.getTypeStats().containsKey("baz"), is(false));
+
     }
 
     private static void set(Flag flag, IndicesStatsRequestBuilder builder, boolean set) {

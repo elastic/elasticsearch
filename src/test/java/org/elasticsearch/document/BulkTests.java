@@ -626,7 +626,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         BulkRequestBuilder builder = client().prepareBulk();
         boolean[] expectedFailures = new boolean[bulkEntryCount];
         ArrayList<String> badIndexNames = new ArrayList<>();
-        for (int i = 1; i < randomIntBetween(1, 5); i++) {
+        for (int i = randomIntBetween(1, 5); i > 0; i--) {
             badIndexNames.add("INVALID.NAME" + i);
         }
         boolean expectFailure = false;

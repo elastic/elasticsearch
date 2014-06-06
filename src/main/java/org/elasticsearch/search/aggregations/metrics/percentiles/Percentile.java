@@ -16,15 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+public interface Percentile {
 
-/**
- *
- */
-public interface Percentiles extends Aggregation, Iterable<Percentile> {
+    double getPercent();
 
-    double percentile(double percent);
+    double getValue();
 
 }

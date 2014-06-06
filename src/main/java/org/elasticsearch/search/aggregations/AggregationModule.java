@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.MinParser;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
 import org.elasticsearch.search.aggregations.metrics.stats.StatsParser;
 import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStatsParser;
 import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
@@ -65,6 +66,7 @@ public class AggregationModule extends AbstractModule {
         parsers.add(ExtendedStatsParser.class);
         parsers.add(ValueCountParser.class);
         parsers.add(PercentilesParser.class);
+        parsers.add(PercentileRanksParser.class);
         parsers.add(CardinalityParser.class);
 
         parsers.add(GlobalParser.class);

@@ -20,12 +20,12 @@
   - do:
       indices.stats: {}
 
-  - is_true:  _all.primaries.docs
   - is_true:  _all.total.docs
-  - is_true:  indices.test1.primaries.docs
+  - is_true:  _all.total.docs
+  - is_true:  indices.test1.total.docs
   - is_true:  indices.test1.total.docs
   - is_false: indices.test1.shards
-  - is_true:  indices.test2.primaries.docs
+  - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.total.docs
   - is_false: indices.test2.shards
 
@@ -34,12 +34,12 @@
   - do:
       indices.stats: { level: indices }
 
-  - is_true:  _all.primaries.docs
   - is_true:  _all.total.docs
-  - is_true:  indices.test1.primaries.docs
+  - is_true:  _all.total.docs
+  - is_true:  indices.test1.total.docs
   - is_true:  indices.test1.total.docs
   - is_false: indices.test1.shards
-  - is_true:  indices.test2.primaries.docs
+  - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.total.docs
   - is_false: indices.test2.shards
 
@@ -48,7 +48,7 @@
   - do:
       indices.stats: { level: cluster }
 
-  - is_true:  _all.primaries.docs
+  - is_true:  _all.total.docs
   - is_true:  _all.total.docs
   - is_false: indices
 
@@ -58,12 +58,12 @@
   - do:
       indices.stats: { level: shards }
 
-  - is_true:  _all.primaries.docs
   - is_true:  _all.total.docs
-  - is_true:  indices.test1.primaries.docs
+  - is_true:  _all.total.docs
+  - is_true:  indices.test1.total.docs
   - is_true:  indices.test1.total.docs
   - is_true:  indices.test1.shards.0.0.docs
-  - is_true:  indices.test2.primaries.docs
+  - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.shards.0.0.docs
 

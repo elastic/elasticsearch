@@ -16,15 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+class InternalPercentile implements Percentile {
 
-/**
- *
- */
-public interface Percentiles extends Aggregation, Iterable<Percentile> {
+    private final double percent;
+    private final double value;
 
-    double percentile(double percent);
+    InternalPercentile(double percent, double value) {
+        this.percent = percent;
+        this.value = value;
+    }
 
+    @Override
+    public double getPercent() {
+        return percent;
+    }
+
+    @Override
+    public double getValue() {
+        return value;
+    }
 }

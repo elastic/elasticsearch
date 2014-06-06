@@ -27,9 +27,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 /**
  *
  */
-public class PercentilesAggregator extends AbstractPercentilesAggregator {
+public class PercentileRanksAggregator extends AbstractPercentilesAggregator {
 
-    public PercentilesAggregator(String name, long estimatedBucketsCount, Numeric valuesSource, AggregationContext context,
+    public PercentileRanksAggregator(String name, long estimatedBucketsCount, Numeric valuesSource, AggregationContext context,
             Aggregator parent, double[] percents, double compression, boolean keyed) {
         super(name, estimatedBucketsCount, valuesSource, context, parent, percents, compression, keyed);
     }
@@ -40,47 +40,47 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentiles(name, keys, state, keyed);
+            return new InternalPercentileRanks(name, keys, state, keyed);
         }
     }
-    
+
+    @Override
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalPercentileRanks(name, keys, new TDigestState(compression), keyed);
+    }
+
     @Override
     public double metric(String name, long bucketOrd) {
         TDigestState state = getState(bucketOrd);
         if (state == null) {
             return Double.NaN;
         } else {
-            return state.quantile(Double.parseDouble(name) / 100);
+            return InternalPercentileRanks.percentileRank(state, Double.valueOf(name));
         }
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        private final double[] percents;
+        private final double[] values;
         private final double compression;
         private final boolean keyed;
 
         public Factory(String name, ValuesSourceConfig<ValuesSource.Numeric> valuesSourceConfig,
-                double[] percents, double compression, boolean keyed) {
+                double[] values, double compression, boolean keyed) {
             super(name, InternalPercentiles.TYPE.name(), valuesSourceConfig);
-            this.percents = percents;
+            this.values = values;
             this.compression = compression;
             this.keyed = keyed;
         }
 
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new PercentilesAggregator(name, 0, null, aggregationContext, parent, percents, compression, keyed);
+            return new PercentileRanksAggregator(name, 0, null, aggregationContext, parent, values, compression, keyed);
         }
 
         @Override
         protected Aggregator create(ValuesSource.Numeric valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
-            return new PercentilesAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, percents, compression, keyed);
+            return new PercentileRanksAggregator(name, expectedBucketsCount, valuesSource, aggregationContext, parent, values, compression, keyed);
         }
     }
 }

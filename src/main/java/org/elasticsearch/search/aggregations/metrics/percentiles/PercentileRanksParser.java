@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -26,24 +27,22 @@ import org.elasticsearch.search.internal.SearchContext;
 /**
  *
  */
-public class PercentilesParser extends AbstractPercentilesParser {
-
-    private final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
+public class PercentileRanksParser extends AbstractPercentilesParser {
 
     @Override
     public String type() {
-        return InternalPercentiles.TYPE.name();
+        return InternalPercentileRanks.TYPE.name();
     }
 
     protected String keysFieldName() {
-        return "percents";
+        return "values";
     }
     
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
-            keys = DEFAULT_PERCENTS;
+            throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].");
         }
-        return new PercentilesAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
+        return new PercentileRanksAggregator.Factory(aggregationName, valuesSourceConfig, keys, compression, keyed);
     }
 
 }

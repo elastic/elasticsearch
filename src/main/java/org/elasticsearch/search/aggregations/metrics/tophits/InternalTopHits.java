@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.tophits;
+package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -25,13 +25,12 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 
@@ -40,7 +39,7 @@ import java.util.List;
 
 /**
  */
-public class InternalTopHits extends InternalAggregation implements TopHits, ToXContent, Streamable {
+public class InternalTopHits extends InternalMetricsAggregation implements TopHits {
 
     public static final InternalAggregation.Type TYPE = new Type("top_hits");
 

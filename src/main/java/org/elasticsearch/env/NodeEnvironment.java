@@ -22,7 +22,7 @@ package org.elasticsearch.env;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.XNativeFSLockFactory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -78,7 +78,7 @@ public class NodeEnvironment extends AbstractComponent {
                 }
                 logger.trace("obtaining node lock on {} ...", dir.getAbsolutePath());
                 try {
-                    NativeFSLockFactory lockFactory = new NativeFSLockFactory(dir);
+                    XNativeFSLockFactory lockFactory = new XNativeFSLockFactory(dir);
                     Lock tmpLock = lockFactory.makeLock("node.lock");
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {

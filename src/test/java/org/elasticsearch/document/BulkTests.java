@@ -624,13 +624,13 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         int bulkEntryCount = randomIntBetween(10, 50);
         BulkRequestBuilder builder = client().prepareBulk();
         boolean[] expectedFailures = new boolean[bulkEntryCount];
-        String[] twoBadNames = new String[]{"INVALID.NAME1", "INVALID.NAME2"};
+        String[] badIndexNames = new String[]{"INVALID.NAME1", "INVALID.NAME2"};
         boolean expectFailure = false;
         for (int i = 0; i < bulkEntryCount; i++) {
             expectFailure |= expectedFailures[i] = randomBoolean();
             String name;
             if (expectedFailures[i]) {
-                name = twoBadNames[randomIntBetween(0, 1)];
+                name = randomFrom(badIndexNames);
             } else {
                 name = "test";
             }

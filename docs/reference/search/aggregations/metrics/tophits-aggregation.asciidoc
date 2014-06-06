@@ -1,15 +1,13 @@
-[[search-aggregations-bucket-top-hits-aggregation]]
+[[search-aggregations-metrics-top-hits-aggregation]]
 === Top hits Aggregation
 
 coming[1.3.0]
 
-The `top_hits` aggregator keeps track of the most relevant document being aggregated. This aggregator is intended to be
-used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
+A `top_hits` metric aggregator keeps track of the most relevant document being aggregated. This aggregator is intended
+to be used as a sub aggregator, so that the top matching documents can be aggregated per bucket.
 
 The `top_hits` aggregator can effectively be used to group result sets by certain fields via a bucket aggregator.
 One or more bucket aggregators determines by which properties a result set get sliced into.
-
-This aggregator can't hold any sub-aggregators and therefor can only be used as a leaf aggregator.
 
 ==== Options
 

@@ -19,3 +19,5 @@ include::metrics/percentile-aggregation.asciidoc[]
 include::metrics/cardinality-aggregation.asciidoc[]
 
 include::metrics/geobounds-aggregation.asciidoc[]
+
+include::metrics/tophits-aggregation.asciidoc[]

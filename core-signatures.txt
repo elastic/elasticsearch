@@ -58,3 +58,6 @@ com.google.common.primitives.Longs#compare(long,long)
 
 @defaultMessage we have an optimized XStringField to reduce analysis creation overhead
 org.apache.lucene.document.Field#<init>(java.lang.String,java.lang.String,org.apache.lucene.document.FieldType)
+
+@defaultMessage Use XNativeFSLockFactory instead of the buggy NativeFSLockFactory see LUCENE-5738 - remove once Lucene 4.9 is released
+org.apache.lucene.store.NativeFSLockFactory

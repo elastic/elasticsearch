@@ -101,18 +101,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
 
         // Figure out what is the elected master node
-        DiscoveryNode masterDiscoNode = null;
-
-        for (String node : nodes) {
-            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertThat(state.nodes().size(), equalTo(3));
-            if (masterDiscoNode == null) {
-                masterDiscoNode = state.nodes().masterNode();
-            } else {
-                assertThat(state.nodes().masterNode(), equalTo(masterDiscoNode));
-            }
-        }
-        assert masterDiscoNode != null;
+        DiscoveryNode masterDiscoNode = findMasterNode(nodes);
         logger.info("---> legit elected master node=" + masterDiscoNode);
         final Client masterClient = internalCluster().masterClient();
 
@@ -193,7 +182,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 .addMapping("type", "field", "type=long")
                 .get());
 
-        IndexRequestBuilder[] indexRequests = new IndexRequestBuilder[1 + randomInt(1000)];
+        IndexRequestBuilder[] indexRequests = new IndexRequestBuilder[scaledRandomIntBetween(1, 1000)];
         for (int i = 0; i < indexRequests.length; i++) {
             indexRequests[i] = client().prepareIndex("test", "type", String.valueOf(i)).setSource("field", i);
         }
@@ -217,36 +206,30 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         }
 
         // Figure out what is the elected master node
-        DiscoveryNode masterDiscoNode = null;
-        for (String node : nodes) {
-            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-            assertThat(state.nodes().size(), equalTo(3));
-            if (masterDiscoNode == null) {
-                masterDiscoNode = state.nodes().masterNode();
-            } else {
-                assertThat(state.nodes().masterNode(), equalTo(masterDiscoNode));
-            }
-        }
-        assert masterDiscoNode != null;
+        DiscoveryNode masterDiscoNode = findMasterNode(nodes);
+
         logger.info("---> legit elected master node=" + masterDiscoNode);
         final Client masterClient = internalCluster().masterClient();
 
         // Everything is stable now, it is now time to simulate evil...
+        // but first make sure we have no initializing shards and all is green
+        // (waiting for green here, because indexing / search in a yellow index is fine as long as no other nodes go down)
+        ensureGreen("test");
 
         // Pick a node that isn't the elected master.
-        String unluckyNode = null;
+        String isolatedNode = null;
         for (String node : nodes) {
             if (!node.equals(masterDiscoNode.getName())) {
-                unluckyNode = node;
+                isolatedNode = node;
             }
         }
-        assert unluckyNode != null;
+        assert isolatedNode != null;
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         for (String nodeId : nodes) {
-            if (!nodeId.equals(unluckyNode)) {
-                addFailToSendNoConnectRule(nodeId, unluckyNode);
-                addFailToSendNoConnectRule(unluckyNode, nodeId);
+            if (!nodeId.equals(isolatedNode)) {
+                addFailToSendNoConnectRule(nodeId, isolatedNode);
+                addFailToSendNoConnectRule(isolatedNode, nodeId);
             }
         }
         try {
@@ -261,7 +244,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
             // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
             // continuously ping until network failures have been resolved. However
-            final Client isolatedNodeClient = internalCluster().client(unluckyNode);
+            final Client isolatedNodeClient = internalCluster().client(isolatedNode);
             // It may a take a bit before the node detects it has been cut off from the elected master
             applied = awaitBusy(new Predicate<Object>() {
                 @Override
@@ -316,9 +299,9 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             // stop simulating network failures, from this point on the unlucky node is able to rejoin
             // We also need to do this even if assertions fail, since otherwise the test framework can't work properly
             for (String nodeId : nodes) {
-                if (!nodeId.equals(unluckyNode)) {
-                    clearNoConnectRule(nodeId, unluckyNode);
-                    clearNoConnectRule(unluckyNode, nodeId);
+                if (!nodeId.equals(isolatedNode)) {
+                    clearNoConnectRule(nodeId, isolatedNode);
+                    clearNoConnectRule(isolatedNode, nodeId);
                 }
             }
         }
@@ -343,17 +326,32 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             }
 
 
-            GetResponse getResponse = client().prepareGet("test", "type", "0").get();
+            GetResponse getResponse = client.prepareGet("test", "type", "0").get();
             assertThat(getResponse.isExists(), is(true));
             assertThat(getResponse.getVersion(), equalTo(2l));
             assertThat(getResponse.getId(), equalTo("0"));
             for (int i = 1; i < indexRequests.length; i++) {
-                getResponse = client().prepareGet("test", "type", String.valueOf(i)).get();
+                getResponse = client.prepareGet("test", "type", String.valueOf(i)).get();
                 assertThat(getResponse.isExists(), is(true));
                 assertThat(getResponse.getVersion(), equalTo(1l));
                 assertThat(getResponse.getId(), equalTo(String.valueOf(i)));
             }
         }
+    }
+
+    private DiscoveryNode findMasterNode(List<String> nodes) {
+        DiscoveryNode masterDiscoNode = null;
+        for (String node : nodes) {
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            assertThat(state.nodes().size(), equalTo(3));
+            if (masterDiscoNode == null) {
+                masterDiscoNode = state.nodes().masterNode();
+            } else {
+                assertThat(state.nodes().masterNode(), equalTo(masterDiscoNode));
+            }
+        }
+        assert masterDiscoNode != null;
+        return masterDiscoNode;
     }
 
     private void addFailToSendNoConnectRule(String fromNode, String toNode) {

@@ -134,7 +134,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                                 // fail all requests involving this index, if create didnt work
                                 for (int i = 0; i < bulkRequest.requests.size(); i++) {
                                     ActionRequest request = bulkRequest.requests.get(i);
-                                    if (setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
+                                    if (request != null && setResponseFailureIfIndexMatches(responses, i, request, index, e)) {
                                         bulkRequest.requests.set(i, null);
                                     }
                                 }

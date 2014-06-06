@@ -624,10 +624,17 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         int bulkEntryCount = randomIntBetween(10, 50);
         BulkRequestBuilder builder = client().prepareBulk();
         boolean[] expectedFailures = new boolean[bulkEntryCount];
+        String[] twoBadNames = new String[]{"INVALID.NAME1", "INVALID.NAME2"};
         boolean expectFailure = false;
         for (int i = 0; i < bulkEntryCount; i++) {
             expectFailure |= expectedFailures[i] = randomBoolean();
-            builder.add(client().prepareIndex().setIndex(expectedFailures[i] ? "INVALID.NAME" : "test").setType("type1").setId("1").setSource("field", 1));
+            String name;
+            if (expectedFailures[i]) {
+                name = twoBadNames[randomIntBetween(0, 1)];
+            } else {
+                name = "test";
+            }
+            builder.add(client().prepareIndex().setIndex(name).setType("type1").setId("1").setSource("field", 1));
         }
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.hasFailures(), is(expectFailure));

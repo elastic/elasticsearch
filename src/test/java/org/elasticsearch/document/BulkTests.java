@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -624,7 +625,10 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         int bulkEntryCount = randomIntBetween(10, 50);
         BulkRequestBuilder builder = client().prepareBulk();
         boolean[] expectedFailures = new boolean[bulkEntryCount];
-        String[] badIndexNames = new String[]{"INVALID.NAME1", "INVALID.NAME2"};
+        ArrayList<String> badIndexNames = new ArrayList<>();
+        for (int i = 1; i < randomIntBetween(1, 5); i++) {
+            badIndexNames.add("INVALID.NAME" + i);
+        }
         boolean expectFailure = false;
         for (int i = 0; i < bulkEntryCount; i++) {
             expectFailure |= expectedFailures[i] = randomBoolean();

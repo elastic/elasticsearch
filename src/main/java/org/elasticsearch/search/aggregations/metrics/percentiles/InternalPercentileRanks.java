@@ -29,14 +29,14 @@ import java.util.Iterator;
 /**
 *
 */
-public class InternalPercentiles extends AbstractInternalPercentiles implements Percentiles {
+public class InternalPercentileRanks extends AbstractInternalPercentiles implements PercentileRanks {
 
-    public final static Type TYPE = new Type("percentiles");
+    public final static Type TYPE = new Type("percentile_ranks");
 
     public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
-        public InternalPercentiles readResult(StreamInput in) throws IOException {
-            InternalPercentiles result = new InternalPercentiles();
+        public InternalPercentileRanks readResult(StreamInput in) throws IOException {
+            InternalPercentileRanks result = new InternalPercentileRanks();
             result.readFrom(in);
             return result;
         }
@@ -45,11 +45,11 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
     public static void registerStreams() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
     }
+    
+    InternalPercentileRanks() {} // for serialization
 
-    InternalPercentiles() {} // for serialization
-
-    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed) {
-        super(name, percents, state, keyed);
+    public InternalPercentileRanks(String name, double[] cdfValues, TDigestState state, boolean keyed) {
+        super(name, cdfValues, state, keyed);
     }
 
     @Override
@@ -58,44 +58,55 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
     }
 
     @Override
-    public double percentile(double percent) {
-        return state.quantile(percent / 100);
+    public double percent(double value) {
+        return percentileRank(state, value);
     }
 
     @Override
     public double value(double key) {
-        return percentile(key);
+        return percent(key);
     }
 
     protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed) {
-        return new InternalPercentiles(name, keys, merged, keyed);
+        return new InternalPercentileRanks(name, keys, merged, keyed);
     }
 
     @Override
     public Type type() {
         return TYPE;
     }
+    
+    static double percentileRank(TDigestState state, double value) {
+        double percentileRank = state.cdf(value);
+        if (percentileRank < 0) {
+            percentileRank = 0;
+        }
+        else if (percentileRank > 1) {
+            percentileRank = 1;
+        }
+        return percentileRank * 100;
+    }
 
     public static class Iter extends UnmodifiableIterator<Percentile> {
 
-        private final double[] percents;
+        private final double[] values;
         private final TDigestState state;
         private int i;
 
-        public Iter(double[] percents, TDigestState state) {
-            this.percents = percents;
+        public Iter(double[] values, TDigestState state) {
+            this.values = values;
             this.state = state;
             i = 0;
         }
 
         @Override
         public boolean hasNext() {
-            return i < percents.length;
+            return i < values.length;
         }
 
         @Override
         public Percentile next() {
-            final Percentile next = new InternalPercentile(percents[i], state.quantile(percents[i] / 100));
+            final Percentile next = new InternalPercentile(percentileRank(state, values[i]), values[i]);
             ++i;
             return next;
         }

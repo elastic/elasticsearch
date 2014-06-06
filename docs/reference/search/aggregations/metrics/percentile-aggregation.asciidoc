@@ -125,6 +125,7 @@ a script to convert them on-the-fly:
 script to generate values which percentiles are calculated on
 <2> Scripting supports parameterized input just like any other script
 
+[[search-aggregations-metrics-percentile-aggregation-approximation]]
 ==== Percentiles are (usually) approximate
 
 There are many different algorithms to calculate percentiles.  The naive
@@ -161,6 +162,7 @@ for large number of values is that the law of large numbers makes the distributi
 values more and more uniform and the t-digest tree can do a better job at summarizing
 it. It would not be the case on more skewed distributions.
 
+[[search-aggregations-metrics-percentile-aggregation-compression]]
 ==== Compression
 
 Approximate algorithms must balance memory utilization with estimation accuracy.

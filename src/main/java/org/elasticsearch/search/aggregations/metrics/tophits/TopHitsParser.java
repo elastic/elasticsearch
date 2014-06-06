@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.tophits;
+package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.inject.Inject;

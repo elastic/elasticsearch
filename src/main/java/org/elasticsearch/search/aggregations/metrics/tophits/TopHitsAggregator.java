@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.tophits;
+package org.elasticsearch.search.aggregations.metrics.tophits;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.search.aggregations.*;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -38,7 +38,7 @@ import java.io.IOException;
 
 /**
  */
-public class TopHitsAggregator extends BucketsAggregator implements ScorerAware {
+public class TopHitsAggregator extends MetricsAggregator implements ScorerAware {
 
     private final FetchPhase fetchPhase;
     private final TopHitsContext topHitsContext;
@@ -48,7 +48,7 @@ public class TopHitsAggregator extends BucketsAggregator implements ScorerAware 
     private AtomicReaderContext currentContext;
 
     public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, estimatedBucketsCount, context, parent);
+        super(name, estimatedBucketsCount, context, parent);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
         this.topHitsContext = topHitsContext;

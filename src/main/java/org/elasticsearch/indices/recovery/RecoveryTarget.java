@@ -239,7 +239,7 @@ public class RecoveryTarget extends AbstractComponent {
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
                 logger.trace(sb.toString());
             } else if (logger.isDebugEnabled()) {
-                logger.debug("recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
+                logger.debug("{} recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
             }
             removeAndCleanOnGoingRecovery(recoveryStatus);
             listener.onRecoveryDone();

@@ -491,9 +491,9 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         int numIDs;
         if (isNightly()) {
-            numIDs = scaledRandomIntBetween(3000, 10000);
+            numIDs = scaledRandomIntBetween(300, 1000);
         } else {
-            numIDs = scaledRandomIntBetween(500, 1000);
+            numIDs = scaledRandomIntBetween(50, 100);
         }
 
         while (idsSet.size() < numIDs) {
@@ -506,7 +506,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         // Attach random versions to them:
         long version = 0;
-        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(isNightly() ? 4 : 2))];
+        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(isNightly() ? 8 : 2))];
         final Map<String,IDAndVersion> truth = new HashMap<>();
 
         if (VERBOSE) {

@@ -260,7 +260,14 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 GLOBAL_CLUSTER = new ExternalTestCluster(transportAddresses);
             } else {
                 long masterSeed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
-                GLOBAL_CLUSTER = new TestCluster(masterSeed, clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed));
+                int numClientNodes;
+                if (COMPATIBILITY_VERSION.before(Version.V_1_2_0)) {
+                    numClientNodes = 0;
+                } else {
+                    numClientNodes = TestCluster.DEFAULT_NUM_CLIENT_NODES;
+                }
+                GLOBAL_CLUSTER = new TestCluster(masterSeed, TestCluster.DEFAULT_MIN_NUM_DATA_NODES, TestCluster.DEFAULT_MAX_NUM_DATA_NODES,
+                        clusterName("shared", ElasticsearchTestCase.CHILD_VM_ID, masterSeed), numClientNodes, TestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES);
             }
         }
     }

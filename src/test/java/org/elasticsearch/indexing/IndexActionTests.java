@@ -48,22 +48,24 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
      * while the index is being created.
      */
     @Test
-    @TestLogging("action.search:TRACE")
+    @TestLogging("action.search:TRACE,indices.recovery:TRACE,index.shard.service:TRACE")
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = randomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
             Throwable firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
+            logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
                 builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
-            int numOfChecks = randomIntBetween(5, 10);
+            int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {
                 try {
+                    logger.debug("running search with all types");
                     assertHitCount(client().prepareSearch("test").get(), numOfDocs);
                 } catch (Throwable t) {
                     logger.error("search for all docs types failed", t);
@@ -72,6 +74,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                     }
                 }
                 try {
+                    logger.debug("running search with a specific type");
                     assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
                 } catch (Throwable t) {
                     logger.error("search for all docs of a specific type failed", t);

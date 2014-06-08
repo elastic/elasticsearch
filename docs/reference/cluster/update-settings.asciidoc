@@ -229,3 +229,5 @@ settings will be allowed to be updated.
 
 `indices.fielddata.breaker.overhead`::
      See <<index-modules-fielddata>>
+
+[float]

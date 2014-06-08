@@ -133,6 +133,8 @@ Next to the `internal` & `external` version types explained above, Elasticsearch
 also supports other types for specific use cases. Here is an overview of
 the different version types and their semantics.
 
+*Note*: Version types other than `internal` and `external` are only supported in Elasticsearch 1.1 and up
+
 `internal`:: only index the document if the given version is identical to the version
 of the stored document.
 

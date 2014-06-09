@@ -12,7 +12,7 @@ following types are supported:
 <<chinese-analyzer,`chinese`>>,
 <<cjk-analyzer,`cjk`>>,
 <<czech-analyzer,`czech`>>,
-<<finnish-analyzer,`finnish`>>,
+<<danish-analyzer,`danish`>>,
 <<dutch-analyzer,`dutch`>>,
 <<english-analyzer,`english`>>,
 <<finnish-analyzer,`finnish`>>,
@@ -76,7 +76,8 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
             "lowercase",
             "arabic_stop",
             "arabic_normalization",
-            "arabic_keywords"
+            "arabic_keywords",
+            "arabic_stemmer"
           ]
         }
       }
@@ -401,10 +402,10 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
 <2> Words can be excluded from stemming with the `stem_exclusion`
     parameter.
 
-[[finnish-analyzer]]
-==== `finnish` analyzer
+[[danish-analyzer]]
+==== `danish` analyzer
 
-The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 [source,js]
 ----------------------------------------------------
@@ -412,27 +413,27 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
   "settings": {
     "analysis": {
       "filter": {
-        "finnish_stop": {
+        "danish_stop": {
           "type":       "stop",
-          "stopwords":  "_finnish_" <1>
+          "stopwords":  "_danish_" <1>
         },
-        "finnish_keywords": {
+        "danish_keywords": {
           "type":       "stop",
           "keywords":   [] <2>
         },
-        "finnish_stemmer": {
+        "danish_stemmer": {
           "type":       "stemmer",
-          "language":   "finnish"
+          "language":   "danish"
         }
       },
       "analyzer": {
-        "finnish": {
+        "danish": {
           "tokenizer":  "standard",
           "filter": [
             "lowercase",
-            "finnish_stop",
-            "finnish_keywords",
-            "finnish_stemmer"
+            "danish_stop",
+            "danish_keywords",
+            "danish_stemmer"
           ]
         }
       }
@@ -902,7 +903,7 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
         },
         "italian_stemmer": {
           "type":       "stemmer",
-          "language":   "italian"
+          "language":   "light_italian"
         }
       },
       "analyzer": {

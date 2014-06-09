@@ -782,7 +782,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 The `hindi` analyzer cannot currently be implemented as a `custom` analyzer
 as it depends on the IndicNormalizationFilter and HindiNormalizationFilter
-which are not yet exposed by Elasticsearch. Instead, see the <<icu-analysis-plugin>>.
+which are not yet exposed by Elasticsearch. Instead, see the <<analysis-icu-plugin>>.
 
 [[hungarian-analyzer]]
 ==== `hungarian` analyzer
@@ -1239,12 +1239,12 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
 
 The `turkish` analyzer cannot currently be implemented as a `custom` analyzer
 because it depends on the TurkishLowerCaseFilter and the ApostropheFilter
-which are not exposed in Elasticsearch. Instead, see the <<icu-analysis-plugin>>.
+which are not exposed in Elasticsearch. Instead, see the <<analysis-icu-plugin>>.
 
 [[thai-analyzer]]
 ==== `thai` analyzer
 
 The `thai` analyzer cannot currently be implemented as a `custom` analyzer
 because it depends on the ThaiTokenizer which is not exposed in Elasticsearch.
-Instead, see the <<icu-analysis-plugin>>.
+Instead, see the <<analysis-icu-plugin>>.
 

@@ -1,7 +1,7 @@
 [[analysis-tokenfilters]]
 == Token Filters
 
-Token filters accept a stream of tokens from a 
+Token filters accept a stream of tokens from a
 <<analysis-tokenizers,tokenizer>> and can modify tokens
 (eg lowercasing), delete tokens (eg remove stopwords)
 or add tokens (eg synonyms).
@@ -70,6 +70,10 @@ include::tokenfilters/hunspell-tokenfilter.asciidoc[]
 include::tokenfilters/common-grams-tokenfilter.asciidoc[]
 
 include::tokenfilters/normalization-tokenfilter.asciidoc[]
+
+include::tokenfilters/cjk-width-tokenfilter.asciidoc[]
+
+include::tokenfilters/cjk-bigram-tokenfilter.asciidoc[]
 
 include::tokenfilters/delimited-payload-tokenfilter.asciidoc[]
 

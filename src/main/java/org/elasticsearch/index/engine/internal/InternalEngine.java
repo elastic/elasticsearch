@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine.internal;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,7 +39,6 @@ import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -53,7 +51,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
@@ -64,7 +61,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
@@ -101,6 +97,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile boolean compoundOnFlush = true;
 
     private long gcDeletesInMillis;
+    private volatile long lastDeleteVersionPruneTimeMSec;
     private volatile boolean enableGcDeletes = true;
     private volatile String codecName;
     private final boolean optimizeAutoGenerateId;
@@ -184,6 +181,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         this.codecName = indexSettings.get(INDEX_CODEC, "default");
 
         this.threadPool = threadPool;
+        this.lastDeleteVersionPruneTimeMSec = threadPool.estimatedTimeInMillis();
         this.indexSettingsService = indexSettingsService;
         this.indexingService = indexingService;
         this.warmer = (InternalIndicesWarmer) warmer;
@@ -388,6 +386,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
+
+            checkVersionMapRefresh();
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t);
             throw new CreateFailedEngineException(shardId, create, t);
@@ -478,9 +478,21 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
+
+            checkVersionMapRefresh();
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t);
             throw new IndexFailedEngineException(shardId, index, t);
+        }
+    }
+
+    /** Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer). */
+    private void checkVersionMapRefresh() {
+        // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
+        if (versionMap.ramBytesUsed.get()/1024/1024. > 0.25*this.indexWriter.getConfig().getRAMBufferSizeMB()) {
+            // Now refresh to clear versionMap adds:
+            // TODO: should we instead ask refresh threadPool to do this?
+            refresh(new Refresh("version_table_full"));
         }
     }
 
@@ -531,6 +543,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
+            // TODO: should we expose versionMap's ram usage somewhere?  Marvel?  _cat?
             versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postIndexUnderLock(index);
@@ -552,6 +565,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             maybeFailEngine(t);
             throw new DeleteFailedEngineException(shardId, delete, t);
         }
+
+        maybePruneDeletedVersions();
     }
 
     private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
@@ -594,7 +609,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putDeleteUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
+            if (gcDeletesInMillis > 0) {
+                versionMap.putDeleteUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
+            }
 
             indexingService.postDeleteUnderLock(delete);
         }
@@ -628,8 +645,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             maybeFailEngine(t);
             throw new DeleteByQueryFailedEngineException(shardId, delete, t);
         }
-        //TODO: This is heavy, since we refresh, but we really have to...
-        pruneDeletedVersions(System.currentTimeMillis());
+
+        // TODO: This is heavy, since we refresh, but we must do this because we don't know which documents were in fact deleted (i.e., our
+        // versionMap isn't updated), so we must force a cutover to a new reader to "see" the deletions:
+        refresh(new Refresh("delete_by_query").force(true));
     }
 
     @Override
@@ -721,6 +740,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             failEngine("refresh failed", t);
             throw new RefreshFailedEngineException(shardId, t);
         }
+
+        // Always prune here (not maybe) so that if there is clock shift we are at least pruning once per refresh:
+        pruneDeletedVersions(threadPool.estimatedTimeInMillis());
     }
 
     @Override
@@ -775,7 +797,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         } catch (Throwable t) {
                             logger.warn("Failed to close current SearcherManager", t);
                         }
-                        pruneDeletedVersions(threadPool.estimatedTimeInMillis());
+
+                        maybePruneDeletedVersions();
+
                     } catch (Throwable t) {
                         throw new FlushFailedEngineException(shardId, t);
                     }
@@ -794,7 +818,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             translog.newTransientTranslog(translogId);
                             indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             indexWriter.commit();
-                            pruneDeletedVersions(threadPool.estimatedTimeInMillis());
+                            // we need to refresh in order to clear older version values
+                            refresh(new Refresh("version_table").force(true));
                             // we need to move transient to current only after we refresh
                             // so items added to current will still be around for realtime get
                             // when tans overrides it
@@ -864,10 +889,16 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return writer;
     }
 
-    private void pruneDeletedVersions(long time) {
-        // we need to refresh in order to clear older version values
-        refresh(new Refresh("version_table").force(true));
+    private void maybePruneDeletedVersions() {
+        long timeMSec = threadPool.estimatedTimeInMillis();
+        // It's expensive to walk the deletes map (we acquire dirtyLock for each uid), so we only do it every 1/4 of gcDeletesInMillis
+        long msec = threadPool.estimatedTimeInMillis();
+        if (msec - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
+            pruneDeletedVersions(timeMSec);
+        }
+    }
 
+    private void pruneDeletedVersions(long timeMSec) {
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
 
         // we only need to prune deletes; the adds/updates are cleared whenever reader is refreshed:
@@ -881,15 +912,17 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                     // another thread has re-added this uid since we started refreshing:
                     continue;
                 }
-                if (time - versionValue.time() <= 0) {
+                if (timeMSec - versionValue.time() <= 0) {
                     continue; // its a newer value, from after/during we refreshed, don't clear it
                 }
                 assert versionValue.delete();
-                if (enableGcDeletes && (time - versionValue.time()) > gcDeletesInMillis) {
+                if (enableGcDeletes && (timeMSec - versionValue.time()) > gcDeletesInMillis) {
                     versionMap.removeDeleteUnderLock(uid);
                 }
             }
         }
+
+        lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
     @Override

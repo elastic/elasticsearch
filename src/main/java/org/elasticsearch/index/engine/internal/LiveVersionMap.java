@@ -21,17 +21,21 @@ package org.elasticsearch.index.engine.internal;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-
-// TODO: use Lucene's LiveFieldValues, but we need to somehow extend it to handle SearcherManager changing, and to handle long-lasting (GC'd
-// by time) tombstones
 
 /** Maps _uid value to its version information. */
 class LiveVersionMap implements ReferenceManager.RefreshListener {
+
+    // TODO: add implements Accountable with Lucene 4.9
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48 : "Add 'implements Accountable' here";
+    }
 
     // All writes go into here:
     private volatile Map<BytesRef,VersionValue> addsCurrent = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -43,6 +47,31 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     private final Map<BytesRef,VersionValue> deletes = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     private ReferenceManager mgr;
+
+    /** Bytes consumed for each added UID + version, not including UID's bytes.
+     *
+     *  TransLog.Location:
+     *     + NUM_BYTES_OBJECT_HEADER + NUM_BYTES_INT + 2*NUM_BYTES_LONG
+     *
+     * VersionValue:
+     *     + NUM_BYTES_OBJECT_HEADER + NUM_BYTES_LONG + NUM_BYTES_OBJECT_REF
+     *
+     * BytesRef:
+     *     + NUM_BYTES_OBJECT_HEADER + 2 * NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER + uid.text().length()
+     *
+     * CHM.Entry:
+     *     + NUM_BYTES_OBJECT_HEADER + 3*NUM_BYTES_OBJECT_REF + NUM_BYTES_INT
+     *
+     * CHM's pointer to CHM.Entry, double for approx load factor:
+     *     + NUM_BYTES_OBJECT_REF*2 */
+
+    private static final int BASE_BYTES_PER_ADD = 4*RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
+        4*RamUsageEstimator.NUM_BYTES_INT +
+        3*RamUsageEstimator.NUM_BYTES_LONG +
+        7*RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
+        RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+
+    final AtomicLong ramBytesUsed = new AtomicLong();
 
     public void setManager(ReferenceManager newMgr) {
         if (mgr != null) {
@@ -57,6 +86,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     @Override
     public void beforeRefresh() throws IOException {
         addsOld = addsCurrent;
+        ramBytesUsed.set(0);
         // Start sending all updates after this point to the new
         // map.  While reopen is running, any lookup will first
         // try this new map, then fallback to old, then to the
@@ -99,12 +129,16 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     /** Adds this uid/version to the pending adds map. */
     public void putUnderLock(BytesRef uid, VersionValue version) {
         deletes.remove(uid);
-        addsCurrent.put(uid, version);
+        if (addsCurrent.put(uid, version) == null) {
+            ramBytesUsed.addAndGet(BASE_BYTES_PER_ADD + uid.bytes.length);
+        }
     }
 
     /** Adds this uid/version to the pending deletes map. */
     public void putDeleteUnderLock(BytesRef uid, VersionValue version) {
-        addsCurrent.remove(uid);
+        if (addsCurrent.remove(uid) != null) {
+            ramBytesUsed.addAndGet(-(BASE_BYTES_PER_ADD + uid.bytes.length));
+        }
         addsOld.remove(uid);
         deletes.put(uid, version);
     }
@@ -129,6 +163,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
         addsCurrent.clear();
         addsOld.clear();
         deletes.clear();
+        ramBytesUsed.set(0);
         if (mgr != null) {
             mgr.removeListener(this);
             mgr = null;

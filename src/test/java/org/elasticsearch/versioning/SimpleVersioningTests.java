@@ -454,6 +454,11 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         public String id;
         public long version;
         public boolean delete;
+
+        @Override
+        public String toString() {
+            return "id=" + id + " version=" + version + " delete?=" + delete;
+        }
     }
 
 

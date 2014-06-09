@@ -120,9 +120,11 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("fielddata.memory_size", "alias:fm,fielddataMemory;default:false;text-align:right;desc:used fielddata cache");
         table.addCell("fielddata.evictions", "alias:fe,fielddataEvictions;default:false;text-align:right;desc:fielddata evictions");
+        table.addCell("fielddata.evictions_per_sec", "alias:feps,fielddataEvictionsPerSecond;default:false;text-align:right;desc:fielddata evictions per second (1m 5m 15m intervals)");
 
         table.addCell("filter_cache.memory_size", "alias:fcm,filterCacheMemory;default:false;text-align:right;desc:used filter cache");
         table.addCell("filter_cache.evictions", "alias:fce,filterCacheEvictions;default:false;text-align:right;desc:filter cache evictions");
+        table.addCell("filter_cache.evictions_per_sec", "alias:fceps,filterCacheEvictionsPerSecond;default:false;text-align:right;desc:filter cache evictions per second (1m 5m 15m intervals)");
 
         table.addCell("query_cache.memory_size", "alias:qcm,queryCacheMemory;default:false;text-align:right;desc:used query cache");
         table.addCell("query_cache.evictions", "alias:qce,queryCacheEvictions;default:false;text-align:right;desc:query cache evictions");
@@ -237,9 +239,19 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(stats == null ? null : stats.getIndices().getFieldData().getMemorySize());
             table.addCell(stats == null ? null : stats.getIndices().getFieldData().getEvictions());
+            table.addCell(stats == null ? null : "["
+                    + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionsOneMinuteRate(),"")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionsFiveMinuteRate(),"")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFieldData().getEvictionsFifteenMinuteRate(), "")
+                    + "]");
 
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getMemorySize());
             table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getEvictions());
+            table.addCell(stats == null ? null : "["
+                    + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionsOneMinuteRate(), "")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionsFiveMinuteRate(), "")
+                    + " " + Strings.format1Decimals(stats.getIndices().getFilterCache().getEvictionsFifteenMinuteRate(), "")
+                    + "]");
 
             table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getMemorySize());
             table.addCell(stats == null ? null : stats.getIndices().getQueryCache() == null ? null : stats.getIndices().getQueryCache().getEvictions());

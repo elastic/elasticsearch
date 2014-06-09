@@ -113,10 +113,14 @@ node (c) |d
 cache memory |0b
 |`fielddata.evictions` |`fe`, `fielddataEvictions` |No |Fielddata cache
 evictions |0
+|`fielddata.evictions_per_sec` |`feps`, `fielddataEvictionsPerSecond` |No |Fielddata
+cache evictions per Second (1m 5m 15m intervals) |[53 13.3 4.6]
 |`filter_cache.memory_size` |`fcm`, `filterCacheMemory` |No |Used filter
 cache memory |0b
 |`filter_cache.evictions` |`fce`, `filterCacheEvictions` |No |Filter
 cache evictions |0
+|`filter_cache.evictions_per_sec` |`fceps`, `filterCacheEvictionsPerSecond` |No |Filter
+cache evictions per Second (1m 5m 15m intervals) |[53 13.3 4.6]
 |`flush.total` |`ft`, `flushTotal` |No |Number of flushes |1
 |`flush.total_time` |`ftt`, `flushTotalTime` |No |Time spent in flush |1
 |`get.current` |`gc`, `getCurrent` |No |Number of current get

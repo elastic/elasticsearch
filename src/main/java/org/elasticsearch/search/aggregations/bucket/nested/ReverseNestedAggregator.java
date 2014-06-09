@@ -82,7 +82,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void doSetNextReader(AtomicReaderContext reader) {
         bucketOrdToLastCollectedParentDoc.clear();
         try {
             // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives

@@ -21,10 +21,14 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
@@ -115,43 +119,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             throw new ElasticsearchParseException("No " + COLLECT_MODE.getPreferredName() + " found for value [" + value + "]");
         }
     }
-    
-    // A scorer used for the deferred collection mode to handle any child aggs asking for scores that are not 
-    // recorded.
-    static final Scorer unavailableScorer=new Scorer(null){
-        private final String MSG = "A limitation of the " + SubAggCollectionMode.BREADTH_FIRST.parseField.getPreferredName()
-                + " collection mode is that scores cannot be buffered along with document IDs";
-
-        @Override
-        public float score() throws IOException {
-            throw new ElasticsearchParseException(MSG);
-        }
-
-        @Override
-        public int freq() throws IOException {
-            throw new ElasticsearchParseException(MSG);
-        }
-
-        @Override
-        public int advance(int arg0) throws IOException {
-            throw new ElasticsearchParseException(MSG);
-        }
-
-        @Override
-        public long cost() {
-            throw new ElasticsearchParseException(MSG);
-        }
-
-        @Override
-        public int docID() {
-            throw new ElasticsearchParseException(MSG);
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new ElasticsearchParseException(MSG);
-        }};
-    
 
     protected final String name;
     protected final Aggregator parent;
@@ -167,6 +134,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     private Map<String, Aggregator> subAggregatorbyName;
     private DeferringBucketCollector recordingWrapper;
+    private List<ReaderContextAware> readerAwares = new ArrayList<>();
+    private List<TopReaderContextAware> topReaderAwares = new ArrayList<TopReaderContextAware>();
+    private List<ScorerAware> scorerAwares = new ArrayList<>();
+
+    private IndexReaderContext topReader;
+    private AtomicReaderContext reader;
+    private Scorer scorer;
 
     /**
      * Constructs a new Aggregator.
@@ -200,6 +174,10 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             public void setNextReader(AtomicReaderContext reader) {
                 badState();
             }
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                badState();
+            }
 
             @Override
             public void postCollection() throws IOException {
@@ -213,6 +191,11 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
             @Override
             public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
+                badState();
+            }
+
+            @Override
+            public void setScorer(Scorer scorer) {
                 badState();
             }
         };
@@ -231,14 +214,104 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         if (nextPassCollectors.size() > 0) {
             BucketCollector deferreds = BucketCollector.wrap(nextPassCollectors);
             recordingWrapper = new DeferringBucketCollector(deferreds, context);
-            // TODO. Without line below we are dependent on subclass aggs
-            // delegating setNextReader calls on to child aggs
-            // which they don't seem to do as a matter of course. Need to move
-            // to a delegation model rather than broadcast
-            context.registerReaderContextAware(recordingWrapper);
             thisPassCollectors.add(recordingWrapper);            
         }
         collectableSubAggregators = BucketCollector.wrap(thisPassCollectors);
+        registerReaderAware(collectableSubAggregators);
+        registerTopReaderAware(collectableSubAggregators);
+        registerScorerAware(collectableSubAggregators);
+    }
+
+    public final void registerReaderAware(ReaderContextAware readerAware) {
+        if (readerAware != null) {
+            this.readerAwares.add(readerAware);
+        }
+        if (reader != null) {
+            readerAware.setNextReader(reader);
+        }
+    }
+    
+    @Override
+    public final void setNextReader(AtomicReaderContext reader) {
+        this.reader = reader;
+        for (ReaderContextAware readerAware : readerAwares) {
+            readerAware.setNextReader(reader);
+        }
+        doSetNextReader(reader);
+    }
+    
+    public final AtomicReaderContext currentReader() {
+        return reader;
+    }
+    
+    /**
+     * Provides the opportunity to update state when a new reader is opened.
+     * 
+     * @param reader the new reader context
+     */
+    protected abstract void doSetNextReader(AtomicReaderContext reader);
+
+    public final void registerTopReaderAware(TopReaderContextAware topReaderAware) {
+        if (topReaderAware != null) {
+            this.topReaderAwares.add(topReaderAware);
+        }
+        if (topReader != null) {
+            topReaderAware.setNextReader(topReader);
+        }
+    }
+    
+    @Override
+    public final void setNextReader(IndexReaderContext topReader) {
+        this.topReader = topReader;
+        for (TopReaderContextAware readerAware : topReaderAwares) {
+            readerAware.setNextReader(topReader);
+        }
+        doSetTopReader(topReader);
+    }
+    
+    public final IndexReaderContext topReader() {
+        return topReader;
+    }
+    
+    /**
+     * Provides the opportunity to update state when the top reader is set.
+     * 
+     * @param reader the new reader context
+     */
+    protected void doSetTopReader(IndexReaderContext reader) {
+        
+    }
+    
+    public final void registerScorerAware(ScorerAware scorerAware) {
+        if (scorerAware != null) {
+            this.scorerAwares.add(scorerAware);
+        }
+        if (reader != null) {
+            scorerAware.setScorer(scorer);
+        }
+    }
+    
+    @Override
+    public final void setScorer(Scorer scorer) {
+        this.scorer = scorer;
+        for (ScorerAware scorerAware : scorerAwares) {
+            scorerAware.setScorer(scorer);
+        }
+        doSetScorer(scorer);
+    }
+    
+    public final Scorer currentScorer() {
+        return scorer;
+    }
+
+    /**
+     * Provides the opportunity to update state when a new scorer is opened. Default 
+     * implementation is no-op.
+     * 
+     * @param scorer the new scorer
+     */
+    protected void doSetScorer(Scorer scorer) {
+        
     }
     
     /**
@@ -259,7 +332,6 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     protected void runDeferredCollections(long... bucketOrds){
         // Being lenient here - ignore calls where there are no deferred collections to playback
         if (recordingWrapper != null) {
-            context.setScorer(unavailableScorer);
             recordingWrapper.prepareSelectedBuckets(bucketOrds);
         } 
     }

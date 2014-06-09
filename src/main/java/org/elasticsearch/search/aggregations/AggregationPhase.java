@@ -78,6 +78,7 @@ public class AggregationPhase implements SearchPhase {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
             for (int i = 0; i < aggregators.length; i++) {
+                aggregators[i].setNextReader(context.searcher().getIndexReader().getContext());
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];
                     if (aggregator.shouldCollect()) {
@@ -89,7 +90,6 @@ public class AggregationPhase implements SearchPhase {
             if (!collectors.isEmpty()) {
                 context.searcher().addMainQueryCollector(new AggregationsCollector(collectors, aggregationContext));
             }
-            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
     }
 
@@ -148,7 +148,9 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
-            aggregationContext.setScorer(scorer);
+            for (Aggregator collector : collectors) {
+                collector.setScorer(scorer);
+            }
         }
 
         @Override
@@ -160,7 +162,9 @@ public class AggregationPhase implements SearchPhase {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            aggregationContext.setNextReader(context);
+            for (Aggregator collector : collectors) {
+                collector.setNextReader(context);
+            }
         }
 
         @Override

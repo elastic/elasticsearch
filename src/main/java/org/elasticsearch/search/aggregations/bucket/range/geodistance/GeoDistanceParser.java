@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -180,7 +183,7 @@ public class GeoDistanceParser implements Aggregator.Parser {
         @Override
         protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final DistanceValues distanceValues = new DistanceValues(valuesSource, distanceType, origin, unit);
-            ValuesSource.Numeric distanceSource = new DistanceSource(distanceValues, valuesSource.metaData());
+            ValuesSource.Numeric distanceSource = new DistanceSource(distanceValues, valuesSource);
             if (distanceSource.metaData().multiValued()) {
                 // we need to ensure uniqueness
                 distanceSource = new ValuesSource.Numeric.SortedAndUnique(distanceSource);
@@ -222,11 +225,13 @@ public class GeoDistanceParser implements Aggregator.Parser {
 
             private final DoubleValues values;
             private final MetaData metaData;
+            private ValuesSource delegate;
 
-            public DistanceSource(DoubleValues values, MetaData metaData) {
+            public DistanceSource(DoubleValues values, ValuesSource.GeoPoint  delegate) {
                 this.values = values;
+                this.delegate = delegate;
                 // even if the geo points are unique, there's no guarantee the distances are
-                this.metaData = MetaData.builder(metaData).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
+                this.metaData = MetaData.builder(delegate.metaData()).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
             }
 
             @Override
@@ -252,6 +257,21 @@ public class GeoDistanceParser implements Aggregator.Parser {
             @Override
             public BytesValues bytesValues() {
                 throw new UnsupportedOperationException();
+            }
+            
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.delegate.setScorer(scorer);
             }
 
         }

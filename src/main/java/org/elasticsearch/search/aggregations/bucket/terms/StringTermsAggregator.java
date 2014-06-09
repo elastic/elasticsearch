@@ -68,7 +68,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void doSetNextReader(AtomicReaderContext reader) {
         values = valuesSource.bytesValues();
     }
 
@@ -142,7 +142,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             // we need to fill-in the blanks
             List<BytesValues.WithOrdinals> valuesWithOrdinals = Lists.newArrayList();
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
-                context.setNextReader(ctx);
+                setNextReader(ctx);
                 final BytesValues values = valuesSource.bytesValues();
                 if (values instanceof BytesValues.WithOrdinals) {
                     valuesWithOrdinals.add((BytesValues.WithOrdinals) values);
@@ -274,7 +274,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext reader) {
+        public void doSetNextReader(AtomicReaderContext reader) {
             bytesValues = valuesSource.bytesValues();
             ordinals = bytesValues.ordinals();
             final long maxOrd = ordinals.getMaxOrd();

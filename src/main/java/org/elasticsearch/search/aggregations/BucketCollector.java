@@ -21,7 +21,11 @@ package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.Iterables;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.lucene.ScorerAware;
+import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 
 import java.io.IOException;
@@ -29,7 +33,7 @@ import java.io.IOException;
 /**
  * A Collector that can collect data in separate buckets.
  */
-public abstract class BucketCollector implements ReaderContextAware {
+public abstract class BucketCollector implements TopReaderContextAware, ReaderContextAware, ScorerAware {
     
     /**
      * Used to gather a summary from a bucket
@@ -53,6 +57,10 @@ public abstract class BucketCollector implements ReaderContextAware {
             // no-op
         }
         @Override
+        public void setNextReader(IndexReaderContext reader) {
+            // no-op
+        }
+        @Override
         public void postCollection() throws IOException {
             // no-op
         }
@@ -60,6 +68,10 @@ public abstract class BucketCollector implements ReaderContextAware {
         public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) {
             // no-op
         }
+        
+        public void setScorer(org.apache.lucene.search.Scorer scorer) {
+            // no-op
+        };
     };
 
     /**
@@ -90,6 +102,13 @@ public abstract class BucketCollector implements ReaderContextAware {
                     }
 
                     @Override
+                    public void setNextReader(IndexReaderContext reader) {
+                        for (BucketCollector collector : collectors) {
+                            collector.setNextReader(reader);
+                        }
+                    }
+
+                    @Override
                     public void postCollection() throws IOException {
                         for (BucketCollector collector : collectors) {
                             collector.postCollection();
@@ -100,6 +119,13 @@ public abstract class BucketCollector implements ReaderContextAware {
                     public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
                         for (BucketCollector collector : collectors) {
                             collector.gatherAnalysis(results, bucketOrdinal);
+                        }
+                    }
+
+                    @Override
+                    public void setScorer(Scorer scorer) {
+                        for (BucketCollector collector : collectors) {
+                            collector.setScorer(scorer);
                         }
                     }
 

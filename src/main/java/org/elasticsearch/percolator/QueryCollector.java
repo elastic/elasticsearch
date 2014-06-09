@@ -96,6 +96,7 @@ abstract class QueryCollector extends Collector {
             List<Aggregator> aggregatorCollectors = new ArrayList<>();
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
             for (int i = 0; i < aggregators.length; i++) {
+                aggregators[i].setNextReader(context.searcher().getIndexReader().getContext());
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];
                     if (aggregator.shouldCollect()) {
@@ -107,7 +108,6 @@ abstract class QueryCollector extends Collector {
             if (!aggregatorCollectors.isEmpty()) {
                 facetAggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
             }
-            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
         facetAndAggregatorCollector = facetAggCollectorBuilder.build();
     }

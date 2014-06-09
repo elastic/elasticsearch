@@ -63,7 +63,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void doSetNextReader(AtomicReaderContext reader) {
         values = valuesSource.longValues();
     }
 

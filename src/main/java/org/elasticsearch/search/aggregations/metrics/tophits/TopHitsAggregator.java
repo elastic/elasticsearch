@@ -24,7 +24,6 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
@@ -38,13 +37,12 @@ import java.io.IOException;
 
 /**
  */
-public class TopHitsAggregator extends MetricsAggregator implements ScorerAware {
+public class TopHitsAggregator extends MetricsAggregator {
 
     private final FetchPhase fetchPhase;
     private final TopHitsContext topHitsContext;
     private final LongObjectPagedHashMap<TopDocsCollector> topDocsCollectors;
 
-    private Scorer currentScorer;
     private AtomicReaderContext currentContext;
 
     public TopHitsAggregator(FetchPhase fetchPhase, TopHitsContext topHitsContext, String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
@@ -52,7 +50,6 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(estimatedBucketsCount, context.bigArrays());
         this.topHitsContext = topHitsContext;
-        context.registerScorerAware(this);
     }
 
     @Override
@@ -110,13 +107,13 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
                     topDocsCollector = sort != null ? TopFieldCollector.create(sort, topN, true, topHitsContext.trackScores(), true, false) : TopScoreDocCollector.create(topN, false)
             );
             topDocsCollector.setNextReader(currentContext);
-            topDocsCollector.setScorer(currentScorer);
+            topDocsCollector.setScorer(currentScorer());
         }
         topDocsCollector.collect(docId);
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void doSetNextReader(AtomicReaderContext context) {
         this.currentContext = context;
         for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
             try {
@@ -128,8 +125,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     }
 
     @Override
-    public void setScorer(Scorer scorer) {
-        this.currentScorer = scorer;
+    public void doSetScorer(Scorer scorer) {
         for (LongObjectPagedHashMap.Cursor<TopDocsCollector> cursor : topDocsCollectors) {
             try {
                 cursor.value.setScorer(scorer);

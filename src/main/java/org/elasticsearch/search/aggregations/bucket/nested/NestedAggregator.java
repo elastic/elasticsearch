@@ -69,7 +69,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void doSetNextReader(AtomicReaderContext reader) {
         if (parentFilter == null) {
             NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parentAggregator);
             final Filter parentFilterNotCached;

@@ -46,7 +46,7 @@ public class MissingAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void doSetNextReader(AtomicReaderContext reader) {
         if (valuesSource != null) {
             values = valuesSource.bytesValues();
         }

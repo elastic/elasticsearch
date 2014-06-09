@@ -39,7 +39,7 @@ public abstract class NonCollectingAggregator extends Aggregator {
     }
 
     @Override
-    public final void setNextReader(AtomicReaderContext reader) {
+    public final void doSetNextReader(AtomicReaderContext reader) {
         fail();
     }
 

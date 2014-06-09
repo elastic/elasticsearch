@@ -20,9 +20,13 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.packed.AppendingDeltaPackedLongBuffer;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -36,18 +40,58 @@ import java.util.List;
  */
 public class RecordingPerReaderBucketCollector extends RecordingBucketCollector  {
 
+    // A scorer used for the deferred collection mode to handle any child aggs asking for scores that are not 
+    // recorded.
+    static final Scorer unavailableScorer = new Scorer(null){
+        private final String MSG = "A limitation of the " + SubAggCollectionMode.BREADTH_FIRST.parseField().getPreferredName()
+                + " collection mode is that scores cannot be buffered along with document IDs";
+
+        @Override
+        public float score() throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int freq() throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int advance(int arg0) throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public long cost() {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int docID() {
+            throw new ElasticsearchParseException(MSG);
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new ElasticsearchParseException(MSG);
+        }};
+
     final List<PerSegmentCollects> perSegmentCollections = new ArrayList<>();
     private PerSegmentCollects currentCollection;
     private boolean recordingComplete;
+
+    private IndexReaderContext topReader;
     
     static class PerSegmentCollects {
+        IndexReaderContext topReaderContext;
         AtomicReaderContext readerContext;
         AppendingPackedLongBuffer docs;
         AppendingPackedLongBuffer buckets;
         int lastDocId = 0;
 
-        PerSegmentCollects(AtomicReaderContext readerContext) {
+        PerSegmentCollects(AtomicReaderContext readerContext, IndexReaderContext topReaderContext) {
             this.readerContext = readerContext;
+            this.topReaderContext = topReaderContext;
         }
 
         void collect(int doc, long owningBucketOrdinal) throws IOException {
@@ -74,6 +118,7 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
                 buckets.add(owningBucketOrdinal);
             }
         }
+        
         void endCollect() {
             if (docs != null) {
                 docs.freeze();
@@ -89,7 +134,9 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
 
         void replay(BucketCollector collector) throws IOException {
             lastDocId = 0;
+            collector.setNextReader(this.topReaderContext);
             collector.setNextReader(readerContext);
+            collector.setScorer(unavailableScorer);
             if (!hasItems()) {
                 return;
             }
@@ -118,14 +165,17 @@ public class RecordingPerReaderBucketCollector extends RecordingBucketCollector 
 
     @Override
     public void setNextReader(AtomicReaderContext reader) {
-        if(recordingComplete){
-            // The way registration works for listening on reader changes we have the potential to be called > once
-            // TODO fixup the aggs framework so setNextReader calls are delegated to child aggs and not reliant on 
-            // registering a listener.
-            return;
-        }
         stowLastSegmentCollection();
-        currentCollection = new PerSegmentCollects(reader);
+        currentCollection = new PerSegmentCollects(reader, topReader);
+    }
+    
+    @Override
+    public void setNextReader(IndexReaderContext reader) {
+        this.topReader = reader;
+    }
+    
+    @Override
+    public void setScorer(Scorer scorer) {
     }
 
     private void stowLastSegmentCollection() {

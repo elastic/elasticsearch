@@ -51,7 +51,11 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
             return createUnmapped(context, parent);
         }
         VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
-        return create(vs, expectedBucketsCount, context, parent);
+        Aggregator aggregator = create(vs, expectedBucketsCount, context, parent);
+        aggregator.registerReaderAware(vs);
+        aggregator.registerTopReaderAware(vs);
+        aggregator.registerScorerAware(vs);
+        return aggregator;
     }
 
     @Override

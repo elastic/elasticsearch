@@ -39,5 +39,5 @@ public abstract class RecordingBucketCollector extends BucketCollector implement
     @Override
     public void gatherAnalysis(BucketAnalysisCollector analysisCollector, long bucketOrdinal) {
         throw new ElasticsearchIllegalStateException("gatherAnalysis not supported");
-    }    
+    }
 }

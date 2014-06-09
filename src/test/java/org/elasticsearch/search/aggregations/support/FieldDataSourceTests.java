@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -136,6 +137,18 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
             @Override
             public MetaData metaData() {
                 throw new UnsupportedOperationException();
+            }
+            
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
             }
 
         };

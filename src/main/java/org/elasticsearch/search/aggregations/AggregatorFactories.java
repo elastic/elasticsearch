@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasables;
@@ -49,11 +50,8 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
-    private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, long estimatedBucketsCount) {
+    private static Aggregator create(AggregationContext context, AggregatorFactory factory, Aggregator parent, long estimatedBucketsCount) {
         final Aggregator aggregator = factory.create(context, parent, estimatedBucketsCount);
-        if (aggregator.shouldCollect()) {
-            context.registerReaderContextAware(aggregator);
-        }
         // Once the aggregator is fully constructed perform any initialisation -
         // can't do everything in constructors if Aggregator base class needs 
         // to delegate to subclasses as part of construction.
@@ -68,7 +66,7 @@ public class AggregatorFactories {
         Aggregator[] aggregators = new Aggregator[count()];
         for (int i = 0; i < factories.length; ++i) {
             final AggregatorFactory factory = factories[i];
-            final Aggregator first = createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount);
+            final Aggregator first = create(parent.context(), factory, parent, estimatedBucketsCount);
             if (first.bucketAggregationMode() == BucketAggregationMode.MULTI_BUCKETS) {
                 // This aggregator already supports multiple bucket ordinals, can be used directly
                 aggregators[i] = first;
@@ -108,14 +106,31 @@ public class AggregatorFactories {
                     aggregators = bigArrays.grow(aggregators, owningBucketOrdinal + 1);
                     Aggregator aggregator = aggregators.get(owningBucketOrdinal);
                     if (aggregator == null) {
-                        aggregator = createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount);
+                        aggregator = create(parent.context(), factory, parent, estimatedBucketsCount);
+                        aggregator.setNextReader(currentReader());
                         aggregators.set(owningBucketOrdinal, aggregator);
                     }
                     aggregator.collect(doc, 0);
                 }
 
                 @Override
-                public void setNextReader(AtomicReaderContext reader) {
+                public void doSetNextReader(AtomicReaderContext reader) {
+                    for (int i = 0 ; i < aggregators.size(); i++) {
+                        Aggregator aggregator = aggregators.get(i);
+                        if (aggregator != null) {
+                            aggregator.setNextReader(reader);
+                        }
+                    }
+                }
+
+                @Override
+                public void doSetTopReader(IndexReaderContext reader) {
+                    for (int i = 0 ; i < aggregators.size(); i++) {
+                        Aggregator aggregator = aggregators.get(i);
+                        if (aggregator != null) {
+                            aggregator.setNextReader(reader);
+                        }
+                    }
                 }
 
                 @Override
@@ -154,7 +169,7 @@ public class AggregatorFactories {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
-            aggregators[i] = createAndRegisterContextAware(ctx, factories[i], null, 0);
+            aggregators[i] = create(ctx, factories[i], null, 0);
         }
         return aggregators;
     }

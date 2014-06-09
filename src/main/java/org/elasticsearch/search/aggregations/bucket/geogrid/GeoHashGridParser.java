@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -127,7 +130,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         @Override
         protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
             final CellValues cellIdValues = new CellValues(valuesSource, precision);
-            ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
+            ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource);
             if (cellIdSource.metaData().multiValued()) {
                 // we need to wrap to ensure uniqueness
                 cellIdSource = new ValuesSource.Numeric.SortedAndUnique(cellIdSource);
@@ -165,11 +168,13 @@ public class GeoHashGridParser implements Aggregator.Parser {
         private static class CellIdSource extends ValuesSource.Numeric {
             private final LongValues values;
             private MetaData metaData;
+            private GeoPoint delegate;
 
-            public CellIdSource(LongValues values, MetaData delegate) {
+            public CellIdSource(LongValues values, ValuesSource.GeoPoint delegate) {
                 this.values = values;
+                this.delegate = delegate;
                 //different GeoPoints could map to the same or different geohash cells.
-                this.metaData = MetaData.builder(delegate).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
+                this.metaData = MetaData.builder(delegate.metaData()).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
             }
 
             @Override
@@ -195,6 +200,21 @@ public class GeoHashGridParser implements Aggregator.Parser {
             @Override
             public MetaData metaData() {
                 return metaData;
+            }
+            
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.delegate.setScorer(scorer);
             }
 
         }

@@ -62,7 +62,7 @@ public class LongTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
+    public void doSetNextReader(AtomicReaderContext reader) {
         values = valuesSource.longValues();
     }
 
@@ -91,7 +91,7 @@ public class LongTermsAggregator extends TermsAggregator {
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (AtomicReaderContext ctx : context.searchContext().searcher().getTopReaderContext().leaves()) {
-                context.setNextReader(ctx);
+                setNextReader(ctx);
                 final LongValues values = valuesSource.longValues();
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
                     final int valueCount = values.setDocument(docId);

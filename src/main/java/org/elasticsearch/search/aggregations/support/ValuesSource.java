@@ -23,13 +23,17 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.*;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
@@ -38,7 +42,7 @@ import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import org.elasticsearch.search.internal.SearchContext;
 
-public abstract class ValuesSource {
+public abstract class ValuesSource implements TopReaderContextAware, ReaderContextAware, ScorerAware {
 
     public static class MetaData {
 
@@ -153,11 +157,9 @@ public abstract class ValuesSource {
 
     public static abstract class Bytes extends ValuesSource {
 
-        public static abstract class WithOrdinals extends Bytes implements TopReaderContextAware {
+        public static abstract class WithOrdinals extends Bytes {
 
             public abstract BytesValues.WithOrdinals bytesValues();
-
-            public abstract void setNextReader(IndexReaderContext reader);
 
             public abstract BytesValues.WithOrdinals globalBytesValues();
 
@@ -213,6 +215,10 @@ public abstract class ValuesSource {
                             globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
                         }
                     }
+                }
+                
+                @Override
+                public void setScorer(Scorer scorer) {
                 }
 
                 @Override
@@ -295,6 +301,14 @@ public abstract class ValuesSource {
                     bytesValues = atomicFieldData.getBytesValues(needsHashes);
                 }
             }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+            }
 
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
@@ -308,8 +322,10 @@ public abstract class ValuesSource {
         public static class Script extends Bytes {
 
             private final ScriptBytesValues values;
+            private SearchScript script;
 
             public Script(SearchScript script) {
+                this.script = script;
                 values = new ScriptBytesValues(script);
             }
 
@@ -321,6 +337,20 @@ public abstract class ValuesSource {
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
                 return values;
+            }
+            
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                this.script.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.script.setScorer(scorer);
             }
         }
 
@@ -343,6 +373,17 @@ public abstract class ValuesSource {
             @Override
             public void setNextReader(AtomicReaderContext reader) {
                 bytesValues = null; // order may change per-segment -> reset
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.delegate.setScorer(scorer);
             }
 
             @Override
@@ -421,8 +462,12 @@ public abstract class ValuesSource {
             private final LongValues longValues;
             private final DoubleValues doubleValues;
             private final ValuesSource.WithScript.BytesValues bytesValues;
+            private Numeric delegate;
+            private SearchScript script;
 
             public WithScript(Numeric delegate, SearchScript script) {
+                this.delegate = delegate;
+                this.script = script;
                 this.longValues = new LongValues(delegate, script);
                 this.doubleValues = new DoubleValues(delegate, script);
                 this.bytesValues = new ValuesSource.WithScript.BytesValues(delegate, script);
@@ -451,6 +496,23 @@ public abstract class ValuesSource {
             @Override
             public MetaData metaData() {
                 return MetaData.UNKNOWN;
+            }
+            
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                this.delegate.setNextReader(reader);
+                this.script.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.delegate.setScorer(scorer);
+                this.script.setScorer(scorer);
             }
 
             static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
@@ -544,6 +606,14 @@ public abstract class ValuesSource {
                     doubleValues = atomicFieldData.getDoubleValues();
                 }
             }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+            }
 
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
@@ -579,7 +649,10 @@ public abstract class ValuesSource {
             private final ScriptLongValues longValues;
             private final ScriptBytesValues bytesValues;
 
+            private SearchScript script;
+
             public Script(SearchScript script, ValueType scriptValueType) {
+                this.script = script;
                 this.scriptValueType = scriptValueType;
                 longValues = new ScriptLongValues(script);
                 doubleValues = new ScriptDoubleValues(script);
@@ -609,6 +682,20 @@ public abstract class ValuesSource {
             @Override
             public BytesValues bytesValues() {
                 return bytesValues;
+            }
+            
+            @Override
+            public void setNextReader(AtomicReaderContext reader) {
+                this.script.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.script.setScorer(scorer);
             }
 
         }
@@ -641,6 +728,17 @@ public abstract class ValuesSource {
                 longValues = null; // order may change per-segment -> reset
                 doubleValues = null;
                 bytesValues = null;
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                this.delegate.setNextReader(reader);
+            }
+            
+            @Override
+            public void setScorer(Scorer scorer) {
+                this.delegate.setScorer(scorer);
             }
 
             @Override
@@ -755,8 +853,12 @@ public abstract class ValuesSource {
     public static class WithScript extends Bytes {
 
         private final BytesValues bytesValues;
+        private ValuesSource delegate;
+        private SearchScript script;
 
         public WithScript(ValuesSource delegate, SearchScript script) {
+            this.delegate = delegate;
+            this.script = script;
             this.bytesValues = new BytesValues(delegate, script);
         }
 
@@ -768,6 +870,23 @@ public abstract class ValuesSource {
         @Override
         public BytesValues bytesValues() {
             return bytesValues;
+        }
+        
+        @Override
+        public void setNextReader(AtomicReaderContext reader) {
+            this.delegate.setNextReader(reader);
+            this.script.setNextReader(reader);
+        }
+        
+        @Override
+        public void setNextReader(IndexReaderContext reader) {
+            this.delegate.setNextReader(reader);
+        }
+        
+        @Override
+        public void setScorer(Scorer scorer) {
+            this.delegate.setScorer(scorer);
+            this.script.setScorer(scorer);
         }
 
         static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues {
@@ -830,6 +949,14 @@ public abstract class ValuesSource {
             if (geoPointValues != null) {
                 geoPointValues = atomicFieldData.getGeoPointValues();
             }
+        }
+        
+        @Override
+        public void setNextReader(IndexReaderContext reader) {
+        }
+        
+        @Override
+        public void setScorer(Scorer scorer) {
         }
 
         @Override

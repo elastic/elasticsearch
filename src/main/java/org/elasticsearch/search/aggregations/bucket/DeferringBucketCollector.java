@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -59,6 +61,16 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
     public void setNextReader(AtomicReaderContext reader) {
         recording.setNextReader(reader);
     }
+    
+    @Override
+    public void setNextReader(IndexReaderContext reader) {
+        recording.setNextReader(reader);
+    }
+
+    @Override
+    public void setScorer(Scorer scorer) {
+        recording.setScorer(scorer);
+    }
 
     @Override
     public void collect(int docId, long bucketOrdinal) throws IOException {
@@ -83,10 +95,12 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
         BucketCollector subs = new BucketCollector() {
             @Override
             public void setNextReader(AtomicReaderContext reader) {
-                // Need to set AggregationContext otherwise ValueSources in aggs
-                // don't read any values
-              context.setNextReader(reader);
               deferred.setNextReader(reader);
+            }
+
+            @Override
+            public void setScorer(Scorer scorer) {
+                deferred.setScorer(scorer);
             }
 
             @Override
@@ -102,6 +116,11 @@ public class DeferringBucketCollector extends BucketCollector implements Releasa
             @Override
             public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
                 deferred.gatherAnalysis(results, bucketOrdinal);
+            }
+
+            @Override
+            public void setNextReader(IndexReaderContext reader) {
+                deferred.setNextReader(reader);
             }
         };
 

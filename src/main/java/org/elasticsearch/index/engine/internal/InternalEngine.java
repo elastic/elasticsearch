@@ -386,12 +386,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-
-            checkVersionMapRefresh();
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t);
             throw new CreateFailedEngineException(shardId, create, t);
         }
+        checkVersionMapRefresh();
     }
 
     private void maybeFailEngine(Throwable t) {
@@ -478,12 +477,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             dirty = true;
             possibleMergeNeeded = true;
             flushNeeded = true;
-
-            checkVersionMapRefresh();
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine(t);
             throw new IndexFailedEngineException(shardId, index, t);
         }
+        checkVersionMapRefresh();
     }
 
     /** Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer). */
@@ -543,7 +541,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            // TODO: should we expose versionMap's ram usage somewhere?  Marvel?  _cat?
+            // TODO: expose versionMap's RAM usage in ShardStats?
             versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
 
             indexingService.postIndexUnderLock(index);
@@ -741,7 +739,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new RefreshFailedEngineException(shardId, t);
         }
 
-        // Always prune here (not maybe) so that if there is clock shift we are at least pruning once per refresh:
+        // Prune deletes that are now visible in the searcher and have expired the index.gc_deletes:
         pruneDeletedVersions(threadPool.estimatedTimeInMillis());
     }
 
@@ -890,11 +888,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private void maybePruneDeletedVersions() {
+        // It's expensive to prune: we force a refresh, and then walk the deletes map acquiring dirtyLock for each uid, so we only do it
+        // every 1/4 of gcDeletesInMillis 
         long timeMSec = threadPool.estimatedTimeInMillis();
-        // It's expensive to walk the deletes map (we acquire dirtyLock for each uid), so we only do it every 1/4 of gcDeletesInMillis
-        long msec = threadPool.estimatedTimeInMillis();
-        if (msec - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
-            pruneDeletedVersions(timeMSec);
+        if (timeMSec - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
+            refresh(new Refresh("prune_deleted_versions").force(true));
         }
     }
 

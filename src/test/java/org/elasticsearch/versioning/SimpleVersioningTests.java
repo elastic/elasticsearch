@@ -35,6 +35,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -656,4 +657,83 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    @Slow
+    public void testDeleteNotLost() throws Exception {
+
+        // We require only one shard for this test, so that the 2nd delete provokes pruning the deletes map:
+        client()
+            .admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(ImmutableSettings.settingsBuilder()
+                         .put("index.number_of_shards", 1))
+            .execute().
+            actionGet();
+
+        ensureGreen();
+
+        // We test deletes, but can't rely on wall-clock delete GC:
+        HashMap<String,Object> newSettings = new HashMap<>();
+        newSettings.put("index.gc_deletes", "10ms");
+        newSettings.put("index.refresh_interval", "10000s");
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(newSettings)
+            .execute()
+            .actionGet();
+
+        // Index a doc:
+        client()
+            .prepareIndex("test", "type", "id")
+            .setSource("foo", "bar")
+            .setOpType(IndexRequest.OpType.INDEX)
+            .setVersion(10)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Force refresh so the add is visible in the searcher:
+        refresh();
+
+        // Delete it
+        client()
+            .prepareDelete("test", "type", "id")
+            .setVersion(11)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Real-time get should reflect delete:
+        assertThat("doc should have been deleted",
+                   client()
+                   .prepareGet("test", "type", "id")
+                   .execute()
+                   .actionGet()
+                   .getVersion(),
+                   equalTo(-1L));
+
+        // ThreadPool.estimatedTimeInMillis has default granularity of 200 msec, so we must sleep at least that long; sleep much longer in
+        // case system is busy:
+        Thread.sleep(1000);
+
+        // Delete an unrelated doc (provokes pruning deletes from versionMap)
+        client()
+            .prepareDelete("test", "type", "id2")
+            .setVersion(11)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Real-time get should still reflect delete:
+        assertThat("doc should have been deleted",
+                   client()
+                   .prepareGet("test", "type", "id")
+                   .execute()
+                   .actionGet()
+                   .getVersion(),
+                   equalTo(-1L));
+    }
 }

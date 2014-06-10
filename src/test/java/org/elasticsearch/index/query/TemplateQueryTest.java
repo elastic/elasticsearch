@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -314,7 +315,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         query = "{\"template\": {\"id\": \"/mustache/3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
         sr = client().prepareSearch().setQuery(query).get();
         assertHitCount(sr, 4);
-
+        throw new ElasticsearchException("foo");
     }
 
 

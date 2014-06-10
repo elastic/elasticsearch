@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -70,6 +71,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
         String fieldName = null;
         String valueFieldName = null;
         String valueScript = null;
+        ScriptService.ScriptType scriptType = null;
         String scriptLang = null;
         Map<String, Object> params = null;
         GeoPoint point = new GeoPoint();
@@ -129,6 +131,13 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                     valueFieldName = parser.text();
                 } else if ("value_script".equals(currentName) || "valueScript".equals(currentName)) {
                     valueScript = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("value_script_id".equals(currentName) || "valueScriptId".equals(currentName)) {
+                    valueScript = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("value_script_file".equals(currentName) || "valueScriptFile".equals(currentName)) {
+                    valueScript = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
                 } else if ("lang".equals(currentName)) {
                     scriptLang = parser.text();
                 } else if ("normalize".equals(currentName)) {
@@ -169,7 +178,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
 
         if (valueScript != null) {
             return new ScriptGeoDistanceFacetExecutor(keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context, scriptLang, valueScript, params);
+                    context, scriptLang, valueScript, scriptType, params);
         }
 
         return new GeoDistanceFacetExecutor(keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),

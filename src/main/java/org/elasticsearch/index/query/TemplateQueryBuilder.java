@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -67,10 +68,11 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
             case INDEXED:
                 fieldname = "id";
                 break;
-            default:
             case INLINE:
                 fieldname = TemplateQueryParser.QUERY;
                 break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("Unknown template type " + templateType);
         }
         builder.field(fieldname, template);
         builder.field(TemplateQueryParser.PARAMS, vars);

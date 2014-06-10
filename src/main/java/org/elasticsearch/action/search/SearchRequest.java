@@ -401,12 +401,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The name of the stored template
      */
-    public void templateName(String name) {
-        this.templateName = name;
+    public void templateName(String templateName) {
+        this.templateName = templateName;
     }
 
-    public void templateId(String name){
-        this.templateId = name;
+    public void templateId(String templateId){
+        this.templateId = templateId;
     }
 
     /**
@@ -520,7 +520,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             templateSourceUnsafe = false;
             templateSource = in.readBytesReference();
             templateName =  in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 templateId = in.readOptionalString();
             }
             if (in.readBoolean()) {
@@ -559,7 +559,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)){
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)){
                 out.writeOptionalString(templateId);
             }
 

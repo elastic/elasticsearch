@@ -93,6 +93,9 @@ import org.elasticsearch.rest.action.main.RestMainAction;
 import org.elasticsearch.rest.action.mlt.RestMoreLikeThisAction;
 import org.elasticsearch.rest.action.percolate.RestMultiPercolateAction;
 import org.elasticsearch.rest.action.percolate.RestPercolateAction;
+import org.elasticsearch.rest.action.script.RestDeleteIndexedScriptAction;
+import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
+import org.elasticsearch.rest.action.script.RestPutIndexedScriptAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -216,9 +219,16 @@ public class RestActionModule extends AbstractModule {
         // Benchmark API
         bind(RestBenchAction.class).asEagerSingleton();
 
+        // Templates API
         bind(RestGetSearchTemplateAction.class).asEagerSingleton();
         bind(RestPutSearchTemplateAction.class).asEagerSingleton();
         bind(RestDeleteSearchTemplateAction.class).asEagerSingleton();
+
+        // Scripts API
+        bind(RestGetIndexedScriptAction.class).asEagerSingleton();
+        bind(RestPutIndexedScriptAction.class).asEagerSingleton();
+        bind(RestDeleteIndexedScriptAction.class).asEagerSingleton();
+
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

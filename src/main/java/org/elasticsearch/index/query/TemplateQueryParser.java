@@ -51,14 +51,11 @@ public class TemplateQueryParser implements QueryParser {
     private final ScriptService scriptService;
 
     private final static Map<String,ScriptService.ScriptType> parametersToTypes = new HashMap<>();
-
     static {
         parametersToTypes.put("query",ScriptService.ScriptType.INLINE);
         parametersToTypes.put("file",ScriptService.ScriptType.FILE);
         parametersToTypes.put("id",ScriptService.ScriptType.INDEXED);
     }
-
-
 
     @Inject
     public TemplateQueryParser(ScriptService scriptService) {

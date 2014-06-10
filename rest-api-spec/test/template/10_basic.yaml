@@ -12,9 +12,10 @@
        id: 1
   - match: { template: "{\"query\":{\"match_all\":{}},\"size\":\"{{my_size}}\"}"}
 
+
   - do:
      indexed_template.delete:
-       id: 1
+       id: "1"
   - match: { found: true }
   - match: { _index: ".scripts" }
   - match: { _id: "1" }

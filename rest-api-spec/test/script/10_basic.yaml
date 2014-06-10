@@ -1,0 +1,24 @@
+---
+"Indexed script":
+
+  - do:
+      indexed_script.create:
+        id: "1"
+        lang: "mvel"
+        body: { "script" :  "_score * doc[\"myParent.weight\"].value" }
+  - match: { _id: "1" }
+
+  - do:
+     indexed_script.get:
+       id: "1"
+       lang: "mvel"
+  - match: { "script" :  "_score * doc[\"myParent.weight\"].value" }
+
+  - do:
+     indexed_script.delete:
+       id: "1"
+       lang: "mvel"
+  - match: { found: true }
+  - match: { _index: ".scripts" }
+  - match: { _id: "1" }
+

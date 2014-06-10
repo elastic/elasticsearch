@@ -16,63 +16,60 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest.action.template;
+package org.elasticsearch.rest.action.script;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.CONFLICT;
-import static org.elasticsearch.rest.RestStatus.CREATED;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  *
  */
-public class RestPutSearchTemplateAction extends BaseRestHandler {
+public class RestPutIndexedScriptAction extends BaseRestHandler {
+
+    private ScriptService scriptService = null;
 
     @Inject
-    public RestPutSearchTemplateAction(Settings settings, Client client, RestController controller) {
+    public RestPutIndexedScriptAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
         //controller.registerHandler(GET, "/template", this);
-        controller.registerHandler(POST, "/_search/template/{id}", this);
-        controller.registerHandler(PUT, "/_search/template/{id}", this);
+        controller.registerHandler(POST, "/_search/script/{lang}/{id}", this);
+        controller.registerHandler(PUT, "/_search/script/{lang}/{id}", this);
 
-        controller.registerHandler(PUT, "/_search/template/{id}/_create", new CreateHandler());
-        controller.registerHandler(POST, "/_search/template/{id}/_create", new CreateHandler());
+        controller.registerHandler(PUT, "/_search/script/{lang}/{id}/_create", new CreateHandler());
+        controller.registerHandler(POST, "/_search/script/{lang}/{id}/_create", new CreateHandler());
     }
 
     final class CreateHandler implements RestHandler {
         @Override
         public void handleRequest(RestRequest request, RestChannel channel) {
             request.params().put("op_type", "create");
-            RestPutSearchTemplateAction.this.handleRequest(request, channel);
+            RestPutIndexedScriptAction.this.handleRequest(request, channel);
         }
     }
 
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, "mustache", request.param("id"));
+        IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(true);
-        indexRequest.refresh(true); //Always refresh after indexing a template
+        indexRequest.refresh(true); //Always refresh after indexing a script
 
         indexRequest.source(request.content(), request.contentUnsafe());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));

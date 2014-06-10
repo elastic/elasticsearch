@@ -16,30 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.template.get;
+package org.elasticsearch.action.index;
 
-import org.elasticsearch.action.template.TemplateAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 /**
- *
- */
-public class GetSearchTemplatesAction extends TemplateAction<GetSearchTemplatesRequest, GetSearchTemplatesResponse, GetSearchTemplatesRequestBuilder> {
+  */
+public class IndexRequestTests extends ElasticsearchTestCase {
 
-    public static final GetSearchTemplatesAction INSTANCE = new GetSearchTemplatesAction();
-    public static final String NAME = "template/get";
-
-    protected GetSearchTemplatesAction() {
-        super(NAME);
-    }
-
-    @Override
-    public GetSearchTemplatesResponse newResponse() {
-        return new GetSearchTemplatesResponse();
-    }
-
-    @Override
-    public GetSearchTemplatesRequestBuilder newRequestBuilder(Client client) {
-        return new GetSearchTemplatesRequestBuilder(client);
+    @Test
+    public void testIndexRequestOpTypeFromString() throws Exception {
+        String create = "create";
+        String index = "index";
+        String foobar = "foobar";
+        assertTrue(IndexRequest.OpType.fromString(create)==IndexRequest.OpType.CREATE);
+        assertTrue(IndexRequest.OpType.fromString(index)==IndexRequest.OpType.INDEX);
+        try {
+            IndexRequest.OpType.fromString(foobar);
+            assertTrue(false); //The above should throw an exception
+        } catch (Exception e){
+            //All is well
+        }
     }
 }

@@ -128,6 +128,9 @@ public class ScriptService extends AbstractComponent {
             final String[] parts = script.split("/");
             if (parts.length == 1) {
                 this.id = script;
+                if (this.lang == null){
+                    this.lang = defaultLang;
+                }
             } else {
                 if (parts.length != 3) {
                     throw new ElasticsearchIllegalArgumentException("Illegal index script format [" + script + "]" +
@@ -176,6 +179,7 @@ public class ScriptService extends AbstractComponent {
 
         // add file watcher for static scripts
         scriptsDirectory = new File(env.configFile(), "scripts");
+        logger.debug("ScriptsDir : " + scriptsDirectory.toString());
         FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
@@ -227,8 +231,6 @@ public class ScriptService extends AbstractComponent {
             verifyDynamicScripting(lang); //Since anyone can index a script, disable indexed scripting
                                           // if dynamic scripting is disabled, perhaps its own setting ?
 
-
-
             script = getScriptFromIndex(client, SCRIPT_INDEX, indexedScript.lang, indexedScript.id);
         } else if (scriptType == ScriptType.FILE) {
 
@@ -237,29 +239,30 @@ public class ScriptService extends AbstractComponent {
             if (compiled != null) {
                 return compiled;
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script + "." + lang);
+                throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script);
             }
+        }
 
-        } else {
-            //This is an inline script check to see if we have it in the cache
-            verifyDynamicScripting(lang);
+        //For backwards compat attempt to load from disk
+        compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
 
-            if (lang == null) {
-                lang = defaultLang;
-            }
-	    
-	    if (lang == null) {
-		lang = defaultLang;
-	    }
 
-	    if (cacheKey == null) {
-		cacheKey = new CacheKey(lang, script);
-	    }
-		
-            compiled = cache.getIfPresent(cacheKey);
-            if (compiled != null) {
-                return compiled;
-            }
+        if (compiled != null) {
+            return compiled;
+        }
+
+        if (lang == null) {
+            lang = defaultLang;
+        }
+
+        //This is an inline script check to see if we have it in the cache
+        verifyDynamicScripting(lang);
+
+        cacheKey = new CacheKey(lang, script);
+
+        compiled = cache.getIfPresent(cacheKey);
+        if (compiled != null) {
+            return compiled;
         }
 
         //Either an un-cached inline script or an indexed script
@@ -314,7 +317,7 @@ public class ScriptService extends AbstractComponent {
             } else {
                 try {
                     XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                    builder.map((Map<String, Object>) responseFields.getSource());
+                    builder.map(responseFields.getSource());
                     return builder.string();
                 } catch( IOException|ClassCastException e ){
                     throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json",e);
@@ -330,10 +333,10 @@ public class ScriptService extends AbstractComponent {
         return executable(compile(lang, script, scriptType), vars);
     }
 
-    public ExecutableScript executable(String lang, String script, Map vars) {
+/*    public ExecutableScript executable(String lang, String script, Map vars) {
         return executable(compile(lang, script), vars);
     }
-
+*/
     public ExecutableScript executable(CompiledScript compiledScript, Map vars) {
         return scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);
     }
@@ -342,11 +345,11 @@ public class ScriptService extends AbstractComponent {
         return scriptEngines.get(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
     }
 
-    public SearchScript search(SearchLookup lookup, String lang, String script, @Nullable Map<String, Object> vars) {
-        return search(compile(lang, script), lookup, vars);
+    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
+        return search(compile(lang, script, scriptType), lookup, vars);
     }
 
-    public SearchScript search(MapperService mapperService, IndexFieldDataService fieldDataService, String lang, String script, @Nullable Map<String, Object> vars) {
+    public SearchScript search(MapperService mapperService, IndexFieldDataService fieldDataService, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
         return search(compile(lang, script), new SearchLookup(mapperService, fieldDataService, null), vars);
     }
 
@@ -391,6 +394,7 @@ public class ScriptService extends AbstractComponent {
 
         @Override
         public void onFileInit(File file) {
+            logger.trace("Loading script file" + file.toString());
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
             if (scriptNameExt != null) {
                 boolean found = false;

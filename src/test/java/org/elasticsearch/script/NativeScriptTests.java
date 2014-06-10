@@ -46,7 +46,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable("native", "my", null);
+        ExecutableScript executable = scriptService.executable("native", "my", ScriptService.ScriptType.INLINE, null);
         assertThat(executable.run().toString(), equalTo("test"));
     }
 

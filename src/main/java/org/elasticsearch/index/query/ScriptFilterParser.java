@@ -112,7 +112,7 @@ public class ScriptFilterParser implements FilterParser {
             params = newHashMap();
         }
 
-        Filter filter = new ScriptFilter(scriptLang, script, params, parseContext.scriptService(), parseContext.lookup(), scriptType);
+        Filter filter = new ScriptFilter(scriptLang, script, scriptType, params, parseContext.scriptService(), parseContext.lookup());
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }
@@ -132,11 +132,11 @@ public class ScriptFilterParser implements FilterParser {
 
         private final ScriptService.ScriptType scriptType;
 
-        public ScriptFilter(String scriptLang, String script, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup, ScriptService.ScriptType scriptType) {
+        public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
             this.scriptType = scriptType;
-            this.searchScript = scriptService.search(searchLookup, scriptLang, script, newHashMap(params));
+            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, newHashMap(params));
         }
 
         @Override

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.rest.action.template;
+package org.elasticsearch.rest.action.script;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.get.GetRequest;
@@ -24,7 +24,10 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.script.ScriptService;
@@ -39,19 +42,19 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetSearchTemplateAction extends BaseRestHandler {
+public class RestGetIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestGetSearchTemplateAction(Settings settings, Client client, RestController controller) {
+    public RestGetIndexedScriptAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
 
         //controller.registerHandler(GET, "/template", this);
-        controller.registerHandler(GET, "/_search/template/{id}", this);
+        controller.registerHandler(GET, "/_search/script/{lang}/{id}", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final GetRequest getRequest = new GetRequest(ScriptService.SCRIPT_INDEX, "mustache", request.param("id"));
+        final GetRequest getRequest = new GetRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
 
@@ -66,19 +69,17 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
                     String templateString;
                     try{
                         XContentBuilder internalBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-                        if(response.getSource().containsKey("template")) {
-                            Object template = response.getSource().get("template");
-                            internalBuilder.map((Map<String,Object>)template);
-                            templateString = internalBuilder.string();
+                        if(response.getSource().containsKey("script")) {
+                            templateString = response.getSource().get("script").toString();
                         } else {
                             internalBuilder.map(response.getSource());
                             templateString = internalBuilder.string();
                         }
                         builder.startObject();
-                        builder.field("template",templateString);
+                        builder.field("script",templateString);
                         builder.endObject();
                         return new BytesRestResponse(OK, builder);
-                    } catch( IOException|ClassCastException e ){
+                    } catch( IOException |ClassCastException e ){
                         throw new ElasticsearchIllegalStateException("Unable to parse "  + response.getSourceAsString() + " as json",e);
                     }
                 }

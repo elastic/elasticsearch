@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -71,6 +72,8 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         HistogramFacet.ComparatorType comparatorType = HistogramFacet.ComparatorType.KEY;
         XContentParser.Token token;
         String fieldName = null;
+        ScriptService.ScriptType valueScriptType = null;
+        ScriptService.ScriptType keyScriptType = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
@@ -91,8 +94,22 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
                 } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
                     keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.INLINE;
                 } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
                     valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INLINE;
+                } else if ("key_script_id".equals(fieldName) || "keyScriptId".equals(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("value_script_id".equals(fieldName) || "valueScriptId".equals(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("key_script_file".equals(fieldName) || "keyScriptFile".equals(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.FILE;
+                } else if ("value_script_file".equals(fieldName) || "valueScriptFile".equals(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.FILE;
                 } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
                     comparatorType = HistogramFacet.ComparatorType.fromString(parser.text());
                 } else if ("lang".equals(fieldName)) {
@@ -102,7 +119,7 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         }
 
         if (keyScript != null && valueScript != null) {
-            return new ScriptHistogramFacetExecutor(scriptLang, keyScript, valueScript, params, interval, comparatorType, context);
+            return new ScriptHistogramFacetExecutor(scriptLang, keyScript, keyScriptType, valueScript, valueScriptType, params, interval, comparatorType, context);
         }
 
         if (keyField == null) {
@@ -129,7 +146,7 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
         }
 
         if (valueScript != null) {
-            return new ValueScriptHistogramFacetExecutor(keyIndexFieldData, scriptLang, valueScript, params, interval, comparatorType, context);
+            return new ValueScriptHistogramFacetExecutor(keyIndexFieldData, scriptLang, valueScript, valueScriptType, params, interval, comparatorType, context);
         } else if (valueField == null) {
             return new CountHistogramFacetExecutor(keyIndexFieldData, interval, comparatorType, context);
         } else if (keyField.equals(valueField)) {

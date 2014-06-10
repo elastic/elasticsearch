@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -90,6 +91,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
         String scriptLang = null;
         String script = null;
+        ScriptService.ScriptType scriptType = null;
         Map<String, Object> params = null;
         boolean allTerms = false;
         String executionHint = null;
@@ -126,6 +128,13 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     field = parser.text();
                 } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
                     script = parser.text();
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if ("script_field_id".equals(currentFieldName) || "scriptFieldId".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.INDEXED;
+                } else if ("script_field_file".equals(currentFieldName) || "scriptFieldFile".equals(currentFieldName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
@@ -162,7 +171,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
 
         SearchScript searchScript = null;
         if (script != null) {
-            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
+            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
         }
 
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>
@@ -187,7 +196,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             return new FieldsTermsStringFacetExecutor(mappers.toArray(new FieldMapper[mappers.size()]), size, shardSize, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
         if (field == null && script != null) {
-            return new ScriptTermsStringFieldFacetExecutor(size, shardSize, comparatorType, context, excluded, pattern, scriptLang, script, params, context.cacheRecycler());
+            return new ScriptTermsStringFieldFacetExecutor(size, shardSize, comparatorType, context, excluded, pattern, scriptLang, script, scriptType, params, context.cacheRecycler());
         }
 
         if (field == null) {

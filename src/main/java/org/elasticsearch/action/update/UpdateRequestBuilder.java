@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
@@ -84,8 +85,8 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * @see #setScriptLang(String)
      * @see #setScriptParams(Map)
      */
-    public UpdateRequestBuilder setScript(String script) {
-        request.script(script);
+    public UpdateRequestBuilder setScript(String script, ScriptService.ScriptType scriptType) {
+        request.script(script, scriptType);
         return this;
     }
 

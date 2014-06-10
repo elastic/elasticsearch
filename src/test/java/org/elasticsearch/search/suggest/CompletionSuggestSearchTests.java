@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest;
 
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ExceptionsHelper;
@@ -662,7 +663,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
+                .startObject(FIELD.toString())
                 .field("type", "completion").field("analyzer", "simple")
                 .endObject()
                 .startObject(otherField)
@@ -691,7 +692,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // regexes
         IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
-        long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("*");
+        ObjectLongOpenHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
+        long regexSizeInBytes = fields.get(FIELD) + fields.get(otherField);
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
 
@@ -863,7 +865,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                             .startArray("input").value(input[i]).endArray()
                             .field("output", surface[i])
                             .startObject("payload").field("id", i).endObject()
-                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT 
+                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT
                             .endObject()
                             .endObject()
                     );

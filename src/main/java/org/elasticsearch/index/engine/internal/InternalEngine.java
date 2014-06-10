@@ -607,9 +607,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            if (gcDeletesInMillis > 0) {
-                versionMap.putDeleteUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
-            }
+            versionMap.putDeleteUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }

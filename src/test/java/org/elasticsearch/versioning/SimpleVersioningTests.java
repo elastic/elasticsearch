@@ -673,7 +673,6 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         ensureGreen();
 
-        // We test deletes, but can't rely on wall-clock delete GC:
         HashMap<String,Object> newSettings = new HashMap<>();
         newSettings.put("index.gc_deletes", "10ms");
         newSettings.put("index.refresh_interval", "10000s");
@@ -728,6 +727,54 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
             .actionGet();
 
         // Real-time get should still reflect delete:
+        assertThat("doc should have been deleted",
+                   client()
+                   .prepareGet("test", "type", "id")
+                   .execute()
+                   .actionGet()
+                   .getVersion(),
+                   equalTo(-1L));
+    }
+
+    @Test
+    public void testGCDeletesZero() throws Exception {
+
+        createIndex("test");
+        ensureGreen();
+
+        // We test deletes, but can't rely on wall-clock delete GC:
+        HashMap<String,Object> newSettings = new HashMap<>();
+        newSettings.put("index.gc_deletes", "0ms");
+        client()
+            .admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(newSettings)
+            .execute()
+            .actionGet();
+
+        // Index a doc:
+        client()
+            .prepareIndex("test", "type", "id")
+            .setSource("foo", "bar")
+            .setOpType(IndexRequest.OpType.INDEX)
+            .setVersion(10)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Force refresh so the add is visible in the searcher:
+        refresh();
+
+        // Delete it
+        client()
+            .prepareDelete("test", "type", "id")
+            .setVersion(11)
+            .setVersionType(VersionType.EXTERNAL)
+            .execute()
+            .actionGet();
+
+        // Real-time get should reflect delete even though index.gc_deletes is 0:
         assertThat("doc should have been deleted",
                    client()
                    .prepareGet("test", "type", "id")

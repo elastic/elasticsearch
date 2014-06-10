@@ -572,8 +572,25 @@
                         <id>attach-sources</id>
                         <goals>
                             <goal>jar</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>attach-test-sources</id>
+                        <goals>
                             <goal>test-jar</goal>
                         </goals>
+                        <configuration>
+                            <includes>
+                                <include>org/elasticsearch/test/**/*</include>
+                                <include>org/apache/lucene/util/AbstractRandomizedTest.java</include>
+                            </includes>
+                            <excludes>
+                                <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
+                                <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                            </excludes>
+                            <!-- Resources are large and not really helpful as "test sources". -->
+                            <excludeResources>true</excludeResources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

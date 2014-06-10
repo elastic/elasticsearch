@@ -19,12 +19,13 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- *
+ * Base implementation for REST requests handling
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
@@ -33,5 +34,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     protected BaseRestHandler(Settings settings, Client client) {
         super(settings);
         this.client = client;
+    }
+
+    protected static <Request extends ActionRequest> Request copyHeaders(RestRequest restRequest, Request actionRequest) {
+        actionRequest.putHeaders(restRequest.headers());
+        return actionRequest;
     }
 }

@@ -64,7 +64,7 @@ public class RestIndicesAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = copyHeaders(request, new ClusterStateRequest());
         clusterStateRequest.clear().indices(indices).metaData(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
@@ -73,12 +73,12 @@ public class RestIndicesAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), indices);
-                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(concreteIndices);
+                ClusterHealthRequest clusterHealthRequest = copyHeaders(request, Requests.clusterHealthRequest(concreteIndices));
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
                     @Override
                     public void processResponse(final ClusterHealthResponse clusterHealthResponse) {
-                        IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                        IndicesStatsRequest indicesStatsRequest = copyHeaders(request, new IndicesStatsRequest());
                         indicesStatsRequest.all();
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override

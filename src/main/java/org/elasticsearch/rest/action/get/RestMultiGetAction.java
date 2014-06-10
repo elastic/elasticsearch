@@ -19,27 +19,24 @@
 
 package org.elasticsearch.rest.action.get;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestMultiGetAction extends BaseRestHandler {
+public class RestMultiGetAction extends BaseActionRequestRestHandler<MultiGetRequest> {
 
     private final boolean allowExplicitIndex;
 
@@ -57,7 +54,7 @@ public class RestMultiGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected MultiGetRequest newRequest(RestRequest request) throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         multiGetRequest.listenerThreaded(false);
         multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
@@ -72,7 +69,11 @@ public class RestMultiGetAction extends BaseRestHandler {
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
         multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
+        return multiGetRequest;
+    }
 
-        client.multiGet(multiGetRequest, new RestToXContentListener<MultiGetResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, MultiGetRequest request) {
+        client.multiGet(request, new RestToXContentListener<MultiGetResponse>(channel));
     }
 }

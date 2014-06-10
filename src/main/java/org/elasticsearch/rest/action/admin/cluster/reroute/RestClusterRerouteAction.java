@@ -28,14 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
 
 /**
  */
-public class RestClusterRerouteAction extends BaseRestHandler {
+public class RestClusterRerouteAction extends BaseActionRequestRestHandler<ClusterRerouteRequest> {
 
     private final SettingsFilter settingsFilter;
 
@@ -48,7 +51,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected ClusterRerouteRequest newRequest(RestRequest request) throws Exception {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
         clusterRerouteRequest.listenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
@@ -58,18 +61,22 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         if (request.hasContent()) {
             clusterRerouteRequest.source(request.content());
         }
+        return clusterRerouteRequest;
+    }
 
-        client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final ClusterRerouteRequest request) {
+        client.admin().cluster().reroute(request, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterRerouteResponse response) throws IOException {
                 builder.startObject("state");
                 // by default, filter metadata
-                if (request.param("filter_metadata") == null) {
-                    request.params().put("filter_metadata", "true");
+                if (restRequest.param("filter_metadata") == null) {
+                    restRequest.params().put("filter_metadata", "true");
                 }
-                response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                response.getState().settingsFilter(settingsFilter).toXContent(builder, restRequest);
                 builder.endObject();
-                if (clusterRerouteRequest.explain()) {
+                if (request.explain()) {
                     assert response.getExplanations() != null;
                     response.getExplanations().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * This class parses the json request and translates it into a
  * TermVectorRequest.
  */
-public class RestTermVectorAction extends BaseRestHandler {
+public class RestTermVectorAction extends BaseActionRequestRestHandler<TermVectorRequest> {
 
     @Inject
     public RestTermVectorAction(Settings settings, Client client, RestController controller) {
@@ -53,7 +53,7 @@ public class RestTermVectorAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected TermVectorRequest newRequest(RestRequest request) throws Exception {
         TermVectorRequest termVectorRequest = new TermVectorRequest(request.param("index"), request.param("type"), request.param("id"));
         XContentParser parser = null;
         if (request.hasContent()) {
@@ -67,8 +67,12 @@ public class RestTermVectorAction extends BaseRestHandler {
             }
         }
         readURIParameters(termVectorRequest, request);
+        return termVectorRequest;
+    }
 
-        client.termVector(termVectorRequest, new RestToXContentListener<TermVectorResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, TermVectorRequest request) {
+        client.termVector(request, new RestToXContentListener<TermVectorResponse>(channel));
     }
 
     static public void readURIParameters(TermVectorRequest termVectorRequest, RestRequest request) {

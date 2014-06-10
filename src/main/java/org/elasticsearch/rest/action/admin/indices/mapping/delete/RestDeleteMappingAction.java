@@ -26,7 +26,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.deleteMappingRequest;
@@ -35,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  *
  */
-public class RestDeleteMappingAction extends BaseRestHandler {
+public class RestDeleteMappingAction extends BaseActionRequestRestHandler<DeleteMappingRequest> {
 
     @Inject
     public RestDeleteMappingAction(Settings settings, Client client, RestController controller) {
@@ -50,13 +53,18 @@ public class RestDeleteMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected DeleteMappingRequest newRequest(RestRequest request) {
         DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteMappingRequest.listenerThreaded(false);
         deleteMappingRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         deleteMappingRequest.timeout(request.paramAsTime("timeout", deleteMappingRequest.timeout()));
         deleteMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteMappingRequest.masterNodeTimeout()));
         deleteMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteMappingRequest.indicesOptions()));
-        client.admin().indices().deleteMapping(deleteMappingRequest, new AcknowledgedRestListener<DeleteMappingResponse>(channel));
+        return deleteMappingRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, DeleteMappingRequest request) {
+        client.admin().indices().deleteMapping(request, new AcknowledgedRestListener<DeleteMappingResponse>(channel));
     }
 }

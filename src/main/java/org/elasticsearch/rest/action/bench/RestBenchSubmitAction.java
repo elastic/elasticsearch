@@ -33,131 +33,50 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.json.JsonXContent.contentBuilder;
-import static org.elasticsearch.rest.RestRequest.Method.*;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
- * REST handler for benchmark actions.
+ * REST handler for submit benchmark action.
  */
-public class RestBenchAction extends BaseRestHandler {
+public class RestBenchSubmitAction extends BaseActionRequestRestHandler<BenchmarkRequest> {
 
     @Inject
-    public RestBenchAction(Settings settings, Client client, RestController controller) {
+    public RestBenchSubmitAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-
-        // List active benchmarks
-        controller.registerHandler(GET, "/_bench", this);
-        controller.registerHandler(GET, "/{index}/_bench", this);
-        controller.registerHandler(GET, "/{index}/{type}/_bench", this);
-
-        // Submit benchmark
         controller.registerHandler(PUT, "/_bench", this);
         controller.registerHandler(PUT, "/{index}/_bench", this);
         controller.registerHandler(PUT, "/{index}/{type}/_bench", this);
-
-        // Abort benchmark
-        controller.registerHandler(POST, "/_bench/abort/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-        switch (request.method()) {
-            case POST:
-                handleAbortRequest(request, channel);
-                break;
-            case PUT:
-                handleSubmitRequest(request, channel);
-                break;
-            case GET:
-                handleStatusRequest(request, channel);
-                break;
-            default:
-                // Politely ignore methods we don't support
-                channel.sendResponse(new BytesRestResponse(METHOD_NOT_ALLOWED));
-        }
-    }
-
-    /**
-     * Reports on the status of all actively running benchmarks
-     */
-    private void handleStatusRequest(final RestRequest request, final RestChannel channel) {
-
-        BenchmarkStatusRequest benchmarkStatusRequest = new BenchmarkStatusRequest();
-
-        client.benchStatus(benchmarkStatusRequest, new RestBuilderListener<BenchmarkStatusResponse>(channel) {
-
-            @Override
-            public RestResponse buildResponse(BenchmarkStatusResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
-    }
-
-    /**
-     * Aborts an actively running benchmark
-     */
-    private void handleAbortRequest(final RestRequest request, final RestChannel channel) {
-        final String[] benchmarkNames = Strings.splitStringByCommaToArray(request.param("name"));
-        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkNames);
-
-        client.abortBench(abortBenchmarkRequest, new AcknowledgedRestListener<AbortBenchmarkResponse>(channel));
-    }
-
-    /**
-     * Submits a benchmark for execution
-     */
-    private void handleSubmitRequest(final RestRequest request, final RestChannel channel) {
-
+    protected BenchmarkRequest newRequest(RestRequest request) throws Exception {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
-
-        final BenchmarkRequest benchmarkRequest;
-        try {
-            BenchmarkRequestBuilder builder = new BenchmarkRequestBuilder(client);
-            builder.setVerbose(request.paramAsBoolean("verbose", false));
-            benchmarkRequest = parse(builder, request.content(), request.contentUnsafe());
-            benchmarkRequest.cascadeGlobalSettings();                   // Make sure competitors inherit global settings
-            benchmarkRequest.applyLateBoundSettings(indices, types);    // Some settings cannot be applied until after parsing
-            Exception ex = benchmarkRequest.validate();
-            if (ex != null) {
-                throw ex;
-            }
-            benchmarkRequest.listenerThreaded(false);
-        } catch (Exception e) {
-                logger.debug("failed to parse search request parameters", e);
-            try {
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, contentBuilder().startObject().field("error", e.getMessage()).endObject()));
-            } catch (IOException e1) {
-                logger.error("Failed to send failure response", e1);
-            }
-            return;
-        }
-        client.bench(benchmarkRequest, new RestBuilderListener<BenchmarkResponse>(channel) {
-
-            @Override
-            public RestResponse buildResponse(BenchmarkResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        BenchmarkRequestBuilder builder = new BenchmarkRequestBuilder(client);
+        builder.setVerbose(request.paramAsBoolean("verbose", false));
+        final BenchmarkRequest benchmarkRequest = parse(builder, request.content(), request.contentUnsafe());
+        benchmarkRequest.cascadeGlobalSettings();                   // Make sure competitors inherit global settings
+        benchmarkRequest.applyLateBoundSettings(indices, types);    // Some settings cannot be applied until after parsing
+        benchmarkRequest.listenerThreaded(false);
+        return benchmarkRequest;
     }
 
-    public static BenchmarkRequest parse(BenchmarkRequestBuilder builder, BytesReference data, boolean contentUnsafe) throws Exception {
+    @Override
+    protected void doHandleRequest(RestRequest restRequest, RestChannel restChannel, BenchmarkRequest request) {
+        client.bench(request, new RestToXContentListener<BenchmarkResponse>(restChannel));
+    }
+
+    private static BenchmarkRequest parse(BenchmarkRequestBuilder builder, BytesReference data, boolean contentUnsafe) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         XContentParser p = xContent.createParser(data);
         XContentParser.Token token = p.nextToken();

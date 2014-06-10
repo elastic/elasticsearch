@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestHeadIndexTemplateAction extends BaseRestHandler {
+public class RestHeadIndexTemplateAction extends BaseActionRequestRestHandler<GetIndexTemplatesRequest> {
 
     @Inject
     public RestHeadIndexTemplateAction(Settings settings, Client client, RestController controller) {
@@ -43,10 +43,15 @@ public class RestHeadIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetIndexTemplatesRequest newRequest(RestRequest request) {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
-        client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestResponseListener<GetIndexTemplatesResponse>(channel) {
+        return getIndexTemplatesRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetIndexTemplatesRequest request) {
+        client.admin().indices().getTemplates(request, new RestResponseListener<GetIndexTemplatesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse) {
                 boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;

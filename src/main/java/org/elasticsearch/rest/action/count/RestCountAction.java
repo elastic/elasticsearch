@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestCountAction extends BaseRestHandler {
+public class RestCountAction extends BaseActionRequestRestHandler<CountRequest> {
 
     @Inject
     public RestCountAction(Settings settings, Client client, RestController controller) {
@@ -54,7 +54,7 @@ public class RestCountAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected CountRequest newRequest(RestRequest request) {
         CountRequest countRequest = new CountRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         countRequest.listenerThreaded(false);
@@ -75,8 +75,12 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
         countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         countRequest.preference(request.param("preference"));
+        return countRequest;
+    }
 
-        client.count(countRequest, new RestBuilderListener<CountResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, CountRequest request) {
+        client.count(request, new RestBuilderListener<CountResponse>(channel) {
             @Override
             public RestResponse buildResponse(CountResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

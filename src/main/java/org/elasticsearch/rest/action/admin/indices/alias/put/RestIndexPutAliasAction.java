@@ -29,7 +29,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.util.Map;
@@ -39,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  */
-public class RestIndexPutAliasAction extends BaseRestHandler {
+public class RestIndexPutAliasAction extends BaseActionRequestRestHandler<IndicesAliasesRequest> {
 
     @Inject
     public RestIndexPutAliasAction(Settings settings, Client client, RestController controller) {
@@ -60,7 +63,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected IndicesAliasesRequest newRequest(RestRequest request) throws Exception {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;
@@ -119,6 +122,11 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         if (filter != null) {
             aliasAction.filter(filter);
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
+        return indicesAliasesRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndicesAliasesRequest request) {
+        client.admin().indices().aliases(request, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
     }
 }

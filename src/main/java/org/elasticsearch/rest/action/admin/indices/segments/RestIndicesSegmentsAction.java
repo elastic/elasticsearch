@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 
 /**
  */
-public class RestIndicesSegmentsAction extends BaseRestHandler {
+public class RestIndicesSegmentsAction extends BaseActionRequestRestHandler<IndicesSegmentsRequest> {
 
     @Inject
     public RestIndicesSegmentsAction(Settings settings, Client client, RestController controller) {
@@ -46,16 +46,21 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected IndicesSegmentsRequest newRequest(RestRequest request) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesSegmentsRequest.listenerThreaded(false);
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        client.admin().indices().segments(indicesSegmentsRequest, new RestBuilderListener<IndicesSegmentResponse>(channel) {
+        return indicesSegmentsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndicesSegmentsRequest request) {
+        client.admin().indices().segments(request, new RestBuilderListener<IndicesSegmentResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesSegmentResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, response);
-                response.toXContent(builder, request);
+                response.toXContent(builder, restRequest);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }

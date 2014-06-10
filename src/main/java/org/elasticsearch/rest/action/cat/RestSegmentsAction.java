@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.segments.*;
@@ -30,12 +29,14 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -54,7 +55,7 @@ public class RestSegmentsAction extends AbstractCatAction {
     void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = copyHeaders(request, new ClusterStateRequest());
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
@@ -62,7 +63,7 @@ public class RestSegmentsAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest();
+                final IndicesSegmentsRequest indicesSegmentsRequest = copyHeaders(request, new IndicesSegmentsRequest());
                 indicesSegmentsRequest.indices(indices);
                 client.admin().indices().segments(indicesSegmentsRequest, new RestResponseListener<IndicesSegmentResponse>(channel) {
                     @Override

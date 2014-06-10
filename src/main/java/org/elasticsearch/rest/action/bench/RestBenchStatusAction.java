@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.admin.cluster.tasks;
+package org.elasticsearch.rest.action.bench;
 
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.action.bench.BenchmarkStatusRequest;
+import org.elasticsearch.action.bench.BenchmarkStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,26 +30,29 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 /**
+ * REST handler for benchmarks status action.
  */
-public class RestPendingClusterTasksAction extends BaseActionRequestRestHandler<PendingClusterTasksRequest> {
+public class RestBenchStatusAction extends BaseActionRequestRestHandler<BenchmarkStatusRequest> {
 
     @Inject
-    public RestPendingClusterTasksAction(Settings settings, Client client, RestController controller) {
+    public RestBenchStatusAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_cluster/pending_tasks", this);
+        controller.registerHandler(GET, "/_bench", this);
+        controller.registerHandler(GET, "/{index}/_bench", this);
+        controller.registerHandler(GET, "/{index}/{type}/_bench", this);
     }
 
     @Override
-    protected PendingClusterTasksRequest newRequest(RestRequest request) {
-        PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
-        pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
-        pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
-        return pendingClusterTasksRequest;
+    protected BenchmarkStatusRequest newRequest(RestRequest request) {
+        //Reports on the status of all actively running benchmarks
+        return new BenchmarkStatusRequest();
     }
 
     @Override
-    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, PendingClusterTasksRequest request) {
-        client.admin().cluster().pendingClusterTasks(request, new RestToXContentListener<PendingClusterTasksResponse>(channel));
+    protected void doHandleRequest(RestRequest restRequest, RestChannel restChannel, BenchmarkStatusRequest request) {
+        client.benchStatus(request, new RestToXContentListener<BenchmarkStatusResponse> (restChannel));
     }
 }

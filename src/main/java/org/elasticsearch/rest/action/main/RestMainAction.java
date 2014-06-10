@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.main;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -39,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 /**
  *
  */
-public class RestMainAction extends BaseRestHandler {
+public class RestMainAction extends BaseActionRequestRestHandler<ClusterStateRequest> {
 
     private final Version version;
 
@@ -52,27 +51,32 @@ public class RestMainAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterStateRequest newRequest(RestRequest request) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
         clusterStateRequest.local(true);
         clusterStateRequest.clear().blocks(true);
-        client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
+        return clusterStateRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterStateRequest request) {
+        client.admin().cluster().state(request, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response) throws Exception {
                 RestStatus status = RestStatus.OK;
                 if (response.getState().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
                     status = RestStatus.SERVICE_UNAVAILABLE;
                 }
-                if (request.method() == RestRequest.Method.HEAD) {
+                if (restRequest.method() == RestRequest.Method.HEAD) {
                     return new BytesRestResponse(status);
                 }
 
                 XContentBuilder builder = channel.newBuilder();
 
                 // Default to pretty printing, but allow ?pretty=false to disable
-                if (!request.hasParam("pretty")) {
+                if (!restRequest.hasParam("pretty")) {
                     builder.prettyPrint().lfAtEnd();
                 }
 

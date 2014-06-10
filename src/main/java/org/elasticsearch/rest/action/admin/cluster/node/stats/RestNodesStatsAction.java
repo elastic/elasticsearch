@@ -27,7 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestNodesStatsAction extends BaseRestHandler {
+public class RestNodesStatsAction extends BaseActionRequestRestHandler<NodesStatsRequest> {
 
     @Inject
     public RestNodesStatsAction(Settings settings, Client client, RestController controller) {
@@ -58,7 +58,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected NodesStatsRequest newRequest(RestRequest request) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
@@ -108,7 +108,11 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
             nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
         }
+        return nodesStatsRequest;
+    }
 
-        client.admin().cluster().nodesStats(nodesStatsRequest, new RestToXContentListener<NodesStatsResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, NodesStatsRequest request) {
+        client.admin().cluster().nodesStats(request, new RestToXContentListener<NodesStatsResponse>(channel));
     }
 }

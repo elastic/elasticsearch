@@ -19,11 +19,12 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestSearchScrollAction extends BaseRestHandler {
+public class RestSearchScrollAction extends BaseActionRequestRestHandler<SearchScrollRequest> {
 
     @Inject
     public RestSearchScrollAction(Settings settings, Client client, RestController controller) {
@@ -51,7 +52,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected SearchScrollRequest newRequest(RestRequest request) {
         String scrollId = request.param("scroll_id");
         if (scrollId == null) {
             scrollId = RestActions.getRestContent(request).toUtf8();
@@ -62,7 +63,11 @@ public class RestSearchScrollAction extends BaseRestHandler {
         if (scroll != null) {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
         }
+        return searchScrollRequest;
+    }
 
-        client.searchScroll(searchScrollRequest, new RestStatusToXContentListener(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, SearchScrollRequest request) {
+        client.searchScroll(request, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 }

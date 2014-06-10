@@ -24,7 +24,10 @@ import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResp
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.putRepositoryRequest;
@@ -34,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Registers repositories
  */
-public class RestPutRepositoryAction extends BaseRestHandler {
+public class RestPutRepositoryAction extends BaseActionRequestRestHandler<PutRepositoryRequest> {
 
     @Inject
     public RestPutRepositoryAction(Settings settings, Client client, RestController controller) {
@@ -43,14 +46,18 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_snapshot/{repository}", this);
     }
 
-
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected PutRepositoryRequest newRequest(RestRequest request) {
         PutRepositoryRequest putRepositoryRequest = putRepositoryRequest(request.param("repository"));
         putRepositoryRequest.listenerThreaded(false);
         putRepositoryRequest.source(request.content().toUtf8());
         putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
         putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
-        client.admin().cluster().putRepository(putRepositoryRequest, new AcknowledgedRestListener<PutRepositoryResponse>(channel));
+        return putRepositoryRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, PutRepositoryRequest request) {
+        client.admin().cluster().putRepository(request, new AcknowledgedRestListener<PutRepositoryResponse>(channel));
     }
 }

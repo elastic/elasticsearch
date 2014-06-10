@@ -24,7 +24,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.deleteSnapshotRequest;
@@ -33,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Deletes a snapshot
  */
-public class RestDeleteSnapshotAction extends BaseRestHandler {
+public class RestDeleteSnapshotAction extends BaseActionRequestRestHandler<DeleteSnapshotRequest> {
 
     @Inject
     public RestDeleteSnapshotAction(Settings settings, Client client, RestController controller) {
@@ -42,9 +45,14 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected DeleteSnapshotRequest newRequest(RestRequest request) {
         DeleteSnapshotRequest deleteSnapshotRequest = deleteSnapshotRequest(request.param("repository"), request.param("snapshot"));
         deleteSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteSnapshotRequest.masterNodeTimeout()));
-        client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new AcknowledgedRestListener<DeleteSnapshotResponse>(channel));
+        return deleteSnapshotRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, DeleteSnapshotRequest request) {
+        client.admin().cluster().deleteSnapshot(request, new AcknowledgedRestListener<DeleteSnapshotResponse>(channel));
     }
 }

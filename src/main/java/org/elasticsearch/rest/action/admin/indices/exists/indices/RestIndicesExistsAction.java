@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestIndicesExistsAction extends BaseRestHandler {
+public class RestIndicesExistsAction extends BaseActionRequestRestHandler<IndicesExistsRequest> {
 
     private final SettingsFilter settingsFilter;
 
@@ -51,12 +51,17 @@ public class RestIndicesExistsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected IndicesExistsRequest newRequest(RestRequest request) {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesExistsRequest.indicesOptions()));
         indicesExistsRequest.local(request.paramAsBoolean("local", indicesExistsRequest.local()));
         indicesExistsRequest.listenerThreaded(false);
-        client.admin().indices().exists(indicesExistsRequest, new RestResponseListener<IndicesExistsResponse>(channel) {
+        return indicesExistsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndicesExistsRequest request) {
+        client.admin().indices().exists(request, new RestResponseListener<IndicesExistsResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesExistsResponse response) {
                 if (response.isExists()) {

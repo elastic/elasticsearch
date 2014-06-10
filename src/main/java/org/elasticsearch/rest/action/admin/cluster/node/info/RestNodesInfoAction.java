@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  *
  */
-public class RestNodesInfoAction extends BaseRestHandler {
+public class RestNodesInfoAction extends BaseActionRequestRestHandler<NodesInfoRequest> {
 
     private final SettingsFilter settingsFilter;
     private final static Set<String> ALLOWED_METRICS = Sets.newHashSet("http", "jvm", "network", "os", "plugins", "process", "settings", "thread_pool", "transport");
@@ -59,7 +59,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected NodesInfoRequest newRequest(RestRequest request) {
         String[] nodeIds;
         Set<String> metrics;
 
@@ -99,14 +99,17 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.http(metrics.contains("http"));
             nodesInfoRequest.plugins(metrics.contains("plugins"));
         }
+        return nodesInfoRequest;
+    }
 
-        client.admin().cluster().nodesInfo(nodesInfoRequest, new RestBuilderListener<NodesInfoResponse>(channel) {
-
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, NodesInfoRequest request) {
+        client.admin().cluster().nodesInfo(request, new RestBuilderListener<NodesInfoResponse>(channel) {
             @Override
             public RestResponse buildResponse(NodesInfoResponse response, XContentBuilder builder) throws Exception {
                 response.settingsFilter(settingsFilter);
                 builder.startObject();
-                response.toXContent(builder, request);
+                response.toXContent(builder, restRequest);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

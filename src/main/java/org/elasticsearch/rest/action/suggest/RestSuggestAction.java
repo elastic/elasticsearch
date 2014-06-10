@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestSuggestAction extends BaseRestHandler {
+public class RestSuggestAction extends BaseActionRequestRestHandler<SuggestRequest> {
 
     @Inject
     public RestSuggestAction(Settings settings, Client client, RestController controller) {
@@ -52,7 +52,7 @@ public class RestSuggestAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected SuggestRequest newRequest(RestRequest request) {
         SuggestRequest suggestRequest = new SuggestRequest(Strings.splitStringByCommaToArray(request.param("index")));
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         suggestRequest.listenerThreaded(false);
@@ -68,15 +68,19 @@ public class RestSuggestAction extends BaseRestHandler {
         }
         suggestRequest.routing(request.param("routing"));
         suggestRequest.preference(request.param("preference"));
+        return suggestRequest;
+    }
 
-        client.suggest(suggestRequest, new RestBuilderListener<SuggestResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, SuggestRequest request) {
+        client.suggest(request, new RestBuilderListener<SuggestResponse>(channel) {
             @Override
             public RestResponse buildResponse(SuggestResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, response);
                 Suggest suggest = response.getSuggest();
                 if (suggest != null) {
-                    suggest.toXContent(builder, request);
+                    suggest.toXContent(builder, restRequest);
                 }
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);

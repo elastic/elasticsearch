@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestUpdateAction extends BaseRestHandler {
+public class RestUpdateAction extends BaseActionRequestRestHandler<UpdateRequest> {
 
     @Inject
     public RestUpdateAction(Settings settings, Client client, RestController controller) {
@@ -52,7 +52,7 @@ public class RestUpdateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected UpdateRequest newRequest(RestRequest request) throws Exception {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
@@ -113,8 +113,12 @@ public class RestUpdateAction extends BaseRestHandler {
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }
         }
+        return updateRequest;
+    }
 
-        client.update(updateRequest, new RestBuilderListener<UpdateResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, UpdateRequest request) {
+        client.update(request, new RestBuilderListener<UpdateResponse>(channel) {
             @Override
             public RestResponse buildResponse(UpdateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
@@ -125,7 +129,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
                 if (response.getGetResult() != null) {
                     builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
+                    response.getGetResult().toXContentEmbedded(builder, restRequest);
                     builder.endObject();
                 }
 

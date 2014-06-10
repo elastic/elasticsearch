@@ -59,12 +59,24 @@ public abstract class TransportRequest implements Streamable {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public final TransportRequest putHeader(String key, Object value) {
         if (headers == null) {
             headers = Maps.newHashMap();
         }
         headers.put(key, value);
+        return this;
+    }
+
+    /**
+     * Adds all the headers provided as arguments to the current request headers
+     */
+    public final TransportRequest putHeaders(Iterable<Map.Entry<String, String>> headers) {
+        if (this.headers == null) {
+            this.headers = Maps.newHashMap();
+        }
+        for (Map.Entry<String, String> header : headers) {
+            this.headers.put(header.getKey(), header.getValue());
+        }
         return this;
     }
 

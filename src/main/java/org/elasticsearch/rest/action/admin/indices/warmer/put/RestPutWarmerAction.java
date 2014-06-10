@@ -26,7 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 /**
  */
-public class RestPutWarmerAction extends BaseRestHandler {
+public class RestPutWarmerAction extends BaseActionRequestRestHandler<PutWarmerRequest> {
 
     @Inject
     public RestPutWarmerAction(Settings settings, Client client, RestController controller) {
@@ -60,7 +60,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected PutWarmerRequest newRequest(RestRequest request) {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
         putWarmerRequest.listenerThreaded(false);
         SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
@@ -70,6 +70,11 @@ public class RestPutWarmerAction extends BaseRestHandler {
         putWarmerRequest.searchRequest(searchRequest);
         putWarmerRequest.timeout(request.paramAsTime("timeout", putWarmerRequest.timeout()));
         putWarmerRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putWarmerRequest.masterNodeTimeout()));
-        client.admin().indices().putWarmer(putWarmerRequest, new AcknowledgedRestListener<PutWarmerResponse>(channel));
+        return putWarmerRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, PutWarmerRequest request) {
+        client.admin().indices().putWarmer(request, new AcknowledgedRestListener<PutWarmerResponse>(channel));
     }
 }

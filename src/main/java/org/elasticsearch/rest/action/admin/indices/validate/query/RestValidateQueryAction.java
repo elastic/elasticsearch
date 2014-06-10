@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestValidateQueryAction extends BaseRestHandler {
+public class RestValidateQueryAction extends BaseActionRequestRestHandler<ValidateQueryRequest> {
 
     @Inject
     public RestValidateQueryAction(Settings settings, Client client, RestController controller) {
@@ -55,7 +55,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ValidateQueryRequest newRequest(RestRequest request) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
@@ -78,8 +78,12 @@ public class RestValidateQueryAction extends BaseRestHandler {
         } else {
             validateQueryRequest.explain(false);
         }
+        return validateQueryRequest;
+    }
 
-        client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ValidateQueryRequest request) {
+        client.admin().indices().validateQuery(request, new RestBuilderListener<ValidateQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(ValidateQueryResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

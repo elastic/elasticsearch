@@ -20,7 +20,7 @@
 package org.elasticsearch.rest;
 
 /**
- *
+ * Handler for REST requests
  */
 public interface RestHandler {
 

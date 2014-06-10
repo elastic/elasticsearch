@@ -29,11 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-
 /**
  */
-public class RestClusterGetSettingsAction extends BaseRestHandler {
+public class RestClusterGetSettingsAction extends BaseActionRequestRestHandler<ClusterStateRequest> {
 
     @Inject
     public RestClusterGetSettingsAction(Settings settings, Client client, RestController controller) {
@@ -42,23 +40,28 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterStateRequest newRequest(RestRequest request) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .listenerThreaded(false)
                 .routingTable(false)
                 .nodes(false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
+        return clusterStateRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterStateRequest request) {
+        client.admin().cluster().state(request, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
 
                 builder.startObject("persistent");
-                response.getState().metaData().persistentSettings().toXContent(builder, request);
+                response.getState().metaData().persistentSettings().toXContent(builder, restRequest);
                 builder.endObject();
 
                 builder.startObject("transient");
-                response.getState().metaData().transientSettings().toXContent(builder, request);
+                response.getState().metaData().transientSettings().toXContent(builder, restRequest);
                 builder.endObject();
 
                 builder.endObject();

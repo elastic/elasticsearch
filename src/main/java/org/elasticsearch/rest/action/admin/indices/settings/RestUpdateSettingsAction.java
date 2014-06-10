@@ -27,7 +27,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.util.Map;
@@ -37,7 +40,7 @@ import static org.elasticsearch.client.Requests.updateSettingsRequest;
 /**
  *
  */
-public class RestUpdateSettingsAction extends BaseRestHandler {
+public class RestUpdateSettingsAction extends BaseActionRequestRestHandler<UpdateSettingsRequest> {
 
     @Inject
     public RestUpdateSettingsAction(Settings settings, Client client, RestController controller) {
@@ -47,7 +50,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected UpdateSettingsRequest newRequest(RestRequest request) {
         UpdateSettingsRequest updateSettingsRequest = updateSettingsRequest(Strings.splitStringByCommaToArray(request.param("index")));
         updateSettingsRequest.listenerThreaded(false);
         updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
@@ -75,7 +78,11 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             updateSettings.put(entry.getKey(), entry.getValue());
         }
         updateSettingsRequest.settings(updateSettings);
+        return updateSettingsRequest;
+    }
 
-        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<UpdateSettingsResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, UpdateSettingsRequest request) {
+        client.admin().indices().updateSettings(request, new AcknowledgedRestListener<UpdateSettingsResponse>(channel));
     }
 }

@@ -32,14 +32,13 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.Set;
 
 
 /**
  *
  */
-public class RestClusterStateAction extends BaseRestHandler {
+public class RestClusterStateAction extends BaseActionRequestRestHandler<ClusterStateRequest> {
 
     private final SettingsFilter settingsFilter;
 
@@ -55,7 +54,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterStateRequest newRequest(RestRequest request) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
@@ -75,13 +74,17 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.metaData(metrics.contains("metadata"));
             clusterStateRequest.blocks(metrics.contains("blocks"));
         }
+        return clusterStateRequest;
+    }
 
-        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterStateRequest request) {
+        client.admin().cluster().state(request, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                response.getState().settingsFilter(settingsFilter).toXContent(builder, restRequest);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

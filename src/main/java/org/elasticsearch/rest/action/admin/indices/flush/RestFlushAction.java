@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestFlushAction extends BaseRestHandler {
+public class RestFlushAction extends BaseActionRequestRestHandler<FlushRequest> {
 
     @Inject
     public RestFlushAction(Settings settings, Client client, RestController controller) {
@@ -51,13 +51,18 @@ public class RestFlushAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected FlushRequest newRequest(RestRequest request) {
         FlushRequest flushRequest = new FlushRequest(Strings.splitStringByCommaToArray(request.param("index")));
         flushRequest.listenerThreaded(false);
         flushRequest.indicesOptions(IndicesOptions.fromRequest(request, flushRequest.indicesOptions()));
         flushRequest.full(request.paramAsBoolean("full", flushRequest.full()));
         flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
-        client.admin().indices().flush(flushRequest, new RestBuilderListener<FlushResponse>(channel) {
+        return flushRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, FlushRequest request) {
+        client.admin().indices().flush(request, new RestBuilderListener<FlushResponse>(channel) {
             @Override
             public RestResponse buildResponse(FlushResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

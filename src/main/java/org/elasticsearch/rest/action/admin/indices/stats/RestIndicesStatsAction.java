@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -39,7 +38,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 
 /**
  */
-public class RestIndicesStatsAction extends BaseRestHandler {
+public class RestIndicesStatsAction extends BaseActionRequestRestHandler<IndicesStatsRequest> {
 
     @Inject
     public RestIndicesStatsAction(Settings settings, Client client, RestController controller) {
@@ -52,7 +51,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected IndicesStatsRequest newRequest(RestRequest request) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.listenerThreaded(false);
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));
@@ -98,13 +97,17 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         if (indicesStatsRequest.fieldData() && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
             indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
         }
+        return indicesStatsRequest;
+    }
 
-        client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndicesStatsRequest request) {
+        client.admin().indices().stats(request, new RestBuilderListener<IndicesStatsResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, response);
-                response.toXContent(builder, request);
+                response.toXContent(builder, restRequest);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }

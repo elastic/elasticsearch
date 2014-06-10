@@ -29,7 +29,7 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 /**
  *
  */
-public class RestPutIndexTemplateAction extends BaseRestHandler {
+public class RestPutIndexTemplateAction extends BaseActionRequestRestHandler<PutIndexTemplateRequest> {
 
     @Inject
     public RestPutIndexTemplateAction(Settings settings, Client client, RestController controller) {
@@ -38,9 +38,8 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected PutIndexTemplateRequest newRequest(RestRequest request) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         putRequest.listenerThreaded(false);
         putRequest.template(request.param("template", putRequest.template()));
@@ -49,6 +48,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
         putRequest.source(request.content());
-        client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<PutIndexTemplateResponse>(channel));
+        return putRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, PutIndexTemplateRequest request) {
+        client.admin().indices().putTemplate(request, new AcknowledgedRestListener<PutIndexTemplateResponse>(channel));
     }
 }

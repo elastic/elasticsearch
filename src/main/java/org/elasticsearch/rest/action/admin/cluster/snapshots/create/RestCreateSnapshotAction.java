@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Creates a new snapshot
  */
-public class RestCreateSnapshotAction extends BaseRestHandler {
+public class RestCreateSnapshotAction extends BaseActionRequestRestHandler<CreateSnapshotRequest> {
 
     @Inject
     public RestCreateSnapshotAction(Settings settings, Client client, RestController controller) {
@@ -47,12 +47,17 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected CreateSnapshotRequest newRequest(RestRequest request) {
         CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
         createSnapshotRequest.listenerThreaded(false);
         createSnapshotRequest.source(request.content().toUtf8());
         createSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createSnapshotRequest.masterNodeTimeout()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
-        client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<CreateSnapshotResponse>(channel));
+        return createSnapshotRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, CreateSnapshotRequest request) {
+        client.admin().cluster().createSnapshot(request, new RestToXContentListener<CreateSnapshotResponse>(channel));
     }
 }

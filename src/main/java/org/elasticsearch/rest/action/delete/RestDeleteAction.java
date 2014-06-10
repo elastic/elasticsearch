@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestDeleteAction extends BaseRestHandler {
+public class RestDeleteAction extends BaseActionRequestRestHandler<DeleteRequest> {
 
     @Inject
     public RestDeleteAction(Settings settings, Client client, RestController controller) {
@@ -49,7 +49,7 @@ public class RestDeleteAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected DeleteRequest newRequest(RestRequest request) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
 
         deleteRequest.listenerThreaded(false);
@@ -70,8 +70,12 @@ public class RestDeleteAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
+        return deleteRequest;
+    }
 
-        client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, DeleteRequest request) {
+        client.delete(request, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
                 builder.startObject()

@@ -121,7 +121,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = copyHeaders(request, new ClusterStateRequest());
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
@@ -129,12 +129,12 @@ public class RestThreadPoolAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+                NodesInfoRequest nodesInfoRequest = copyHeaders(request ,new NodesInfoRequest());
                 nodesInfoRequest.clear().process(true).threadPool(true);
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
-                        NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+                        NodesStatsRequest nodesStatsRequest = copyHeaders(request, new NodesStatsRequest());
                         nodesStatsRequest.clear().threadPool(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override

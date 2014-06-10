@@ -50,7 +50,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * { "type1" : { "field1" : "value1" } }
  * </pre>
  */
-public class RestBulkAction extends BaseRestHandler {
+public class RestBulkAction extends BaseActionRequestRestHandler<BulkRequest> {
 
     private final boolean allowExplicitIndex;
 
@@ -69,7 +69,7 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected BulkRequest newRequest(RestRequest request) throws Exception {
         BulkRequest bulkRequest = Requests.bulkRequest();
         bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");
@@ -87,8 +87,13 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.refresh(request.paramAsBoolean("refresh", bulkRequest.refresh()));
         bulkRequest.add(request.content(), request.contentUnsafe(), defaultIndex, defaultType, defaultRouting, null, allowExplicitIndex);
+        return bulkRequest;
+    }
 
-        client.bulk(bulkRequest, new RestBuilderListener<BulkResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, BulkRequest request) {
+
+        client.bulk(request, new RestBuilderListener<BulkResponse>(channel) {
             @Override
             public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

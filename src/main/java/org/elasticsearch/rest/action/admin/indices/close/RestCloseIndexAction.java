@@ -32,7 +32,7 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 /**
  *
  */
-public class RestCloseIndexAction extends BaseRestHandler {
+public class RestCloseIndexAction extends BaseActionRequestRestHandler<CloseIndexRequest> {
 
     @Inject
     public RestCloseIndexAction(Settings settings, Client client, RestController controller) {
@@ -42,12 +42,17 @@ public class RestCloseIndexAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected CloseIndexRequest newRequest(RestRequest request) {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         closeIndexRequest.listenerThreaded(false);
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
-        client.admin().indices().close(closeIndexRequest, new AcknowledgedRestListener<CloseIndexResponse>(channel));
+        return closeIndexRequest;
+    }
+
+    @Override
+    protected void doHandleRequest(RestRequest restRequest, RestChannel restChannel, CloseIndexRequest request) {
+        client.admin().indices().close(request, new AcknowledgedRestListener<CloseIndexResponse>(restChannel));
     }
 }

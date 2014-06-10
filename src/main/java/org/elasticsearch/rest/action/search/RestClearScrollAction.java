@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  */
-public class RestClearScrollAction extends BaseRestHandler {
+public class RestClearScrollAction extends BaseActionRequestRestHandler<ClearScrollRequest> {
 
     @Inject
     public RestClearScrollAction(Settings settings, Client client, RestController controller) {
@@ -49,7 +49,7 @@ public class RestClearScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClearScrollRequest newRequest(RestRequest request) {
         String scrollIds = request.param("scroll_id");
         if (scrollIds == null) {
             scrollIds = RestActions.getRestContent(request).toUtf8();
@@ -57,7 +57,12 @@ public class RestClearScrollAction extends BaseRestHandler {
 
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-        client.clearScroll(clearRequest, new RestStatusToXContentListener<ClearScrollResponse>(channel));
+        return clearRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClearScrollRequest request) {
+        client.clearScroll(request, new RestStatusToXContentListener<ClearScrollResponse>(channel));
     }
 
     public static String[] splitScrollIds(String scrollIds) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,21 +26,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestMultiSearchAction extends BaseRestHandler {
+public class RestMultiSearchAction extends BaseActionRequestRestHandler<MultiSearchRequest> {
 
     private final boolean allowExplicitIndex;
 
@@ -60,7 +54,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected MultiSearchRequest newRequest(RestRequest request) throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.listenerThreaded(false);
 
@@ -68,7 +62,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
         multiSearchRequest.add(RestActions.getRestContent(request), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
+        return multiSearchRequest;
+    }
 
-        client.multiSearch(multiSearchRequest, new RestToXContentListener<MultiSearchResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, MultiSearchRequest request) {
+        client.multiSearch(request, new RestToXContentListener<MultiSearchResponse>(channel));
     }
 }

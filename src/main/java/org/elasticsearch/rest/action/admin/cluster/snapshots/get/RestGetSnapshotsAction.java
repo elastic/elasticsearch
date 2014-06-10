@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Returns information about snapshot
  */
-public class RestGetSnapshotsAction extends BaseRestHandler {
+public class RestGetSnapshotsAction extends BaseActionRequestRestHandler<GetSnapshotsRequest> {
 
     @Inject
     public RestGetSnapshotsAction(Settings settings, Client client, RestController controller) {
@@ -45,9 +45,8 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_snapshot/{repository}/{snapshot}", this);
     }
 
-
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetSnapshotsRequest newRequest(RestRequest request) {
         String repository = request.param("repository");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
@@ -55,6 +54,11 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         }
         GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repository).snapshots(snapshots);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<GetSnapshotsResponse>(channel));
+        return getSnapshotsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetSnapshotsRequest request) {
+        client.admin().cluster().getSnapshots(request, new RestToXContentListener<GetSnapshotsResponse>(channel));
     }
 }

@@ -54,7 +54,7 @@ public class RestHealthAction extends AbstractCatAction {
 
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
-        ClusterHealthRequest clusterHealthRequest = new ClusterHealthRequest();
+        ClusterHealthRequest clusterHealthRequest = copyHeaders(request, new ClusterHealthRequest());
 
         client.admin().cluster().health(clusterHealthRequest, new RestResponseListener<ClusterHealthResponse>(channel) {
             @Override

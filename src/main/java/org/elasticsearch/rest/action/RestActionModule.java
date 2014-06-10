@@ -64,6 +64,7 @@ import org.elasticsearch.rest.action.admin.indices.mapping.get.RestGetMappingAct
 import org.elasticsearch.rest.action.admin.indices.mapping.put.RestPutMappingAction;
 import org.elasticsearch.rest.action.admin.indices.open.RestOpenIndexAction;
 import org.elasticsearch.rest.action.admin.indices.optimize.RestOptimizeAction;
+import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
 import org.elasticsearch.rest.action.admin.indices.refresh.RestRefreshAction;
 import org.elasticsearch.rest.action.admin.indices.segments.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsAction;
@@ -77,8 +78,9 @@ import org.elasticsearch.rest.action.admin.indices.validate.query.RestValidateQu
 import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
-import org.elasticsearch.rest.action.admin.indices.recovery.RestRecoveryAction;
-import org.elasticsearch.rest.action.bench.RestBenchAction;
+import org.elasticsearch.rest.action.bench.RestBenchAbortAction;
+import org.elasticsearch.rest.action.bench.RestBenchStatusAction;
+import org.elasticsearch.rest.action.bench.RestBenchSubmitAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -211,7 +213,9 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestRecoveryAction.class).asEagerSingleton();
         // Benchmark API
-        bind(RestBenchAction.class).asEagerSingleton();
+        bind(RestBenchSubmitAction.class).asEagerSingleton();
+        bind(RestBenchStatusAction.class).asEagerSingleton();
+        bind(RestBenchAbortAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

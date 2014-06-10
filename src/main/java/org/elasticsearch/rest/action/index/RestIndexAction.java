@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.index;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -33,16 +34,15 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestStatus.*;
+import static org.elasticsearch.rest.RestStatus.CREATED;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
-public class RestIndexAction extends BaseRestHandler {
+public class RestIndexAction extends BaseActionRequestRestHandler<IndexRequest> {
 
     @Inject
     public RestIndexAction(Settings settings, Client client, RestController controller) {
@@ -50,20 +50,28 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", new CreateHandler());
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", new CreateHandler());
+        CreateHandler createHandler = new CreateHandler(settings, client);
+        controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
-    final class CreateHandler implements RestHandler {
+    private RestIndexAction(Settings settings, Client client) {
+        super(settings, client);
+    }
+
+    final class CreateHandler extends RestIndexAction {
+        public CreateHandler(Settings settings, Client client) {
+            super(settings, client);
+        }
+
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel) {
-            request.params().put("op_type", "create");
-            RestIndexAction.this.handleRequest(request, channel);
+        protected IndexRequest newRequest(RestRequest request) {
+            return super.newRequest(request).opType(IndexRequest.OpType.CREATE);
         }
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected IndexRequest newRequest(RestRequest request) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(true);
@@ -85,13 +93,9 @@ public class RestIndexAction extends BaseRestHandler {
             } else if ("create".equals(sOpType)) {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
             } else {
-                try {
-                    XContentBuilder builder = channel.newBuilder();
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "opType [" + sOpType + "] not allowed, either [index] or [create] are allowed").endObject()));
-                } catch (IOException e1) {
-                    logger.warn("Failed to send response", e1);
-                    return;
-                }
+                ActionRequestValidationException validationException = new ActionRequestValidationException();
+                validationException.addValidationError("opType [" + sOpType + "] not allowed, either [index] or [create] are allowed");
+                throw validationException;
             }
         }
         String replicationType = request.param("replication");
@@ -102,7 +106,12 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
+        return indexRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndexRequest request) {
+        client.index(request, new RestBuilderListener<IndexResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()

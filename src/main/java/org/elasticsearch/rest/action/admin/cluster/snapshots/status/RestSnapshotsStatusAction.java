@@ -25,7 +25,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Returns status of currently running snapshot
  */
-public class RestSnapshotsStatusAction extends BaseRestHandler {
+public class RestSnapshotsStatusAction extends BaseActionRequestRestHandler<SnapshotsStatusRequest> {
 
     @Inject
     public RestSnapshotsStatusAction(Settings settings, Client client, RestController controller) {
@@ -48,15 +48,19 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected SnapshotsStatusRequest newRequest(RestRequest request) {
         String repository = request.param("repository", "_all");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
         if (snapshots.length == 1 && "_all".equalsIgnoreCase(snapshots[0])) {
             snapshots = Strings.EMPTY_ARRAY;
         }
-        SnapshotsStatusRequest snapshotsStatusResponse = snapshotsStatusRequest(repository).snapshots(snapshots);
+        SnapshotsStatusRequest snapshotsStatusRequest = snapshotsStatusRequest(repository).snapshots(snapshots);
+        snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
+        return snapshotsStatusRequest;
+    }
 
-        snapshotsStatusResponse.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusResponse.masterNodeTimeout()));
-        client.admin().cluster().snapshotsStatus(snapshotsStatusResponse, new RestToXContentListener<SnapshotsStatusResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, SnapshotsStatusRequest request) {
+        client.admin().cluster().snapshotsStatus(request, new RestToXContentListener<SnapshotsStatusResponse>(channel));
     }
 }

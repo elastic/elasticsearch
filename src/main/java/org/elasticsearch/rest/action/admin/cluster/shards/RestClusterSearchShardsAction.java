@@ -27,7 +27,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 /**
  */
-public class RestClusterSearchShardsAction extends BaseRestHandler {
+public class RestClusterSearchShardsAction extends BaseActionRequestRestHandler<ClusterSearchShardsRequest> {
 
     @Inject
     public RestClusterSearchShardsAction(Settings settings, Client client, RestController controller) {
@@ -52,7 +52,7 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterSearchShardsRequest newRequest(RestRequest request) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);
         clusterSearchShardsRequest.local(request.paramAsBoolean("local", clusterSearchShardsRequest.local()));
@@ -62,7 +62,11 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
         clusterSearchShardsRequest.routing(request.param("routing"));
         clusterSearchShardsRequest.preference(request.param("preference"));
         clusterSearchShardsRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterSearchShardsRequest.indicesOptions()));
+        return clusterSearchShardsRequest;
+    }
 
-        client.admin().cluster().searchShards(clusterSearchShardsRequest, new RestToXContentListener<ClusterSearchShardsResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterSearchShardsRequest request) {
+        client.admin().cluster().searchShards(request, new RestToXContentListener<ClusterSearchShardsResponse>(channel));
     }
 }

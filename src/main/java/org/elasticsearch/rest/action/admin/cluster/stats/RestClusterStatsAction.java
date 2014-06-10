@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -34,7 +34,7 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 /**
  *
  */
-public class RestClusterStatsAction extends BaseRestHandler {
+public class RestClusterStatsAction extends BaseActionRequestRestHandler<ClusterStatsRequest> {
 
     @Inject
     public RestClusterStatsAction(Settings settings, Client client, RestController controller) {
@@ -44,9 +44,14 @@ public class RestClusterStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterStatsRequest newRequest(RestRequest request) {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.listenerThreaded(false);
-        client.admin().cluster().clusterStats(clusterStatsRequest, new RestToXContentListener<ClusterStatsResponse>(channel));
+        return clusterStatsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterStatsRequest request) {
+        client.admin().cluster().clusterStats(request, new RestToXContentListener<ClusterStatsResponse>(channel));
     }
 }

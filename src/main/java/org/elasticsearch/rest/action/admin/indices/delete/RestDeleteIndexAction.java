@@ -26,13 +26,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
  *
  */
-public class RestDeleteIndexAction extends BaseRestHandler {
+public class RestDeleteIndexAction extends BaseActionRequestRestHandler<DeleteIndexRequest> {
 
     @Inject
     public RestDeleteIndexAction(Settings settings, Client client, RestController controller) {
@@ -42,12 +45,17 @@ public class RestDeleteIndexAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected DeleteIndexRequest newRequest(RestRequest request) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteIndexRequest.listenerThreaded(false);
         deleteIndexRequest.timeout(request.paramAsTime("timeout", deleteIndexRequest.timeout()));
         deleteIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexRequest.masterNodeTimeout()));
         deleteIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteIndexRequest.indicesOptions()));
-        client.admin().indices().delete(deleteIndexRequest, new AcknowledgedRestListener<DeleteIndexResponse>(channel));
+        return deleteIndexRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, DeleteIndexRequest request) {
+        client.admin().indices().delete(request, new AcknowledgedRestListener<DeleteIndexResponse>(channel));
     }
 }

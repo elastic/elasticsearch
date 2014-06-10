@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Rest api for checking if a type exists.
  */
-public class RestTypesExistsAction extends BaseRestHandler {
+public class RestTypesExistsAction extends BaseActionRequestRestHandler<TypesExistsRequest> {
 
     @Inject
     public RestTypesExistsAction(Settings settings, Client client, RestController controller) {
@@ -44,14 +44,19 @@ public class RestTypesExistsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected TypesExistsRequest newRequest(RestRequest request) {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))
         );
         typesExistsRequest.listenerThreaded(false);
         typesExistsRequest.local(request.paramAsBoolean("local", typesExistsRequest.local()));
         typesExistsRequest.indicesOptions(IndicesOptions.fromRequest(request, typesExistsRequest.indicesOptions()));
-        client.admin().indices().typesExists(typesExistsRequest, new RestResponseListener<TypesExistsResponse>(channel) {
+        return typesExistsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, TypesExistsRequest request) {
+        client.admin().indices().typesExists(request, new RestResponseListener<TypesExistsResponse>(channel) {
             @Override
             public RestResponse buildResponse(TypesExistsResponse response) throws Exception {
                 if (response.isExists()) {

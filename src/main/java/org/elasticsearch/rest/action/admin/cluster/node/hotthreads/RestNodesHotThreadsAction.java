@@ -33,7 +33,7 @@ import org.elasticsearch.rest.action.support.RestResponseListener;
 
 /**
  */
-public class RestNodesHotThreadsAction extends BaseRestHandler {
+public class RestNodesHotThreadsAction extends BaseActionRequestRestHandler<NodesHotThreadsRequest> {
 
     @Inject
     public RestNodesHotThreadsAction(Settings settings, Client client, RestController controller) {
@@ -50,14 +50,19 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected NodesHotThreadsRequest newRequest(RestRequest request) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
         nodesHotThreadsRequest.type(request.param("type", nodesHotThreadsRequest.type()));
         nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval()));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
-        client.admin().cluster().nodesHotThreads(nodesHotThreadsRequest, new RestResponseListener<NodesHotThreadsResponse>(channel) {
+        return nodesHotThreadsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, NodesHotThreadsRequest request) {
+        client.admin().cluster().nodesHotThreads(request, new RestResponseListener<NodesHotThreadsResponse>(channel) {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) throws Exception {
                 StringBuilder sb = new StringBuilder();

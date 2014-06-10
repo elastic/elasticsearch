@@ -26,7 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,7 +39,7 @@ import static org.elasticsearch.client.Requests.clusterHealthRequest;
 /**
  *
  */
-public class RestClusterHealthAction extends BaseRestHandler {
+public class RestClusterHealthAction extends BaseActionRequestRestHandler<ClusterHealthRequest> {
 
     @Inject
     public RestClusterHealthAction(Settings settings, Client client, RestController controller) {
@@ -50,7 +50,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterHealthRequest newRequest(RestRequest request) {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
         clusterHealthRequest.listenerThreaded(false);
@@ -63,7 +63,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
         clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
         clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
+        return clusterHealthRequest;
+    }
 
-        client.admin().cluster().health(clusterHealthRequest, new RestToXContentListener<ClusterHealthResponse>(channel));
+    @Override
+    protected void doHandleRequest(RestRequest restRequest, RestChannel restChannel, ClusterHealthRequest request) {
+        client.admin().cluster().health(request, new RestToXContentListener<ClusterHealthResponse>(restChannel));
     }
 }

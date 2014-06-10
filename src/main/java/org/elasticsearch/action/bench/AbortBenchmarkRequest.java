@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * A request to abort a specified benchmark
  */
-public class AbortBenchmarkRequest extends AcknowledgedRequest {
+public class AbortBenchmarkRequest extends AcknowledgedRequest<AbortBenchmarkRequest> {
 
     private String[] benchmarkNames = Strings.EMPTY_ARRAY;
 

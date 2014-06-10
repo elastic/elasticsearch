@@ -33,7 +33,7 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 /**
  *
  */
-public class RestNodesShutdownAction extends BaseRestHandler {
+public class RestNodesShutdownAction extends BaseActionRequestRestHandler<NodesShutdownRequest> {
 
     @Inject
     public RestNodesShutdownAction(Settings settings, Client client, RestController controller) {
@@ -45,13 +45,18 @@ public class RestNodesShutdownAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected NodesShutdownRequest newRequest(RestRequest request) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
         nodesShutdownRequest.listenerThreaded(false);
         nodesShutdownRequest.delay(request.paramAsTime("delay", nodesShutdownRequest.delay()));
         nodesShutdownRequest.exit(request.paramAsBoolean("exit", nodesShutdownRequest.exit()));
-        client.admin().cluster().nodesShutdown(nodesShutdownRequest, new RestBuilderListener<NodesShutdownResponse>(channel) {
+        return nodesShutdownRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, NodesShutdownRequest request) {
+        client.admin().cluster().nodesShutdown(request, new RestBuilderListener<NodesShutdownResponse>(channel) {
             @Override
             public RestResponse buildResponse(NodesShutdownResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

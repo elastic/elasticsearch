@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestGetAliasesAction extends BaseRestHandler {
+public class RestGetAliasesAction extends BaseActionRequestRestHandler<GetAliasesRequest> {
 
     @Inject
     public RestGetAliasesAction(Settings settings, Client client, RestController controller) {
@@ -54,25 +54,31 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetAliasesRequest newRequest(RestRequest request) {
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
+        return getAliasesRequest;
+    }
 
-        client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final GetAliasesRequest request) {
+        //indices get resolved to concrete ones during request execution
+        final String[] originalIndices = request.indices();
+        client.admin().indices().getAliases(request, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
                 // empty body, if indices were specified but no aliases were
-                if (indices.length > 0 && response.getAliases().isEmpty()) {
+                if (originalIndices.length > 0 && response.getAliases().isEmpty()) {
                     return new BytesRestResponse(OK, builder.startObject().endObject());
                 } else if (response.getAliases().isEmpty()) {
-                    String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(getAliasesRequest.aliases()));
+                    String message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(request.aliases()));
                     builder.startObject()
-                            .field("error", message)
-                            .field("status", RestStatus.NOT_FOUND.getStatus())
+                            .field(Fields.ERROR, message)
+                            .field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus())
                             .endObject();
                     return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
                 }
@@ -108,8 +114,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     static class Fields {
-
         static final XContentBuilderString ALIASES = new XContentBuilderString("aliases");
-
+        static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final XContentBuilderString STATUS = new XContentBuilderString("status");
     }
 }

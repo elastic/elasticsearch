@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetWarmerAction extends BaseRestHandler {
+public class RestGetWarmerAction extends BaseActionRequestRestHandler<GetWarmersRequest> {
 
     @Inject
     public RestGetWarmerAction(Settings settings, Client client, RestController controller) {
@@ -52,35 +52,33 @@ public class RestGetWarmerAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetWarmersRequest newRequest(RestRequest request) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         final String[] names = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-
         GetWarmersRequest getWarmersRequest = new GetWarmersRequest();
         getWarmersRequest.indices(indices).types(types).warmers(names);
         getWarmersRequest.local(request.paramAsBoolean("local", getWarmersRequest.local()));
         getWarmersRequest.indicesOptions(IndicesOptions.fromRequest(request, getWarmersRequest.indicesOptions()));
-        client.admin().indices().getWarmers(getWarmersRequest, new RestBuilderListener<GetWarmersResponse>(channel) {
+        return getWarmersRequest;
+    }
 
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final GetWarmersRequest request) {
+        client.admin().indices().getWarmers(request, new RestBuilderListener<GetWarmersResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWarmersResponse response, XContentBuilder builder) throws Exception {
-                if (indices.length > 0 && response.warmers().isEmpty()) {
-                    return new BytesRestResponse(OK, builder.startObject().endObject());
-                }
-
                 builder.startObject();
                 for (ObjectObjectCursor<String, ImmutableList<IndexWarmersMetaData.Entry>> entry : response.warmers()) {
                     builder.startObject(entry.key, XContentBuilder.FieldCaseConversion.NONE);
                     builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
                     for (IndexWarmersMetaData.Entry warmerEntry : entry.value) {
-                        IndexWarmersMetaData.FACTORY.toXContent(warmerEntry, builder, request);
+                        IndexWarmersMetaData.FACTORY.toXContent(warmerEntry, builder, restRequest);
                     }
                     builder.endObject();
                     builder.endObject();
                 }
                 builder.endObject();
-
                 return new BytesRestResponse(OK, builder);
             }
         });

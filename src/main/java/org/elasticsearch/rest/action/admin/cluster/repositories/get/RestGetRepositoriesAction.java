@@ -31,8 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.client.Requests.getRepositoryRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -40,7 +38,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Returns repository information
  */
-public class RestGetRepositoriesAction extends BaseRestHandler {
+public class RestGetRepositoriesAction extends BaseActionRequestRestHandler<GetRepositoriesRequest> {
 
     @Inject
     public RestGetRepositoriesAction(Settings settings, Client client, RestController controller) {
@@ -50,17 +48,22 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetRepositoriesRequest newRequest(RestRequest request) {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
-        client.admin().cluster().getRepositories(getRepositoriesRequest, new RestBuilderListener<GetRepositoriesResponse>(channel) {
+        return getRepositoriesRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetRepositoriesRequest request) {
+        client.admin().cluster().getRepositories(request, new RestBuilderListener<GetRepositoriesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetRepositoriesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 for (RepositoryMetaData repositoryMetaData : response.repositories()) {
-                    RepositoriesMetaData.FACTORY.toXContent(repositoryMetaData, builder, request);
+                    RepositoriesMetaData.FACTORY.toXContent(repositoryMetaData, builder, restRequest);
                 }
                 builder.endObject();
 

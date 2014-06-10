@@ -41,7 +41,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestClearIndicesCacheAction extends BaseRestHandler {
+public class RestClearIndicesCacheAction extends BaseActionRequestRestHandler<ClearIndicesCacheRequest> {
 
     @Inject
     public RestClearIndicesCacheAction(Settings settings, Client client, RestController controller) {
@@ -54,12 +54,17 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClearIndicesCacheRequest newRequest(RestRequest request) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clearIndicesCacheRequest.listenerThreaded(false);
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
         fromRequest(request, clearIndicesCacheRequest);
-        client.admin().indices().clearCache(clearIndicesCacheRequest, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
+        return clearIndicesCacheRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClearIndicesCacheRequest request) {
+        client.admin().indices().clearCache(request, new RestBuilderListener<ClearIndicesCacheResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClearIndicesCacheResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

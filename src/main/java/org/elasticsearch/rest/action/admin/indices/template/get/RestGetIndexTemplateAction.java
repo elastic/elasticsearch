@@ -40,7 +40,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetIndexTemplateAction extends BaseRestHandler {
+public class RestGetIndexTemplateAction extends BaseActionRequestRestHandler<GetIndexTemplatesRequest> {
 
     @Inject
     public RestGetIndexTemplateAction(Settings settings, Client client, RestController controller) {
@@ -51,23 +51,27 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetIndexTemplatesRequest newRequest(RestRequest request) {
         final String[] names = Strings.splitStringByCommaToArray(request.param("name"));
-
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.listenerThreaded(false);
+        return getIndexTemplatesRequest;
+    }
 
-        final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetIndexTemplatesRequest request) {
 
-        client.admin().indices().getTemplates(getIndexTemplatesRequest, new RestBuilderListener<GetIndexTemplatesResponse>(channel) {
+        final boolean implicitAll = request.names().length == 0;
+
+        client.admin().indices().getTemplates(request, new RestBuilderListener<GetIndexTemplatesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetIndexTemplatesResponse getIndexTemplatesResponse, XContentBuilder builder) throws Exception {
                 boolean templateExists = getIndexTemplatesResponse.getIndexTemplates().size() > 0;
 
                 Map<String, String> paramsMap = Maps.newHashMap();
                 paramsMap.put("reduce_mappings", "true");
-                ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
+                ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, restRequest);
 
                 builder.startObject();
                 for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplatesResponse.getIndexTemplates()) {

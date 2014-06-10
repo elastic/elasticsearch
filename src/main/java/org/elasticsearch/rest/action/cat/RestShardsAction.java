@@ -58,14 +58,14 @@ public class RestShardsAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = copyHeaders(request, new ClusterStateRequest());
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                IndicesStatsRequest indicesStatsRequest = copyHeaders(request, new IndicesStatsRequest());
                 indicesStatsRequest.all();
                 client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                     @Override

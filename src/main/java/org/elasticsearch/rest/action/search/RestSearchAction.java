@@ -29,12 +29,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -48,7 +47,7 @@ import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 /**
  *
  */
-public class RestSearchAction extends BaseRestHandler {
+public class RestSearchAction extends BaseActionRequestRestHandler<SearchRequest> {
 
     @Inject
     public RestSearchAction(Settings settings, Client client, RestController controller) {
@@ -68,11 +67,15 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-        SearchRequest searchRequest;
-        searchRequest = RestSearchAction.parseSearchRequest(request);
+    protected SearchRequest newRequest(RestRequest request) {
+        SearchRequest searchRequest = RestSearchAction.parseSearchRequest(request);
         searchRequest.listenerThreaded(false);
-        client.search(searchRequest, new RestStatusToXContentListener<SearchResponse>(channel));
+        return searchRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, SearchRequest request) {
+        client.search(request, new RestStatusToXContentListener<SearchResponse>(channel));
     }
 
     public static SearchRequest parseSearchRequest(RestRequest request) {

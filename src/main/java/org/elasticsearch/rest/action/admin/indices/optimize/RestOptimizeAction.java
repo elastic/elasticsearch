@@ -38,7 +38,7 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 /**
  *
  */
-public class RestOptimizeAction extends BaseRestHandler {
+public class RestOptimizeAction extends BaseActionRequestRestHandler<OptimizeRequest> {
 
     @Inject
     public RestOptimizeAction(Settings settings, Client client, RestController controller) {
@@ -51,7 +51,7 @@ public class RestOptimizeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected OptimizeRequest newRequest(RestRequest request) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         optimizeRequest.listenerThreaded(false);
         optimizeRequest.indicesOptions(IndicesOptions.fromRequest(request, optimizeRequest.indicesOptions()));
@@ -60,7 +60,12 @@ public class RestOptimizeAction extends BaseRestHandler {
         optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
         optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
         optimizeRequest.force(request.paramAsBoolean("force", optimizeRequest.force()));
-        client.admin().indices().optimize(optimizeRequest, new RestBuilderListener<OptimizeResponse>(channel) {
+        return optimizeRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, OptimizeRequest request) {
+        client.admin().indices().optimize(request, new RestBuilderListener<OptimizeResponse>(channel) {
             @Override
             public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

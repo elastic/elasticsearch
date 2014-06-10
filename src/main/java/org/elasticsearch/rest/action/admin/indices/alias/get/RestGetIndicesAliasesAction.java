@@ -42,7 +42,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  */
 @Deprecated
-public class RestGetIndicesAliasesAction extends BaseRestHandler {
+public class RestGetIndicesAliasesAction extends BaseActionRequestRestHandler<ClusterStateRequest> {
 
     @Inject
     public RestGetIndicesAliasesAction(Settings settings, Client client, RestController controller) {
@@ -54,23 +54,25 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ClusterStateRequest newRequest(RestRequest request) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
-
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .routingTable(false)
                 .nodes(false)
                 .indices(indices);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.listenerThreaded(false);
+        return clusterStateRequest;
+    }
 
-        client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterStateRequest request) {
+        client.admin().cluster().state(request, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 MetaData metaData = response.getState().metaData();
                 builder.startObject();
-
+                final String[] aliases = Strings.splitStringByCommaToArray(restRequest.param("name"));
                 final boolean isAllAliasesRequested = isAllOrWildcard(aliases);
                 for (IndexMetaData indexMetaData : metaData) {
                     builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);

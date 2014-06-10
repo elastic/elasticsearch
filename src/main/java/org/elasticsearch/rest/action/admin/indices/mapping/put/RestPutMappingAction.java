@@ -26,7 +26,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -36,8 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  *
  */
-public class RestPutMappingAction extends BaseRestHandler {
-
+public class RestPutMappingAction extends BaseActionRequestRestHandler<PutMappingRequest> {
 
     @Inject
     public RestPutMappingAction(Settings settings, Client client, RestController controller) {
@@ -65,7 +67,7 @@ public class RestPutMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected PutMappingRequest newRequest(RestRequest request) {
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));
         putMappingRequest.listenerThreaded(false);
         putMappingRequest.type(request.param("type"));
@@ -74,6 +76,11 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
-        client.admin().indices().putMapping(putMappingRequest, new AcknowledgedRestListener<PutMappingResponse>(channel));
+        return putMappingRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, PutMappingRequest request) {
+        client.admin().indices().putMapping(request, new AcknowledgedRestListener<PutMappingResponse>(channel));
     }
 }

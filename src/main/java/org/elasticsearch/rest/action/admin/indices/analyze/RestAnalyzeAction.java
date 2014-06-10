@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestAnalyzeAction extends BaseRestHandler {
+public class RestAnalyzeAction extends BaseActionRequestRestHandler<AnalyzeRequest> {
 
     @Inject
     public RestAnalyzeAction(Settings settings, Client client, RestController controller) {
@@ -48,7 +48,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected AnalyzeRequest newRequest(RestRequest request) {
         String text = request.param("text");
         if (text == null && request.hasContent()) {
             text = request.content().toUtf8();
@@ -65,6 +65,11 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.tokenizer(request.param("tokenizer"));
         analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
         analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
+        return analyzeRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, AnalyzeRequest request) {
+        client.admin().indices().analyze(request, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 }

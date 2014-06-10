@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Restores a snapshot
  */
-public class RestRestoreSnapshotAction extends BaseRestHandler {
+public class RestRestoreSnapshotAction extends BaseActionRequestRestHandler<RestoreSnapshotRequest> {
 
     @Inject
     public RestRestoreSnapshotAction(Settings settings, Client client, RestController controller) {
@@ -45,11 +45,16 @@ public class RestRestoreSnapshotAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected RestoreSnapshotRequest newRequest(RestRequest request) {
         RestoreSnapshotRequest restoreSnapshotRequest = restoreSnapshotRequest(request.param("repository"), request.param("snapshot"));
         restoreSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", restoreSnapshotRequest.masterNodeTimeout()));
         restoreSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         restoreSnapshotRequest.source(request.content().toUtf8());
-        client.admin().cluster().restoreSnapshot(restoreSnapshotRequest, new RestToXContentListener<RestoreSnapshotResponse>(channel));
+        return restoreSnapshotRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, RestoreSnapshotRequest request) {
+        client.admin().cluster().restoreSnapshot(request, new RestToXContentListener<RestoreSnapshotResponse>(channel));
     }
 }

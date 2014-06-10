@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestHeadAction extends BaseRestHandler {
+public class RestHeadAction extends BaseActionRequestRestHandler<GetRequest> {
 
     @Inject
     public RestHeadAction(Settings settings, Client client, RestController controller) {
@@ -45,7 +45,7 @@ public class RestHeadAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetRequest newRequest(RestRequest request) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
@@ -56,9 +56,13 @@ public class RestHeadAction extends BaseRestHandler {
         getRequest.realtime(request.paramAsBoolean("realtime", null));
         // don't get any fields back...
         getRequest.fields(Strings.EMPTY_ARRAY);
-        // TODO we can also just return the document size as Content-Length
+        return getRequest;
+    }
 
-        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetRequest request) {
+        // TODO we can also just return the document size as Content-Length
+        client.get(request, new RestResponseListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response) {
                 if (!response.isExists()) {

@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetMappingAction extends BaseRestHandler {
+public class RestGetMappingAction extends BaseActionRequestRestHandler<GetMappingsRequest> {
 
     @Inject
     public RestGetMappingAction(Settings settings, Client client, RestController controller) {
@@ -57,25 +57,32 @@ public class RestGetMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetMappingsRequest newRequest(RestRequest request) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices).types(types);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getMappings(getMappingsRequest, new RestBuilderListener<GetMappingsResponse>(channel) {
+        return getMappingsRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final GetMappingsRequest request) {
+        //indices get resolved to concrete ones during request execution
+        final String[] originalIndices = request.indices();
+        client.admin().indices().getMappings(request, new RestBuilderListener<GetMappingsResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetMappingsResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
                 if (mappingsByIndex.isEmpty()) {
-                    if (indices.length != 0 && types.length != 0) {
+                    if (originalIndices.length != 0 && request.types().length != 0) {
                         return new BytesRestResponse(OK, builder.endObject());
-                    } else if (indices.length != 0) {
-                        return new BytesRestResponse(channel, new IndexMissingException(new Index(indices[0])));
-                    } else if (types.length != 0) {
-                        return new BytesRestResponse(channel, new TypeMissingException(new Index("_all"), types[0]));
+                    } else if (originalIndices.length != 0) {
+                        return new BytesRestResponse(channel, new IndexMissingException(new Index(originalIndices[0])));
+                    } else if (request.types().length != 0) {
+                        return new BytesRestResponse(channel, new TypeMissingException(new Index("_all"), request.types()[0]));
                     } else {
                         return new BytesRestResponse(OK, builder.endObject());
                     }

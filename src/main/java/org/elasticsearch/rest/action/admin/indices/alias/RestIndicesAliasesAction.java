@@ -28,7 +28,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.util.Map;
@@ -39,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  *
  */
-public class RestIndicesAliasesAction extends BaseRestHandler {
+public class RestIndicesAliasesAction extends BaseActionRequestRestHandler<IndicesAliasesRequest> {
 
     @Inject
     public RestIndicesAliasesAction(Settings settings, Client client, RestController controller) {
@@ -48,7 +51,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected IndicesAliasesRequest newRequest(RestRequest request) throws Exception {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.listenerThreaded(false);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
@@ -132,6 +135,11 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                 }
             }
         }
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
+        return indicesAliasesRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndicesAliasesRequest request) {
+        client.admin().indices().aliases(request, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
     }
 }

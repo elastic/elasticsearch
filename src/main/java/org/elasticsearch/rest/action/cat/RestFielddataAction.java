@@ -58,7 +58,7 @@ public class RestFielddataAction extends AbstractCatAction {
     @Override
     void doRequest(final RestRequest request, final RestChannel channel) {
 
-        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+        final NodesStatsRequest nodesStatsRequest = copyHeaders(request, new NodesStatsRequest());
         nodesStatsRequest.clear();
         nodesStatsRequest.indices(true);
         String[] fields = request.paramAsStringArray("fields", null);

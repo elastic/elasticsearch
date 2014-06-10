@@ -19,30 +19,28 @@
 
 package org.elasticsearch.rest.action.mlt;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.Scroll;
-
-import java.io.IOException;
 
 import static org.elasticsearch.client.Requests.moreLikeThisRequest;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
-public class RestMoreLikeThisAction extends BaseRestHandler {
+public class RestMoreLikeThisAction extends BaseActionRequestRestHandler<MoreLikeThisRequest> {
 
     @Inject
     public RestMoreLikeThisAction(Settings settings, Client client, RestController controller) {
@@ -52,7 +50,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected MoreLikeThisRequest newRequest(RestRequest request) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
         mltRequest.routing(request.param("routing"));
 
@@ -90,7 +88,11 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
                 mltRequest.searchSource(searchSource);
             }
         }
+        return mltRequest;
+    }
 
-        client.moreLikeThis(mltRequest, new RestToXContentListener<SearchResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, MoreLikeThisRequest request) {
+        client.moreLikeThis(request, new RestToXContentListener<SearchResponse>(channel));
     }
 }

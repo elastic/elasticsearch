@@ -31,8 +31,6 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -40,7 +38,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetSourceAction extends BaseRestHandler {
+public class RestGetSourceAction extends BaseActionRequestRestHandler<GetRequest> {
 
     @Inject
     public RestGetSourceAction(Settings settings, Client client, RestController controller) {
@@ -49,7 +47,7 @@ public class RestGetSourceAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetRequest newRequest(RestRequest request) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
@@ -62,23 +60,23 @@ public class RestGetSourceAction extends BaseRestHandler {
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         if (getRequest.fetchSourceContext() != null && !getRequest.fetchSourceContext().fetchSource()) {
-            try {
-                ActionRequestValidationException validationError = new ActionRequestValidationException();
-                validationError.addValidationError("fetching source can not be disabled");
-                channel.sendResponse(new BytesRestResponse(channel, validationError));
-            } catch (IOException e) {
-                logger.error("Failed to send failure response", e);
-            }
+            ActionRequestValidationException validationError = new ActionRequestValidationException();
+            validationError.addValidationError("fetching source can not be disabled");
+            throw validationError;
         }
+        return getRequest;
+    }
 
-        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetRequest request) {
+        client.get(request, new RestResponseListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response) throws Exception {
                 XContentBuilder builder = channel.newBuilder(response.getSourceInternal());
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
-                    XContentHelper.writeDirect(response.getSourceInternal(), builder, request);
+                    XContentHelper.writeDirect(response.getSourceInternal(), builder, restRequest);
                     return new BytesRestResponse(OK, builder);
                 }
             }

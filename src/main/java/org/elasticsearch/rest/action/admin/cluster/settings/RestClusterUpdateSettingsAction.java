@@ -27,7 +27,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
@@ -35,7 +38,7 @@ import java.util.Map;
 
 /**
  */
-public class RestClusterUpdateSettingsAction extends BaseRestHandler {
+public class RestClusterUpdateSettingsAction extends BaseActionRequestRestHandler<ClusterUpdateSettingsRequest> {
 
     @Inject
     public RestClusterUpdateSettingsAction(Settings settings, Client client, RestController controller) {
@@ -44,7 +47,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    protected ClusterUpdateSettingsRequest newRequest(RestRequest request) throws Exception {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.listenerThreaded(false);
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
@@ -56,16 +59,20 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         if (source.containsKey("persistent")) {
             clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
         }
+        return clusterUpdateSettingsRequest;
+    }
 
-        client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, ClusterUpdateSettingsRequest request) {
+        client.admin().cluster().updateSettings(request, new AcknowledgedRestListener<ClusterUpdateSettingsResponse>(channel) {
             @Override
             protected void addCustomFields(XContentBuilder builder, ClusterUpdateSettingsResponse response) throws IOException {
                 builder.startObject("persistent");
-                response.getPersistentSettings().toXContent(builder, request);
+                response.getPersistentSettings().toXContent(builder, restRequest);
                 builder.endObject();
 
                 builder.startObject("transient");
-                response.getTransientSettings().toXContent(builder, request);
+                response.getTransientSettings().toXContent(builder, restRequest);
                 builder.endObject();
             }
         });

@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetAction extends BaseRestHandler {
+public class RestGetAction extends BaseActionRequestRestHandler<GetRequest> {
 
     @Inject
     public RestGetAction(Settings settings, Client client, RestController controller) {
@@ -48,7 +48,7 @@ public class RestGetAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetRequest newRequest(RestRequest request) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
@@ -70,12 +70,16 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
+        return getRequest;
+    }
 
-        client.get(getRequest, new RestBuilderListener<GetResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetRequest request) {
+        client.get(request, new RestBuilderListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                response.toXContent(builder, request);
+                response.toXContent(builder, restRequest);
                 builder.endObject();
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);

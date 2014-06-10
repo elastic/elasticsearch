@@ -61,7 +61,7 @@ public class RestAllocationAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel) {
         final String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = copyHeaders(request, new ClusterStateRequest());
         clusterStateRequest.clear().routingTable(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
@@ -69,7 +69,7 @@ public class RestAllocationAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse state) {
-                NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
+                NodesStatsRequest statsRequest = copyHeaders(request, new NodesStatsRequest(nodes));
                 statsRequest.clear().fs(true);
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {

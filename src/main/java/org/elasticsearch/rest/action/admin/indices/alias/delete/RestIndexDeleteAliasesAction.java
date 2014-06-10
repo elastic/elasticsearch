@@ -24,14 +24,17 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  */
-public class RestIndexDeleteAliasesAction extends BaseRestHandler {
+public class RestIndexDeleteAliasesAction extends BaseActionRequestRestHandler<IndicesAliasesRequest> {
 
     @Inject
     public RestIndexDeleteAliasesAction(Settings settings, Client client, RestController controller) {
@@ -41,14 +44,18 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected IndicesAliasesRequest newRequest(RestRequest request) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
         indicesAliasesRequest.timeout(request.paramAsTime("timeout", indicesAliasesRequest.timeout()));
         indicesAliasesRequest.removeAlias(indices, aliases);
         indicesAliasesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", indicesAliasesRequest.masterNodeTimeout()));
+        return indicesAliasesRequest;
+    }
 
-        client.admin().indices().aliases(indicesAliasesRequest, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, IndicesAliasesRequest request) {
+        client.admin().indices().aliases(request, new AcknowledgedRestListener<IndicesAliasesResponse>(channel));
     }
 }

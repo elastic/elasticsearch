@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  *
  */
-public class RestGetFieldMappingAction extends BaseRestHandler {
+public class RestGetFieldMappingAction extends BaseActionRequestRestHandler<GetFieldMappingsRequest> {
 
     @Inject
     public RestGetFieldMappingAction(Settings settings, Client client, RestController controller) {
@@ -56,7 +56,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetFieldMappingsRequest newRequest(RestRequest request) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
@@ -64,20 +64,25 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         getMappingsRequest.indices(indices).types(types).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        client.admin().indices().getFieldMappings(getMappingsRequest, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
+        return getMappingsRequest;
+    }
 
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final GetFieldMappingsRequest request) {
+
+        client.admin().indices().getFieldMappings(request, new RestBuilderListener<GetFieldMappingsResponse>(channel) {
             @SuppressWarnings("unchecked")
             @Override
             public RestResponse buildResponse(GetFieldMappingsResponse response, XContentBuilder builder) throws Exception {
                 ImmutableMap<String, ImmutableMap<String, ImmutableMap<String, FieldMappingMetaData>>> mappingsByIndex = response.mappings();
 
-                boolean isPossibleSingleFieldRequest = indices.length == 1 && types.length == 1 && fields.length == 1;
+                boolean isPossibleSingleFieldRequest = request.indices().length == 1 && request.types().length == 1 && request.fields().length == 1;
                 if (isPossibleSingleFieldRequest && isFieldMappingMissingField(mappingsByIndex)) {
                     return new BytesRestResponse(OK, builder.startObject().endObject());
                 }
 
                 RestStatus status = OK;
-                if (mappingsByIndex.isEmpty() && fields.length > 0) {
+                if (mappingsByIndex.isEmpty() && request.fields().length > 0) {
                     status = NOT_FOUND;
                 }
                 builder.startObject();

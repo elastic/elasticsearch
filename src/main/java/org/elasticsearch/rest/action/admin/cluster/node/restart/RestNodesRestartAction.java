@@ -32,7 +32,7 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 /**
  *
  */
-public class RestNodesRestartAction extends BaseRestHandler {
+public class RestNodesRestartAction extends BaseActionRequestRestHandler<NodesRestartRequest> {
 
     @Inject
     public RestNodesRestartAction(Settings settings, Client client, RestController controller) {
@@ -43,12 +43,17 @@ public class RestNodesRestartAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected NodesRestartRequest newRequest(RestRequest request) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesRestartRequest nodesRestartRequest = new NodesRestartRequest(nodesIds);
         nodesRestartRequest.listenerThreaded(false);
         nodesRestartRequest.delay(request.paramAsTime("delay", nodesRestartRequest.delay()));
-        client.admin().cluster().nodesRestart(nodesRestartRequest, new RestBuilderListener<NodesRestartResponse>(channel) {
+        return nodesRestartRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, NodesRestartRequest request) {
+        client.admin().cluster().nodesRestart(request, new RestBuilderListener<NodesRestartResponse>(channel) {
             @Override
             public RestResponse buildResponse(NodesRestartResponse result, XContentBuilder builder) throws Exception {
                 builder.startObject();

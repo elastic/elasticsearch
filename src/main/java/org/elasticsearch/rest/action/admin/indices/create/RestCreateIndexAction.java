@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -33,7 +33,7 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 /**
  *
  */
-public class RestCreateIndexAction extends BaseRestHandler {
+public class RestCreateIndexAction extends BaseActionRequestRestHandler<CreateIndexRequest> {
 
     @Inject
     public RestCreateIndexAction(Settings settings, Client client, RestController controller) {
@@ -42,9 +42,8 @@ public class RestCreateIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected CreateIndexRequest newRequest(RestRequest request) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         createIndexRequest.listenerThreaded(false);
         if (request.hasContent()) {
@@ -52,6 +51,11 @@ public class RestCreateIndexAction extends BaseRestHandler {
         }
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));
         createIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createIndexRequest.masterNodeTimeout()));
-        client.admin().indices().create(createIndexRequest, new AcknowledgedRestListener<CreateIndexResponse>(channel));
+        return createIndexRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, CreateIndexRequest request) {
+        client.admin().indices().create(request, new AcknowledgedRestListener<CreateIndexResponse>(channel));
     }
 }

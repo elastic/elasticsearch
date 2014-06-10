@@ -36,7 +36,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * REST handler to report on index recoveries.
  */
-public class RestRecoveryAction extends BaseRestHandler {
+public class RestRecoveryAction extends BaseActionRequestRestHandler<RecoveryRequest> {
 
     @Inject
     public RestRecoveryAction(Settings settings, Client client, RestController controller) {
@@ -46,25 +46,27 @@ public class RestRecoveryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
-
+    protected RecoveryRequest newRequest(RestRequest request) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.listenerThreaded(false);
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
+        return recoveryRequest;
+    }
 
-        client.admin().indices().recoveries(recoveryRequest, new RestBuilderListener<RecoveryResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final RecoveryRequest request) {
+        client.admin().indices().recoveries(request, new RestBuilderListener<RecoveryResponse>(channel) {
             @Override
             public RestResponse buildResponse(RecoveryResponse response, XContentBuilder builder) throws Exception {
-                response.detailed(recoveryRequest.detailed());
+                response.detailed(request.detailed());
                 builder.startObject();
-                response.toXContent(builder, request);
+                response.toXContent(builder, restRequest);
                 builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
         });
-
     }
 }
 

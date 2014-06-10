@@ -48,7 +48,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 /**
  * Rest action for computing a score explanation for specific documents.
  */
-public class RestExplainAction extends BaseRestHandler {
+public class RestExplainAction extends BaseActionRequestRestHandler<ExplainRequest> {
 
     @Inject
     public RestExplainAction(Settings settings, Client client, RestController controller) {
@@ -58,7 +58,7 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected ExplainRequest newRequest(RestRequest request) {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));
@@ -101,14 +101,18 @@ public class RestExplainAction extends BaseRestHandler {
         }
 
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
+        return explainRequest;
+    }
 
-        client.explain(explainRequest, new RestBuilderListener<ExplainResponse>(channel) {
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, final ExplainRequest request) {
+        client.explain(request, new RestBuilderListener<ExplainResponse>(channel) {
             @Override
             public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                builder.field(Fields._INDEX, explainRequest.index())
-                        .field(Fields._TYPE, explainRequest.type())
-                        .field(Fields._ID, explainRequest.id())
+                builder.field(Fields._INDEX, request.index())
+                        .field(Fields._TYPE, request.type())
+                        .field(Fields._ID, request.id())
                         .field(Fields.MATCHED, response.isMatch());
 
                 if (response.hasExplanation()) {
@@ -119,7 +123,7 @@ public class RestExplainAction extends BaseRestHandler {
                 GetResult getResult = response.getGetResult();
                 if (getResult != null) {
                     builder.startObject(Fields.GET);
-                    response.getGetResult().toXContentEmbedded(builder, request);
+                    response.getGetResult().toXContentEmbedded(builder, restRequest);
                     builder.endObject();
                 }
                 builder.endObject();

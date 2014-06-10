@@ -26,13 +26,16 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 /**
  *
  */
-public class RestOpenIndexAction extends BaseRestHandler {
+public class RestOpenIndexAction extends BaseActionRequestRestHandler<OpenIndexRequest> {
 
     @Inject
     public RestOpenIndexAction(Settings settings, Client client, RestController controller) {
@@ -42,12 +45,17 @@ public class RestOpenIndexAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected OpenIndexRequest newRequest(RestRequest request) {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.listenerThreaded(false);
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));
         openIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", openIndexRequest.masterNodeTimeout()));
         openIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, openIndexRequest.indicesOptions()));
-        client.admin().indices().open(openIndexRequest, new AcknowledgedRestListener<OpenIndexResponse>(channel));
+        return openIndexRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, OpenIndexRequest request) {
+        client.admin().indices().open(request, new AcknowledgedRestListener<OpenIndexResponse>(channel));
     }
 }

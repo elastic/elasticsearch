@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.rest.action.percolate;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.percolate.MultiPercolateRequest;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,21 +25,20 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseActionRequestRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
-public class RestMultiPercolateAction extends BaseRestHandler {
+public class RestMultiPercolateAction extends BaseActionRequestRestHandler<MultiPercolateRequest> {
 
     private final boolean allowExplicitIndex;
 
@@ -59,14 +57,18 @@ public class RestMultiPercolateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest restRequest, final RestChannel restChannel) throws Exception {
+    protected MultiPercolateRequest newRequest(RestRequest request) throws Exception {
         MultiPercolateRequest multiPercolateRequest = new MultiPercolateRequest();
-        multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
-        multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
-        multiPercolateRequest.documentType(restRequest.param("type"));
-        multiPercolateRequest.add(RestActions.getRestContent(restRequest), restRequest.contentUnsafe(), allowExplicitIndex);
+        multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(request, multiPercolateRequest.indicesOptions()));
+        multiPercolateRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        multiPercolateRequest.documentType(request.param("type"));
+        multiPercolateRequest.add(RestActions.getRestContent(request), request.contentUnsafe(), allowExplicitIndex);
+        return multiPercolateRequest;
+    }
 
-        client.multiPercolate(multiPercolateRequest, new RestToXContentListener<MultiPercolateResponse>(restChannel));
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel restChannel, MultiPercolateRequest request) {
+        client.multiPercolate(request, new RestToXContentListener<MultiPercolateResponse>(restChannel));
     }
 
 }

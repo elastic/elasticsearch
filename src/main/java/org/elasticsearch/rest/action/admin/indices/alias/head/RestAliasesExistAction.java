@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.indices.alias.head;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -36,7 +35,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
-public class RestAliasesExistAction extends BaseRestHandler {
+public class RestAliasesExistAction extends BaseActionRequestRestHandler<GetAliasesRequest> {
 
     @Inject
     public RestAliasesExistAction(Settings settings, Client client, RestController controller) {
@@ -47,35 +46,25 @@ public class RestAliasesExistAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected GetAliasesRequest newRequest(RestRequest request) {
         String[] aliases = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
+        return getAliasesRequest;
+    }
 
-        client.admin().indices().aliasesExist(getAliasesRequest, new ActionListener<AliasesExistResponse>() {
-
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, GetAliasesRequest request) {
+        client.admin().indices().aliasesExist(request, new RestResponseListener<AliasesExistResponse>(channel) {
             @Override
-            public void onResponse(AliasesExistResponse response) {
-                try {
-                    if (response.isExists()) {
-                        channel.sendResponse(new BytesRestResponse(OK));
-                    } else {
-                        channel.sendResponse(new BytesRestResponse(NOT_FOUND));
-                    }
-                } catch (Throwable e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(ExceptionsHelper.status(e)));
-                } catch (Exception e1) {
-                    logger.error("Failed to send failure response", e1);
+            public RestResponse buildResponse(AliasesExistResponse response) {
+                if (response.isExists()) {
+                    return new BytesRestResponse(OK);
+                } else {
+                    return new BytesRestResponse(NOT_FOUND);
                 }
             }
         });

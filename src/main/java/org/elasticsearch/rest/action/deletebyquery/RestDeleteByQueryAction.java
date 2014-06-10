@@ -43,7 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  *
  */
-public class RestDeleteByQueryAction extends BaseRestHandler {
+public class RestDeleteByQueryAction extends BaseActionRequestRestHandler<DeleteByQueryRequest> {
 
     @Inject
     public RestDeleteByQueryAction(Settings settings, Client client, RestController controller) {
@@ -53,7 +53,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    protected DeleteByQueryRequest newRequest(RestRequest request) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         deleteByQueryRequest.listenerThreaded(false);
         if (request.hasContent()) {
@@ -82,7 +82,12 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         deleteByQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, deleteByQueryRequest.indicesOptions()));
-        client.deleteByQuery(deleteByQueryRequest, new RestBuilderListener<DeleteByQueryResponse>(channel) {
+        return deleteByQueryRequest;
+    }
+
+    @Override
+    public void doHandleRequest(final RestRequest restRequest, final RestChannel channel, DeleteByQueryRequest request) {
+        client.deleteByQuery(request, new RestBuilderListener<DeleteByQueryResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteByQueryResponse result, XContentBuilder builder) throws Exception {
                 RestStatus restStatus = result.status();

@@ -332,8 +332,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client().prepareIndex("test2", "type", Integer.toString(1)).setSource("field", "value").execute().actionGet();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
         int numShards1 = getNumShards("test1").totalNumShards;
         int numShards2 = getNumShards("test2").totalNumShards;
 
@@ -371,8 +371,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
         client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
         client().prepareSearch("_all").addSort("bar", SortOrder.ASC).addSort("baz", SortOrder.ASC).execute().actionGet();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -412,20 +412,15 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testCompletionFieldsParam() throws Exception {
 
-        client().admin()
-                .indices()
-                .prepareCreate("test1")
-                .setSettings(indexSettings())
+        assertAcked(prepareCreate("test1")
                 .addMapping(
                         "bar",
-                        "{ \"properties\": { \"bar\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}")
-                .execute().actionGet();
+                        "{ \"properties\": { \"bar\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"string\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
         ensureGreen();
 
         client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
         client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
@@ -469,8 +464,8 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
         ensureGreen();
 
         client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
+        refresh();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
         client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -507,8 +502,7 @@ public class SimpleIndexStatsTests extends ElasticsearchIntegrationTest {
 
         client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
         client().prepareIndex("test2", "baz", Integer.toString(1)).setSource("foo","bar").execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();

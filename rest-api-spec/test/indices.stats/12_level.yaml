@@ -62,8 +62,8 @@
   - is_true:  _all.total.docs
   - is_true:  indices.test1.total.docs
   - is_true:  indices.test1.total.docs
-  - is_true:  indices.test1.shards.0.0.docs
+  - is_true:  indices.test1.shards
   - is_true:  indices.test2.total.docs
   - is_true:  indices.test2.total.docs
-  - is_true:  indices.test2.shards.0.0.docs
+  - is_true:  indices.test2.shards
 

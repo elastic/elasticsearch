@@ -19,9 +19,16 @@
 
 package org.elasticsearch.index.engine.internal;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.translog.Translog;
 
 class VersionValue {
+    // TODO: add implements Accountable with Lucene 4.9
+    static {
+        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_48 : "Add 'implements Accountable' here";
+    }
+
     private final long version;
     private final Translog.Location translogLocation;
 
@@ -44,5 +51,10 @@ class VersionValue {
 
     public Translog.Location translogLocation() {
         return this.translogLocation;
+    }
+
+    // @Override
+    public long ramBytesUsed() {
+        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_OBJECT_REF + translogLocation.ramBytesUsed();
     }
 }

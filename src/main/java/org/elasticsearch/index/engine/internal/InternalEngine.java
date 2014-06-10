@@ -489,7 +489,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     /** Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer). */
     private void checkVersionMapRefresh() {
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsed.get()/1024/1024. > 0.25*this.indexWriter.getConfig().getRAMBufferSizeMB()) {
+        if (versionMap.ramBytesUsed()/1024/1024. > 0.25*this.indexWriter.getConfig().getRAMBufferSizeMB()) {
             // Now refresh to clear versionMap adds:
             // TODO: should we instead ask refresh threadPool to do this?
             refresh(new Refresh("version_table_full"));

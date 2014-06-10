@@ -50,25 +50,20 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
 
     /** Bytes consumed for each added UID + version, not including UID's bytes.
      *
-     *  TransLog.Location:
-     *     + NUM_BYTES_OBJECT_HEADER + NUM_BYTES_INT + 2*NUM_BYTES_LONG
-     *
-     * VersionValue:
-     *     + NUM_BYTES_OBJECT_HEADER + NUM_BYTES_LONG + NUM_BYTES_OBJECT_REF
+     * VersionValue.ramBytesUsed() +
      *
      * BytesRef:
-     *     + NUM_BYTES_OBJECT_HEADER + 2 * NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER + uid.text().length()
+     *     + NUM_BYTES_OBJECT_HEADER + 2*NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER [ + uid.text().length()]
      *
      * CHM.Entry:
      *     + NUM_BYTES_OBJECT_HEADER + 3*NUM_BYTES_OBJECT_REF + NUM_BYTES_INT
      *
      * CHM's pointer to CHM.Entry, double for approx load factor:
-     *     + NUM_BYTES_OBJECT_REF*2 */
+     *     + 2*NUM_BYTES_OBJECT_REF */
 
-    private static final int BASE_BYTES_PER_ADD = 4*RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
-        4*RamUsageEstimator.NUM_BYTES_INT +
-        3*RamUsageEstimator.NUM_BYTES_LONG +
-        7*RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
+    private static final int BASE_BYTES_PER_ADD = 2*RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
+        3*RamUsageEstimator.NUM_BYTES_INT +
+        6*RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
         RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 
     final AtomicLong ramBytesUsed = new AtomicLong();
@@ -130,14 +125,15 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     public void putUnderLock(BytesRef uid, VersionValue version) {
         deletes.remove(uid);
         if (addsCurrent.put(uid, version) == null) {
-            ramBytesUsed.addAndGet(BASE_BYTES_PER_ADD + uid.bytes.length);
+            ramBytesUsed.addAndGet(BASE_BYTES_PER_ADD + uid.bytes.length + version.ramBytesUsed());
         }
     }
 
     /** Adds this uid/version to the pending deletes map. */
     public void putDeleteUnderLock(BytesRef uid, VersionValue version) {
-        if (addsCurrent.remove(uid) != null) {
-            ramBytesUsed.addAndGet(-(BASE_BYTES_PER_ADD + uid.bytes.length));
+        VersionValue oldVersion = addsCurrent.remove(uid);
+        if (oldVersion != null) {
+            ramBytesUsed.addAndGet(-(BASE_BYTES_PER_ADD + uid.bytes.length - oldVersion.ramBytesUsed()));
         }
         addsOld.remove(uid);
         deletes.put(uid, version);
@@ -168,5 +164,10 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
             mgr.removeListener(this);
             mgr = null;
         }
+    }
+
+    // @Override
+    public long ramBytesUsed() {
+        return ramBytesUsed.get();
     }
 }

@@ -47,12 +47,12 @@ public class HighlighterContext {
         this.query = query;
     }
 
-    static class HighlightQuery {
+    public static class HighlightQuery {
         private final Query originalQuery;
         private final Query query;
         private final boolean queryRewritten;
 
-        HighlightQuery(Query originalQuery, Query query, boolean queryRewritten) {
+        protected HighlightQuery(Query originalQuery, Query query, boolean queryRewritten) {
             this.originalQuery = originalQuery;
             this.query = query;
             this.queryRewritten = queryRewritten;

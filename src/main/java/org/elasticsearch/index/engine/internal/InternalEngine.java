@@ -97,7 +97,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     private volatile boolean compoundOnFlush = true;
 
     private long gcDeletesInMillis;
+
+    /** When we last pruned expired tombstones from versionMap.deletes: */
     private volatile long lastDeleteVersionPruneTimeMSec;
+
     private volatile boolean enableGcDeletes = true;
     private volatile String codecName;
     private final boolean optimizeAutoGenerateId;
@@ -519,7 +522,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             }
             updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
 
-
             index.updateVersion(updatedVersion);
             if (currentVersion == Versions.NOT_FOUND) {
                 // document does not exists, we can optimize for create
@@ -564,7 +566,11 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new DeleteFailedEngineException(shardId, delete, t);
         }
 
-        maybePruneDeletedVersions();
+        // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
+        // every 1/4 of gcDeletesInMillis:
+        if (threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
+            pruneDeletedTombstones();
+        }
     }
 
     private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
@@ -591,7 +597,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 }
             }
             updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
-
             final boolean found;
             if (currentVersion == Versions.NOT_FOUND) {
                 // doc does not exist and no prior deletes
@@ -607,7 +612,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
             delete.updateVersion(updatedVersion, found);
             Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putDeleteUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postDeleteUnderLock(delete);
         }
@@ -737,8 +742,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new RefreshFailedEngineException(shardId, t);
         }
 
-        // Prune deletes that are now visible in the searcher and have expired the index.gc_deletes:
-        pruneDeletedVersions(threadPool.estimatedTimeInMillis());
+        // We don't need to prune here, but it's an "opportune" time to, in case for example the wall clock time has shifted and we are
+        // never pruning in delete:
+        pruneDeletedTombstones();
     }
 
     @Override
@@ -793,8 +799,6 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                         } catch (Throwable t) {
                             logger.warn("Failed to close current SearcherManager", t);
                         }
-
-                        maybePruneDeletedVersions();
 
                     } catch (Throwable t) {
                         throw new FlushFailedEngineException(shardId, t);
@@ -885,35 +889,23 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         return writer;
     }
 
-    private void maybePruneDeletedVersions() {
-        // It's expensive to prune: we force a refresh, and then walk the deletes map acquiring dirtyLock for each uid, so we only do it
-        // every 1/4 of gcDeletesInMillis 
-        long timeMSec = threadPool.estimatedTimeInMillis();
-        if (timeMSec - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
-            refresh(new Refresh("prune_deleted_versions").force(true));
+    private void pruneDeletedTombstones() {
+        if (enableGcDeletes == false) {
+            return;
         }
-    }
 
-    private void pruneDeletedVersions(long timeMSec) {
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
+        long timeMSec = threadPool.estimatedTimeInMillis();
 
-        // we only need to prune deletes; the adds/updates are cleared whenever reader is refreshed:
-        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllDeletes()) {
+        // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
+        for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {
             BytesRef uid = entry.getKey();
             synchronized (dirtyLock(uid)) { // can we do it without this lock on each value? maybe batch to a set and get the lock once per set?
 
-                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
-                VersionValue versionValue = versionMap.getDeleteUnderLock(uid);
-                if (versionValue == null) {
-                    // another thread has re-added this uid since we started refreshing:
-                    continue;
-                }
-                if (timeMSec - versionValue.time() <= 0) {
-                    continue; // its a newer value, from after/during we refreshed, don't clear it
-                }
-                assert versionValue.delete();
-                if (enableGcDeletes && (timeMSec - versionValue.time()) > gcDeletesInMillis) {
-                    versionMap.removeDeleteUnderLock(uid);
+                // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:                
+                VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
+                if (timeMSec - versionValue.time() > gcDeletesInMillis) {
+                    versionMap.removeTombstoneUnderLock(uid);
                 }
             }
         }

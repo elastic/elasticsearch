@@ -572,6 +572,7 @@
                         <id>attach-sources</id>
                         <goals>
                             <goal>jar</goal>
+                            <goal>test-jar</goal>
                         </goals>
                     </execution>
                 </executions>

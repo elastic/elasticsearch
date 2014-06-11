@@ -39,7 +39,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -70,6 +69,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             .put("discovery.type", "zen") // <-- To override the local setting if set externally
             .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.fd.ping_retries", "1") // <-- for hitting simulated network failures quickly
+            .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("discovery.zen.minimum_master_nodes", 2)
             .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
             .build();
@@ -204,13 +204,13 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         ensureGreen("test");
 
         // Pick a node that isn't the elected master.
-        String isolatedNode = nodes.get(0);
+        final String isolatedNode = nodes.get(0);
         final String nonIsolatedNode = nodes.get(1);
 
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         randomIsolateNode(isolatedNode, nodes);
         try {
-            // Wait until elected master has removed that the unlucky node...
+            logger.info("wait until elected master has removed [{}]", isolatedNode);
             boolean applied = awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object input) {
@@ -221,12 +221,12 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
             // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
             // continuously ping until network failures have been resolved. However
-            final Client isolatedNodeClient = cluster().client(isolatedNode);
             // It may a take a bit before the node detects it has been cut off from the elected master
+            logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
             applied = awaitBusy(new Predicate<Object>() {
                 @Override
                 public boolean apply(Object input) {
-                    ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
+                    ClusterState localClusterState = client(isolatedNode).admin().cluster().prepareState().setLocal(true).get().getState();
                     DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
                     logger.info("localDiscoveryNodes=" + localDiscoveryNodes.prettyPrint());
                     return localDiscoveryNodes.masterNode() == null;
@@ -240,6 +240,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
             // Reads on the right side of the split must work
+            logger.info("verifying healthy part of cluster returns data");
             searchResponse = client(nonIsolatedNode).prepareSearch("test").setTypes("type")
                     .addSort("field", SortOrder.ASC)
                     .get();
@@ -251,20 +252,21 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
             }
 
             // Reads on the wrong side of the split are partial
-            searchResponse = isolatedNodeClient.prepareSearch("test").setTypes("type")
-                    .addSort("field", SortOrder.ASC)
+            logger.info("verifying isolated node [{}] returns partial data", isolatedNode);
+            searchResponse = client(isolatedNode).prepareSearch("test").setTypes("type")
+                    .addSort("field", SortOrder.ASC).setPreference("_only_local")
                     .get();
             assertThat(searchResponse.getSuccessfulShards(), lessThan(searchResponse.getTotalShards()));
             assertThat(searchResponse.getHits().totalHits(), lessThan((long) indexRequests.length));
 
-            // Writes on the right side of the split must work
+            logger.info("verifying writes on healthy cluster");
             UpdateResponse updateResponse = client(nonIsolatedNode).prepareUpdate("test", "type", "0").setDoc("field2", 2).get();
             assertThat(updateResponse.getVersion(), equalTo(2l));
 
-            // Writes on the wrong side of the split fail
             try {
-                isolatedNodeClient.prepareUpdate("test", "type", "0").setDoc("field2", 2)
-                        .setTimeout(TimeValue.timeValueSeconds(5)) // Fail quick, otherwise we wait 60 seconds.
+                logger.info("verifying writes on isolated [{}] fail", isolatedNode);
+                client(isolatedNode).prepareUpdate("test", "type", "0").setDoc("field2", 2)
+                        .setTimeout("1s") // Fail quick, otherwise we wait 60 seconds.
                         .get();
                 fail();
             } catch (ClusterBlockException exception) {
@@ -282,6 +284,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // Wait until the master node sees all 3 nodes again.
         ensureStableCluster(3);
 
+        logger.info("verifying all nodes return all data");
         for (Client client : clients()) {
             searchResponse = client.prepareSearch("test").setTypes("type")
                     .addSort("field", SortOrder.ASC)
@@ -434,7 +437,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     protected void randomIsolateNode(String isolatedNode, List<String> nodes) {
-        boolean unresponsive = false;
+        boolean unresponsive = randomBoolean();
         logger.info("isolating [{}] with unresponsive: [{}]", isolatedNode, unresponsive);
         for (String nodeId : nodes) {
             if (!nodeId.equals(isolatedNode)) {

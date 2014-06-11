@@ -551,15 +551,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static Client client() {
+        return client(null);
+    }
+
+    public static Client client(@Nullable String node) {
+        if (node != null) {
+            return cluster().client(node);
+        }
         Client client = immutableCluster().client();
         if (frequently()) {
             client = new RandomizingClient((InternalClient) client, getRandom());
         }
         return client;
-    }
-
-    public static Client client(@Nullable String node) {
-       return node == null? client() : cluster().client(node);
     }
 
     public static Client dataNodeClient() {

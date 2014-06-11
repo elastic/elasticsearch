@@ -55,6 +55,7 @@ public class DiscoverySettings extends AbstractComponent {
         super(settings);
         nodeSettingsService.addListener(new ApplySettings());
         this.noMasterBlock = parseNoMasterBlock(settings.get(NO_MASTER_BLOCK, DEFAULT_NO_MASTER_BLOCK));
+        this.publishTimeout = settings.getAsTime(PUBLISH_TIMEOUT, publishTimeout);
     }
 
     /**

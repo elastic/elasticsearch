@@ -646,6 +646,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     public static Client client() {
+        return client(null);
+    }
+
+    public static Client client(@Nullable String node) {
+        if (node != null) {
+            return internalCluster().client(node);
+        }
         Client client = cluster().client();
         if (frequently()) {
             client = new RandomizingClient(client, getRandom());

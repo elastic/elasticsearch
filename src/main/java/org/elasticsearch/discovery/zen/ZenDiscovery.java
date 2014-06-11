@@ -76,6 +76,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, DiscoveryNodesProvider {
 
+    private final static String REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
+
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -115,7 +117,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private final AtomicBoolean initialStateSent = new AtomicBoolean();
 
-    private final boolean rejoinOnMasterGone;
+    private volatile boolean rejoinOnMasterGone;
 
 
     @Nullable
@@ -142,7 +144,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean("discovery.zen.master_election.filter_data", false);
-        this.rejoinOnMasterGone = settings.getAsBoolean("discovery.zen.rejoin_on_master_gone", true);
+        this.rejoinOnMasterGone = settings.getAsBoolean(REJOIN_ON_MASTER_GONE, true);
 
         logger.debug("using ping.timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
@@ -1014,6 +1016,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 logger.info("updating {} from [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
                         ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
                 handleMinimumMasterNodesChanged(minimumMasterNodes);
+            }
+
+            boolean rejoinOnMasterGone = settings.getAsBoolean(REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone);
+            if (rejoinOnMasterGone != ZenDiscovery.this.rejoinOnMasterGone) {
+                logger.info("updating {} from [{}] to [{}]", REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone, rejoinOnMasterGone);
+                ZenDiscovery.this.rejoinOnMasterGone = rejoinOnMasterGone;
             }
         }
     }

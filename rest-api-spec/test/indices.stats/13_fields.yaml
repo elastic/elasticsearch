@@ -69,8 +69,8 @@
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.bar\\.completion
-  - gt:       { _all.total.completion.fields.baz\\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.bar\.completion
+  - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
 
 ---
 "Fields - star":
@@ -81,8 +81,8 @@
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - gt:       { _all.total.fielddata.fields.baz.memory_size_in_bytes: 0 }
   - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.baz\\.completion.size_in_bytes: 0 }
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
 
 ---
 "Fields - pattern":
@@ -93,8 +93,8 @@
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
 
 ---
 "Fields - _all metric":
@@ -105,8 +105,8 @@
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
 
 ---
 "Fields - fielddata metric":
@@ -125,8 +125,8 @@
 
   - is_false:   _all.total.fielddata
   - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
 
 ---
 "Fields - multi metric":
@@ -137,8 +137,8 @@
   - gt:       { _all.total.fielddata.fields.bar.memory_size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields.baz
   - gt:       { _all.total.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
 
 ---
 "Fielddata fields - one":
@@ -211,8 +211,8 @@
   - do:
       indices.stats: { completion_fields: bar.completion }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
   - is_false:   _all.total.fielddata.fields
 
 ---
@@ -220,8 +220,8 @@
   - do:
       indices.stats: { completion_fields: "bar.completion,baz,baz.completion" }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.baz\\.completion.size_in_bytes: 0 }
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields
 
 ---
@@ -229,8 +229,8 @@
   - do:
       indices.stats: { completion_fields: "*" }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - gt:       { _all.total.completion.fields.baz\\.completion.size_in_bytes: 0 }
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - gt:       { _all.total.completion.fields.baz\.completion.size_in_bytes: 0 }
   - is_false:   _all.total.fielddata.fields
 
 ---
@@ -238,8 +238,8 @@
   - do:
       indices.stats: { completion_fields: "*r*" }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
   - is_false:   _all.total.fielddata.fields
 
 ---
@@ -247,8 +247,8 @@
   - do:
       indices.stats: { completion_fields: "*r*", metric: _all }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
   - is_false:   _all.total.fielddata.fields
 
 ---
@@ -256,8 +256,8 @@
   - do:
       indices.stats: { completion_fields: "*r*", metric: completion }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
   - is_false:   _all.total.fielddata.fields
 
 ---
@@ -265,7 +265,7 @@
   - do:
       indices.stats: { completion_fields: "*r*", metric: [ completion, search ] }
 
-  - gt:       { _all.total.completion.fields.bar\\.completion.size_in_bytes: 0 }
-  - is_false:   _all.total.completion.fields.baz\\.completion
+  - gt:       { _all.total.completion.fields.bar\.completion.size_in_bytes: 0 }
+  - is_false:   _all.total.completion.fields.baz\.completion
   - is_false:   _all.total.fielddata.fields
 

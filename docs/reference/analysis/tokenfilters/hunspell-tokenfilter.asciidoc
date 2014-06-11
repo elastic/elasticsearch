@@ -5,7 +5,7 @@ Basic support for hunspell stemming. Hunspell dictionaries will be
 picked up from a dedicated hunspell directory on the filesystem
 (defaults to `<path.conf>/hunspell`). Each dictionary is expected to
 have its own directory named after its associated locale (language).
-This dictionary directory is expected to hold both the \*.aff and \*.dic
+This dictionary directory is expected to hold both the `*.aff` and `*.dic`
 files (all of which will automatically be picked up). For example,
 assuming the default hunspell location is used, the following directory
 layout will define the `en_US` dictionary:

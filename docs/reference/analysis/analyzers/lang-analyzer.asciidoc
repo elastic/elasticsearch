@@ -61,7 +61,7 @@ The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_arabic_" <1>
         },
         "arabic_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "arabic_stemmer": {
@@ -106,7 +106,7 @@ The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows
           "stopwords":  "_armenian_" <1>
         },
         "armenian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "armenian_stemmer": {
@@ -150,7 +150,7 @@ The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_basque_" <1>
         },
         "basque_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "basque_stemmer": {
@@ -194,7 +194,7 @@ The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follow
           "stopwords":  "_brazilian_" <1>
         },
         "brazilian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "brazilian_stemmer": {
@@ -238,7 +238,7 @@ The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follow
           "stopwords":  "_bulgarian_" <1>
         },
         "bulgarian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "bulgarian_stemmer": {
@@ -286,7 +286,7 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_catalan_" <1>
         },
         "catalan_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "catalan_stemmer": {
@@ -374,7 +374,7 @@ The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_czech_" <1>
         },
         "czech_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "czech_stemmer": {
@@ -418,7 +418,7 @@ The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_danish_" <1>
         },
         "danish_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "danish_stemmer": {
@@ -462,7 +462,7 @@ The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_dutch_" <1>
         },
         "dutch_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "dutch_stemmer": {
@@ -516,7 +516,7 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_english_" <1>
         },
         "english_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "english_possessive_stemmer": {
@@ -561,7 +561,7 @@ The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_finnish_" <1>
         },
         "finnish_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "finnish_stemmer": {
@@ -612,7 +612,7 @@ The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_french_" <1>
         },
         "french_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "french_stemmer": {
@@ -657,7 +657,7 @@ The `galician` analyzer could be reimplemented as a `custom` analyzer as follows
           "stopwords":  "_galician_" <1>
         },
         "galician_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "galician_stemmer": {
@@ -701,7 +701,7 @@ The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_german_" <1>
         },
         "german_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "german_stemmer": {
@@ -749,7 +749,7 @@ The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_greek_" <1>
         },
         "greek_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "greek_stemmer": {
@@ -800,7 +800,7 @@ The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follow
           "stopwords":  "_hungarian_" <1>
         },
         "hungarian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "hungarian_stemmer": {
@@ -845,7 +845,7 @@ The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follo
           "stopwords":  "_indonesian_" <1>
         },
         "indonesian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "indonesian_stemmer": {
@@ -898,7 +898,7 @@ The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_italian_" <1>
         },
         "italian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "italian_stemmer": {
@@ -943,7 +943,7 @@ The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follow
           "stopwords":  "_norwegian_" <1>
         },
         "norwegian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "norwegian_stemmer": {
@@ -1029,7 +1029,7 @@ The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follo
           "stopwords":  "_portuguese_" <1>
         },
         "portuguese_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "portuguese_stemmer": {
@@ -1073,7 +1073,7 @@ The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows
           "stopwords":  "_romanian_" <1>
         },
         "romanian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "romanian_stemmer": {
@@ -1118,7 +1118,7 @@ The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_russian_" <1>
         },
         "russian_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "russian_stemmer": {
@@ -1162,7 +1162,7 @@ The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_spanish_" <1>
         },
         "spanish_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "spanish_stemmer": {
@@ -1206,7 +1206,7 @@ The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
           "stopwords":  "_swedish_" <1>
         },
         "swedish_keywords": {
-          "type":       "stop",
+          "type":       "keyword_marker",
           "keywords":   [] <2>
         },
         "swedish_stemmer": {

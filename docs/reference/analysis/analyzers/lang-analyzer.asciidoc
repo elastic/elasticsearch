@@ -519,6 +519,10 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
           "type":       "keyword_marker",
           "keywords":   [] <2>
         },
+        "english_stemmer": {
+          "type":       "stemmer",
+          "language":   "english"
+        },
         "english_possessive_stemmer": {
           "type":       "stemmer",
           "language":   "possessive_english"
@@ -532,7 +536,7 @@ The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
             "lowercase",
             "english_stop",
             "english_keywords",
-            "porter_stem"
+            "english_stemmer"
           ]
         }
       }

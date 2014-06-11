@@ -100,9 +100,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.TestCluster.clusterName;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -558,6 +556,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             client = new RandomizingClient((InternalClient) client, getRandom());
         }
         return client;
+    }
+
+    public static Client client(@Nullable String node) {
+       return node == null? client() : cluster().client(node);
     }
 
     public static Client dataNodeClient() {

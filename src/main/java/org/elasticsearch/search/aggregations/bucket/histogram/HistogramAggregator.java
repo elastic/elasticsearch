@@ -109,7 +109,7 @@ public class HistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
         List<InternalHistogram.Bucket> buckets = new ArrayList<>((int) bucketOrds.size());
         for (long i = 0; i < bucketOrds.size(); i++) {
@@ -124,7 +124,7 @@ public class HistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
         return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed);
     }

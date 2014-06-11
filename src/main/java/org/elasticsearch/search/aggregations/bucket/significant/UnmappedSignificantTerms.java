@@ -82,7 +82,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         builder.startArray(CommonFields.BUCKETS).endArray();
         builder.endObject();
         return builder;

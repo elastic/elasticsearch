@@ -19,9 +19,10 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -99,6 +100,7 @@ public class AggregatorParsers {
 
             AggregatorFactory factory = null;
             AggregatorFactories subFactories = null;
+            byte[] metaData = null;
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
@@ -107,11 +109,16 @@ public class AggregatorParsers {
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT) {
+                if (token != XContentParser.Token.START_OBJECT && !fieldName.equals("_meta")) {
                     throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + aggregationName + "]");
                 }
 
                 switch (fieldName) {
+                    case "_meta":
+                        XContentBuilder xContentBuilder = XContentFactory.smileBuilder().copyCurrentStructure(parser);
+                        metaData =  xContentBuilder.bytes().toBytes();
+                        parser.skipChildren();
+                        break;
                     case "aggregations":
                     case "aggs":
                         if (subFactories != null) {
@@ -134,6 +141,8 @@ public class AggregatorParsers {
             if (factory == null) {
                 throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]");
             }
+            if (metaData != null)
+                factory.setMetaData(metaData);
 
             if (subFactories != null) {
                 factory.subFactories(subFactories);

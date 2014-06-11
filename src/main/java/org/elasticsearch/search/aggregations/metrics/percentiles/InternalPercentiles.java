@@ -137,7 +137,7 @@ public class InternalPercentiles extends InternalNumericMetricsAggregation.Multi
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         if (keyed) {
             builder.startObject(CommonFields.VALUES);
             for(int i = 0; i < percents.length; ++i) {

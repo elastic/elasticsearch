@@ -119,12 +119,12 @@ public class AggregatorFactories {
                 }
 
                 @Override
-                public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+                public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
                     throw new ElasticsearchIllegalStateException("Invalid context - aggregation must use addResults() to collect child results");
                 }
 
                 @Override
-                public InternalAggregation buildEmptyAggregation() {
+                public InternalAggregation buildEmptyInternalAggregation() {
                     return first.buildEmptyAggregation();
                 }
 

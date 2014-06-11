@@ -125,7 +125,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         final long cardinality = getValue();
         builder.field(CommonFields.VALUE, cardinality);
         if (valueFormatter != null) {

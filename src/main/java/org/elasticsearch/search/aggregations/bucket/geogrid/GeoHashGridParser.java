@@ -118,7 +118,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
             return new NonCollectingAggregator(name, aggregationContext, parent) {
-                public InternalAggregation buildEmptyAggregation() {
+                public InternalAggregation buildEmptyInternalAggregation() {
                     return aggregation;
                 }
             };

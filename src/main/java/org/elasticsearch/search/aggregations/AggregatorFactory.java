@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 /**
@@ -27,6 +28,7 @@ public abstract class AggregatorFactory {
 
     protected String name;
     protected String type;
+    protected byte[] metaData;
     protected AggregatorFactory parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
 
@@ -79,9 +81,18 @@ public abstract class AggregatorFactory {
      *
      * @return                      The created aggregator
      */
-    public abstract Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount);
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount);
+    public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount)
+    {
+        Aggregator aggregator = createInternal(context, parent, expectedBucketsCount);
+        aggregator.setMetaData(this.metaData);
+        return aggregator;
+    }
 
     public void doValidate() {
     }
 
+    public void setMetaData(byte[] metaData) {
+        this.metaData = metaData;
+    }
 }

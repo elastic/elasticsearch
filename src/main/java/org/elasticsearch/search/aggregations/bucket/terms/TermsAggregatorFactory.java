@@ -163,7 +163,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         final InternalAggregation aggregation = new UnmappedTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount());
         return new NonCollectingAggregator(name, aggregationContext, parent) {
             @Override
-            public InternalAggregation buildEmptyAggregation() {
+            public InternalAggregation buildEmptyInternalAggregation() {
                 return aggregation;
             }
         };

@@ -83,7 +83,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
             return new InternalMin(name, Double.POSITIVE_INFINITY);
         }
@@ -92,7 +92,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         return new InternalMin(name, Double.POSITIVE_INFINITY);
     }
 

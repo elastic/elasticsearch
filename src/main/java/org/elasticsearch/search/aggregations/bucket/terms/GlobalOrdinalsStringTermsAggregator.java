@@ -110,7 +110,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         if (globalOrdinals == null) { // no context in this reader
             return buildEmptyAggregation();
         }

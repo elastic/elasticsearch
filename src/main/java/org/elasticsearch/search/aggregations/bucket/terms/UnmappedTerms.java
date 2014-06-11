@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 
 import java.io.IOException;
@@ -82,10 +85,12 @@ public class UnmappedTerms extends InternalTerms {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         builder.startArray(CommonFields.BUCKETS).endArray();
         builder.endObject();
         return builder;
     }
+
+
 
 }

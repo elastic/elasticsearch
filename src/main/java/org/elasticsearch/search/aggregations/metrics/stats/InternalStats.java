@@ -191,7 +191,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         builder.field(Fields.COUNT, count);
         builder.field(Fields.MIN, count != 0 ? min : null);
         builder.field(Fields.MAX, count != 0 ? max : null);

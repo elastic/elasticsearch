@@ -63,12 +63,12 @@ public class FilterAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         return new InternalFilter(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         return new InternalFilter(name, 0, buildEmptySubAggregations());
     }
 
@@ -82,7 +82,7 @@ public class FilterAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+        protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
             return new FilterAggregator(name, filter, factories, context, parent);
         }
 

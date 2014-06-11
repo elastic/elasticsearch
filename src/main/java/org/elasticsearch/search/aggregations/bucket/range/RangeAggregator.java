@@ -193,7 +193,7 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
@@ -207,7 +207,7 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
@@ -268,7 +268,7 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public InternalAggregation buildEmptyAggregation() {
+        public InternalAggregation buildEmptyInternalAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.size());
             for (RangeAggregator.Range range : ranges) {

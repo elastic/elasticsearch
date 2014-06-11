@@ -46,7 +46,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+    protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
         if (config.unmapped()) {
             return createUnmapped(context, parent);
         }

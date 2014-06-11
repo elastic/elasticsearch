@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +39,8 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
 
     private List<AbstractAggregationBuilder> aggregations;
     private BytesReference aggregationsBinary;
+
+    private Object metaData;
 
     protected AggregationBuilder(String name, String type) {
         super(name, type);
@@ -98,11 +101,23 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
         }
     }
 
+    /**
+     *
+     */
+    public B setMetaData(Object metaData) {
+        this.metaData = metaData;
+        return (B)this;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
 
+        if (this.metaData != null) {
+            builder.field("_meta", this.metaData);
+        }
         builder.field(type);
+
         internalXContent(builder, params);
 
         if (aggregations != null || aggregationsBinary != null) {
@@ -124,6 +139,8 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
 
             builder.endObject();
         }
+
+
 
         return builder.endObject();
     }

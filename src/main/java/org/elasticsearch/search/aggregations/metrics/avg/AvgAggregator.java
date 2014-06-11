@@ -84,7 +84,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         if (valuesSource == null || owningBucketOrdinal >= counts.size()) {
             return new InternalAvg(name, 0l, 0);
         }
@@ -92,7 +92,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         return new InternalAvg(name, 0.0, 0l);
     }
 

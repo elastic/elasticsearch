@@ -28,4 +28,13 @@ public interface Aggregation {
      */
     String getName();
 
+    /**
+     * Set an optional byte array of additional meta data to be rendered in the response
+     */
+    void setMetaData(byte[] bytes);
+
+    /**
+     * Get the optional byte array metadata that was set on the aggregation
+     */
+    byte[] getMetaData();
 }

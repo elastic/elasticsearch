@@ -56,7 +56,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public SignificantLongTerms buildAggregation(long owningBucketOrdinal) {
+    public SignificantLongTerms buildInternalAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
@@ -96,7 +96,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public SignificantLongTerms buildEmptyAggregation() {
+    public SignificantLongTerms buildEmptyInternalAggregation() {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();

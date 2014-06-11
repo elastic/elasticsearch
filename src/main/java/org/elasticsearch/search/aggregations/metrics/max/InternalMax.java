@@ -108,7 +108,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         boolean hasValue = !Double.isInfinite(max);
         builder.field(CommonFields.VALUE, hasValue ? max : null);
         if (hasValue && valueFormatter != null) {

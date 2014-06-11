@@ -291,7 +291,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         if (keyed) {
             builder.startObject(CommonFields.BUCKETS);
         } else {

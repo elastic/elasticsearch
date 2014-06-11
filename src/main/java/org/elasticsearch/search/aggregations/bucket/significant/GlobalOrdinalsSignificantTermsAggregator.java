@@ -59,10 +59,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     }
 
     @Override
-    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
+    public SignificantStringTerms buildInternalAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
         if (globalOrdinals == null) { // no context in this reader
-            return buildEmptyAggregation();
+            return buildEmptyInternalAggregation();
         }
 
         final int size;
@@ -118,7 +118,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     }
 
     @Override
-    public SignificantStringTerms buildEmptyAggregation() {
+    public SignificantStringTerms buildEmptyInternalAggregation() {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();

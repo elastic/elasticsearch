@@ -98,7 +98,8 @@ public class InternalValueCount extends InternalNumericMetricsAggregation implem
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject(name)
+        this.startAggregationObject(builder);
+        return builder
                 .field(CommonFields.VALUE, value)
                 .endObject();
     }

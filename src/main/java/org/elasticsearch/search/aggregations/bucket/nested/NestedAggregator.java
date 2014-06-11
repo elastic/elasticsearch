@@ -122,12 +122,12 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         return new InternalNested(name, 0, buildEmptySubAggregations());
     }
 
@@ -154,7 +154,7 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+        protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
             return new NestedAggregator(name, factories, path, context, parent);
         }
     }

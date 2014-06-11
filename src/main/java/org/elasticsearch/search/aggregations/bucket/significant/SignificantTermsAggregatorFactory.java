@@ -169,7 +169,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount());
         return new NonCollectingAggregator(name, aggregationContext, parent) {
             @Override
-            public InternalAggregation buildEmptyAggregation() {
+            public InternalAggregation buildEmptyInternalAggregation() {
                 return aggregation;
             }
         };

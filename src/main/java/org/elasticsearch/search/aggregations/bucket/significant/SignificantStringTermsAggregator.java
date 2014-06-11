@@ -62,7 +62,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     }
 
     @Override
-    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
+    public SignificantStringTerms buildInternalAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
@@ -106,7 +106,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     }
 
     @Override
-    public SignificantStringTerms buildEmptyAggregation() {
+    public SignificantStringTerms buildEmptyInternalAggregation() {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();

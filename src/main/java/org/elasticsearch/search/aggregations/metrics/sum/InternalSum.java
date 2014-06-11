@@ -108,7 +108,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        this.startAggregationObject(builder);
         builder.field(CommonFields.VALUE, sum);
         if (valueFormatter != null) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(sum));

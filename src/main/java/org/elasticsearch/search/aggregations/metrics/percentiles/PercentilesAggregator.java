@@ -112,7 +112,7 @@ public class PercentilesAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         TDigestState state = getState(owningBucketOrdinal);
         if (state == null) {
             return buildEmptyAggregation();
@@ -122,7 +122,7 @@ public class PercentilesAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         return new InternalPercentiles(name, percents, new TDigestState(compression), keyed);
     }
 

@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
@@ -44,6 +45,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
             return aggregator.shouldCollect();
         }
     };
+    protected byte[] metaData;
 
     /**
      * Returns whether any of the parent aggregators has {@link BucketAggregationMode#PER_BUCKET} as a bucket aggregation mode.
@@ -59,6 +61,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     public static final ParseField COLLECT_MODE = new ParseField("collect_mode");
+
+
 
     /**
      * Defines the nature of the aggregator's aggregation execution when nested in other aggregators and the buckets they create.
@@ -264,6 +268,12 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         } 
     }
 
+    public void setMetaData(byte[] metaData) {
+        this.metaData = metaData;
+    }
+    public byte[] metaData() {
+        return this.metaData;
+    }
     /**
      * @return  The name of the aggregation.
      */
@@ -355,17 +365,27 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     /**
      * @return  The aggregated & built aggregation
      */
-    public abstract InternalAggregation buildAggregation(long owningBucketOrdinal);
+    public InternalAggregation buildAggregation(long owningBucketOrdinal)
+    {
+        InternalAggregation agg = buildInternalAggregation(owningBucketOrdinal);
+        agg.setMetaData(this.metaData);
+        return agg;
+    }
+    protected abstract InternalAggregation buildInternalAggregation(long owningBucketOrdinal);
     
     @Override
     public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
         results.add(buildAggregation(bucketOrdinal));
     }
-    
-    
-    
 
-    public abstract InternalAggregation buildEmptyAggregation();
+    public InternalAggregation buildEmptyAggregation()
+    {
+        InternalAggregation agg = buildEmptyInternalAggregation();
+        agg.setMetaData(this.metaData);
+        return agg;
+    }
+
+    protected abstract InternalAggregation buildEmptyInternalAggregation();
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

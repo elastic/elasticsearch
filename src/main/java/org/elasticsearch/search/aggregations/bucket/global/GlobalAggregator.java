@@ -45,13 +45,13 @@ public class GlobalAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0 : "global aggregator can only be a top level aggregator";
         return new InternalGlobal(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         throw new UnsupportedOperationException("global aggregations cannot serve as sub-aggregations, hence should never be called on #buildEmptyAggregations");
     }
 
@@ -62,7 +62,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator create(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
+        protected Aggregator createInternal(AggregationContext context, Aggregator parent, long expectedBucketsCount) {
             if (parent != null) {
                 throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " +
                         "sub-aggregation [" + name + "]. Global aggregations can only be defined as top level aggregations");

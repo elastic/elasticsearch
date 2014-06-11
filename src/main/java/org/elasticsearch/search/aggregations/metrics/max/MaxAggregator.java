@@ -84,7 +84,7 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
             return new InternalMax(name, Double.NEGATIVE_INFINITY);
         }
@@ -93,7 +93,7 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
+    public InternalAggregation buildEmptyInternalAggregation() {
         return new InternalMax(name, Double.NEGATIVE_INFINITY);
     }
 

@@ -24,8 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 import java.util.List;
@@ -103,6 +102,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     protected String name;
 
+    protected byte[] metaData;
+
     /** Constructs an un initialized addAggregation (used for serialization) **/
     protected InternalAggregation() {}
 
@@ -120,6 +121,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         return name;
     }
 
+    public void setMetaData(byte[] metaData) {
+        this.metaData = metaData;
+    }
+
+    public byte[] getMetaData() {
+        return this.metaData;
+    }
     /**
      * @return The {@link Type} of this aggregation
      */
@@ -152,9 +160,22 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     }
 
     /**
+     * Writes the opening of the aggregation result optionally with metaData property
+     */
+    protected void startAggregationObject(XContentBuilder builder) throws IOException {
+        builder.startObject(name);
+        if (this.metaData != null) {
+            XContentParser parser = XContentHelper.createParser(new BytesArray(this.metaData));
+            builder.field(CommonFields.META);
+            builder.copyCurrentStructure(parser);
+        }
+    }
+
+    /**
      * Common xcontent fields that are shared among addAggregation
      */
     public static final class CommonFields {
+        public static final XContentBuilderString META = new XContentBuilderString("_meta");
         public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
         public static final XContentBuilderString VALUE = new XContentBuilderString("value");
         public static final XContentBuilderString VALUES = new XContentBuilderString("values");

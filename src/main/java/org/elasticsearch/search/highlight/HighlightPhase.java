@@ -22,6 +22,7 @@ package org.elasticsearch.search.highlight;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -116,13 +117,20 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     throw new ElasticsearchIllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + fieldName + "]");
                 }
 
-                HighlighterContext.HighlightQuery highlightQuery;
+                Query originalQuery;
+                Query query;
+                boolean queryRewritten;
                 if (field.fieldOptions().highlightQuery() == null) {
-                    highlightQuery = new HighlighterContext.HighlightQuery(context.parsedQuery().query(), context.query(), context.queryRewritten());
+                    originalQuery = context.parsedQuery().query();
+                    query = context.query();
+                    queryRewritten = context.queryRewritten();
                 } else {
-                    highlightQuery = new HighlighterContext.HighlightQuery(field.fieldOptions().highlightQuery(), field.fieldOptions().highlightQuery(), false);
+                    originalQuery = field.fieldOptions().highlightQuery();
+                    query = field.fieldOptions().highlightQuery();
+                    queryRewritten = false;
                 }
-                HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext, highlightQuery);
+                HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext,
+                        originalQuery, query, queryRewritten);
                 HighlightField highlightField = highlighter.highlight(highlighterContext);
                 if (highlightField != null) {
                     highlightFields.put(highlightField.name(), highlightField);

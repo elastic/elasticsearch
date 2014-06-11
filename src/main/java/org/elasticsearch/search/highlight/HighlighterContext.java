@@ -38,13 +38,13 @@ public class HighlighterContext {
     private Analyzer analyzer;
 
     public HighlighterContext(String fieldName, SearchContextHighlight.Field field, FieldMapper<?> mapper, SearchContext context,
-            FetchSubPhase.HitContext hitContext, HighlightQuery query) {
+            FetchSubPhase.HitContext hitContext, Query originalQuery, Query query, boolean queryRewritten) {
         this.fieldName = fieldName;
         this.field = field;
         this.mapper = mapper;
         this.context = context;
         this.hitContext = hitContext;
-        this.query = query;
+        this.query = new HighlightQuery(originalQuery, query, queryRewritten);
     }
 
     static class HighlightQuery {
@@ -52,7 +52,7 @@ public class HighlighterContext {
         private final Query query;
         private final boolean queryRewritten;
 
-        HighlightQuery(Query originalQuery, Query query, boolean queryRewritten) {
+        protected HighlightQuery(Query originalQuery, Query query, boolean queryRewritten) {
             this.originalQuery = originalQuery;
             this.query = query;
             this.queryRewritten = queryRewritten;

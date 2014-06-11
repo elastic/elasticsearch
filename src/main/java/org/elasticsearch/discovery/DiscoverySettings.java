@@ -45,7 +45,6 @@ public class DiscoverySettings extends AbstractComponent {
 
     private final static ClusterBlock ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
     private final static ClusterBlock WRITE = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA));
-    private final static ClusterBlock METADATA = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.METADATA));
 
     private volatile ClusterBlock noMasterBlock;
     private volatile TimeValue publishTimeout = DEFAULT_PUBLISH_TIMEOUT;
@@ -93,8 +92,6 @@ public class DiscoverySettings extends AbstractComponent {
             return ALL;
         } else if ("write".equals(value)) {
             return WRITE;
-        } else if ("metadata".equals(value)) {
-            return METADATA;
         } else {
             throw new ElasticsearchIllegalArgumentException("invalid master block [" + value + "]");
         }

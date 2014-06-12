@@ -103,6 +103,9 @@ public class GeohashCellFilter {
         private String geohash;
         private int levels = -1;
         private boolean neighbors;
+        private Boolean cache;
+        private String cacheKey;
+
 
         public Builder(String field) {
             this(field, null, false);
@@ -158,6 +161,19 @@ public class GeohashCellFilter {
             return this;
         }
 
+        /**
+         * Should the filter be cached or not. Defaults to <tt>false</tt>.
+         */
+        public Builder cache(boolean cache) {
+            this.cache = cache;
+            return this;
+        }
+
+        public Builder cacheKey(String cacheKey) {
+            this.cacheKey = cacheKey;
+            return this;
+        }
+
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
@@ -166,6 +182,12 @@ public class GeohashCellFilter {
             }
             if(levels > 0) {
                 builder.field(PRECISION, levels);
+            }
+            if (cache != null) {
+                builder.field(CACHE, cache);
+            }
+            if (cacheKey != null) {
+                builder.field(CACHE_KEY, cache);
             }
             builder.field(field, geohash);
 
@@ -192,7 +214,7 @@ public class GeohashCellFilter {
             String geohash = null;
             int levels = -1;
             boolean neighbors = false;
-            boolean cache = true;
+            boolean cache = false;
             CacheKeyFilter.Key cacheKey = null;
 
 

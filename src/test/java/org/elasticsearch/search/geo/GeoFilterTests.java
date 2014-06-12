@@ -44,6 +44,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.GeohashCellFilter;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -505,7 +506,11 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
         assertHitCount(results1, 1);
 
         // test the same, just with the builder
-        results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(geoHashCellFilter("pin", geohash, false)).execute().actionGet();
+        GeohashCellFilter.Builder filterBuilder = geoHashCellFilter("pin", geohash, false);
+        if (randomBoolean()) {
+            filterBuilder.cache(randomBoolean());
+        }
+        results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filterBuilder).get();
         assertHitCount(results1, 1);
 
         // Result of the parent query should contain the parent it self, its neighbors, the child and all its neighbors

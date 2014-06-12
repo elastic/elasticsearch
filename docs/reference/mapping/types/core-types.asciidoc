@@ -99,7 +99,7 @@ searchable at all (as an individual field; it may still be included in
 `analyzed`.
 
 |`doc_values` |Set to `true` to store field values in a column-stride fashion.
-Automatically set to `true` when the fielddata format is `doc_values`.
+Automatically set to `true` when the field data format is `doc_values`.
 
 |`term_vector` |Possible values are `no`, `yes`, `with_offsets`,
 `with_positions`, `with_positions_offsets`. Defaults to `no`.

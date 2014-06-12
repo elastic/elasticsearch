@@ -187,7 +187,7 @@ public class GeohashCellFilter {
                 builder.field(CACHE, cache);
             }
             if (cacheKey != null) {
-                builder.field(CACHE_KEY, cache);
+                builder.field(CACHE_KEY, cacheKey);
             }
             builder.field(field, geohash);
 

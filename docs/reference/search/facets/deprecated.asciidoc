@@ -1,0 +1,3 @@
+[WARNING]
+Facets are deprecated and will be removed in a future release. You are
+encouraged to migrate to <<search-aggregations, aggregations>> instead.

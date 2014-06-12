@@ -10,14 +10,6 @@ This context is defined by the executed query in combination with the different 
 (filtered queries, top-level filters, and facet level filters). While powerful, their implementation is not designed
 from the ground up to support complex aggregations and is thus limited.
 
-.Are facets deprecated?
-**********************************
-As the functionality facets offer is a subset of the one offered by aggregations, over time, we would like to
-see users move to aggregations for all realtime data analytics. That said, we are well aware that such
-transitions/migrations take time, and for this reason we are keeping facets around for the time being.
-Facets are not officially deprecated yet but are likely to be in the future.
-**********************************
-
 The aggregations module breaks the barriers the current facet implementation put in place. The new name ("Aggregations")
 also indicates the intention here - a generic yet extremely powerful framework for building aggregations - any types of
 aggregations.

@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -58,24 +58,19 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             return aggregations;
         }
 
+        abstract Object getKeyAsObject();
+
+        abstract Bucket newBucket(long docCount, InternalAggregations aggs);
+
         public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
-            if (buckets.size() == 1) {
-                Bucket bucket = buckets.get(0);
-                bucket.aggregations.reduce(bigArrays);
-                return bucket;
-            }
-            Bucket reduced = null;
+            long docCount = 0;
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
             for (Bucket bucket : buckets) {
-                if (reduced == null) {
-                    reduced = bucket;
-                } else {
-                    reduced.docCount += bucket.docCount;
-                }
+                docCount += bucket.docCount;
                 aggregationsList.add(bucket.aggregations);
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
-            return reduced;
+            InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            return newBucket(docCount, aggs);
         }
     }
 
@@ -113,47 +108,21 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
     }
 
     @Override
-    public InternalTerms reduce(ReduceContext reduceContext) {
+    public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries(reduceContext.bigArrays());
-            return terms;
-        }
 
-        InternalTerms reduced = null;
-
-        Map<Text, List<InternalTerms.Bucket>> buckets = null;
+        Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
-            if (terms instanceof UnmappedTerms) {
-                continue;
-            }
-            if (reduced == null) {
-                reduced = terms;
-            }
-            if (buckets == null) {
-                buckets = new HashMap<>(terms.buckets.size());
-            }
             for (Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(bucket.getKeyAsText());
-                if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(bucket.getKeyAsText(), existingBuckets);
-                }
-                existingBuckets.add(bucket);
+                buckets.put(bucket.getKeyAsObject(), bucket);
             }
-        }
-
-        if (reduced == null) {
-            // there are only unmapped terms, so we just return the first one (no need to reduce)
-            return (UnmappedTerms) aggregations.get(0);
         }
 
         final int size = Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        for (Map.Entry<Text, List<Bucket>> entry : buckets.entrySet()) {
-            List<Bucket> sameTermBuckets = entry.getValue();
+        for (Collection<Bucket> l : buckets.asMap().values()) {
+            List<Bucket> sameTermBuckets = (List<Bucket>) l; // cast is ok according to javadocs
             final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
             if (b.docCount >= minDocCount) {
                 ordered.insertWithOverflow(b);
@@ -163,22 +132,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = (Bucket) ordered.pop();
         }
-        reduced.buckets = Arrays.asList(list);
-        return reduced;
+        return newAggregation(name, Arrays.asList(list));
     }
 
-    final void trimExcessEntries(BigArrays bigArrays) {
-        final List<Bucket> newBuckets = Lists.newArrayList();
-        for (Bucket b : buckets) {
-            if (newBuckets.size() >= requiredSize) {
-                break;
-            }
-            if (b.docCount >= minDocCount) {
-                newBuckets.add(b);
-                b.aggregations.reduce(bigArrays);
-            }
-        }
-        buckets = newBuckets;
-    }
+    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets);
 
 }

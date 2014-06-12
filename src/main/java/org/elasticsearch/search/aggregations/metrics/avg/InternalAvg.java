@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
 *
@@ -76,20 +75,13 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalAvg reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            return (InternalAvg) aggregations.get(0);
+        long count = 0;
+        double sum = 0;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            count += ((InternalAvg) aggregation).count;
+            sum += ((InternalAvg) aggregation).sum;
         }
-        InternalAvg reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                reduced = (InternalAvg) aggregation;
-            } else {
-                reduced.count += ((InternalAvg) aggregation).count;
-                reduced.sum += ((InternalAvg) aggregation).sum;
-            }
-        }
-        return reduced;
+        return new InternalAvg(getName(), sum, count);
     }
 
     @Override

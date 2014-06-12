@@ -58,6 +58,11 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
         }
 
         @Override
+        protected InternalHistogram.Factory<Bucket> getFactory() {
+            return FACTORY;
+        }
+
+        @Override
         public String getKey() {
             return formatter != null ? formatter.format(key) : ValueFormatter.DateTime.DEFAULT.format(key);
         }
@@ -107,6 +112,11 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    protected InternalHistogram.Factory<Bucket> getFactory() {
+        return FACTORY;
     }
 
     @Override

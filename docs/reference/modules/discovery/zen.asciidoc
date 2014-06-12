@@ -73,8 +73,9 @@ elected or joined to. This is done automatically. The
 `discovery.zen.ping_timeout` (which defaults to `3s`) allows to
 configure the election to handle cases of slow or congested networks
 (higher values assure less chance of failure). Once a node joins, it
- will send a join request to the master (`discovery.zen.join_timeout`)
- with a timeout defaulting at 10 times the ping timeout.
+will send a join request to the master (`discovery.zen.join_timeout`)
+with a timeout defaulting at 20 times the ping timeout.
+coming[1.3.0,Previously defaulted to 10 times the ping timeout].
 
 Nodes can be excluded from becoming a master by setting `node.master` to
 `false`. Note, once a node is a client node (`node.client` set to

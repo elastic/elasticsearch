@@ -21,7 +21,6 @@ package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -34,7 +33,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -82,15 +80,6 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     @Override
     protected int numberOfReplicas() {
         return 1;
-    }
-
-    @Override
-    public Settings indexSettings() {
-        Settings settings = super.indexSettings();
-        return ImmutableSettings.builder()
-                .put(settings)
-                .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE, 2)
-                .build();
     }
 
     @Test
@@ -234,11 +223,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 }
             }, 10, TimeUnit.SECONDS);
             assertThat(applied, is(true));
-
-            ClusterHealthResponse healthResponse = client(nonIsolatedNode).admin().cluster().prepareHealth("test")
-                    .setWaitForYellowStatus().get();
-            assertThat(healthResponse.isTimedOut(), is(false));
-            assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+            ensureStableCluster(2, nonIsolatedNode);
 
             // Reads on the right side of the split must work
             logger.info("verifying healthy part of cluster returns data");

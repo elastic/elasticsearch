@@ -143,6 +143,10 @@
           "type" : "time",
           "description" : "Explicit operation timeout"
         },
+        "track_scores": {
+          "type" : "boolean",
+          "description": "Whether to calculate and return scores even if they are not used for sorting"
+        },
         "version": {
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"

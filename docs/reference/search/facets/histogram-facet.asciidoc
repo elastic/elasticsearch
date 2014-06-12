@@ -23,7 +23,7 @@ interval/bucket (count and total). Here is a simple example:
 }
 --------------------------------------------------
 
-The above example will run a histogram facet on the `field_name` filed,
+The above example will run a histogram facet on the `field_name` field,
 with an `interval` of `100` (so, for example, a value of `1055` will be
 placed within the `1000` bucket).
 

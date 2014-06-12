@@ -137,16 +137,16 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     private Filter filter;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SignificanceHeuristic significanceHeuristic;
+    private final SampleSettings samplerSettings;
 
     protected TermsAggregator.BucketCountThresholds getBucketCountThresholds() {
         return new TermsAggregator.BucketCountThresholds(bucketCountThresholds);
     }
 
     public SignificantTermsAggregatorFactory(String name, ValuesSourceConfig valueSourceConfig, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                                             String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic) {
-
+                                             String executionHint, Filter filter, SignificanceHeuristic significanceHeuristic, SampleSettings samplerSettings) {
         super(name, SignificantStringTerms.TYPE.name(), valueSourceConfig);
-        this.bucketCountThresholds = bucketCountThresholds;
+        this.bucketCountThresholds = bucketCountThresholds;        
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.significanceHeuristic = significanceHeuristic;
@@ -155,6 +155,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             mapper = SearchContext.current().smartNameFieldMapper(indexedFieldName);
         }
         this.filter = filter;
+        this.samplerSettings = samplerSettings;
     }
 
     @Override
@@ -174,6 +175,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
         long estimatedBucketCount = TermsAggregatorFactory.estimatedBucketCount(valuesSource, parent);
 
+        if (samplerSettings != null) {
+            // User has requested a fundamentally different approach to gathering stats using
+            // samples of top-scoring docs rather than field data
+            return new SignificantStringTermsSamplingAggregator(name, factories, config.fieldContext() ,estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, this, significanceHeuristic, samplerSettings);
+        }
+        
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {

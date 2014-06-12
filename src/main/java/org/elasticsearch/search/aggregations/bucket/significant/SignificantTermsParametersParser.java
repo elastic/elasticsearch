@@ -23,6 +23,8 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
@@ -48,6 +50,15 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
     }
 
     private Filter filter = null;
+    private SampleSettings samplingSettings = null;
+    static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
+    static final ParseField SAMPLING_SETTINGS = new ParseField("sampling");
+    static final ParseField DOCS_PER_SHARD = new ParseField("docs_per_shard");
+    static final ParseField DUPLICATE_PARA_WORD_LENGTH = new ParseField("duplicate_para_length");
+    static final ParseField MAX_TOKENS_PARSED_PER_DOC = new ParseField("max_tokens_parsed_per_doc");
+    static final ParseField NUM_RECORDED_TOKENS = new ParseField("num_recorded_tokens");
+    
+    
 
     private SignificanceHeuristic significanceHeuristic;
 
@@ -55,7 +66,9 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
         return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
-    static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
+    public SampleSettings getSamplingSettings() {
+        return samplingSettings;
+    }
 
     @Override
     public void parseSpecial(String aggregationName, XContentParser parser, SearchContext context, XContentParser.Token token, String currentFieldName) throws IOException {
@@ -66,15 +79,40 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
                 significanceHeuristic = significanceHeuristicParser.parse(parser);
             } else if (BACKGROUND_FILTER.match(currentFieldName)) {
                 filter = context.queryParserService().parseInnerFilter(parser).filter();
-            } else {
+            } else if (SAMPLING_SETTINGS.match(currentFieldName)) {
+                samplingSettings = parseSampleSettings(aggregationName, context, parser);
+            } else{
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
             }
         } else {
             throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
         }
     }
-
     public SignificanceHeuristic getSignificanceHeuristic() {
         return significanceHeuristic;
     }
+    
+    public SampleSettings parseSampleSettings(String aggregationName, SearchContext context, XContentParser parser) throws IOException, QueryParsingException {
+        SampleSettings result=new SampleSettings();
+        Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (DOCS_PER_SHARD.match(currentFieldName)) {
+                    result.setNumDocsPerShard(parser.intValue());
+                } else if (DUPLICATE_PARA_WORD_LENGTH.match(currentFieldName))  {
+                    result.setDuplicateParagraphLengthInWords(parser.intValue());
+                } else if (MAX_TOKENS_PARSED_PER_DOC.match(currentFieldName))  {
+                    result.setMaxTokensParsedPerDocument(parser.intValue());
+                } else if (NUM_RECORDED_TOKENS.match(currentFieldName))  {
+                    result.numRecordedTokens = parser.intValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            }
+        }        
+        return result;
+    }    
 }

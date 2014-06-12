@@ -24,11 +24,11 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.*;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
@@ -69,6 +69,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public static final int MUSIC_CATEGORY=1;
     public static final int OTHER_CATEGORY=2;
     public static final int SNOWBOARDING_CATEGORY=3;
+    public static final int TWITTER_CATEGORY=4;
     
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -97,7 +98,20 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                     "B\t3\tterje haakonsen has credited craig kelly as his snowboard mentor",
                     "A\t3\tterje haakonsen and craig kelly were some of the first snowboarders sponsored by burton snowboards",
                     "B\t3\tlike craig kelly before him terje won the mt baker banked slalom many times - once riding switch",
-                    "A\t3\tterje haakonsen has been a team rider for burton snowboards for over 20 years"                         
+                    "A\t3\tterje haakonsen has been a team rider for burton snowboards for over 20 years",
+                    // Noisy data category with mix of duplicate and original content
+                    "A\t4\tRT @jbieber I just ate a waffle",                         
+                    "B\t4\tRT @jbieber I just ate a waffle",                         
+                    "A\t4\tOMG  @jbieber I just ate a waffle",                         
+                    "B\t4\tLOL RT @jbieber I just ate a waffle",                         
+                    "A\t4\tRT @jbieber I just ate a waffle",                         
+                    "B\t4\tRT @jbieber I just ate a waffle",                  
+                    "A\t4\tMaple syrup goes great with waffles",                  
+                    "B\t4\tGotta love waffles and maple syrup",                  
+                    "A\t4\tMmm, waffles with strawberries and maple syrup",                  
+                    "B\t4\tI like waffles",                  
+                    "A\t4\tCan't beat a stack of waffles covered in maple syrup",                  
+                    "B\t4\tI like maple syrup"                  
             };
             
         for (int i = 0; i < data.length; i++) {
@@ -324,14 +338,100 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertFalse(topWords.contains("paul"));
         //"Weller" is the only Paul who was in The Jam and therefore this should be identified as a differentiator from the background of all other Pauls. 
         assertTrue(topWords.contains("jam"));
-    }       
+    }   
+    
+    @Test
+    public void deduplicatedTextAnalysis() throws Exception {
+        // First demonstrate poor results on noisy data
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new MatchQueryBuilder("_all", "waffle waffles"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                           .size(5)
+                           .minDocCount(3)
+                           )
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+                           
+        HashSet<String> topWords = new HashSet<String>();
+        for (Bucket topTerm : topTerms) {
+            topWords.add(topTerm.getKey());
+        }        
+        //This demonstrates the negative side-effects of duplicate content
+        assertTrue(topWords.contains("jbieber"));        
+        assertTrue(topWords.contains("ate"));        
+        assertFalse(topWords.contains("maple"));        
+        
+        //Now for a better approach
+        SampleSettings sampleSettings = new SampleSettings();
+        sampleSettings.setDuplicateParagraphLengthInWords(3);
+        response = client().prepareSearch("test")
+              .setSearchType(SearchType.QUERY_AND_FETCH)
+              .setQuery(new MatchQueryBuilder("_all", "waffle waffles"))
+              .setFrom(0).setSize(60).setExplain(true)
+              .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                         .minDocCount(3)
+                         .size(5)
+                         .sampleSettings(sampleSettings)
+                         )
+              .execute()
+              .actionGet();
+        assertSearchResponse(response);
+        topTerms = response.getAggregations().get("mySignificantTerms");
+        topWords = new HashSet<String>();
+        for (Bucket topTerm : topTerms) {
+            topWords.add(topTerm.getKey());
+        }
+
+        // This demonstrates the positive effects of removing duplicate content
+        // from samples
+        assertFalse(topWords.contains("jbieber"));
+        assertTrue(topWords.contains("maple"));
+        assertTrue(topWords.contains("syrup"));
+    }    
+
+    @Test
+    public void structuredUseOfSamplingFacility() throws Exception {
+        // Check that the sampling facility (which is primarily intended for use 
+        // on unstructured content) does not throw errors when used on structured content
+        SampleSettings sampleSettings = new SampleSettings();
+        sampleSettings.setDuplicateParagraphLengthInWords(3);
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new MatchQueryBuilder("_all", "waffle waffles"))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
+                           .size(5)
+                           .minDocCount(3)
+                           .sampleSettings(sampleSettings)
+                           )
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+                           
+        HashSet<String> topWords = new HashSet<String>();
+        for (Bucket topTerm : topTerms) {
+            topWords.add(topTerm.getKey());
+        }
+        //Our query only hits one category
+        assertTrue(topWords.contains("4"));
+        assertEquals(topWords.size(), 1);
+        
+    }    
+    
+    
 
     @Test
     public void nestedAggs() throws Exception {
         String[][] expectedKeywordsByCategory={
                 { "paul", "weller", "jam", "style", "council" },                
                 { "paul", "smith" },
-                { "craig", "kelly", "terje", "haakonsen", "burton" }};
+                { "craig", "kelly", "terje", "haakonsen", "burton" },
+                {}};
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .addAggregation(new TermsBuilder("myCategories").field("fact_category").minDocCount(2)

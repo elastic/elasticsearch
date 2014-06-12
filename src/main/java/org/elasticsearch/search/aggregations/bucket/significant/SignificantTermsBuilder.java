@@ -50,6 +50,7 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
     private String[] excludeTerms = null;
     private FilterBuilder filterBuilder;
     private SignificanceHeuristicBuilder significanceHeuristicBuilder;
+    private SampleSettings sampleSettings;
 
     /**
      * Sole constructor.
@@ -114,6 +115,11 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         this.executionHint = executionHint;
         return this;
     }
+    
+    public SignificantTermsBuilder sampleSettings(SampleSettings sampleSettings) {
+        this.sampleSettings = sampleSettings;
+        return this;
+    }    
 
     /**
      * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
@@ -264,7 +270,9 @@ public class SignificantTermsBuilder extends AggregationBuilder<SignificantTerms
         if (significanceHeuristicBuilder != null) {
             significanceHeuristicBuilder.toXContent(builder);
         }
-
+        if (sampleSettings != null) {
+            sampleSettings.toXContent(builder, params); 
+        }        
         return builder.endObject();
     }
 

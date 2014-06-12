@@ -204,8 +204,15 @@ The significant_terms aggregation can be used effectively on tokenized free-text
 * keywords for refining end-user searches
 * keywords for use in percolator queries
 
-WARNING: Picking a free-text field as the subject of a significant terms analysis can be expensive! It will attempt
-to load every unique word into RAM. It is recommended to only use this on smaller indices.
+WARNING: Picking a free-text field as the subject of a significant terms analysis can be expensive in memory costs and 
+make poor suggestions if there is a lot of duplicate content or low-relevance matches. However there is a solution to
+these problems in version 1.3.0 in the form of `sampling`.
+
+added[1.3.0]
+The new `sampling` parameters allow significant terms to be discovered from analyzing a sample of the top-matching documents, 
+removing the need to load text values for all documents into FieldData in advance and also providing the opportunity to remove
+duplicate sections of text that are typically found in things like copyright notices, retweets or email replies.  
+
 
 .Use the _"like this but not this"_ pattern
 **********************************
@@ -402,6 +409,62 @@ WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to 
          default value of 3 is used to provide a minimum weight-of-evidence.
          Setting `shard_min_doc_count` too high will cause significant candidate terms to be filtered out on a shard level. This value should be set much lower than `min_doc_count/#shards`.
 
+===== Sampling foreground content
+added[1.3.0] `sampling` parameter
+
+For free-text fields it is typically beneficial to perform significant_terms analysis on a sample of the matching documents
+because: 
+
+. It avoids having to load large numbers of unique terms for all documents into FieldData caches up-front
+. It allows only the top-matching documents to be considered, potentially giving more focused suggestions
+. As part of the sampling it is possible to remove duplicate sections of content that otherwise artificially inflate the statistics of word uses. 
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match" : "bird flu"
+    },
+    "aggs" : {
+        "tags" : {
+            "significant_terms" : { 
+                "field" : "description",
+                "sampling": {
+                	"docs_per_shard":100
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+In the above example the "sampling" section holds the settings that relate to performing significant_terms analysis 
+on a subset of the results for the given query. The fields that are relevant in the "sampling" section are as follows:
+
+
+[horizontal]
+docs_per_shard::         Optional. The number of top-matching documents to be sampled on each shard. Defaults to 50.
+						  The more documents sampled, the slower the response and this also does not always lead to higher 
+						  quality suggestions as the sample will typically start to include less relevant documents in 
+						  the sample.
+
+duplicate_para_length::     Optional but recommended. The minimum number of tokens seen in sequence before they are a candidate
+							for de-duplication and may be removed from the sampling process. The default setting is zero
+							meaning no duplicate-detection is performed.
+							For typical text useful settings are perhaps 6 tokens or more. Settings that are too large
+							e.g. 100 are probably being too picky and typically unlikely to discover duplicate sequences of 
+							that scale.							 
+							Lower settings like 2 may have some false-positives
+							due to the way sequences are encoded internally but are generally not advisable anyway as
+							many useful text phrases consist of small numbers of words and we want to identify these
+							repetitions rather than eliminate them as duplicate sections of content. 
+							
+max_tokens_parsed_per_doc:: Optional. The maximum number of tokens sampled from each document.
+							This is principally a performance optimization to avoid the costs of re-tokenizing 
+							very large documents in their entirety. The default is 1,000.
+
+num_recorded_tokens::    Optional. If duplicate_para_length is set to >1 this setting controls the size in 
+						bytes of the sliding window used to identify duplicate content. The default setting is 50,000 and 
+						each token is recorded in hashed form as a single byte to minimize RAM.
 
 
 ===== Custom background context

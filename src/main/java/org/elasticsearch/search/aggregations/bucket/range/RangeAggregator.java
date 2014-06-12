@@ -193,7 +193,7 @@ public class RangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             Range range = ranges[i];
@@ -203,11 +203,11 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, false);
+        return rangeFactory.create(name, buckets, formatter, keyed, false, metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
+    public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = Lists.newArrayListWithCapacity(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
@@ -217,7 +217,7 @@ public class RangeAggregator extends BucketsAggregator {
             buckets.add(bucket);
         }
         // value source can be null in the case of unmapped fields
-        return rangeFactory.create(name, buckets, formatter, keyed, false);
+        return rangeFactory.create(name, buckets, formatter, keyed, false, metaData);
     }
 
     private static final void sortRanges(final Range[] ranges) {
@@ -268,13 +268,13 @@ public class RangeAggregator extends BucketsAggregator {
         }
 
         @Override
-        public InternalAggregation buildEmptyInternalAggregation() {
+        public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
             List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.size());
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, formatter));
             }
-            return factory.create(name, buckets, formatter, keyed, true);
+            return factory.create(name, buckets, formatter, keyed, true, metaData);
         }
     }
 

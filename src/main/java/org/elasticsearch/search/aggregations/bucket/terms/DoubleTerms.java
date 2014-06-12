@@ -93,8 +93,8 @@ public class DoubleTerms extends InternalTerms {
 
     DoubleTerms() {} // for serialization
 
-    public DoubleTerms(String name, InternalOrder order, @Nullable ValueFormatter formatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, minDocCount, buckets);
+    public DoubleTerms(String name, InternalOrder order, @Nullable ValueFormatter formatter, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets, byte[] metaData) {
+        super(name, order, requiredSize, minDocCount, buckets, metaData);
         this.formatter = formatter;
     }
 

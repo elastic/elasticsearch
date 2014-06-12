@@ -96,7 +96,7 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalGeoHashGrid buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalGeoHashGrid buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
         final int size = (int) Math.min(bucketOrds.size(), shardSize);
 
@@ -119,12 +119,12 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list));
+        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list), metaData);
     }
 
     @Override
-    public InternalGeoHashGrid buildEmptyInternalAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList());
+    public InternalGeoHashGrid buildEmptyAggregation() {
+        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData);
     }
 
 

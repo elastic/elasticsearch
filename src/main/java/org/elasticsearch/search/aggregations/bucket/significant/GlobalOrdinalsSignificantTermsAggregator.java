@@ -59,10 +59,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     }
 
     @Override
-    public SignificantStringTerms buildInternalAggregation(long owningBucketOrdinal) {
+    public SignificantStringTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
         if (globalOrdinals == null) { // no context in this reader
-            return buildEmptyInternalAggregation();
+            return buildEmptyAggregation();
         }
 
         final int size;
@@ -114,16 +114,16 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), metaData);
     }
 
     @Override
-    public SignificantStringTerms buildEmptyInternalAggregation() {
+    public SignificantStringTerms buildEmptyAggregation() {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList(), metaData);
     }
 
     @Override

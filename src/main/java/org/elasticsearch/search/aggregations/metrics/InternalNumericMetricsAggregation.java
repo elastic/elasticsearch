@@ -31,8 +31,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected SingleValue() {}
 
-        protected SingleValue(String name) {
-            super(name);
+        protected SingleValue(String name, byte[] metaData) {
+            super(name, metaData);
         }
 
         public abstract double value();
@@ -42,8 +42,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected MultiValue() {}
 
-        protected MultiValue(String name) {
-            super(name);
+        protected MultiValue(String name, byte[] metaData) {
+            super(name, metaData);
         }
 
         public abstract double value(String name);
@@ -52,8 +52,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     protected InternalNumericMetricsAggregation() {} // for serialization
 
-    protected InternalNumericMetricsAggregation(String name) {
-        super(name);
+    protected InternalNumericMetricsAggregation(String name, byte[] metaData) {
+        super(name, metaData);
     }
 
 }

@@ -53,8 +53,8 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMax() {} // for serialization
 
-    public InternalMax(String name, double max) {
-        super(name);
+    public InternalMax(String name, double max, byte[] metaData) {
+        super(name, metaData);
         this.max = max;
     }
 

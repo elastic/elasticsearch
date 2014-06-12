@@ -135,7 +135,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
@@ -244,12 +244,12 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }        
         
         
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+    public InternalAggregation buildEmptyAggregation() {
+        return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), metaData);
     }
 
     @Override

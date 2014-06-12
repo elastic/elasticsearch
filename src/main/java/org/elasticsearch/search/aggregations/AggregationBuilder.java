@@ -114,7 +114,7 @@ public abstract class AggregationBuilder<B extends AggregationBuilder<B>> extend
         builder.startObject(name);
 
         if (this.metaData != null) {
-            builder.field("_meta", this.metaData);
+            builder.field("meta", this.metaData);
         }
         builder.field(type);
 

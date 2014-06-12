@@ -79,16 +79,16 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalSum(name, 0);
+            return new InternalSum(name, 0, metaData);
         }
-        return new InternalSum(name, sums.get(owningBucketOrdinal));
+        return new InternalSum(name, sums.get(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalSum(name, 0.0);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalSum(name, 0.0, metaData);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

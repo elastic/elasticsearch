@@ -112,8 +112,9 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      *
      * @param name The name of the get.
      */
-    protected InternalAggregation(String name) {
+    protected InternalAggregation(String name, byte[] metaData) {
         this.name = name;
+        this.metaData = metaData;
     }
 
     @Override
@@ -175,7 +176,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * Common xcontent fields that are shared among addAggregation
      */
     public static final class CommonFields {
-        public static final XContentBuilderString META = new XContentBuilderString("_meta");
+        public static final XContentBuilderString META = new XContentBuilderString("meta");
         public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
         public static final XContentBuilderString VALUE = new XContentBuilderString("value");
         public static final XContentBuilderString VALUES = new XContentBuilderString("values");

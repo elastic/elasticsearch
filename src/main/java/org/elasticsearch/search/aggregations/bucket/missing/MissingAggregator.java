@@ -60,13 +60,13 @@ public class MissingAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations());
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), metaData);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory {

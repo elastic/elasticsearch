@@ -25,7 +25,7 @@ public abstract class InternalMetricsAggregation extends InternalAggregation {
 
     protected InternalMetricsAggregation() {} // for serialization
 
-    protected InternalMetricsAggregation(String name) {
-        super(name);
+    protected InternalMetricsAggregation(String name, byte[] metaData) {
+        super(name, metaData);
     }
 }

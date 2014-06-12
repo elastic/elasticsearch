@@ -140,18 +140,18 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+            return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, metaData);
         }
         assert owningBucketOrdinal < counts.size();
         return new InternalExtendedStats(name, counts.get(owningBucketOrdinal), sums.get(owningBucketOrdinal), mins.get(owningBucketOrdinal),
-                maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal));
+                maxes.get(owningBucketOrdinal), sumOfSqrs.get(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalExtendedStats(name, 0, 0d, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0d, metaData);
     }
 
     @Override

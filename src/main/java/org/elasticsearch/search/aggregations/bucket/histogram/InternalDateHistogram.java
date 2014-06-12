@@ -85,8 +85,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
 
         @Override
         public InternalDateHistogram create(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order,
-                                            long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                                            long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, byte[] metaData) {
+            return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
         }
 
         @Override
@@ -100,8 +100,8 @@ public class InternalDateHistogram extends InternalHistogram<InternalDateHistogr
     InternalDateHistogram() {} // for serialization
 
     InternalDateHistogram(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order, long minDocCount,
-                          EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                          EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, byte[] metaData) {
+        super(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
     }
 
     @Override

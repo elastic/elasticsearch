@@ -71,8 +71,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return new InternalGeoDistance(name, ranges, formatter, keyed, unmapped);
+        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+            return new InternalGeoDistance(name, ranges, formatter, keyed, unmapped, metaData);
         }
 
         @Override
@@ -83,8 +83,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-        super(name, ranges, formatter, keyed, unmapped);
+    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+        super(name, ranges, formatter, keyed, unmapped, metaData);
     }
 
     @Override

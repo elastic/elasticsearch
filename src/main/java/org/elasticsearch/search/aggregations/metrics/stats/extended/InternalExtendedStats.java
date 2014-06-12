@@ -61,8 +61,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     InternalExtendedStats() {} // for serialization
 
-    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs) {
-        super(name, count, sum, min, max);
+    public InternalExtendedStats(String name, long count, double sum, double min, double max, double sumOfSqrs, byte[] metaData) {
+        super(name, count, sum, min, max, metaData);
         this.sumOfSqrs = sumOfSqrs;
     }
 

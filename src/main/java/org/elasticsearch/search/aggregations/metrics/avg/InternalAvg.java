@@ -54,8 +54,8 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalAvg() {} // for serialization
 
-    public InternalAvg(String name, double sum, long count) {
-        super(name);
+    public InternalAvg(String name, double sum, long count, byte[] metaData) {
+        super(name, metaData);
         this.sum = sum;
         this.count = count;
     }

@@ -83,17 +83,17 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalMin(name, Double.POSITIVE_INFINITY);
+            return new InternalMin(name, Double.POSITIVE_INFINITY, metaData);
         }
         assert owningBucketOrdinal < mins.size();
-        return new InternalMin(name, mins.get(owningBucketOrdinal));
+        return new InternalMin(name, mins.get(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalMin(name, Double.POSITIVE_INFINITY, metaData);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

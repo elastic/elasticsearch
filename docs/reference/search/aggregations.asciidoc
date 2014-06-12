@@ -60,7 +60,7 @@ The following snippet captures the basic structure of aggregations:
         "<aggregation_type>" : {
             <aggregation_body>
         }
-        [,"_meta" : [<meta_data_object>] ]?
+        [,"meta" : [<meta_data_object>] ]?
         [,"aggregations" : { [<sub_aggregation>]+ } ]?
     }
     [,"<aggregation_name_2>" : { ... } ]*
@@ -151,7 +151,7 @@ Consider this example where we want to associate the color blue with our `terms`
             "terms": {
                 "field": "title"
             },
-            "_meta": {
+            "meta": {
                 "color": "blue"
             },
         }
@@ -167,7 +167,7 @@ Then that piece of metadata will be returned in place for our `titles` terms agg
     ...
     "aggregations": {
         "titles": {
-            "_meta": {
+            "meta": {
                 "color" : "blue"
             },
             "buckets": [

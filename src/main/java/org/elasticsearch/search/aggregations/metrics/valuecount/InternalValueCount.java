@@ -52,8 +52,8 @@ public class InternalValueCount extends InternalNumericMetricsAggregation implem
 
     InternalValueCount() {} // for serialization
 
-    public InternalValueCount(String name, long value) {
-        super(name);
+    public InternalValueCount(String name, long value, byte[] metaData) {
+        super(name, metaData);
         this.value = value;
     }
 

@@ -164,8 +164,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
             return TYPE.name();
         }
 
-        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed, unmapped);
+        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+            return (R) new InternalRange<>(name, ranges, formatter, keyed, unmapped, metaData);
         }
 
 
@@ -182,8 +182,8 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalAggre
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-        super(name);
+    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+        super(name, metaData);
         this.ranges = ranges;
         this.formatter = formatter;
         this.keyed = keyed;

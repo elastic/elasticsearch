@@ -198,8 +198,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, byte[] metaData) {
+            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData);
         }
 
         public B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
@@ -219,8 +219,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     InternalHistogram() {} // for serialization
 
     InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                      EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name);
+                      EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, byte[] metaData) {
+        super(name, metaData);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);

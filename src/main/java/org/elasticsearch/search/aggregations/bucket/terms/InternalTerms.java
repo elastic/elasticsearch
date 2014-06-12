@@ -87,8 +87,8 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<Bucket> buckets) {
-        super(name);
+    protected InternalTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<Bucket> buckets, byte[] metaData) {
+        super(name, metaData);
         this.order = order;
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;

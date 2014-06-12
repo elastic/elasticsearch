@@ -122,13 +122,13 @@ public class NestedAggregator extends SingleBucketAggregator implements ReaderCo
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
-        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+        return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalNested(name, 0, buildEmptySubAggregations());
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalNested(name, 0, buildEmptySubAggregations(), metaData);
     }
 
     public String getNestedPath() {

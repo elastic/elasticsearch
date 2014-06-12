@@ -45,8 +45,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param docCount      The document count in the single bucket.
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
-    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations) {
-        super(name);
+    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, byte[] metaData) {
+        super(name, metaData);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }

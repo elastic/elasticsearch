@@ -82,7 +82,7 @@ public class DoubleTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public DoubleTerms buildInternalAggregation(long owningBucketOrdinal) {
+    public DoubleTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
@@ -131,12 +131,12 @@ public class DoubleTermsAggregator extends TermsAggregator {
         }        
         
         
-        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), metaData);
     }
 
     @Override
-    public DoubleTerms buildEmptyInternalAggregation() {
-        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+    public DoubleTerms buildEmptyAggregation() {
+        return new DoubleTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), metaData);
     }
 
     @Override

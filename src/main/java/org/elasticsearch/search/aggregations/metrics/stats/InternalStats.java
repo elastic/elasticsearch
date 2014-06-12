@@ -66,8 +66,8 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     protected InternalStats() {} // for serialization
 
-    public InternalStats(String name, long count, double sum, double min, double max) {
-        super(name);
+    public InternalStats(String name, long count, double sum, double min, double max, byte[] metaData) {
+        super(name, metaData);
         this.count = count;
         this.sum = sum;
         this.min = min;

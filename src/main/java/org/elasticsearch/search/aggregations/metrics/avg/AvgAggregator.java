@@ -84,16 +84,16 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null || owningBucketOrdinal >= counts.size()) {
-            return new InternalAvg(name, 0l, 0);
+            return new InternalAvg(name, 0l, 0, metaData);
         }
-        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal));
+        return new InternalAvg(name, sums.get(owningBucketOrdinal), counts.get(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalAvg(name, 0.0, 0l);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalAvg(name, 0.0, 0l, metaData);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

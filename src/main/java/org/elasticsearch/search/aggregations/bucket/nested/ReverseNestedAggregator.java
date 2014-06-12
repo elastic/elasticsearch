@@ -130,13 +130,13 @@ public class ReverseNestedAggregator extends SingleBucketAggregator implements R
 
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal));
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
+        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalReverseNested(name, 0, buildEmptySubAggregations());
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metaData);
     }
 
     @Override

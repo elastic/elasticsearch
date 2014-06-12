@@ -54,7 +54,7 @@ public abstract class NonCollectingAggregator extends Aggregator {
     }
 
     @Override
-    public final InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public final InternalAggregation buildAggregation(long owningBucketOrdinal) {
         return buildEmptyAggregation();
     }
 

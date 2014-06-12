@@ -84,17 +84,17 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalMax(name, Double.NEGATIVE_INFINITY);
+            return new InternalMax(name, Double.NEGATIVE_INFINITY, metaData);
         }
         assert owningBucketOrdinal < maxes.size();
-        return new InternalMax(name, maxes.get(owningBucketOrdinal));
+        return new InternalMax(name, maxes.get(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalMax(name, Double.NEGATIVE_INFINITY, metaData);
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {

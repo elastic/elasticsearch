@@ -48,8 +48,8 @@ public class InternalReverseNested extends InternalSingleBucketAggregation imple
     public InternalReverseNested() {
     }
 
-    public InternalReverseNested(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    public InternalReverseNested(String name, long docCount, InternalAggregations aggregations, byte[] metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override

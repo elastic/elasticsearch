@@ -90,8 +90,8 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     SignificantStringTerms() {} // for serialization
 
     public SignificantStringTerms(long subsetSize, long supersetSize, String name, int requiredSize,
-            long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets) {
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets);
+            long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets, byte[] metaData) {
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets, metaData);
     }
 
     @Override

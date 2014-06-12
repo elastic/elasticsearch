@@ -49,8 +49,8 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
     InternalMissing() {
     }
 
-    InternalMissing(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    InternalMissing(String name, long docCount, InternalAggregations aggregations, byte[] metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override

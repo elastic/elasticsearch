@@ -89,8 +89,8 @@ public class StringTerms extends InternalTerms {
 
     StringTerms() {} // for serialization
 
-    public StringTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets) {
-        super(name, order, requiredSize, minDocCount, buckets);
+    public StringTerms(String name, InternalOrder order, int requiredSize, long minDocCount, Collection<InternalTerms.Bucket> buckets, byte[] metaData) {
+        super(name, order, requiredSize, minDocCount, buckets, metaData);
     }
 
     @Override

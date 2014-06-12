@@ -79,7 +79,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
             return buildEmptyAggregation();
         }
@@ -89,13 +89,13 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         double posRight = posRights.get(owningBucketOrdinal);
         double negLeft = negLefts.get(owningBucketOrdinal);
         double negRight = negRights.get(owningBucketOrdinal);
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
+    public InternalAggregation buildEmptyAggregation() {
         return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude);
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metaData);
     }
 
     @Override

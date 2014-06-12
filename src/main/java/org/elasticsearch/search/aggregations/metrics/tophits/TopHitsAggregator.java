@@ -61,7 +61,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         TopDocsCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
         if (topDocsCollector == null) {
             return buildEmptyAggregation();
@@ -95,7 +95,7 @@ public class TopHitsAggregator extends MetricsAggregator implements ScorerAware 
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
+    public InternalAggregation buildEmptyAggregation() {
         return new InternalTopHits(name, topHitsContext.from(), topHitsContext.size(), topHitsContext.sort(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
     }
 

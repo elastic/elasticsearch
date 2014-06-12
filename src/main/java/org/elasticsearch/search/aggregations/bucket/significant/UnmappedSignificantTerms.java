@@ -53,10 +53,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
 
     UnmappedSignificantTerms() {} // for serialization
 
-    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount) {
+    public UnmappedSignificantTerms(String name, int requiredSize, long minDocCount, byte[] metaData) {
         //We pass zero for index/subset sizes because for the purpose of significant term analysis 
         // we assume an unmapped index's size is irrelevant to the proceedings. 
-        super(0, 0, name, requiredSize, minDocCount, BUCKETS);
+        super(0, 0, name, requiredSize, minDocCount, BUCKETS, metaData);
     }
 
     @Override

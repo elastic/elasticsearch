@@ -82,8 +82,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
         }
 
         @Override
-        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return new InternalDateRange(name, ranges, formatter, keyed, unmapped);
+        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+            return new InternalDateRange(name, ranges, formatter, keyed, unmapped, metaData);
         }
 
         @Override
@@ -94,8 +94,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
 
     InternalDateRange() {} // for serialization
 
-    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-        super(name, ranges, formatter, keyed, unmapped);
+    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+        super(name, ranges, formatter, keyed, unmapped, metaData);
     }
 
     @Override

@@ -90,9 +90,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     SignificantLongTerms() {} // for serialization
 
     public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter,
-                                int requiredSize, long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets) {
+                                int requiredSize, long minDocCount, Collection<InternalSignificantTerms.Bucket> buckets, byte[] metaData) {
 
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets);
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, buckets, metaData);
         this.formatter = formatter;
     }
 

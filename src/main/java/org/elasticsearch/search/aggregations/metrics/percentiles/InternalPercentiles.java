@@ -60,8 +60,8 @@ public class InternalPercentiles extends InternalNumericMetricsAggregation.Multi
 
     InternalPercentiles() {} // for serialization
 
-    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed) {
-        super(name);
+    public InternalPercentiles(String name, double[] percents, TDigestState state, boolean keyed, byte[] metaData) {
+        super(name, metaData);
         this.percents = percents;
         this.state = state;
         this.keyed = keyed;

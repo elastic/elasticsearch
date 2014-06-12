@@ -54,8 +54,8 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMin() {} // for serialization
 
-    public InternalMin(String name, double min) {
-        super(name);
+    public InternalMin(String name, double min, byte[] metaData) {
+        super(name, metaData);
         this.min = min;
     }
 

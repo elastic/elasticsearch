@@ -50,8 +50,8 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     private HyperLogLogPlusPlus counts;
 
-    InternalCardinality(String name, HyperLogLogPlusPlus counts) {
-        super(name);
+    InternalCardinality(String name, HyperLogLogPlusPlus counts, byte[] metaData) {
+        super(name, metaData);
         this.counts = counts;
     }
 

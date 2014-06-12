@@ -109,12 +109,12 @@ public class AggregatorParsers {
                 final String fieldName = parser.currentName();
 
                 token = parser.nextToken();
-                if (token != XContentParser.Token.START_OBJECT && !fieldName.equals("_meta")) {
+                if (token != XContentParser.Token.START_OBJECT && !fieldName.equals("meta")) {
                     throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + aggregationName + "]");
                 }
 
                 switch (fieldName) {
-                    case "_meta":
+                    case "meta":
                         XContentBuilder xContentBuilder = XContentFactory.smileBuilder().copyCurrentStructure(parser);
                         metaData =  xContentBuilder.bytes().toBytes();
                         parser.skipChildren();

@@ -47,8 +47,8 @@ public class InternalFilter extends InternalSingleBucketAggregation implements F
 
     InternalFilter() {} // for serialization
 
-    InternalFilter(String name, long docCount, InternalAggregations subAggregations) {
-        super(name, docCount, subAggregations);
+    InternalFilter(String name, long docCount, InternalAggregations subAggregations, byte[] metaData) {
+        super(name, docCount, subAggregations, metaData);
     }
 
     @Override

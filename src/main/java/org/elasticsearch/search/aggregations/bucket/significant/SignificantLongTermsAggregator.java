@@ -56,7 +56,7 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
     }
 
     @Override
-    public SignificantLongTerms buildInternalAggregation(long owningBucketOrdinal) {
+    public SignificantLongTerms buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         final int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
@@ -92,16 +92,16 @@ public class SignificantLongTermsAggregator extends LongTermsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new SignificantLongTerms(subsetSize, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), metaData);
     }
 
     @Override
-    public SignificantLongTerms buildEmptyInternalAggregation() {
+    public SignificantLongTerms buildEmptyAggregation() {
         // We need to account for the significance of a miss in our global stats - provide corpus size as context
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList());
+        return new SignificantLongTerms(0, supersetSize, name, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalSignificantTerms.Bucket>emptyList(), metaData);
     }
 
     @Override

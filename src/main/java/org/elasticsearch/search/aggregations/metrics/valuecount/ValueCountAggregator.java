@@ -78,17 +78,17 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (valuesSource == null) {
-            return new InternalValueCount(name, 0);
+            return new InternalValueCount(name, 0, metaData);
         }
         assert owningBucketOrdinal < counts.size();
-        return new InternalValueCount(name, counts.get(owningBucketOrdinal));
+        return new InternalValueCount(name, counts.get(owningBucketOrdinal), metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalValueCount(name, 0l);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalValueCount(name, 0l, metaData);
     }
 
     @Override

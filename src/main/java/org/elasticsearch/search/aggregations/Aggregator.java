@@ -22,7 +22,6 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lease.Releasable;
@@ -362,30 +361,15 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     protected void doPostCollection() throws IOException {
     }
 
-    /**
-     * @return  The aggregated & built aggregation
-     */
-    public InternalAggregation buildAggregation(long owningBucketOrdinal)
-    {
-        InternalAggregation agg = buildInternalAggregation(owningBucketOrdinal);
-        agg.setMetaData(this.metaData);
-        return agg;
-    }
-    protected abstract InternalAggregation buildInternalAggregation(long owningBucketOrdinal);
+
+    public abstract InternalAggregation buildAggregation(long owningBucketOrdinal);
     
     @Override
     public void gatherAnalysis(BucketAnalysisCollector results, long bucketOrdinal) {
         results.add(buildAggregation(bucketOrdinal));
     }
 
-    public InternalAggregation buildEmptyAggregation()
-    {
-        InternalAggregation agg = buildEmptyInternalAggregation();
-        agg.setMetaData(this.metaData);
-        return agg;
-    }
-
-    protected abstract InternalAggregation buildEmptyInternalAggregation();
+    public abstract InternalAggregation buildEmptyAggregation();
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

@@ -141,7 +141,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         if (counts == null || owningBucketOrdinal >= counts.maxBucket() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
@@ -149,12 +149,12 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         // this Aggregator (and its HLL++ counters) is released.
         HyperLogLogPlusPlus copy = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
         copy.merge(0, counts, owningBucketOrdinal);
-        return new InternalCardinality(name, copy);
+        return new InternalCardinality(name, copy, metaData);
     }
 
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new InternalCardinality(name, null);
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalCardinality(name, null, metaData);
     }
 
     @Override

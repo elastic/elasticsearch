@@ -48,8 +48,8 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
 
     InternalGlobal() {} // for serialization
 
-    InternalGlobal(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    InternalGlobal(String name, long docCount, InternalAggregations aggregations, byte[] metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override

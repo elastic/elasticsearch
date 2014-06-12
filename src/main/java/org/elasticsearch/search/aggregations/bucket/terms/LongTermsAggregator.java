@@ -85,7 +85,7 @@ public class LongTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public InternalAggregation buildInternalAggregation(long owningBucketOrdinal) {
+    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         assert owningBucketOrdinal == 0;
 
         if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
@@ -135,13 +135,13 @@ public class LongTermsAggregator extends TermsAggregator {
         for (int i = 0; i < list.length; i++) {
           list[i].aggregations = bucketAggregations(list[i].bucketOrd);
         }
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list), metaData);
     }
     
     
     @Override
-    public InternalAggregation buildEmptyInternalAggregation() {
-        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList());
+    public InternalAggregation buildEmptyAggregation() {
+        return new LongTerms(name, order, formatter, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Collections.<InternalTerms.Bucket>emptyList(), metaData);
     }
 
     @Override

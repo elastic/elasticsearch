@@ -48,8 +48,8 @@ public class InternalNested extends InternalSingleBucketAggregation implements N
     public InternalNested() {
     }
 
-    public InternalNested(String name, long docCount, InternalAggregations aggregations) {
-        super(name, docCount, aggregations);
+    public InternalNested(String name, long docCount, InternalAggregations aggregations, byte[] metaData) {
+        super(name, docCount, aggregations, metaData);
     }
 
     @Override

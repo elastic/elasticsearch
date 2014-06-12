@@ -140,8 +140,8 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     InternalGeoHashGrid() {
     } // for serialization
 
-    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets) {
-        super(name);
+    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, byte[] metaData) {
+        super(name, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }

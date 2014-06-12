@@ -168,8 +168,8 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, Collection<Bucket> buckets) {
-        super(name);
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, Collection<Bucket> buckets, byte[] metaData) {
+        super(name, metaData);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
         this.buckets = buckets;

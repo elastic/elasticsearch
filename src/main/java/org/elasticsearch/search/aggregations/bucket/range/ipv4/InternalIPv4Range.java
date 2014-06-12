@@ -84,8 +84,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return new InternalIPv4Range(name, ranges, keyed, unmapped);
+        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped, byte[] metaData) {
+            return new InternalIPv4Range(name, ranges, keyed, unmapped, metaData);
         }
 
         @Override
@@ -96,8 +96,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
 
     public InternalIPv4Range() {} // for serialization
 
-    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, boolean unmapped) {
-        super(name, ranges, ValueFormatter.IPv4, keyed, unmapped);
+    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, boolean unmapped, byte[] metaData) {
+        super(name, ranges, ValueFormatter.IPv4, keyed, unmapped, metaData);
     }
 
     @Override

@@ -229,7 +229,7 @@ public class ShardSearchRequest extends TransportRequest {
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             templateSource = in.readBytesReference();
             templateName = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
                 templateId = in.readOptionalString();
             }
             if (in.readBoolean()) {
@@ -266,7 +266,7 @@ public class ShardSearchRequest extends TransportRequest {
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
                 out.writeOptionalString(templateId);
             }
             boolean existTemplateParams = templateParams != null;

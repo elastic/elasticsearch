@@ -61,12 +61,6 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         this.aggregations = aggregations;
     }
 
-    /** Resets the internal addAggregation */
-    void reset(List<InternalAggregation> aggregations) {
-        this.aggregations = aggregations;
-        this.aggregationsAsMap = null;
-    }
-
     /**
      * Iterates over the {@link Aggregation}s.
      */
@@ -145,20 +139,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             reducedAggregations.add(first.reduce(new InternalAggregation.ReduceContext(aggregations, bigArrays)));
         }
-        InternalAggregations result = aggregationsList.get(0);
-        result.reset(reducedAggregations);
-        return result;
-    }
-
-    /**
-     * Reduces this aggregations, effectively propagates the reduce to all the sub aggregations
-     * @param cacheRecycler
-     */
-    public void reduce(BigArrays bigArrays) {
-        for (int i = 0; i < aggregations.size(); i++) {
-            InternalAggregation aggregation = aggregations.get(i);
-            aggregations.set(i, aggregation.reduce(new InternalAggregation.ReduceContext(ImmutableList.of(aggregation), bigArrays)));
-        }
+        return new InternalAggregations(reducedAggregations);
     }
 
     /** The fields required to write this addAggregation to xcontent */

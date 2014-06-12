@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatterStream
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 
 /**
 *
@@ -89,17 +88,15 @@ public class InternalPercentiles extends InternalNumericMetricsAggregation.Multi
 
     @Override
     public InternalPercentiles reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        InternalPercentiles merged = null;
-        for (InternalAggregation aggregation : aggregations) {
+        TDigestState merged = null;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
             final InternalPercentiles percentiles = (InternalPercentiles) aggregation;
             if (merged == null) {
-                merged = percentiles;
-            } else {
-                merged.state.add(percentiles.state);
+                merged = new TDigestState(percentiles.state.compression());
             }
+            merged.add(percentiles.state);
         }
-        return merged;
+        return new InternalPercentiles(getName(), percents, merged, keyed);
     }
 
     @Override

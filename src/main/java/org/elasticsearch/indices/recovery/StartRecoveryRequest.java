@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
@@ -115,6 +115,9 @@ public class StartRecoveryRequest extends TransportRequest {
             StoreFileMetaData md = StoreFileMetaData.readStoreFileMetaData(in);
             existingFiles.put(md.name(), md);
         }
+        if (in.getVersion().onOrAfter(Version.V_1_2_2)) {
+            recoveryType = RecoveryState.Type.fromId(in.readByte());
+        }
     }
 
     @Override
@@ -128,6 +131,9 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeVInt(existingFiles.size());
         for (StoreFileMetaData md : existingFiles.values()) {
             md.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
+            out.writeByte(recoveryType.id());
         }
     }
 }

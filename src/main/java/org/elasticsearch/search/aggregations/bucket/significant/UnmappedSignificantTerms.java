@@ -22,10 +22,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -62,6 +64,21 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public InternalAggregation reduce(ReduceContext reduceContext) {
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            if (!(aggregation instanceof UnmappedSignificantTerms)) {
+                return aggregation.reduce(reduceContext);
+            }
+        }
+        return this;
+    }
+
+    @Override
+    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize, List<Bucket> buckets) {
+        throw new UnsupportedOperationException("How did you get there?");
     }
 
     @Override

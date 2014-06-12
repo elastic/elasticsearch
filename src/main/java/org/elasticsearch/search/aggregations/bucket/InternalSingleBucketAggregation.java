@@ -33,8 +33,8 @@ import java.util.List;
  */
 public abstract class InternalSingleBucketAggregation extends InternalAggregation implements SingleBucketAggregation {
 
-    protected long docCount;
-    protected InternalAggregations aggregations;
+    private long docCount;
+    private InternalAggregations aggregations;
 
     protected InternalSingleBucketAggregation() {} // for serialization
 
@@ -61,26 +61,23 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
         return aggregations;
     }
 
+    /**
+     * Create a <b>new</b> empty sub aggregation. This must be a new instance on each call.
+     */
+    protected abstract InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
+
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            InternalSingleBucketAggregation reduced = ((InternalSingleBucketAggregation) aggregations.get(0));
-            reduced.aggregations.reduce(reduceContext.bigArrays());
-            return reduced;
-        }
-        InternalSingleBucketAggregation reduced = null;
+        long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());
         for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                reduced = (InternalSingleBucketAggregation) aggregation;
-            } else {
-                this.docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
-            }
+            assert aggregation.getName().equals(getName());
+            docCount += ((InternalSingleBucketAggregation) aggregation).docCount;
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).aggregations);
         }
-        reduced.aggregations = InternalAggregations.reduce(subAggregationsList, reduceContext.bigArrays());
-        return reduced;
+        final InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext.bigArrays());
+        return newAggregation(getName(), docCount, aggs);
     }
 
     @Override

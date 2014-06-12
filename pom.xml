@@ -527,6 +527,34 @@
                     </configuration>
                     </execution>
                     <execution>
+                        <id>invalid-patterns</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target unless="${validate.skip}">
+                                <pathconvert pathsep="${line.separator}" dirsep="/" property="validate.patternsFound" setonempty="false">
+                                    <fileset dir="${basedir}">
+                                        <include name="**/*.java"/>
+                                        <include name="**/*.py"/>
+                                        <include name="**/*.txt"/>
+                                        <include name="**/*.xml"/>
+                                        <include name="**/*.rb"/>
+                                        <include name="**/*.pl"/>
+                                        <exclude name="**/org/elasticsearch/cluster/routing/shard_routes.txt"/>
+                                        <or>
+                                            <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
+                                            <containsregexp expression="\t" casesensitive="no"/>
+                                        </or>
+                                    </fileset>
+                                    <map from="${basedir}${file.separator}" to="* "/>
+                                </pathconvert>
+                                <fail if="validate.patternsFound">The following files contain tabs or nocommits:${line.separator}${validate.patternsFound}</fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>tests</id>
                         <phase>test</phase>
                         <configuration>
@@ -643,7 +671,7 @@
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
                         </relocation>
                         <relocation>
-			    <pattern>com.github.mustachejava</pattern>
+                        <pattern>com.github.mustachejava</pattern>
                             <shadedPattern>org.elasticsearch.common.mustache</shadedPattern>
                         </relocation>
                         <relocation>

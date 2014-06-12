@@ -49,7 +49,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -409,16 +408,12 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(count("test1", "test2"), false);
         assertAcked(client().admin().indices().prepareClose("test2").get());
 
-        try {
-            search("test1", "test2").get();
-            fail("Exception should have been thrown");
-        } catch (ClusterBlockException e) {
-        }
-        try {
-            count("test1", "test2").get();
-            fail("Exception should have been thrown");
-        } catch (ClusterBlockException e) {
-        }
+        verify(search("test1", "test2"), true);
+        verify(count("test1", "test2"), true);
+
+        IndicesOptions options = IndicesOptions.fromOptions(true, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed());
+        verify(search("test1", "test2").setIndicesOptions(options), false);
+        verify(count("test1", "test2").setIndicesOptions(options), false);
 
         verify(search(), false);
         verify(count(), false);
@@ -846,8 +841,8 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
             } else {
                 try {
                     requestBuilder.get();
-                    fail("IndexMissingException was expected");
-                } catch (IndexMissingException e) {}
+                    fail("IndexMissingException or IndexClosedException was expected");
+                } catch (IndexMissingException | IndexClosedException e) {}
             }
         } else {
             if (requestBuilder instanceof SearchRequestBuilder) {

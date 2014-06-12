@@ -135,7 +135,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         // also support direct discovery.zen settings, for cases when it gets extended
         this.pingTimeout = settings.getAsTime("discovery.zen.ping.timeout", settings.getAsTime("discovery.zen.ping_timeout", componentSettings.getAsTime("ping_timeout", componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3)))));
-        this.joinTimeout = settings.getAsTime("discovery.zen.join_timeout", TimeValue.timeValueMillis(pingTimeout.millis() * 10));
+        this.joinTimeout = settings.getAsTime("discovery.zen.join_timeout", TimeValue.timeValueMillis(pingTimeout.millis() * 20));
         this.sendLeaveRequest = componentSettings.getAsBoolean("send_leave_request", true);
 
         this.masterElectionFilterClientNodes = settings.getAsBoolean("discovery.zen.master_election.filter_client", true);
@@ -592,7 +592,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 newStateProcessed.onNewClusterStateFailed(new ElasticsearchIllegalStateException("received state from a node that is not part of the cluster"));
             } else {
                 if (currentJoinThread != null) {
-                    logger.debug("got a new state from master node, though we are already trying to rejoin the cluster");
+                    logger.trace("got a new state from master node while joining the cluster, this is a valid state during the last phase of the join process");
                 }
 
                 final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
@@ -699,30 +699,29 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         }
     }
 
-    private ClusterState handleJoinRequest(final DiscoveryNode node) {
+    private void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
         if (!master) {
             throw new ElasticsearchIllegalStateException("Node [" + localNode + "] not master for join request from [" + node + "]");
         }
 
-        ClusterState state = clusterService.state();
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
             logger.warn("received a wrong address type from [{}], ignoring...", node);
         } else {
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
-            state = clusterService.state();
+            ClusterState state = clusterService.state();
 
             // validate the join request, will throw a failure if it fails, which will get back to the
             // node calling the join request
             membership.sendValidateJoinRequestBlocking(node, state, joinTimeout);
 
-            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-receive(join from node[" + node + "])", Priority.IMMEDIATE, new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.nodes().nodeExists(node.id())) {
                         // the node already exists in the cluster
-                        logger.warn("received a join request for an existing node [{}]", node);
+                        logger.info("received a join request for an existing node [{}]", node);
                         // still send a new cluster state, so it will be re published and possibly update the other node
                         return ClusterState.builder(currentState).build();
                     }
@@ -741,10 +740,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    callback.onFailure(t);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    callback.onSuccess(newState);
                 }
             });
         }
-        return state;
     }
 
     private DiscoveryNode findMaster() {
@@ -869,8 +873,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     private class MembershipListener implements MembershipAction.MembershipListener {
         @Override
-        public ClusterState onJoin(DiscoveryNode node) {
-            return handleJoinRequest(node);
+        public void onJoin(DiscoveryNode node, MembershipAction.JoinCallback callback) {
+            handleJoinRequest(node, callback);
         }
 
         @Override

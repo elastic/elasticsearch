@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 
 import java.io.IOException;
-import java.util.List;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
 
@@ -72,36 +71,36 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
-        InternalGeoBounds reduced = null;
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        for (InternalAggregation aggregation : aggregations) {
-            InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
-            
-            if (reduced == null) {
-                reduced = bounds;
-                continue;
-            }
+        double top = Double.NEGATIVE_INFINITY;
+        double bottom = Double.POSITIVE_INFINITY;
+        double posLeft = Double.POSITIVE_INFINITY;
+        double posRight = Double.NEGATIVE_INFINITY;
+        double negLeft = Double.POSITIVE_INFINITY;
+        double negRight = Double.NEGATIVE_INFINITY;
 
-            if (bounds.top > reduced.top) {
-                reduced.top = bounds.top;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
+
+            if (bounds.top > top) {
+                top = bounds.top;
             }
-            if (bounds.bottom < reduced.bottom) {
-                reduced.bottom = bounds.bottom;
+            if (bounds.bottom < bottom) {
+                bottom = bounds.bottom;
             }
-            if (bounds.posLeft < reduced.posLeft) {
-                reduced.posLeft = bounds.posLeft;
+            if (bounds.posLeft < posLeft) {
+                posLeft = bounds.posLeft;
             }
-            if (bounds.posRight > reduced.posRight) {
-                reduced.posRight = bounds.posRight;
+            if (bounds.posRight > posRight) {
+                posRight = bounds.posRight;
             }
-            if (bounds.negLeft < reduced.negLeft) {
-                reduced.negLeft = bounds.negLeft;
+            if (bounds.negLeft < negLeft) {
+                negLeft = bounds.negLeft;
             }
-            if (bounds.negRight > reduced.negRight) {
-                reduced.negRight = bounds.negRight;
+            if (bounds.negRight > negRight) {
+                negRight = bounds.negRight;
             }
         }
-        return reduced;
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude);
     }
     
     @Override

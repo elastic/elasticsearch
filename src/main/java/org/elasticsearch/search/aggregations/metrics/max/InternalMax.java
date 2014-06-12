@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
 *
@@ -74,22 +73,11 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalMax reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            return (InternalMax) aggregations.get(0);
+        double max = Double.NEGATIVE_INFINITY;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        InternalMax reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                reduced = (InternalMax) aggregation;
-            } else {
-                reduced.max = Math.max(reduced.max, ((InternalMax) aggregation).max);
-            }
-        }
-        if (reduced != null) {
-            return reduced;
-        }
-        return (InternalMax) aggregations.get(0);
+        return new InternalMax(name, max);
     }
 
     @Override

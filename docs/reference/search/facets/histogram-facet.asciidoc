@@ -1,6 +1,8 @@
 [[search-facets-histogram-facet]]
 === Histogram Facets
 
+include::deprecated.asciidoc[]
+
 The histogram facet works with numeric data by building a histogram
 across intervals of the field values. Each value is "rounded" into an
 interval (or placed in a bucket), and statistics are provided per

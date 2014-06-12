@@ -60,3 +60,13 @@ next to the given cell.
     }
 }
 --------------------------------------------------
+
+[float]
+==== Caching
+
+coming[1.3.0]
+
+The result of the filter is not cached by default. The
+`_cache` parameter can be set to `true` to turn caching on.
+By default the filter uses the resulting geohash cells as a cache key.
+This can be changed by using the `_cache_key` option.

@@ -543,6 +543,7 @@
                                         <include name="**/*.rb"/>
                                         <include name="**/*.pl"/>
                                         <exclude name="**/org/elasticsearch/cluster/routing/shard_routes.txt"/>
+                                        <exclude name="target/**/*"/>
                                         <or>
                                             <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
                                             <containsregexp expression="\t" casesensitive="no"/>

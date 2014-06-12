@@ -164,7 +164,6 @@ import static org.hamcrest.Matchers.equalTo;
 @AbstractRandomizedTest.IntegrationTests
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
     private static ImmutableTestCluster GLOBAL_CLUSTER;
-
     /**
      * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
      */

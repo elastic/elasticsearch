@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.List;
@@ -307,6 +308,51 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx").addAggregation(terms("terms").field("double_value").subAggregation(percentiles("pcts").field("double_value"))).execute().actionGet();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits());
+    }
+
+    // https://github.com/elasticsearch/elasticsearch/issues/6435
+    public void testReduce() throws Exception {
+        createIndex("idx");
+        final int value = randomIntBetween(0, 10);
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("f", value));
+
+        SearchResponse response = client().prepareSearch("idx")
+                .addAggregation(filter("filter").filter(FilterBuilders.matchAllFilter())
+                .subAggregation(range("range")
+                        .field("f")
+                        .addUnboundedTo(6)
+                        .addUnboundedFrom(6)
+                .subAggregation(sum("sum").field("f"))))
+                .execute().actionGet();
+
+        assertSearchResponse(response);System.out.println(response);
+
+        Filter filter = response.getAggregations().get("filter");
+        assertNotNull(filter);
+        assertEquals(1, filter.getDocCount());
+
+        Range range = filter.getAggregations().get("range");
+        assertThat(range, notNullValue());
+        assertThat(range.getName(), equalTo("range"));
+        assertThat(range.getBuckets().size(), equalTo(2));
+
+        Range.Bucket bucket = range.getBucketByKey("*-6.0");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("*-6.0"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(bucket.getTo().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getDocCount(), equalTo(value < 6 ? 1L : 0L));
+        Sum sum = bucket.getAggregations().get("sum");
+        assertEquals(value < 6 ? value : 0, sum.getValue(), 0d);
+
+        bucket = range.getBucketByKey("6.0-*");
+        assertThat(bucket, notNullValue());
+        assertThat(bucket.getKey(), equalTo("6.0-*"));
+        assertThat(bucket.getFrom().doubleValue(), equalTo(6.0));
+        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
+        assertThat(bucket.getDocCount(), equalTo(value >= 6 ? 1L : 0L));
+        sum = bucket.getAggregations().get("sum");
+        assertEquals(value >= 6 ? value : 0, sum.getValue(), 0d);
     }
 
 }

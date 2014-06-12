@@ -85,6 +85,10 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             return termBytes.utf8ToString();
         }
 
+        @Override
+        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
+            return new Bucket(termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
+        }
     }
 
     SignificantStringTerms() {} // for serialization
@@ -97,6 +101,12 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
+            List<InternalSignificantTerms.Bucket> buckets) {
+        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, supersetSize, buckets);
     }
 
     @Override

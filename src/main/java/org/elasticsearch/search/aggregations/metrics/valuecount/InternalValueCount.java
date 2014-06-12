@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * An internal implementation of {@link ValueCount}.
@@ -69,19 +68,11 @@ public class InternalValueCount extends MetricsAggregation implements ValueCount
 
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            return aggregations.get(0);
+        long valueCount = 0;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            valueCount += ((InternalValueCount) aggregation).value;
         }
-        InternalValueCount reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                reduced = (InternalValueCount) aggregation;
-            } else {
-                reduced.value += ((InternalValueCount) aggregation).value;
-            }
-        }
-        return reduced;
+        return new InternalValueCount(name, valueCount);
     }
 
     @Override

@@ -36,6 +36,10 @@ public class TDigestState extends AVLTreeDigest {
         this.compression = compression;
     }
 
+    public double compression() {
+        return compression;
+    }
+
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
         out.writeVInt(state.centroidCount());

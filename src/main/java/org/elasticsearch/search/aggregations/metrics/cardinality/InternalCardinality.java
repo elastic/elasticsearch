@@ -104,18 +104,17 @@ public final class InternalCardinality extends MetricsAggregation.SingleValue im
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = cardinality;
-                } else {
-                    reduced.merge(cardinality);
+                    reduced = new InternalCardinality(name, new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1));
                 }
+                reduced.merge(cardinality);
             }
         }
 
         if (reduced == null) { // all empty
-            reduced = (InternalCardinality) aggregations.get(0);
+            return aggregations.get(0);
+        } else {
+            return reduced;
         }
-
-        return reduced;
     }
 
     public void merge(InternalCardinality other) {

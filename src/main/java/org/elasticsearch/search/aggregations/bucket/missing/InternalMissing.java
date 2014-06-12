@@ -58,4 +58,8 @@ public class InternalMissing extends InternalSingleBucketAggregation implements 
         return TYPE;
     }
 
+    @Override
+    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+        return new InternalMissing(name, docCount, subAggregations);
+    }
 }

@@ -72,6 +72,11 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
         public DateTime getToAsDate() {
             return Double.isInfinite(getTo().doubleValue()) ? null : new DateTime(getTo().longValue(), DateTimeZone.UTC);
         }
+
+        @Override
+        protected InternalRange.Factory<Bucket, ?> getFactory() {
+            return FACTORY;
+        }
     }
 
     private static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
@@ -82,8 +87,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
         }
 
         @Override
-        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return new InternalDateRange(name, ranges, formatter, keyed, unmapped);
+        public InternalDateRange create(String name, List<InternalDateRange.Bucket> ranges, ValueFormatter formatter, boolean keyed) {
+            return new InternalDateRange(name, ranges, formatter, keyed);
         }
 
         @Override
@@ -94,8 +99,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
 
     InternalDateRange() {} // for serialization
 
-    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-        super(name, ranges, formatter, keyed, unmapped);
+    InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
+        super(name, ranges, formatter, keyed);
     }
 
     @Override
@@ -104,7 +109,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
     }
 
     @Override
-    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, ValueFormatter formatter) {
-        return new Bucket(key, from, to, docCount, aggregations, formatter);
+    protected InternalRange.Factory<Bucket, ?> getFactory() {
+        return FACTORY;
     }
 }

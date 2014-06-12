@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
 *
@@ -74,22 +73,11 @@ public class InternalSum extends MetricsAggregation.SingleValue implements Sum {
 
     @Override
     public InternalSum reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            return (InternalSum) aggregations.get(0);
+        double sum = 0;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            sum += ((InternalSum) aggregation).sum;
         }
-        InternalSum reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                reduced = (InternalSum) aggregation;
-            } else {
-                reduced.sum += ((InternalSum) aggregation).sum;
-            }
-        }
-        if (reduced != null) {
-            return reduced;
-        }
-        return (InternalSum) aggregations.get(0);
+        return new InternalSum(name, sum);
     }
 
     @Override

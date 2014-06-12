@@ -56,4 +56,9 @@ public class InternalGlobal extends InternalSingleBucketAggregation implements G
     public Type type() {
         return TYPE;
     }
+
+    @Override
+    protected InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations) {
+        return new InternalGlobal(name, docCount, subAggregations);
+    }
 }

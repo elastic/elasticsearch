@@ -74,6 +74,11 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
             double to = getTo().doubleValue();
             return Double.isInfinite(to) ? null : MAX_IP == to ? null : ValueFormatter.IPv4.format(to);
         }
+
+        @Override
+        protected InternalRange.Factory<Bucket, ?> getFactory() {
+            return FACTORY;
+        }
     }
 
     private static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
@@ -84,8 +89,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, boolean unmapped) {
-            return new InternalIPv4Range(name, ranges, keyed, unmapped);
+        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed) {
+            return new InternalIPv4Range(name, ranges, keyed);
         }
 
         @Override
@@ -96,8 +101,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
 
     public InternalIPv4Range() {} // for serialization
 
-    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, boolean unmapped) {
-        super(name, ranges, ValueFormatter.IPv4, keyed, unmapped);
+    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed) {
+        super(name, ranges, ValueFormatter.IPv4, keyed);
     }
 
     @Override
@@ -106,8 +111,7 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> i
     }
 
     @Override
-    protected Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter ) {
-        return new Bucket(key, from, to, docCount, aggregations);
+    protected InternalRange.Factory<Bucket, ?> getFactory() {
+        return FACTORY;
     }
-
 }

@@ -20,14 +20,10 @@
 package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Maps;
-import org.elasticsearch.action.bulk.BulkProcessor;
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -41,10 +37,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
@@ -576,50 +569,6 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertExists(get("test", "type", "48"));
     }
 
-    @Test
-    public void testThatBulkProcessorCountIsCorrect() throws InterruptedException {
-        final AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                responseRef.set(response);
-                latch.countDown();
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                failureRef.set(failure);
-                latch.countDown();
-            }
-        };
-
-
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(5)
-                .setConcurrentRequests(1).setName("foo").build()) {
-            Map<String, Object> data = Maps.newHashMap();
-            data.put("foo", "bar");
-
-            processor.add(new IndexRequest("test", "test", "1").source(data));
-            processor.add(new IndexRequest("test", "test", "2").source(data));
-            processor.add(new IndexRequest("test", "test", "3").source(data));
-            processor.add(new IndexRequest("test", "test", "4").source(data));
-            processor.add(new IndexRequest("test", "test", "5").source(data));
-
-            latch.await();
-            BulkResponse response = responseRef.get();
-            Throwable error = failureRef.get();
-            assertThat(error, nullValue());
-            assertThat("Could not get a bulk response even after an explicit flush.", response, notNullValue());
-            assertThat(response.getItems().length, is(5));
-        }
-    }
-
     @Test // issue 4987
     public void testThatInvalidIndexNamesShouldNotBreakCompleteBulkRequest() {
         int bulkEntryCount = randomIntBetween(10, 50);
@@ -645,50 +594,6 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         assertThat(bulkResponse.getItems().length, is(bulkEntryCount));
         for (int i = 0; i < bulkEntryCount; i++) {
             assertThat(bulkResponse.getItems()[i].isFailed(), is(expectedFailures[i]));
-        }
-    }
-
-    @Test
-    public void testBulkProcessorFlush() throws InterruptedException {
-        final AtomicReference<BulkResponse> responseRef = new AtomicReference<>();
-        final AtomicReference<Throwable> failureRef = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        BulkProcessor.Listener listener = new BulkProcessor.Listener() {
-            @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-                responseRef.set(response);
-                latch.countDown();
-            }
-
-            @Override
-            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                failureRef.set(failure);
-                latch.countDown();
-            }
-        };
-
-        try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setBulkActions(6)
-                .setConcurrentRequests(1).setName("foo").build()) {
-            Map<String, Object> data = Maps.newHashMap();
-            data.put("foo", "bar");
-
-            processor.add(new IndexRequest("test", "test", "1").source(data));
-            processor.add(new IndexRequest("test", "test", "2").source(data));
-            processor.add(new IndexRequest("test", "test", "3").source(data));
-            processor.add(new IndexRequest("test", "test", "4").source(data));
-            processor.add(new IndexRequest("test", "test", "5").source(data));
-
-            processor.flush();
-            latch.await();
-            BulkResponse response = responseRef.get();
-            Throwable error = failureRef.get();
-            assertThat(error, nullValue());
-            assertThat("Could not get a bulk response even after an explicit flush.", response, notNullValue());
-            assertThat(response.getItems().length, is(5));
         }
     }
 }

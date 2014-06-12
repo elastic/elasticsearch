@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -61,6 +62,8 @@ public class GeohashCellFilter {
     public static final String NAME = "geohash_cell";
     public static final String NEIGHBORS = "neighbors";
     public static final String PRECISION = "precision";
+    public static final String CACHE = "_cache";
+    public static final String CACHE_KEY = "_cache_key";
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -189,6 +192,9 @@ public class GeohashCellFilter {
             String geohash = null;
             int levels = -1;
             boolean neighbors = false;
+            boolean cache = true;
+            CacheKeyFilter.Key cacheKey = null;
+
 
             XContentParser.Token token;
             if ((token = parser.currentToken()) != Token.START_OBJECT) {
@@ -210,6 +216,12 @@ public class GeohashCellFilter {
                     } else if (NEIGHBORS.equals(field)) {
                         parser.nextToken();
                         neighbors = parser.booleanValue();
+                    } else if (CACHE.equals(field)) {
+                        parser.nextToken();
+                        cache = parser.booleanValue();
+                    } else if (CACHE_KEY.equals(field)) {
+                        parser.nextToken();
+                        cacheKey = new CacheKeyFilter.Key(parser.text());
                     } else {
                         fieldName = field;
                         token = parser.nextToken();
@@ -254,11 +266,18 @@ public class GeohashCellFilter {
                 geohash = geohash.substring(0, len);
             }
 
+            Filter filter;
             if (neighbors) {
-                return create(parseContext, geoMapper, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                filter = create(parseContext, geoMapper, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
-                return create(parseContext, geoMapper, geohash, null);
+                filter = create(parseContext, geoMapper, geohash, null);
             }
+
+            if (cache) {
+                filter = parseContext.cacheFilter(filter, cacheKey);
+            }
+
+            return filter;
         }
     }
 }

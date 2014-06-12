@@ -568,7 +568,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
-        if (threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
+        if (enableGcDeletes && threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
             pruneDeletedTombstones();
         }
     }
@@ -744,7 +744,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
         // We don't need to prune here, but it's an "opportune" time to, in case for example the wall clock time has shifted and we are
         // never pruning in delete:
-        pruneDeletedTombstones();
+        if (enableGcDeletes) {
+            pruneDeletedTombstones();
+        }
     }
 
     @Override
@@ -890,12 +892,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     }
 
     private void pruneDeletedTombstones() {
-        if (enableGcDeletes == false) {
-            return;
-        }
+        long timeMSec = threadPool.estimatedTimeInMillis();
 
         // TODO: not good that we reach into LiveVersionMap here; can we move this inside VersionMap instead?  problem is the dirtyLock...
-        long timeMSec = threadPool.estimatedTimeInMillis();
 
         // we only need to prune the deletes map; the current/old version maps are cleared on refresh:
         for (Map.Entry<BytesRef, VersionValue> entry : versionMap.getAllTombstones()) {

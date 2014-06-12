@@ -34,7 +34,7 @@ import java.io.IOException;
 public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequest> extends ActionRequest<T> {
 
     protected String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     protected BroadcastOperationRequest() {
 

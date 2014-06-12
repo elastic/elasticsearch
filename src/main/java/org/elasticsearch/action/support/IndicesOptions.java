@@ -40,9 +40,10 @@ public class IndicesOptions {
     private static final byte EXPAND_WILDCARDS_OPEN = 4;
     private static final byte EXPAND_WILDCARDS_CLOSED = 8;
     private static final byte FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
+    private static final byte FORBID_CLOSED_INDICES = 32;
 
     static {
-        byte max = 1 << 5;
+        byte max = 1 << 6;
         VALUES = new IndicesOptions[max];
         for (byte id = 0; id < max; id++) {
             VALUES[id] = new IndicesOptions(id);
@@ -85,6 +86,13 @@ public class IndicesOptions {
     }
 
     /**
+     * @return Whether execution on closed indices is allowed.
+     */
+    public boolean forbidClosedIndices() {
+        return (id & FORBID_CLOSED_INDICES) != 0;
+    }
+
+    /**
      * @return whether aliases pointing to multiple indices are allowed
      */
     public boolean allowAliasesToMultipleIndices() {
@@ -94,12 +102,16 @@ public class IndicesOptions {
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        if (allowAliasesToMultipleIndices() || out.getVersion().onOrAfter(Version.V_1_2_0)) {
+        if (out.getVersion().onOrAfter(Version.V_1_2_2)) {
             out.write(id);
-        } else {
-            //if we are talking to a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
-            //flip to 0 all the bits starting from the 5th
+        } else if (out.getVersion().before(Version.V_1_2_0)) {
+            // Target node doesn't know about the FORBID_CLOSED_INDICES and FORBID_ALIASES_TO_MULTIPLE_INDICES flags,
+            // so unset the bits starting from the 5th position.
             out.write(id & 0xf);
+        } else {
+            // Target node doesn't know about the FORBID_CLOSED_INDICES flag,
+            // so unset the bits starting from the 6th position.
+            out.write(id & 0x1f);
         }
     }
 
@@ -114,11 +126,15 @@ public class IndicesOptions {
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true);
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false);
     }
 
-    static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices) {
-        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices);
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, IndicesOptions defaultOptions) {
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices());
+    }
+
+    static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
+        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices);
         return VALUES[id];
     }
 
@@ -150,7 +166,9 @@ public class IndicesOptions {
                 toBool(sIgnoreUnavailable, defaultSettings.ignoreUnavailable()),
                 toBool(sAllowNoIndices, defaultSettings.allowNoIndices()),
                 expandWildcardsOpen,
-                expandWildcardsClosed
+                expandWildcardsClosed,
+                defaultSettings.allowAliasesToMultipleIndices(),
+                defaultSettings.forbidClosedIndices()
         );
     }
 
@@ -170,6 +188,15 @@ public class IndicesOptions {
      */
     public static IndicesOptions strictExpandOpen() {
         return VALUES[6];
+    }
+
+    /**
+     * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
+     *         allows that no indices are resolved from wildcard expressions (not returning an error) and forbids the
+     *         use of closed indices by throwing an error.
+     */
+    public static IndicesOptions strictExpandOpenAndForbidClosed() {
+        return VALUES[38];
     }
 
     /**
@@ -206,7 +233,8 @@ public class IndicesOptions {
         return VALUES[7];
     }
 
-    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen, boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices) {
+    private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen,
+                               boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
         byte id = 0;
         if (ignoreUnavailable) {
             id |= IGNORE_UNAVAILABLE;
@@ -224,6 +252,9 @@ public class IndicesOptions {
         //in the array same as before + the default value for the new flag
         if (!allowAliasesToMultipleIndices) {
             id |= FORBID_ALIASES_TO_MULTIPLE_INDICES;
+        }
+        if (forbidClosedIndices) {
+            id |= FORBID_CLOSED_INDICES;
         }
         return id;
     }

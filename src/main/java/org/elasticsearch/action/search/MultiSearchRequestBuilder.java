@@ -42,7 +42,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * will not be used (if set).
      */
     public MultiSearchRequestBuilder add(SearchRequest request) {
-        if (request.indicesOptions() == IndicesOptions.strictExpandOpen() && request().indicesOptions() != IndicesOptions.strictExpandOpen()) {
+        if (request.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() && request().indicesOptions() != IndicesOptions.strictExpandOpenAndForbidClosed()) {
             request.indicesOptions(request().indicesOptions());
         }
 
@@ -55,7 +55,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      * same order as the search requests.
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
-        if (request.request().indicesOptions() == IndicesOptions.strictExpandOpen() && request().indicesOptions() != IndicesOptions.strictExpandOpen()) {
+        if (request.request().indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() && request().indicesOptions() != IndicesOptions.strictExpandOpenAndForbidClosed()) {
             request.request().indicesOptions(request().indicesOptions());
         }
 

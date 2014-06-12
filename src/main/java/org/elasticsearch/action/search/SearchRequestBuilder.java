@@ -525,7 +525,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Adds a facet to the search operation.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder addFacet(FacetBuilder facet) {
         sourceBuilder().facet(facet);
         return this;
@@ -533,7 +535,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(BytesReference facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -541,7 +545,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(byte[] facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -549,7 +555,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(byte[] facets, int facetsOffset, int facetsLength) {
         sourceBuilder().facets(facets, facetsOffset, facetsLength);
         return this;
@@ -557,7 +565,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(XContentBuilder facets) {
         sourceBuilder().facets(facets);
         return this;
@@ -565,7 +575,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * Sets a raw (xcontent) binary representation of facets to use.
+     * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
      */
+    @Deprecated
     public SearchRequestBuilder setFacets(Map facets) {
         sourceBuilder().facets(facets);
         return this;

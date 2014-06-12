@@ -117,7 +117,7 @@ and applies to the `my-suggest-1` and `my-suggest-2` suggestions.
 [source,js]
 --------------------------------------------------
 "suggest" : {
-  "text" : "the amsterdma meetpu"
+  "text" : "the amsterdma meetpu",
   "my-suggest-1" : {
     "term" : {
       "field" : "title"

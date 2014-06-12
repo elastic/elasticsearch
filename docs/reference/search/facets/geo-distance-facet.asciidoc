@@ -1,6 +1,8 @@
 [[search-facets-geo-distance-facet]]
 === Geo Distance Facets
 
+include::deprecated.asciidoc[]
+
 The geo_distance facet is a facet providing information for ranges of
 distances from a provided geo_point including count of the number of
 hits that fall within each range, and aggregation information (like

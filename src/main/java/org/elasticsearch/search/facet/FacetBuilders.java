@@ -35,8 +35,9 @@ import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacetBuilder;
 
 /**
- *
+ * @deprecated Facets are deprecated and will be removed in a future release. Please use aggregations instead.
  */
+@Deprecated
 public class FacetBuilders {
 
     public static QueryFacetBuilder queryFacet(String facetName) {

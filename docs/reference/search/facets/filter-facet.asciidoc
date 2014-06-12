@@ -1,6 +1,8 @@
 [[search-facets-filter-facet]]
 === Filter Facets
 
+include::deprecated.asciidoc[]
+
 A filter facet (not to be confused with a
 <<search-facets,facet filter>>) allows you to
 return a count of the hits matching the filter. The filter itself can be

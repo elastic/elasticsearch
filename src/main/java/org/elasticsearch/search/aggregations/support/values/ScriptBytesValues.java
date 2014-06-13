@@ -33,6 +33,7 @@ import java.util.Iterator;
  */
 public class ScriptBytesValues extends BytesValues implements ScriptValues {
 
+    private final BytesRef scratch = new BytesRef();
     final SearchScript script;
 
     private Iterator<?> iter;
@@ -50,7 +51,6 @@ public class ScriptBytesValues extends BytesValues implements ScriptValues {
 
     @Override
     public int setDocument(int docId) {
-        this.docId = docId;
         script.setNextDocId(docId);
         value = script.run();
 

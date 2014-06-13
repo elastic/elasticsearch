@@ -39,16 +39,6 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
     protected static class Empty extends AtomicGeoPointFieldData<ScriptDocValues> {
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return 0;
-        }
-
-        @Override
         public long getMemorySizeInBytes() {
             return 0;
         }

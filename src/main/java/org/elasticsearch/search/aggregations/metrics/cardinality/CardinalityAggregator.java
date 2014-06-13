@@ -34,7 +34,6 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.MurmurHash3Values;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -92,7 +91,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         final BytesValues bytesValues = valuesSource.bytesValues();
         if (bytesValues instanceof BytesValues.WithOrdinals) {
             BytesValues.WithOrdinals values = (BytesValues.WithOrdinals) bytesValues;
-            final long maxOrd = values.ordinals().getMaxOrd();
+            final long maxOrd = values.getMaxOrd();
             if (maxOrd == 0) {
                 return new EmptyCollector();
             }
@@ -231,15 +230,13 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         private final BigArrays bigArrays;
         private final BytesValues.WithOrdinals values;
-        private final Ordinals.Docs ordinals;
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<FixedBitSet> visitedOrds;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, BytesValues.WithOrdinals values, BigArrays bigArrays) {
-            ordinals = values.ordinals();
-            Preconditions.checkArgument(ordinals.getMaxOrd() <= Integer.MAX_VALUE);
-            maxOrd = (int) ordinals.getMaxOrd();
+            Preconditions.checkArgument(values.getMaxOrd() <= Integer.MAX_VALUE);
+            maxOrd = (int) values.getMaxOrd();
             this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
@@ -254,9 +251,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 bits = new FixedBitSet(maxOrd);
                 visitedOrds.set(bucketOrd, bits);
             }
-            final int valueCount = ordinals.setDocument(doc);
+            final int valueCount = values.setDocument(doc);
             for (int i = 0; i < valueCount; ++i) {
-                bits.set((int) ordinals.nextOrd());
+                bits.set((int) values.nextOrd());
             }
         }
 

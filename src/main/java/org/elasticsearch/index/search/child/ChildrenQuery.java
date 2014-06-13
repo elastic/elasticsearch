@@ -37,7 +37,6 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -289,25 +288,23 @@ public class ChildrenQuery extends Query {
                     return null;
                 }
 
-                Ordinals.Docs globalOrdinals = bytesValues.ordinals();
-
                 if (minChildren > 0 || maxChildren != 0 || scoreType == ScoreType.NONE) {
                     switch (scoreType) {
                     case NONE:
-                        DocIdSetIterator parentIdIterator = new CountParentOrdIterator(this, parents, collector, globalOrdinals,
+                        DocIdSetIterator parentIdIterator = new CountParentOrdIterator(this, parents, collector, bytesValues,
                                 minChildren, maxChildren);
                         return ConstantScorer.create(parentIdIterator, this, queryWeight);
                     case AVG:
-                        return new AvgParentCountScorer(this, parents, collector, globalOrdinals, minChildren, maxChildren);
+                        return new AvgParentCountScorer(this, parents, collector, bytesValues, minChildren, maxChildren);
                     default:
-                        return new ParentCountScorer(this, parents, collector, globalOrdinals, minChildren, maxChildren);
+                        return new ParentCountScorer(this, parents, collector, bytesValues, minChildren, maxChildren);
                     }
                 }
                 switch (scoreType) {
                 case AVG:
-                    return new AvgParentScorer(this, parents, collector, globalOrdinals);
+                    return new AvgParentScorer(this, parents, collector, bytesValues);
                 default:
-                    return new ParentScorer(this, parents, collector, globalOrdinals);
+                    return new ParentScorer(this, parents, collector, bytesValues);
                 }
             }
             return null;
@@ -321,7 +318,6 @@ public class ChildrenQuery extends Query {
         protected final BigArrays bigArrays;
         protected final SearchContext searchContext;
 
-        protected Ordinals.Docs globalOrdinals;
         protected BytesValues.WithOrdinals values;
         protected Scorer scorer;
 
@@ -334,9 +330,9 @@ public class ChildrenQuery extends Query {
 
         @Override
         public final void collect(int doc) throws IOException {
-            if (globalOrdinals != null) {
-                final long globalOrdinal = globalOrdinals.getOrd(doc);
-                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
+            if (values != null) {
+                final long globalOrdinal = values.getOrd(doc);
+                if (globalOrdinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                     long parentIdx = parentIdxs.add(globalOrdinal);
                     if (parentIdx >= 0) {
                         newParent(parentIdx);
@@ -361,9 +357,6 @@ public class ChildrenQuery extends Query {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             values = globalIfd.load(context).getBytesValues();
-            if (values != null) {
-                globalOrdinals = values.ordinals();
-            }
         }
 
         @Override
@@ -507,13 +500,13 @@ public class ChildrenQuery extends Query {
         final LongHash parentIds;
         final FloatArray scores;
 
-        final Ordinals.Docs globalOrdinals;
+        final BytesValues.WithOrdinals globalOrdinals;
         final DocIdSetIterator parentsIterator;
 
         int currentDocId = -1;
         float currentScore;
 
-        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals) {
+        ParentScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, BytesValues.WithOrdinals globalOrdinals) {
             super(parentWeight);
             this.parentWeight = parentWeight;
             this.globalOrdinals = globalOrdinals;
@@ -557,7 +550,7 @@ public class ChildrenQuery extends Query {
                 }
 
                 final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-                if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+                if (globalOrdinal == BytesValues.WithOrdinals.MISSING_ORDINAL) {
                     continue;
                 }
 
@@ -583,7 +576,7 @@ public class ChildrenQuery extends Query {
             }
 
             final long globalOrdinal = globalOrdinals.getOrd(currentDocId);
-            if (globalOrdinal == Ordinals.MISSING_ORDINAL) {
+            if (globalOrdinal == BytesValues.WithOrdinals.MISSING_ORDINAL) {
                 return nextDoc();
             }
 
@@ -609,7 +602,7 @@ public class ChildrenQuery extends Query {
         protected final int minChildren;
         protected final int maxChildren;
 
-        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+        ParentCountScorer(ParentWeight parentWeight, DocIdSetIterator parentsIterator, ParentCollector collector, BytesValues.WithOrdinals globalOrdinals, int minChildren, int maxChildren) {
             super(parentWeight, parentsIterator, (ParentScoreCollector) collector, globalOrdinals);
             this.minChildren = minChildren;
             this.maxChildren = maxChildren == 0 ? Integer.MAX_VALUE : maxChildren;
@@ -627,7 +620,7 @@ public class ChildrenQuery extends Query {
 
     private static final class AvgParentScorer extends ParentCountScorer {
 
-        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals) {
+        AvgParentScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, BytesValues.WithOrdinals globalOrdinals) {
             super(weight, parentsIterator, collector, globalOrdinals, 0, 0);
         }
 
@@ -642,7 +635,7 @@ public class ChildrenQuery extends Query {
 
     private static final class AvgParentCountScorer extends ParentCountScorer {
 
-        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, Ordinals.Docs globalOrdinals, int minChildren, int maxChildren) {
+        AvgParentCountScorer(ParentWeight weight, DocIdSetIterator parentsIterator, ParentCollector collector, BytesValues.WithOrdinals globalOrdinals, int minChildren, int maxChildren) {
             super(weight, parentsIterator, collector, globalOrdinals, minChildren, maxChildren);
         }
 
@@ -664,10 +657,10 @@ public class ChildrenQuery extends Query {
         protected final IntArray occurrences;
         private final int minChildren;
         private final int maxChildren;
-        private final Ordinals.Docs ordinals;
+        private final BytesValues.WithOrdinals ordinals;
         private final ParentWeight parentWeight;
 
-        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator, ParentCollector collector, Ordinals.Docs ordinals, int minChildren, int maxChildren) {
+        private CountParentOrdIterator(ParentWeight parentWeight, DocIdSetIterator innerIterator, ParentCollector collector, BytesValues.WithOrdinals ordinals, int minChildren, int maxChildren) {
             super(innerIterator);
             this.parentIds = ((CountCollector) collector).parentIdxs;
             this.occurrences = ((CountCollector) collector).occurrences;
@@ -689,7 +682,7 @@ public class ChildrenQuery extends Query {
             }
 
             final long parentOrd = ordinals.getOrd(doc);
-            if (parentOrd != Ordinals.MISSING_ORDINAL) {
+            if (parentOrd != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                 final long parentIdx = parentIds.find(parentOrd);
                 if (parentIdx != -1) {
                     parentWeight.remaining--;

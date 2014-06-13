@@ -49,17 +49,6 @@ public class NumericDVAtomicFieldData extends AbstractAtomicNumericFieldData {
     }
 
     @Override
-    public boolean isMultiValued() {
-        return false;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        // good upper limit
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         // TODO: cannot be computed from Lucene
         return -1;

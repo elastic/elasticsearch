@@ -41,7 +41,6 @@ import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
@@ -855,7 +854,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").get();
         assertNoFailures(flushResponse);
-        assertAllSuccessful(flushResponse);
 
         getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));

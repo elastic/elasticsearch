@@ -14,11 +14,10 @@ Configuring custom postings or doc values formats is an expert feature and
 most likely using the builtin formats will suit your needs as is described
 in the <<mapping-core-types,mapping section>>.
 
-**********************************
+[WARNING]
 Only the default codec, postings format and doc values format are supported:
 other formats may break backward compatibility between minor versions of
 Elasticsearch, requiring data to be reindexed.
-**********************************
 
 
 [float]
@@ -260,10 +259,10 @@ Type name: `memory`
 [float]
 ==== Disk doc values format
 
-A doc values format that stores and reads everything from disk. Although it may
-be slightly slower than the default doc values format, this doc values format
-will require almost no memory from the JVM. The disk doc values format has no
-options.
+A doc values format that stores and reads everything from disk. This is
+generally not a good idea to use it as it saves very little memory compared
+to the default doc values format although it can be significantly slower.
+The disk doc values format has no options.
 
 Type name: `disk`
 

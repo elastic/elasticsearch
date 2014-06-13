@@ -33,7 +33,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -115,21 +114,21 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
-                if (lat.size() != build.getMaxOrd()) {
-                    lat = lat.resize(build.getMaxOrd());
-                    lon = lon.resize(build.getMaxOrd());
+            BytesValues.WithOrdinals ordinals = build.ordinals();
+            if (ordinals.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS) {
+                if (lat.size() != ordinals.getMaxOrd()) {
+                    lat = lat.resize(ordinals.getMaxOrd());
+                    lon = lon.resize(ordinals.getMaxOrd());
                 }
                 data = new GeoPointCompressedAtomicFieldData.WithOrdinals(encoding, lon, lat, build);
             } else {
-                Docs ordinals = build.ordinals();
                 int maxDoc = reader.maxDoc();
                 PagedMutable sLat = new PagedMutable(reader.maxDoc(), pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
                 PagedMutable sLon = new PagedMutable(reader.maxDoc(), pageSize, encoding.numBitsPerCoordinate(), PackedInts.COMPACT);
                 final long missing = encoding.encodeCoordinate(0);
                 for (int i = 0; i < maxDoc; i++) {
                     final long nativeOrdinal = ordinals.getOrd(i);
-                    if (nativeOrdinal != Ordinals.MISSING_ORDINAL) {
+                    if (nativeOrdinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                         sLat.set(i, lat.get(nativeOrdinal));
                         sLon.set(i, lon.get(nativeOrdinal));
                     } else {
@@ -139,9 +138,9 @@ public class GeoPointCompressedIndexFieldData extends AbstractGeoPointIndexField
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    data = new GeoPointCompressedAtomicFieldData.Single(encoding, sLon, sLat, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
+                    data = new GeoPointCompressedAtomicFieldData.Single(encoding, sLon, sLat);
                 } else {
-                    data = new GeoPointCompressedAtomicFieldData.SingleFixedSet(encoding, sLon, sLat, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
+                    data = new GeoPointCompressedAtomicFieldData.SingleFixedSet(encoding, sLon, sLat, set);
                 }
             }
             success = true;

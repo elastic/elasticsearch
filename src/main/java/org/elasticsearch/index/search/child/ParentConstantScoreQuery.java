@@ -31,7 +31,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 
 import java.io.IOException;
@@ -96,8 +95,7 @@ public class ParentConstantScoreQuery extends Query {
         } else {
             AtomicFieldData.WithOrdinals afd = globalIfd.load(leaves.get(0));
             BytesValues.WithOrdinals globalValues = afd.getBytesValues();
-            Ordinals.Docs globalOrdinals = globalValues.ordinals();
-            maxOrd = globalOrdinals.getMaxOrd();
+            maxOrd = globalValues.getMaxOrd();
         }
 
         if (maxOrd == 0) {
@@ -200,9 +198,8 @@ public class ParentConstantScoreQuery extends Query {
             if (globalValues != null) {
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
-                    Ordinals.Docs globalOrdinals = globalValues.ordinals();
                     ChildrenDocIdIterator childrenDocIdIterator = new ChildrenDocIdIterator(
-                            innerIterator, parentOrds, globalOrdinals
+                            innerIterator, parentOrds, globalValues
                     );
                     return ConstantScorer.create(childrenDocIdIterator, this, queryWeight);
                 }
@@ -215,9 +212,9 @@ public class ParentConstantScoreQuery extends Query {
     private final class ChildrenDocIdIterator extends FilteredDocIdSetIterator {
 
         private final LongBitSet parentOrds;
-        private final Ordinals.Docs globalOrdinals;
+        private final BytesValues.WithOrdinals globalOrdinals;
 
-        ChildrenDocIdIterator(DocIdSetIterator innerIterator, LongBitSet parentOrds, Ordinals.Docs globalOrdinals) {
+        ChildrenDocIdIterator(DocIdSetIterator innerIterator, LongBitSet parentOrds, BytesValues.WithOrdinals globalOrdinals) {
             super(innerIterator);
             this.parentOrds = parentOrds;
             this.globalOrdinals = globalOrdinals;
@@ -226,7 +223,7 @@ public class ParentConstantScoreQuery extends Query {
         @Override
         protected boolean match(int docId) {
             int globalOrd = (int) globalOrdinals.getOrd(docId);
-            if (globalOrd != Ordinals.MISSING_ORDINAL) {
+            if (globalOrd != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                 return parentOrds.get(globalOrd);
             } else {
                 return false;
@@ -240,7 +237,7 @@ public class ParentConstantScoreQuery extends Query {
         private final LongBitSet parentOrds;
         private final IndexFieldData.WithOrdinals globalIfd;
 
-        private Ordinals.Docs globalOrdinals;
+        private BytesValues.WithOrdinals globalOrdinals;
 
         ParentOrdsCollector(IndexFieldData.WithOrdinals globalIfd, long maxOrd) {
             this.parentOrds = new LongBitSet(maxOrd);
@@ -251,7 +248,7 @@ public class ParentConstantScoreQuery extends Query {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (globalOrdinals != null) {
                 long globalOrd = globalOrdinals.getOrd(doc);
-                if (globalOrd != Ordinals.MISSING_ORDINAL) {
+                if (globalOrd != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                     parentOrds.set(globalOrd);
                 }
             }
@@ -259,10 +256,7 @@ public class ParentConstantScoreQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-            BytesValues.WithOrdinals values = globalIfd.load(readerContext).getBytesValues();
-            if (values != null) {
-                globalOrdinals = values.ordinals();
-            }
+            globalOrdinals = globalIfd.load(readerContext).getBytesValues();
         }
 
         public long parentCount() {

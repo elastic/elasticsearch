@@ -367,7 +367,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                 if(typeAfd != null) {
                     return typeAfd;
                 } else {
-                    return PagedBytesAtomicFieldData.empty();
+                    return AtomicFieldData.WithOrdinals.EMPTY;
                 }
             }
 

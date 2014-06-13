@@ -19,16 +19,14 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.OrdinalMappingSource;
 import org.elasticsearch.index.fielddata.plain.AtomicFieldDataWithOrdinalsTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -39,11 +37,11 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
 
     private final Atomic[] atomicReaders;
 
-    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, LongValues globalOrdToFirstSegment, LongValues globalOrdToFirstSegmentDelta, OrdinalMappingSource[] segmentOrdToGlobalOrds, long memorySizeInBytes) {
+    InternalGlobalOrdinalsIndexFieldData(Index index, Settings settings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData.WithOrdinals[] segmentAfd, OrdinalMap ordinalMap, long memorySizeInBytes) {
         super(index, settings, fieldNames, fieldDataType, memorySizeInBytes);
         this.atomicReaders = new Atomic[segmentAfd.length];
         for (int i = 0; i < segmentAfd.length; i++) {
-            atomicReaders[i] = new Atomic(segmentAfd[i], globalOrdToFirstSegment, globalOrdToFirstSegmentDelta, segmentOrdToGlobalOrds[i]);
+            atomicReaders[i] = new Atomic(segmentAfd[i], ordinalMap, i);
         }
     }
 
@@ -55,57 +53,27 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
     private final class Atomic implements AtomicFieldData.WithOrdinals {
 
         private final WithOrdinals afd;
-        private final OrdinalMappingSource segmentOrdToGlobalOrdLookup;
-        private final LongValues globalOrdToFirstSegment;
-        private final LongValues globalOrdToFirstSegmentDelta;
+        private final OrdinalMap ordinalMap;
+        private final int segmentIndex;
 
-        private Atomic(WithOrdinals afd, LongValues globalOrdToFirstSegment, LongValues globalOrdToFirstSegmentDelta, OrdinalMappingSource segmentOrdToGlobalOrdLookup) {
+        private Atomic(WithOrdinals afd, OrdinalMap ordinalMap, int segmentIndex) {
             this.afd = afd;
-            this.segmentOrdToGlobalOrdLookup = segmentOrdToGlobalOrdLookup;
-            this.globalOrdToFirstSegment = globalOrdToFirstSegment;
-            this.globalOrdToFirstSegmentDelta = globalOrdToFirstSegmentDelta;
+            this.ordinalMap = ordinalMap;
+            this.segmentIndex = segmentIndex;
         }
 
         @Override
         public BytesValues.WithOrdinals getBytesValues() {
-            BytesValues.WithOrdinals values = afd.getBytesValues();
-            Ordinals.Docs segmentOrdinals = values.ordinals();
-            final Ordinals.Docs globalOrdinals;
-            if (segmentOrdToGlobalOrdLookup != null) {
-                globalOrdinals = segmentOrdToGlobalOrdLookup.globalOrdinals(segmentOrdinals);
-            } else {
-                globalOrdinals = segmentOrdinals;
+            final BytesValues.WithOrdinals values = afd.getBytesValues();
+            if (values.getMaxOrd() == ordinalMap.getValueCount()) {
+                // segment ordinals match global ordinals
+                return values;
             }
             final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
                 bytesValues[i] = atomicReaders[i].afd.getBytesValues();
             }
-            return new BytesValues.WithOrdinals(globalOrdinals) {
-
-                int readerIndex;
-
-                @Override
-                public BytesRef getValueByOrd(long globalOrd) {
-                    final long segmentOrd = globalOrd - globalOrdToFirstSegmentDelta.get(globalOrd);
-                    readerIndex = (int) globalOrdToFirstSegment.get(globalOrd);
-                    return bytesValues[readerIndex].getValueByOrd(segmentOrd);
-                }
-
-                @Override
-                public BytesRef copyShared() {
-                    return bytesValues[readerIndex].copyShared();
-                }
-            };
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return afd.isMultiValued();
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return afd.getNumberUniqueValues();
+            return new GlobalOrdinalMapping(ordinalMap, bytesValues, segmentIndex);
         }
 
         @Override

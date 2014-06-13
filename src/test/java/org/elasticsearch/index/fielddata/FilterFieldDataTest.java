@@ -25,7 +25,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.AtomicFieldData.WithOrdinals;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.junit.Test;
 
 import java.util.Random;
@@ -72,8 +71,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "high_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(2L, equalTo(ordinals.getMaxOrd()));
+                assertThat(2L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("100"));
             }
@@ -84,8 +82,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "high_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(1L, equalTo(ordinals.getMaxOrd()));
+                assertThat(1L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("5"));
             }
             
@@ -96,8 +93,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "med_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(2L, equalTo(ordinals.getMaxOrd()));
+                assertThat(2L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("100"));
             }
@@ -109,8 +105,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "med_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(2L, equalTo(ordinals.getMaxOrd()));
+                assertThat(2L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("100"));
             }
@@ -125,8 +120,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "high_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(1L, equalTo(ordinals.getMaxOrd()));
+                assertThat(1L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("100"));
             }
         }
@@ -169,8 +163,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "high_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(1L, equalTo(ordinals.getMaxOrd()));
+                assertThat(1L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("5"));
             }
             {
@@ -180,8 +173,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 IndexFieldData<?> fieldData = getForField(fieldDataType, "high_freq");
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
-                Docs ordinals = bytesValues.ordinals();
-                assertThat(2L, equalTo(ordinals.getMaxOrd()));
+                assertThat(2L, equalTo(bytesValues.getMaxOrd()));
                 assertThat(bytesValues.getValueByOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("5"));
             }

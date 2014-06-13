@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Map;
@@ -795,6 +796,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("action.get:TRACE,action.admin.indices.flush:TRACE")
     public void testGetFields_complexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))

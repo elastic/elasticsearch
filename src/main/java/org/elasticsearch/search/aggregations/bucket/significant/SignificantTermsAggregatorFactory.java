@@ -64,24 +64,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
 
         },
-        ORDINALS(new ParseField("ordinals")) {
-
-            @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory) {
-                if (includeExclude != null) {
-                    return MAP.create(name, factories, valuesSource, estimatedBucketCount, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory);
-                }
-                return new SignificantStringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, bucketCountThresholds, aggregationContext, parent, termsAggregatorFactory);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
-        },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override

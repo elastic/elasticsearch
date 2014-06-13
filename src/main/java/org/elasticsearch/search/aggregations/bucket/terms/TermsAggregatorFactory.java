@@ -51,24 +51,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             }
 
         },
-        ORDINALS(new ParseField("ordinals")) {
-
-            @Override
-            Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource, long estimatedBucketCount,
-                              long maxOrd, InternalOrder order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
-                              AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode) {
-                if (includeExclude != null) {
-                    return MAP.create(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode);
-                }
-                return new StringTermsAggregator.WithOrdinals(name, factories, (ValuesSource.Bytes.WithOrdinals) valuesSource, estimatedBucketCount, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
-        },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
             @Override

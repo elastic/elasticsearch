@@ -42,10 +42,10 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
+import org.elasticsearch.search.MultiValueMode;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -435,8 +435,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         // First segment
         assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.class));
         AtomicFieldData.WithOrdinals afd = globalOrdinals.load(topLevelReader.leaves().get(0));
-        BytesValues.WithOrdinals values = afd.getBytesValues(randomBoolean());
-        Ordinals.Docs ordinals = afd.getBytesValues(randomBoolean()).ordinals();
+        BytesValues.WithOrdinals values = afd.getBytesValues();
+        Ordinals.Docs ordinals = afd.getBytesValues().ordinals();
         assertThat(ordinals.setDocument(0), equalTo(2));
         long ord = ordinals.nextOrd();
         assertThat(ord, equalTo(3l));
@@ -452,8 +452,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
 
         // Second segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(1));
-        values = afd.getBytesValues(randomBoolean());
-        ordinals = afd.getBytesValues(randomBoolean()).ordinals();
+        values = afd.getBytesValues();
+        ordinals = afd.getBytesValues().ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
         assertThat(ord, equalTo(5l));
@@ -488,8 +488,8 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
 
         // Third segment
         afd = globalOrdinals.load(topLevelReader.leaves().get(2));
-        values = afd.getBytesValues(randomBoolean());
-        ordinals = afd.getBytesValues(randomBoolean()).ordinals();
+        values = afd.getBytesValues();
+        ordinals = afd.getBytesValues().ordinals();
         assertThat(ordinals.setDocument(0), equalTo(3));
         ord = ordinals.nextOrd();
         assertThat(ord, equalTo(0l));

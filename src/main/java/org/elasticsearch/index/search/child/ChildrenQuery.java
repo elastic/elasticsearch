@@ -284,7 +284,7 @@ public class ChildrenQuery extends Query {
             DocIdSetIterator parents = BitsFilteredDocIdSet.wrap(parentsSet, context.reader().getLiveDocs()).iterator();
 
             if (parents != null) {
-                BytesValues.WithOrdinals bytesValues = collector.globalIfd.load(context).getBytesValues(false);
+                BytesValues.WithOrdinals bytesValues = collector.globalIfd.load(context).getBytesValues();
                 if (bytesValues == null) {
                     return null;
                 }
@@ -360,7 +360,7 @@ public class ChildrenQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = globalIfd.load(context).getBytesValues(false);
+            values = globalIfd.load(context).getBytesValues();
             if (values != null) {
                 globalOrdinals = values.ordinals();
             }

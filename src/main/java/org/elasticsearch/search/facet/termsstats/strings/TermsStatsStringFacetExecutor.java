@@ -131,7 +131,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            keyValues = keyIndexFieldData.load(context).getBytesValues(true);
+            keyValues = keyIndexFieldData.load(context).getBytesValues();
             if (script != null) {
                 script.setNextReader(context);
             } else {

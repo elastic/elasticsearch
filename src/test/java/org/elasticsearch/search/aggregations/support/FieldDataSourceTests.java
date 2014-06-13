@@ -117,7 +117,6 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
             final int valueCount = values.setDocument(i);
             for (int j = 0; j < valueCount; ++j) {
                 final BytesRef term = values.nextValue();
-                assertEquals(term.hashCode(), values.currentValueHash());
                 assertTrue(term.bytesEquals(values.copyShared()));
             }
         }

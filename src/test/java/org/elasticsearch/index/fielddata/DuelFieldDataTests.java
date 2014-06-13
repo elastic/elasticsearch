@@ -401,9 +401,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         for (Map.Entry<FieldDataType, Type> entry : typeMap.entrySet()) {
             ifdService.clear();
             IndexFieldData.WithOrdinals<?> fieldData = getForField(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
-            BytesValues.WithOrdinals left = fieldData.load(readerContext).getBytesValues(randomBoolean());
+            BytesValues.WithOrdinals left = fieldData.load(readerContext).getBytesValues();
             fieldData.clear();
-            BytesValues.WithOrdinals right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getBytesValues(randomBoolean());
+            BytesValues.WithOrdinals right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getBytesValues();
             Docs leftOrds = left.ordinals();
             Docs rightOrds = right.ordinals();
             assertEquals(leftOrds.getMaxOrd(), rightOrds.getMaxOrd());
@@ -483,7 +483,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
     private void assertOrder(AtomicFieldData.Order order, IndexFieldData<?> data, AtomicReaderContext context) throws Exception {
         AtomicFieldData<?> leftData = randomBoolean() ? data.load(context) : data.loadDirect(context);
-        assertThat(leftData.getBytesValues(randomBoolean()).getOrder(), is(order));
+        assertThat(leftData.getBytesValues().getOrder(), is(order));
     }
 
     private int[] getNumbers(Random random, int margin) {
@@ -504,8 +504,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
         AtomicFieldData<?> rightData = random.nextBoolean() ? right.load(context) : right.loadDirect(context);
 
         int numDocs = context.reader().maxDoc();
-        BytesValues leftBytesValues = leftData.getBytesValues(random.nextBoolean());
-        BytesValues rightBytesValues = rightData.getBytesValues(random.nextBoolean());
+        BytesValues leftBytesValues = leftData.getBytesValues();
+        BytesValues rightBytesValues = rightData.getBytesValues();
         BytesRef leftSpare = new BytesRef();
         BytesRef rightSpare = new BytesRef();
 
@@ -517,8 +517,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
 
                 rightSpare.copyBytes(rightBytesValues.nextValue());
                 leftSpare.copyBytes(leftBytesValues.nextValue());
-                assertThat(rightSpare.hashCode(), equalTo(rightBytesValues.currentValueHash()));
-                assertThat(leftSpare.hashCode(), equalTo(leftBytesValues.currentValueHash()));
                 if (previous != null && leftBytesValues.getOrder() == rightBytesValues.getOrder()) { // we can only compare the
                   assertThat(pre.compare(previous, rightSpare), lessThan(0));
                 }
@@ -526,9 +524,6 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
                 pre.toString(rightSpare);
                 pre.toString(leftSpare);
                 assertThat(pre.toString(leftSpare), equalTo(pre.toString(rightSpare)));
-                if (leftSpare.equals(rightSpare)) {
-                    assertThat(leftBytesValues.currentValueHash(), equalTo(rightBytesValues.currentValueHash()));
-                }
             }
         }
     }

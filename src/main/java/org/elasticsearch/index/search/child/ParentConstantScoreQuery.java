@@ -95,7 +95,7 @@ public class ParentConstantScoreQuery extends Query {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         } else {
             AtomicFieldData.WithOrdinals afd = globalIfd.load(leaves.get(0));
-            BytesValues.WithOrdinals globalValues = afd.getBytesValues(false);
+            BytesValues.WithOrdinals globalValues = afd.getBytesValues();
             Ordinals.Docs globalOrdinals = globalValues.ordinals();
             maxOrd = globalOrdinals.getMaxOrd();
         }
@@ -196,7 +196,7 @@ public class ParentConstantScoreQuery extends Query {
                 return null;
             }
 
-            BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues(false);
+            BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues();
             if (globalValues != null) {
                 DocIdSetIterator innerIterator = childrenDocIdSet.iterator();
                 if (innerIterator != null) {
@@ -259,7 +259,7 @@ public class ParentConstantScoreQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-            BytesValues.WithOrdinals values = globalIfd.load(readerContext).getBytesValues(false);
+            BytesValues.WithOrdinals values = globalIfd.load(readerContext).getBytesValues();
             if (values != null) {
                 globalOrdinals = values.ordinals();
             }

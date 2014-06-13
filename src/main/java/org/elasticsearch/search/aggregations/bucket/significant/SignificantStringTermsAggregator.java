@@ -161,9 +161,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
                 long bucketOrd = ordinalToBucket.get(ord);
                 if (bucketOrd < 0) { // unlikely condition on a low-cardinality field
                     final BytesRef bytes = bytesValues.getValueByOrd(ord);
-                    final int hash = bytesValues.currentValueHash();
-                    assert hash == bytes.hashCode();
-                    bucketOrd = bucketOrds.add(bytes, hash);
+                    bucketOrd = bucketOrds.add(bytes);
                     if (bucketOrd < 0) { // already seen in another segment
                         bucketOrd = -1 - bucketOrd;
                         collectExistingBucket(doc, bucketOrd);

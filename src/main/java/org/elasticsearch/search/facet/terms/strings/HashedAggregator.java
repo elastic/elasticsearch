@@ -49,7 +49,7 @@ public class HashedAggregator {
         total += length;
         for (int i = 0; i < length; i++) {
             final BytesRef value = values.nextValue();
-            onValue(docId, value, values.currentValueHash(), values);
+            onValue(docId, value, value.hashCode(), values);
             pendingMissing = 0;
         }
         missing += pendingMissing;

@@ -80,7 +80,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
         IndexFieldData indexFieldData = getForField("field");
         AtomicFieldData fieldData = indexFieldData.load(reader);
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
 
         CollectionUtils.sortAndDedup(bytesList1);
         assertThat(bytesValues.setDocument(0), equalTo(2));

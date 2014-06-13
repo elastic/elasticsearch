@@ -18,14 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsAggregator;
@@ -117,72 +112,6 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds, termsAggFactory);
-    }
-
-    /**
-     * Extension of SignificantStringTermsAggregator that caches bucket ords using terms ordinals.
-     */
-    public static class WithOrdinals extends SignificantStringTermsAggregator {
-
-        private final ValuesSource.Bytes.WithOrdinals valuesSource;
-        private BytesValues.WithOrdinals bytesValues;
-        private Ordinals.Docs ordinals;
-        private LongArray ordinalToBucket;
-
-        public WithOrdinals(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals valuesSource,
-                long esitmatedBucketCount, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext,
-                Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory) {
-            super(name, factories, valuesSource, esitmatedBucketCount, bucketCountThresholds, null, aggregationContext, parent, termsAggFactory);
-            this.valuesSource = valuesSource;
-        }
-
-        @Override
-        public void setNextReader(AtomicReaderContext reader) {
-            bytesValues = valuesSource.bytesValues();
-            ordinals = bytesValues.ordinals();
-            final long maxOrd = ordinals.getMaxOrd();
-            if (ordinalToBucket == null || ordinalToBucket.size() < maxOrd) {
-                if (ordinalToBucket != null) {
-                    ordinalToBucket.close();
-                }
-                ordinalToBucket = context().bigArrays().newLongArray(BigArrays.overSize(maxOrd), false);
-            }
-            ordinalToBucket.fill(0, maxOrd, -1L);
-        }
-
-        @Override
-        public void collect(int doc, long owningBucketOrdinal) throws IOException {
-            assert owningBucketOrdinal == 0 : "this is a per_bucket aggregator";
-            numCollectedDocs++;
-            final int valuesCount = ordinals.setDocument(doc);
-
-            for (int i = 0; i < valuesCount; ++i) {
-                final long ord = ordinals.nextOrd();
-                long bucketOrd = ordinalToBucket.get(ord);
-                if (bucketOrd < 0) { // unlikely condition on a low-cardinality field
-                    final BytesRef bytes = bytesValues.getValueByOrd(ord);
-                    final int hash = bytesValues.currentValueHash();
-                    assert hash == bytes.hashCode();
-                    bucketOrd = bucketOrds.add(bytes, hash);
-                    if (bucketOrd < 0) { // already seen in another segment
-                        bucketOrd = -1 - bucketOrd;
-                        collectExistingBucket(doc, bucketOrd);
-                    } else {
-                        collectBucket(doc, bucketOrd);
-                    }
-                    ordinalToBucket.set(ord, bucketOrd);
-                } else {
-                    collectExistingBucket(doc, bucketOrd);
-                }
-
-            }
-        }
-
-        @Override
-        public void doClose() {
-            Releasables.close(bucketOrds, termsAggFactory, ordinalToBucket);
-        }
-
     }
 
 }

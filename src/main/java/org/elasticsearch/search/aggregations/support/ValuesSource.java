@@ -23,13 +23,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
-import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
@@ -142,11 +144,6 @@ public abstract class ValuesSource {
      */
     public abstract BytesValues bytesValues();
 
-    /**
-     * Ask the underlying data source to provide pre-computed hashes, optional operation.
-     */
-    public void setNeedsHashes(boolean needsHashes) {}
-
     public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {}
 
     public abstract MetaData metaData();
@@ -167,7 +164,6 @@ public abstract class ValuesSource {
 
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
-                protected boolean needsHashes;
                 protected final IndexFieldData.WithOrdinals<?> indexFieldData;
                 protected final MetaData metaData;
                 private boolean needsGlobalOrdinals;
@@ -184,16 +180,11 @@ public abstract class ValuesSource {
                 public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData, MetaData metaData) {
                     this.indexFieldData = indexFieldData;
                     this.metaData = metaData;
-                    needsHashes = false;
                 }
 
                 @Override
                 public MetaData metaData() {
                     return metaData;
-                }
-
-                public final void setNeedsHashes(boolean needsHashes) {
-                    this.needsHashes = needsHashes;
                 }
 
                 @Override
@@ -205,12 +196,12 @@ public abstract class ValuesSource {
                 public void setNextReader(AtomicReaderContext reader) {
                     atomicFieldData = indexFieldData.load(reader);
                     if (bytesValues != null) {
-                        bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                        bytesValues = atomicFieldData.getBytesValues();
                     }
                     if (globalFieldData != null) {
                         globalAtomicFieldData = globalFieldData.load(reader);
                         if (globalBytesValues != null) {
-                            globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
+                            globalBytesValues = globalAtomicFieldData.getBytesValues();
                         }
                     }
                 }
@@ -218,7 +209,7 @@ public abstract class ValuesSource {
                 @Override
                 public BytesValues.WithOrdinals bytesValues() {
                     if (bytesValues == null) {
-                        bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                        bytesValues = atomicFieldData.getBytesValues();
                     }
                     return bytesValues;
                 }
@@ -233,7 +224,7 @@ public abstract class ValuesSource {
                 @Override
                 public BytesValues.WithOrdinals globalBytesValues() {
                     if (globalBytesValues == null) {
-                        globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
+                        globalBytesValues = globalAtomicFieldData.getBytesValues();
                     }
                     return globalBytesValues;
                 }
@@ -251,7 +242,7 @@ public abstract class ValuesSource {
                         AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
                         IndexFieldData.WithOrdinals<?> globalFieldData = indexFieldData.loadGlobal(indexReader);
                         AtomicFieldData.WithOrdinals afd = globalFieldData.load(atomicReaderContext);
-                        BytesValues.WithOrdinals values = afd.getBytesValues(false);
+                        BytesValues.WithOrdinals values = afd.getBytesValues();
                         Ordinals.Docs ordinals = values.ordinals();
                         return maxOrd = ordinals.getMaxOrd();
                     }
@@ -292,14 +283,14 @@ public abstract class ValuesSource {
             public void setNextReader(AtomicReaderContext reader) {
                 atomicFieldData = indexFieldData.load(reader);
                 if (bytesValues != null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
             }
 
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
                 if (bytesValues == null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
                 return bytesValues;
             }
@@ -527,15 +518,10 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public final void setNeedsHashes(boolean needsHashes) {
-                this.needsHashes = needsHashes;
-            }
-
-            @Override
             public void setNextReader(AtomicReaderContext reader) {
                 atomicFieldData = indexFieldData.load(reader);
                 if (bytesValues != null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
                 if (longValues != null) {
                     longValues = atomicFieldData.getLongValues();
@@ -548,7 +534,7 @@ public abstract class ValuesSource {
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
                 if (bytesValues == null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
                 return bytesValues;
             }
@@ -798,7 +784,6 @@ public abstract class ValuesSource {
 
     public static class GeoPoint extends ValuesSource implements ReaderContextAware {
 
-        protected boolean needsHashes;
         protected final IndexGeoPointFieldData<?> indexFieldData;
         private final MetaData metaData;
         protected AtomicGeoPointFieldData<?> atomicFieldData;
@@ -808,7 +793,6 @@ public abstract class ValuesSource {
         public GeoPoint(IndexGeoPointFieldData<?> indexFieldData, MetaData metaData) {
             this.indexFieldData = indexFieldData;
             this.metaData = metaData;
-            needsHashes = false;
         }
 
         @Override
@@ -817,15 +801,10 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final void setNeedsHashes(boolean needsHashes) {
-            this.needsHashes = needsHashes;
-        }
-
-        @Override
         public void setNextReader(AtomicReaderContext reader) {
             atomicFieldData = indexFieldData.load(reader);
             if (bytesValues != null) {
-                bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                bytesValues = atomicFieldData.getBytesValues();
             }
             if (geoPointValues != null) {
                 geoPointValues = atomicFieldData.getGeoPointValues();
@@ -835,7 +814,7 @@ public abstract class ValuesSource {
         @Override
         public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
             if (bytesValues == null) {
-                bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                bytesValues = atomicFieldData.getBytesValues();
             }
             return bytesValues;
         }

@@ -85,7 +85,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        docTerms = indexFieldData.load(context).getBytesValues(false);
+        docTerms = indexFieldData.load(context).getBytesValues();
         return this;
     }
 

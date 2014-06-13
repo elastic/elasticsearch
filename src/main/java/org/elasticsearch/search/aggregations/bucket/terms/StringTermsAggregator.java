@@ -80,9 +80,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             if (includeExclude != null && !includeExclude.accept(bytes)) {
                 continue;
             }
-            final int hash = values.currentValueHash();
-            assert hash == bytes.hashCode();
-            long bucketOrdinal = bucketOrds.add(bytes, hash);
+            long bucketOrdinal = bucketOrds.add(bytes);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;
                 collectExistingBucket(doc, bucketOrdinal);
@@ -151,7 +149,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
                         for (int i = 0; i < valueCount; ++i) {
                             final BytesRef term = values.nextValue();
                             if (includeExclude == null || includeExclude.accept(term)) {
-                                bucketOrds.add(term, values.currentValueHash());
+                                bucketOrds.add(term);
                             }
                         }
                     }

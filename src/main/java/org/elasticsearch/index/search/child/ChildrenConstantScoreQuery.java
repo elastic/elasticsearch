@@ -106,7 +106,7 @@ public class ChildrenConstantScoreQuery extends Query {
             return Queries.newMatchNoDocsQuery().createWeight(searcher);
         } else {
             AtomicFieldData.WithOrdinals afd = globalIfd.load(leaves.get(0));
-            BytesValues.WithOrdinals globalValues = afd.getBytesValues(false);
+            BytesValues.WithOrdinals globalValues = afd.getBytesValues();
             Ordinals.Docs globalOrdinals = globalValues.ordinals();
             maxOrd = globalOrdinals.getMaxOrd();
         }
@@ -240,7 +240,7 @@ public class ChildrenConstantScoreQuery extends Query {
                 DocIdSetIterator innerIterator = parentDocIdSet.iterator();
                 if (innerIterator != null) {
                     LongBitSet parentOrds = collector.parentOrds;
-                    BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues(false);
+                    BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues();
                     if (globalValues != null) {
                         Ordinals.Docs globalOrdinals = globalValues.ordinals();
                         DocIdSetIterator parentIdIterator = new ParentOrdIterator(innerIterator, parentOrds, globalOrdinals, this);
@@ -279,7 +279,7 @@ public class ChildrenConstantScoreQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = indexFieldData.load(context).getBytesValues(false);
+            values = indexFieldData.load(context).getBytesValues();
             if (values != null) {
                 globalOrdinals = values.ordinals();
             } else {

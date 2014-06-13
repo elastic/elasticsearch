@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
@@ -30,12 +29,10 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues> {
 
-    private final AtomicReader reader;
     private final BinaryDocValues values;
 
-    BytesBinaryDVAtomicFieldData(AtomicReader reader, BinaryDocValues values) {
+    BytesBinaryDVAtomicFieldData(BinaryDocValues values) {
         super();
-        this.reader = reader;
         this.values = values == null ? DocValues.EMPTY_BINARY : values;
     }
 
@@ -55,7 +52,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
+    public BytesValues getBytesValues() {
         return new BytesValues(true) {
 
             final BytesRef bytes = new BytesRef();

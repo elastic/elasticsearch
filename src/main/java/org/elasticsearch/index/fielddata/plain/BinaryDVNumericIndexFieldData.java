@@ -28,8 +28,8 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -63,7 +63,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
     @Override
     public BinaryDVNumericAtomicFieldData load(AtomicReaderContext context) {
         try {
-            return new BinaryDVNumericAtomicFieldData(context.reader(), context.reader().getBinaryDocValues(fieldNames.indexName()), numericType);
+            return new BinaryDVNumericAtomicFieldData(context.reader().getBinaryDocValues(fieldNames.indexName()), numericType);
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }

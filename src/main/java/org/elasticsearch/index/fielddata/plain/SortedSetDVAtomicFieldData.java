@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -40,7 +41,6 @@ abstract class SortedSetDVAtomicFieldData {
 
     private final AtomicReader reader;
     private final String field;
-    private volatile IntArray hashes;
 
     SortedSetDVAtomicFieldData(AtomicReader reader, String field) {
         this.reader = reader;
@@ -68,28 +68,9 @@ abstract class SortedSetDVAtomicFieldData {
         // no-op
     }
 
-    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
+    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getBytesValues() {
         final SortedSetDocValues values = getValuesNoException(reader, field);
         return new SortedSetValues(reader, field, values);
-    }
-
-    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
-        final SortedSetDocValues values = getValuesNoException(reader, field);
-        if (hashes == null) {
-            synchronized (this) {
-                if (hashes == null) {
-                    final long valueCount = values.getValueCount();
-                    final IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(valueCount);
-                    BytesRef scratch = new BytesRef(16);
-                    for (long i = 0; i < valueCount; ++i) {
-                        values.lookupOrd(i, scratch);
-                        hashes.set(i, scratch.hashCode());
-                    }
-                    this.hashes = hashes;
-                }
-            }
-        }
-        return new SortedSetHashedValues(reader, field, values, hashes);
     }
 
     public TermsEnum getTermsEnum() {
@@ -130,22 +111,6 @@ abstract class SortedSetDVAtomicFieldData {
         public BytesRef nextValue() {
             values.lookupOrd(ordinals.nextOrd(), scratch);
             return scratch;
-        }
-    }
-
-    static final class SortedSetHashedValues extends SortedSetValues {
-
-        private final IntArray hashes;
-
-        SortedSetHashedValues(AtomicReader reader, String field, SortedSetDocValues values, IntArray hashes) {
-            super(reader, field, values);
-            this.hashes = hashes;
-        }
-
-        @Override
-        public int currentValueHash() {
-            assert ordinals.currentOrd() >= 0;
-            return hashes.get(ordinals.currentOrd());
         }
     }
 

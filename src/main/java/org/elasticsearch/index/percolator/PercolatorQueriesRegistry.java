@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -76,7 +75,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final ShardIndexingService indexingService;
     private final ShardPercolateService shardPercolateService;
 
-    private final ConcurrentMap<HashedBytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final ConcurrentMap<BytesRef, Query> percolateQueries = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
     private final ShardLifecycleListener shardLifecycleListener = new ShardLifecycleListener();
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
@@ -99,7 +98,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         mapperService.addTypeListener(percolateTypeListener);
     }
 
-    public ConcurrentMap<HashedBytesRef, Query> percolateQueries() {
+    public ConcurrentMap<BytesRef, Query> percolateQueries() {
         return percolateQueries;
     }
 
@@ -128,13 +127,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
 
     public void addPercolateQuery(String idAsString, BytesReference source) {
         Query newquery = parsePercolatorDocument(idAsString, source);
-        HashedBytesRef id = new HashedBytesRef(new BytesRef(idAsString));
+        BytesRef id = new BytesRef(idAsString);
         Query previousQuery = percolateQueries.put(id, newquery);
         shardPercolateService.addedQuery(id, previousQuery, newquery);
     }
 
     public void removePercolateQuery(String idAsString) {
-        HashedBytesRef id = new HashedBytesRef(idAsString);
+        BytesRef id = new BytesRef(idAsString);
         Query query = percolateQueries.remove(id);
         if (query != null) {
             shardPercolateService.removedQuery(id, query);
@@ -265,8 +264,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
                     );
                     QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);
                     searcher.searcher().search(query, queryCollector);
-                    Map<HashedBytesRef, Query> queries = queryCollector.queries();
-                    for (Map.Entry<HashedBytesRef, Query> entry : queries.entrySet()) {
+                    Map<BytesRef, Query> queries = queryCollector.queries();
+                    for (Map.Entry<BytesRef, Query> entry : queries.entrySet()) {
                         Query previousQuery = percolateQueries.put(entry.getKey(), entry.getValue());
                         shardPercolateService.addedQuery(entry.getKey(), previousQuery, entry.getValue());
                     }

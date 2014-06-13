@@ -67,8 +67,8 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         }
 
         @Override
-        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
-            BytesValues.WithOrdinals values = afd.getBytesValues(false);
+        public BytesValues.WithOrdinals getBytesValues() {
+            BytesValues.WithOrdinals values = afd.getBytesValues();
             Ordinals.Docs segmentOrdinals = values.ordinals();
             final Ordinals.Docs globalOrdinals;
             if (segmentOrdToGlobalOrdLookup != null) {
@@ -78,7 +78,7 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
             }
             final BytesValues.WithOrdinals[] bytesValues = new BytesValues.WithOrdinals[atomicReaders.length];
             for (int i = 0; i < bytesValues.length; i++) {
-                bytesValues[i] = atomicReaders[i].afd.getBytesValues(false);
+                bytesValues[i] = atomicReaders[i].afd.getBytesValues();
             }
             return new BytesValues.WithOrdinals(globalOrdinals) {
 
@@ -94,11 +94,6 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
                 @Override
                 public BytesRef copyShared() {
                     return bytesValues[readerIndex].copyShared();
-                }
-
-                @Override
-                public int currentValueHash() {
-                    return bytesValues[readerIndex].currentValueHash();
                 }
             };
         }

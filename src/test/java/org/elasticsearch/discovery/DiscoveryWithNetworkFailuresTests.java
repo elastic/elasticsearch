@@ -296,7 +296,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
     @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
-    public void voidIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
+    public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = cluster().startNodesAsync(3, nodeSettings).get();
         ensureStableCluster(3);
 
@@ -328,9 +328,8 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         logger.info("issue a reroute");
         // trigger a reroute now, instead of waiting for the background reroute of RerouteService
         assertAcked(client().admin().cluster().prepareReroute());
-        // and wait for it to finish.
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get().isTimedOut());
-
+        // and wait for it to finish and for the cluster to stabilize
+        ensureGreen("test");
 
         // verify all cluster states are the same
         ClusterState state = null;

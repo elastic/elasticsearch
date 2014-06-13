@@ -64,11 +64,11 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
+    public BytesValues getBytesValues() {
         final BytesValues[] bytesValues = new BytesValues[typeToIds.size()];
         int index = 0;
         for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            bytesValues[index++] = cursor.value.getBytesValues(needsHashes);
+            bytesValues[index++] = cursor.value.getBytesValues();
         }
         return new BytesValues(true) {
 
@@ -116,7 +116,7 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     public BytesValues.WithOrdinals getBytesValues(String type) {
         WithOrdinals atomicFieldData = typeToIds.get(type);
         if (atomicFieldData != null) {
-            return atomicFieldData.getBytesValues(true);
+            return atomicFieldData.getBytesValues();
         } else {
             return null;
         }
@@ -128,7 +128,7 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
 
     @Override
     public ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues(false));
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     @Override

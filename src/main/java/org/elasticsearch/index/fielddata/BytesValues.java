@@ -102,15 +102,6 @@ public abstract class BytesValues {
     public abstract BytesRef nextValue();
 
     /**
-     * Returns the hash value of the previously returned shared {@link BytesRef} instances.
-     *
-     * @return the hash value of the previously returned shared {@link BytesRef} instances.
-     */
-    public int currentValueHash() {
-        return scratch.hashCode();
-    }
-
-    /**
      * Returns the order the values are returned from {@link #nextValue()}.
      * <p> Note: {@link BytesValues} have {@link AtomicFieldData.Order#BYTES} by default.</p>
      */
@@ -178,11 +169,6 @@ public abstract class BytesValues {
         @Override
         public BytesRef nextValue() {
             throw new ElasticsearchIllegalStateException("Empty BytesValues has no next value");
-        }
-
-        @Override
-        public int currentValueHash() {
-            throw new ElasticsearchIllegalStateException("Empty BytesValues has no hash for the current Value");
         }
 
     }

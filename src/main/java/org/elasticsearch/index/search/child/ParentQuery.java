@@ -203,7 +203,7 @@ public class ParentQuery extends Query {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            values = globalIfd.load(context).getBytesValues(false);
+            values = globalIfd.load(context).getBytesValues();
             if (values != null) {
                 globalOrdinals = values.ordinals();
             }
@@ -263,7 +263,7 @@ public class ParentQuery extends Query {
             if (DocIdSets.isEmpty(childrenDocSet)) {
                 return null;
             }
-            BytesValues.WithOrdinals bytesValues = globalIfd.load(context).getBytesValues(false);
+            BytesValues.WithOrdinals bytesValues = globalIfd.load(context).getBytesValues();
             if (bytesValues == null) {
                 return null;
             }

@@ -74,7 +74,7 @@ public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFie
         }
 
         @Override
-        public BytesValues getBytesValues(boolean needsHashes) {
+        public BytesValues getBytesValues() {
             return BytesValues.EMPTY;
         }
 

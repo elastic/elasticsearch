@@ -23,13 +23,13 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -92,7 +92,7 @@ public class PercolateContext extends SearchContext {
     private final PageCacheRecycler pageCacheRecycler;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
-    private final ConcurrentMap<HashedBytesRef, Query> percolateQueries;
+    private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
     private String[] types;
 
@@ -162,7 +162,7 @@ public class PercolateContext extends SearchContext {
         return indexService;
     }
 
-    public ConcurrentMap<HashedBytesRef, Query> percolateQueries() {
+    public ConcurrentMap<BytesRef, Query> percolateQueries() {
         return percolateQueries;
     }
 

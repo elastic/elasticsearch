@@ -81,17 +81,9 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
 
     private static class IndexBytesValues extends BytesValues.WithOrdinals {
 
-        final int hash;
-
         protected IndexBytesValues(String index) {
             super(INDEX_ORDINALS);
             scratch.copyChars(index);
-            hash = scratch.hashCode();
-        }
-
-        @Override
-        public int currentValueHash() {
-            return hash;
         }
 
         @Override
@@ -125,13 +117,13 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
         }
 
         @Override
-        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
+        public BytesValues.WithOrdinals getBytesValues() {
             return new IndexBytesValues(index);
         }
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.Strings(getBytesValues(false));
+            return new ScriptDocValues.Strings(getBytesValues());
         }
 
         @Override

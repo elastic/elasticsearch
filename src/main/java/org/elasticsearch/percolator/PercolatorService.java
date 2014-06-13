@@ -43,7 +43,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -72,7 +71,10 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.*;
+import org.elasticsearch.percolator.QueryCollector.Count;
+import org.elasticsearch.percolator.QueryCollector.Match;
+import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
+import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -444,7 +446,7 @@ public class PercolatorService extends AbstractComponent {
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             long count = 0;
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-            for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
+            for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 collector.reset();
                 try {
                     context.docSearcher().search(entry.getValue(), collector);
@@ -538,7 +540,7 @@ public class PercolatorService extends AbstractComponent {
             List<Map<String, HighlightField>> hls = new ArrayList<>();
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
-            for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
+            for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 collector.reset();
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
@@ -553,7 +555,7 @@ public class PercolatorService extends AbstractComponent {
 
                 if (collector.exists()) {
                     if (!context.limit || count < context.size()) {
-                        matches.add(entry.getKey().bytes);
+                        matches.add(entry.getKey());
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());
                             hls.add(context.hitContext().hit().getHighlightFields());
@@ -745,19 +747,17 @@ public class PercolatorService extends AbstractComponent {
                 final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
                 final IndexFieldData<?> idFieldData = context.fieldData().getForField(idMapper);
                 int i = 0;
-                final HashedBytesRef spare = new HashedBytesRef(new BytesRef());
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues(true);
+                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     final int numValues = values.setDocument(localDocId);
                     assert numValues == 1;
-                    spare.bytes = values.nextValue();
-                    spare.hash = values.currentValueHash();
+                    BytesRef bytes = values.nextValue();
                     matches.add(values.copyShared());
                     if (hls != null) {
-                        Query query = context.percolateQueries().get(spare);
+                        Query query = context.percolateQueries().get(bytes);
                         context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
                         context.hitContext().cache().clear();
                         highlightPhase.hitExecute(context, context.hitContext());

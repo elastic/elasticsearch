@@ -284,11 +284,9 @@ public class BulkProcessor implements Closeable {
             }
         } else {
             boolean success = false;
-            boolean beforeCalled = false;
             try {
-                semaphore.acquire();
                 listener.beforeBulk(executionId, bulkRequest);
-                beforeCalled = true;
+                semaphore.acquire();
                 client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse response) {
@@ -311,12 +309,9 @@ public class BulkProcessor implements Closeable {
                 success = true;
             } catch (InterruptedException e) {
                 Thread.interrupted();
-                //this doesn't seem right, we effectively call  afterBulk without having called beforeBulk?
                 listener.afterBulk(executionId, bulkRequest, e);
             } catch (Throwable t) {
-                if (beforeCalled) {
-                    listener.afterBulk(executionId, bulkRequest, t);
-                }
+                listener.afterBulk(executionId, bulkRequest, t);
             } finally {
                  if (!success) {  // if we fail on client.bulk() release the semaphore
                      semaphore.release();

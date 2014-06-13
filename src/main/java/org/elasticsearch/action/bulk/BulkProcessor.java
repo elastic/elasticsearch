@@ -276,11 +276,16 @@ public class BulkProcessor implements Closeable {
 
         if (concurrentRequests == 0) {
             // execute in a blocking fashion...
+            boolean afterCalled = false;
             try {
                 listener.beforeBulk(executionId, bulkRequest);
-                listener.afterBulk(executionId, bulkRequest, client.bulk(bulkRequest).actionGet());
+                BulkResponse bulkItemResponses = client.bulk(bulkRequest).actionGet();
+                afterCalled = true;
+                listener.afterBulk(executionId, bulkRequest, bulkItemResponses);
             } catch (Exception e) {
-                listener.afterBulk(executionId, bulkRequest, e);
+                if (!afterCalled) {
+                    listener.afterBulk(executionId, bulkRequest, e);
+                }
             }
         } else {
             boolean success = false;

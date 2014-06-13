@@ -30,7 +30,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -90,23 +89,23 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
             lon = BigArrays.NON_RECYCLING_INSTANCE.resize(lon, numTerms);
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!(build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS)) {
-                Docs ordinals = build.ordinals();
+            BytesValues.WithOrdinals ordinals = build.ordinals();
+            if (!(ordinals.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS)) {
                 int maxDoc = reader.maxDoc();
                 DoubleArray sLat = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 DoubleArray sLon = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 for (int i = 0; i < maxDoc; i++) {
                     long nativeOrdinal = ordinals.getOrd(i);
-                    if (nativeOrdinal != Ordinals.MISSING_ORDINAL) {
+                    if (nativeOrdinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                         sLat.set(i, lat.get(nativeOrdinal));
                         sLon.set(i, lon.get(nativeOrdinal));
                     }
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
+                    data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat);
                 } else {
-                    data = new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
+                    data = new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, set);
                 }
             } else {
                 data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, build);

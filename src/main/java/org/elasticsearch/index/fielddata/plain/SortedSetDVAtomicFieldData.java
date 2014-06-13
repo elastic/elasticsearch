@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
 
@@ -70,7 +69,7 @@ abstract class SortedSetDVAtomicFieldData {
 
     public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getBytesValues() {
         final SortedSetDocValues values = getValuesNoException(reader, field);
-        return new SortedSetValues(reader, field, values);
+        return new SortedSetValues(values);
     }
 
     public TermsEnum getTermsEnum() {
@@ -93,77 +92,21 @@ abstract class SortedSetDVAtomicFieldData {
 
     static class SortedSetValues extends BytesValues.WithOrdinals {
 
-        protected final SortedSetDocValues values;
-
-        SortedSetValues(AtomicReader reader, String field, SortedSetDocValues values) {
-            super(new SortedSetDocs(new SortedSetOrdinals(reader, field, values.getValueCount()), values));
-            this.values = values;
-        }
-
-        @Override
-        public BytesRef getValueByOrd(long ord) {
-            assert ord != Ordinals.MISSING_ORDINAL;
-            values.lookupOrd(ord, scratch);
-            return scratch;
-        }
-
-        @Override
-        public BytesRef nextValue() {
-            values.lookupOrd(ordinals.nextOrd(), scratch);
-            return scratch;
-        }
-    }
-
-    static final class SortedSetOrdinals implements Ordinals {
-
-        // We don't store SortedSetDocValues as a member because Ordinals must be thread-safe
-        private final AtomicReader reader;
-        private final String field;
-        private final long maxOrd;
-
-        public SortedSetOrdinals(AtomicReader reader, String field, long numOrds) {
-            super();
-            this.reader = reader;
-            this.field = field;
-            this.maxOrd = numOrds;
-        }
-
-        @Override
-        public long getMemorySizeInBytes() {
-            // Ordinals can't be distinguished from the atomic field data instance
-            return -1;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return true;
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return maxOrd;
-        }
-
-        @Override
-        public Docs ordinals() {
-            final SortedSetDocValues values = getValuesNoException(reader, field);
-            assert values.getValueCount() == maxOrd;
-            return new SortedSetDocs(this, values);
-        }
-
-    }
-
-    static class SortedSetDocs extends Ordinals.AbstractDocs {
-
+        private final BytesRef scratch = new BytesRef();
         private final SortedSetDocValues values;
         private long[] ords;
         private int ordIndex = Integer.MAX_VALUE;
         private long currentOrdinal = -1;
 
-        SortedSetDocs(SortedSetOrdinals ordinals, SortedSetDocValues values) {
-            super(ordinals);
+        SortedSetValues(SortedSetDocValues values) {
+            super(DocValues.unwrapSingleton(values) == null);
             this.values = values;
             ords = new long[0];
+        }
+
+        @Override
+        public long getMaxOrd() {
+            return values.getValueCount();
         }
 
         @Override
@@ -195,6 +138,12 @@ abstract class SortedSetDVAtomicFieldData {
         @Override
         public long currentOrd() {
             return currentOrdinal;
+        }
+
+        @Override
+        public BytesRef getValueByOrd(long ord) {
+            values.lookupOrd(ord, scratch);
+            return scratch;
         }
     }
 }

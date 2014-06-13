@@ -26,9 +26,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.RangeFilterBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -155,7 +153,6 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
         cluster().wipeIndices("idx");
         prepareCreate("idx")
-                .setSettings(ImmutableSettings.builder().put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, maxNumTerms)))
                 .addMapping("type", jsonBuilder().startObject()
                         .startObject("type")
                         .startObject("properties")

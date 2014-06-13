@@ -20,8 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
  * A state-full lightweight per document set of <code>double</code> values.
@@ -100,19 +98,11 @@ public abstract class DoubleValues {
      */
     public static abstract class WithOrdinals extends DoubleValues {
 
-        protected final Docs ordinals;
+        protected final BytesValues.WithOrdinals ordinals;
 
-        protected WithOrdinals(Ordinals.Docs ordinals) {
+        protected WithOrdinals(BytesValues.WithOrdinals ordinals) {
             super(ordinals.isMultiValued());
             this.ordinals = ordinals;
-        }
-
-        /**
-         * Returns the associated ordinals instance.
-         * @return the associated ordinals instance.
-         */
-        public Docs ordinals() {
-            return ordinals;
         }
 
         /**

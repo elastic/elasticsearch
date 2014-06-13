@@ -26,7 +26,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -38,16 +37,14 @@ import java.util.Comparator;
 public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
 
     private final BytesValues.WithOrdinals bytesValues;
-    private final Ordinals.Docs ordinals;
     private final long maxOrd;
 
-    private long currentOrd = Ordinals.MISSING_ORDINAL;
+    private long currentOrd = BytesValues.WithOrdinals.MISSING_ORDINAL;
     private BytesRef currentTerm;
 
     public AtomicFieldDataWithOrdinalsTermsEnum(AtomicFieldData.WithOrdinals afd) {
         this.bytesValues = afd.getBytesValues();
-        this.ordinals = bytesValues.ordinals();
-        this.maxOrd = ordinals.getMaxOrd();
+        this.maxOrd = bytesValues.getMaxOrd();
     }
 
     @Override
@@ -70,9 +67,9 @@ public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
 
     @Override
     public void seekExact(long ord) throws IOException {
-        assert ord >= 0 && ord < ordinals.getMaxOrd();
+        assert ord >= 0 && ord < bytesValues.getMaxOrd();
         currentOrd = ord;
-        if (currentOrd == Ordinals.MISSING_ORDINAL) {
+        if (currentOrd == BytesValues.WithOrdinals.MISSING_ORDINAL) {
             currentTerm = null;
         } else {
             currentTerm = bytesValues.getValueByOrd(currentOrd);
@@ -125,7 +122,7 @@ public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
 
     final private static long binarySearch(BytesValues.WithOrdinals a, BytesRef key) {
         long low = 1;
-        long high = a.ordinals().getMaxOrd();
+        long high = a.getMaxOrd();
         while (low <= high) {
             long mid = (low + high) >>> 1;
             BytesRef midVal = a.getValueByOrd(mid);

@@ -37,6 +37,7 @@ public class FieldDataSourceTests extends ElasticsearchTestCase {
         final boolean multiValued = randomBoolean();
         final int maxLength = rarely() ? 3 : 10;
         return new BytesValues(multiValued) {
+            private final BytesRef scratch = new BytesRef();
             BytesRef previous;
             @Override
             public int setDocument(int docId) {

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -26,7 +27,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -50,7 +50,7 @@ public class SingleOrdinalsTests extends ElasticsearchTestCase {
 
         Ordinals ords = builder.build(ImmutableSettings.EMPTY);
         assertThat(ords, instanceOf(SinglePackedOrdinals.class));
-        Ordinals.Docs docs = ords.ordinals();
+        BytesValues.WithOrdinals docs = ords.ordinals();
 
         for (Map.Entry<Integer, Long> entry : controlDocToOrdinal.entrySet()) {
             assertThat(entry.getValue(), equalTo(docs.getOrd(entry.getKey())));

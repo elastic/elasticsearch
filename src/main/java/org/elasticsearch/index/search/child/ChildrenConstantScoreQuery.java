@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -107,8 +106,7 @@ public class ChildrenConstantScoreQuery extends Query {
         } else {
             AtomicFieldData.WithOrdinals afd = globalIfd.load(leaves.get(0));
             BytesValues.WithOrdinals globalValues = afd.getBytesValues();
-            Ordinals.Docs globalOrdinals = globalValues.ordinals();
-            maxOrd = globalOrdinals.getMaxOrd();
+            maxOrd = globalValues.getMaxOrd();
         }
 
         if (maxOrd == 0) {
@@ -242,8 +240,7 @@ public class ChildrenConstantScoreQuery extends Query {
                     LongBitSet parentOrds = collector.parentOrds;
                     BytesValues.WithOrdinals globalValues = globalIfd.load(context).getBytesValues();
                     if (globalValues != null) {
-                        Ordinals.Docs globalOrdinals = globalValues.ordinals();
-                        DocIdSetIterator parentIdIterator = new ParentOrdIterator(innerIterator, parentOrds, globalOrdinals, this);
+                        DocIdSetIterator parentIdIterator = new ParentOrdIterator(innerIterator, parentOrds, globalValues, this);
                         return ConstantScorer.create(parentIdIterator, this, queryWeight);
                     }
                 }
@@ -259,7 +256,6 @@ public class ChildrenConstantScoreQuery extends Query {
         private final ParentChildIndexFieldData.WithOrdinals indexFieldData;
 
         private BytesValues.WithOrdinals values;
-        private Ordinals.Docs globalOrdinals;
 
         private ParentOrdCollector(ParentChildIndexFieldData.WithOrdinals indexFieldData, long maxOrd) {
             // TODO: look into reusing LongBitSet#bits array
@@ -269,9 +265,9 @@ public class ChildrenConstantScoreQuery extends Query {
 
         @Override
         public void collect(int doc) throws IOException {
-            if (globalOrdinals != null) {
-                long globalOrdinal = globalOrdinals.getOrd(doc);
-                if (globalOrdinal != Ordinals.MISSING_ORDINAL) {
+            if (values != null) {
+                long globalOrdinal = values.getOrd(doc);
+                if (globalOrdinal != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                     parentOrds.set(globalOrdinal);
                 }
             }
@@ -280,11 +276,6 @@ public class ChildrenConstantScoreQuery extends Query {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             values = indexFieldData.load(context).getBytesValues();
-            if (values != null) {
-                globalOrdinals = values.ordinals();
-            } else {
-                globalOrdinals = null;
-            }
         }
 
         long foundParents() {
@@ -296,10 +287,10 @@ public class ChildrenConstantScoreQuery extends Query {
     private final static class ParentOrdIterator extends FilteredDocIdSetIterator {
 
         private final LongBitSet parentOrds;
-        private final Ordinals.Docs ordinals;
+        private final BytesValues.WithOrdinals ordinals;
         private final ParentWeight parentWeight;
 
-        private ParentOrdIterator(DocIdSetIterator innerIterator, LongBitSet parentOrds, Ordinals.Docs ordinals, ParentWeight parentWeight) {
+        private ParentOrdIterator(DocIdSetIterator innerIterator, LongBitSet parentOrds, BytesValues.WithOrdinals ordinals, ParentWeight parentWeight) {
             super(innerIterator);
             this.parentOrds = parentOrds;
             this.ordinals = ordinals;
@@ -318,7 +309,7 @@ public class ChildrenConstantScoreQuery extends Query {
             }
 
             long parentOrd = ordinals.getOrd(doc);
-            if (parentOrd != Ordinals.MISSING_ORDINAL) {
+            if (parentOrd != BytesValues.WithOrdinals.MISSING_ORDINAL) {
                 boolean match = parentOrds.get(parentOrd);
                 if (match) {
                     parentWeight.remaining--;

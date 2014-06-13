@@ -213,7 +213,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                     Releasables.close(current);
                 }
             }
-            values = indexFieldData.load(context).getBytesValues(false);
+            values = indexFieldData.load(context).getBytesValues();
             current = new ReaderAggregator(values, ordinalsCacheAbove, cacheRecycler);
             ordinals = values.ordinals();
         }

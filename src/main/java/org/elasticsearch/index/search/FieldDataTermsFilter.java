@@ -129,7 +129,7 @@ public abstract class FieldDataTermsFilter extends Filter {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
-            final BytesValues values = fieldData.load(context).getBytesValues(false); // load fielddata
+            final BytesValues values = fieldData.load(context).getBytesValues(); // load fielddata
             return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
                 @Override
                 protected boolean matchDoc(int doc) {

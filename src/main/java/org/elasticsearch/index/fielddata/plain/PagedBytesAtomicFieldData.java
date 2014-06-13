@@ -21,15 +21,11 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.PagedBytes.Reader;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
  */
@@ -43,7 +39,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    private volatile IntArray hashes;
     private long size = -1;
     private final long readerBytesSize;
 
@@ -81,33 +76,14 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         return size;
     }
 
-    private final IntArray getHashes() {
-        if (hashes == null) {
-            long numberOfValues = termOrdToBytesOffset.size();
-            IntArray hashes = BigArrays.NON_RECYCLING_INSTANCE.newIntArray(numberOfValues);
-            BytesRef scratch = new BytesRef();
-            for (long i = 0; i < numberOfValues; i++) {
-                bytes.fill(scratch, termOrdToBytesOffset.get(i));
-                hashes.set(i, scratch.hashCode());
-            }
-            this.hashes = hashes;
-        }
-        return hashes;
-    }
-
     @Override
-    public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
-        if (needsHashes) {
-            final IntArray hashes = getHashes();
-            return new BytesValues.HashedBytesValues(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
-        } else {
-            return new BytesValues(bytes, termOrdToBytesOffset, ordinals.ordinals());
-        }
+    public BytesValues.WithOrdinals getBytesValues() {
+        return new BytesValues(bytes, termOrdToBytesOffset, ordinals.ordinals());
     }
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues(false));
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     @Override
@@ -153,22 +129,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             return scratch;
         }
 
-        static final class HashedBytesValues extends BytesValues {
-            private final IntArray hashes;
-
-
-            HashedBytesValues(IntArray hashes, Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Docs ordinals) {
-                super(bytes, termOrdToBytesOffset, ordinals);
-                this.hashes = hashes;
-            }
-
-            @Override
-            public int currentValueHash() {
-                assert ordinals.currentOrd() >= 0;
-                return hashes.get(ordinals.currentOrd());
-            }
-        }
-
     }
 
     private final static class Empty extends PagedBytesAtomicFieldData {
@@ -194,7 +154,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         @Override
-        public BytesValues.WithOrdinals getBytesValues(boolean needsHashes) {
+        public BytesValues.WithOrdinals getBytesValues() {
             return new EmptyByteValuesWithOrdinals(ordinals.ordinals());
         }
 

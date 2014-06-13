@@ -176,9 +176,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
                 readerAwares.add((ReaderContextAware) dataSource);
             }
         }
-        if (config.needsHashes) {
-            dataSource.setNeedsHashes(true);
-        }
         return dataSource;
     }
 
@@ -214,10 +211,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             dataSource = new ValuesSource.Bytes.SortedAndUnique(dataSource);
             readerAwares.add((ReaderContextAware) dataSource);
         }
-
-        if (config.needsHashes) { // the data source needs hash if at least one consumer needs hashes
-            dataSource.setNeedsHashes(true);
-        }
         return dataSource;
     }
 
@@ -243,9 +236,6 @@ public class AggregationContext implements ReaderContextAware, ScorerAware {
             setReaderIfNeeded(dataSource);
             readerAwares.add(dataSource);
             fieldDataSources.put(cacheKey, dataSource);
-        }
-        if (config.needsHashes) {
-            dataSource.setNeedsHashes(true);
         }
         return dataSource;
     }

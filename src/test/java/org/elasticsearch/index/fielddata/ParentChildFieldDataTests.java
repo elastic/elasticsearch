@@ -28,13 +28,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.index.service.StubIndexService;
 import org.junit.Before;
 import org.junit.Test;
@@ -107,7 +107,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
         assertThat(bytesValues.setDocument(0), equalTo(1));
         assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
 

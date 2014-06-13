@@ -25,7 +25,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -54,11 +53,11 @@ abstract class QueryCollector extends Collector {
 
     final IndexFieldData<?> idFieldData;
     final IndexSearcher searcher;
-    final ConcurrentMap<HashedBytesRef, Query> queries;
+    final ConcurrentMap<BytesRef, Query> queries;
     final ESLogger logger;
 
     final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-    final HashedBytesRef spare = new HashedBytesRef(new BytesRef());
+    BytesRef current;
 
     BytesValues values;
 
@@ -128,7 +127,7 @@ abstract class QueryCollector extends Collector {
     @Override
     public void setNextReader(AtomicReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
-        values = idFieldData.load(context).getBytesValues(true);
+        values = idFieldData.load(context).getBytesValues();
         for (Collector collector : facetAndAggregatorCollector) {
             collector.setNextReader(context);
         }
@@ -163,8 +162,8 @@ abstract class QueryCollector extends Collector {
             return null;
         }
         assert numValues == 1;
-        spare.reset(values.nextValue(), values.currentValueHash());
-        return queries.get(spare);
+        current = values.nextValue();
+        return queries.get(current);
     }
 
 
@@ -216,7 +215,7 @@ abstract class QueryCollector extends Collector {
                     postMatch(doc);
                 }
             } catch (IOException e) {
-                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
+                logger.warn("[" + current.utf8ToString() + "] failed to execute query", e);
             }
         }
 
@@ -259,7 +258,7 @@ abstract class QueryCollector extends Collector {
                     postMatch(doc);
                 }
             } catch (IOException e) {
-                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
+                logger.warn("[" + current.utf8ToString() + "] failed to execute query", e);
             }
         }
 
@@ -331,7 +330,7 @@ abstract class QueryCollector extends Collector {
                     postMatch(doc);
                 }
             } catch (IOException e) {
-                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
+                logger.warn("[" + current.utf8ToString() + "] failed to execute query", e);
             }
         }
 
@@ -381,7 +380,7 @@ abstract class QueryCollector extends Collector {
                     postMatch(doc);
                 }
             } catch (IOException e) {
-                logger.warn("[" + spare.bytes.utf8ToString() + "] failed to execute query", e);
+                logger.warn("[" + current.utf8ToString() + "] failed to execute query", e);
             }
         }
 

@@ -107,7 +107,7 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             for (int i = 0; i < indexFieldDatas.length; i++) {
-                values[i] = indexFieldDatas[i].load(context).getBytesValues(true);
+                values[i] = indexFieldDatas[i].load(context).getBytesValues();
             }
             if (script != null) {
                 script.setNextReader(context);

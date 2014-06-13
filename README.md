@@ -4,7 +4,9 @@ AWS Cloud Plugin for Elasticsearch
 The Amazon Web Service (AWS) Cloud plugin allows to use [AWS API](https://github.com/aws/aws-sdk-java)
 for the unicast discovery mechanism and add S3 repositories.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.1.1`.
+In order to install the plugin, run: `bin/plugin -install elasticsearch/elasticsearch-cloud-aws/2.1.1`.
+
+where `2.1.1` would be the version applicable to your elasticsearch release, as follows:
 
 * For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/master).
 * For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.3).
@@ -12,6 +14,9 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 * For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.1).
 * For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-1.0).
 * For 0.90.x elasticsearch versions, look at [es-0.90 branch](https://github.com/elasticsearch/elasticsearch-cloud-aws/tree/es-0.90).
+
+SNAPSHOT releases are still in development are _NOT_ available for automatic installation with `bin/plugin`. In such cases
+you would be responsible building the plugin and providing the file/url yourself.
 
 |      AWS Cloud Plugin      |    elasticsearch    | Release date |
 |----------------------------|---------------------|:------------:|

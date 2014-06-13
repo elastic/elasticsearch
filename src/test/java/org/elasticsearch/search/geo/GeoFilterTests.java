@@ -533,8 +533,10 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                     builder.cacheKey(null);
                 }
                 try {
-                    SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(builder).get();
-                    assertHitCount(response, expectedCounts.get(builder));
+                    long expectedCount = expectedCounts.get(builder);
+                    SearchResponse response = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery())
+                            .setPostFilter(builder).setSize((int) expectedCount).get();
+                    assertHitCount(response, expectedCount);
                     String[] expectedIds = expectedResults.get(builder);
                     if (expectedIds == null) {
                         ArrayList<String> ids = new ArrayList<>();

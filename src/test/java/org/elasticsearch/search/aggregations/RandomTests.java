@@ -218,7 +218,6 @@ public class RandomTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("long").field("long_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(min("min").field("num")))
                 .addAggregation(terms("double").field("double_values").size(maxNumTerms).collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(max("max").field("num")))
                 .addAggregation(terms("string_map").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.MAP.toString()).size(maxNumTerms).subAggregation(stats("stats").field("num")))
-                .addAggregation(terms("string_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(TermsAggregatorFactory.ExecutionMode.ORDINALS.toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals").field("string_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .addAggregation(terms("string_global_ordinals_doc_values").field("string_values.doc_values").collectMode(randomFrom(SubAggCollectionMode.values())).executionHint(globalOrdinalModes[randomInt(globalOrdinalModes.length - 1)].toString()).size(maxNumTerms).subAggregation(extendedStats("stats").field("num")))
                 .execute().actionGet();
@@ -228,22 +227,27 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
         final Terms stringMapTerms = resp.getAggregations().get("string_map");
-        final Terms stringOrdinalsTerms = resp.getAggregations().get("string_ordinals");
+        final Terms stringGlobalOrdinalsTerms = resp.getAggregations().get("string_global_ordinals");
+        final Terms stringGlobalOrdinalsDVTerms = resp.getAggregations().get("string_global_ordinals_doc_values");
 
         assertEquals(valuesSet.size(), longTerms.getBuckets().size());
         assertEquals(valuesSet.size(), doubleTerms.getBuckets().size());
         assertEquals(valuesSet.size(), stringMapTerms.getBuckets().size());
-        assertEquals(valuesSet.size(), stringOrdinalsTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), stringGlobalOrdinalsTerms.getBuckets().size());
+        assertEquals(valuesSet.size(), stringGlobalOrdinalsDVTerms.getBuckets().size());
         for (Terms.Bucket bucket : longTerms.getBuckets()) {
             final Terms.Bucket doubleBucket = doubleTerms.getBucketByKey(Double.toString(Long.parseLong(bucket.getKeyAsText().string())));
             final Terms.Bucket stringMapBucket = stringMapTerms.getBucketByKey(bucket.getKeyAsText().string());
-            final Terms.Bucket stringOrdinalsBucket = stringOrdinalsTerms.getBucketByKey(bucket.getKeyAsText().string());
+            final Terms.Bucket stringGlobalOrdinalsBucket = stringGlobalOrdinalsTerms.getBucketByKey(bucket.getKeyAsText().string());
+            final Terms.Bucket stringGlobalOrdinalsDVBucket = stringGlobalOrdinalsDVTerms.getBucketByKey(bucket.getKeyAsText().string());
             assertNotNull(doubleBucket);
             assertNotNull(stringMapBucket);
-            assertNotNull(stringOrdinalsBucket);
+            assertNotNull(stringGlobalOrdinalsBucket);
+            assertNotNull(stringGlobalOrdinalsDVBucket);
             assertEquals(bucket.getDocCount(), doubleBucket.getDocCount());
             assertEquals(bucket.getDocCount(), stringMapBucket.getDocCount());
-            assertEquals(bucket.getDocCount(), stringOrdinalsBucket.getDocCount());
+            assertEquals(bucket.getDocCount(), stringGlobalOrdinalsBucket.getDocCount());
+            assertEquals(bucket.getDocCount(), stringGlobalOrdinalsDVBucket.getDocCount());
         }
     }
 

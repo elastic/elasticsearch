@@ -55,7 +55,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
         int numDocs = randomIntBetween(10, 100);
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setName("foo")
                 //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(1).setBulkActions(numDocs)
+                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
                 .build()) {
 
@@ -80,7 +80,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
 
         try (BulkProcessor processor = BulkProcessor.builder(client(), listener).setName("foo")
                 //let's make sure that this bulk won't be automatically flushed
-                .setConcurrentRequests(randomIntBetween(1, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
+                .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, "test", "test", numDocs);
@@ -102,7 +102,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
     public void testBulkProcessorConcurrentRequests() throws Exception {
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(1, 10);
+        int concurrentRequests = randomIntBetween(0, 10);
 
         int expectedBulkActions = numDocs / bulkActions;
 
@@ -158,7 +158,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
 
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(1, 10);
+        int concurrentRequests = randomIntBetween(0, 10);
 
         int expectedBulkActions = numDocs / bulkActions;
 
@@ -198,7 +198,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
 
         int bulkActions = randomIntBetween(10, 100);
         int numDocs = randomIntBetween(bulkActions, bulkActions + 100);
-        int concurrentRequests = randomIntBetween(1, 10);
+        int concurrentRequests = randomIntBetween(0, 10);
 
         int expectedBulkActions = numDocs / bulkActions;
 

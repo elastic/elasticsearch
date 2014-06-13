@@ -126,7 +126,13 @@ public class MissingFilterParser implements FilterParser {
                 }
                 Filter filter = null;
                 if (fieldNamesMapper != null && fieldNamesMapper.mapper().fieldType().indexed()) {
-                    filter = fieldNamesMapper.mapper().termFilter(field, parseContext);
+                    final String f;
+                    if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                        f = smartNameFieldMappers.mapper().names().indexName();
+                    } else {
+                        f = field;
+                    }
+                    filter = fieldNamesMapper.mapper().termFilter(f, parseContext);
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {

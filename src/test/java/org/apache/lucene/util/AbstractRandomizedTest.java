@@ -58,7 +58,8 @@ import java.util.logging.Logger;
         JUnit4MethodProvider.class
 })
 @Listeners({
-        ReproduceInfoPrinter.class
+        ReproduceInfoPrinter.class,
+        FailureMarker.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")

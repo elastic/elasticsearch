@@ -37,16 +37,6 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
     }
 
     @Override
-    public boolean isMultiValued() {
-        return true;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return Long.MAX_VALUE;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         return -1; // not exposed by Lucene
     }

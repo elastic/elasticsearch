@@ -31,31 +31,15 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 public class ParentChildAtomicFieldData implements AtomicFieldData {
 
     private final ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds;
-    private final long numberUniqueValues;
     private final long memorySizeInBytes;
 
     public ParentChildAtomicFieldData(ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds) {
         this.typeToIds = typeToIds;
-        long numValues = 0;
-        for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            numValues += cursor.value.getNumberUniqueValues();
-        }
-        this.numberUniqueValues = numValues;
         long size = 0;
         for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
             size += cursor.value.getMemorySizeInBytes();
         }
         this.memorySizeInBytes = size;
-    }
-
-    @Override
-    public boolean isMultiValued() {
-        return true;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return numberUniqueValues;
     }
 
     @Override

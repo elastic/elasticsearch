@@ -48,7 +48,6 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
 
                 @Override
                 public int setDocument(int docId) {
-                    this.docId = docId;
                     return values.setDocument(docId);
                 }
 
@@ -70,7 +69,6 @@ public abstract class AbstractAtomicNumericFieldData implements AtomicNumericFie
 
                 @Override
                 public int setDocument(int docId) {
-                    this.docId = docId;
                     return values.setDocument(docId);
                 }
 

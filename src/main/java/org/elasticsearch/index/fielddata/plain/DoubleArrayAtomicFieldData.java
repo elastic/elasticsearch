@@ -60,16 +60,6 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return 0;
-        }
-
-        @Override
         public long getMemorySizeInBytes() {
             return 0;
         }
@@ -97,16 +87,6 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
         }
 
         @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-        }
-
-        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
                 size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + values.sizeInBytes() + ordinals.getMemorySizeInBytes();
@@ -130,14 +110,14 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
             private final DoubleArray values;
 
-            LongValues(DoubleArray values, Ordinals.Docs ordinals) {
+            LongValues(DoubleArray values, BytesValues.WithOrdinals ordinals) {
                 super(ordinals);
                 this.values = values;
             }
 
             @Override
             public final long getValueByOrd(long ord) {
-                assert ord != Ordinals.MISSING_ORDINAL;
+                assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
                 return (long) values.get(ord);
             }
         }
@@ -146,14 +126,14 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
             private final DoubleArray values;
 
-            DoubleValues(DoubleArray values, Ordinals.Docs ordinals) {
+            DoubleValues(DoubleArray values, BytesValues.WithOrdinals ordinals) {
                 super(ordinals);
                 this.values = values;
             }
 
             @Override
             public double getValueByOrd(long ord) {
-                assert ord != Ordinals.MISSING_ORDINAL;
+                assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
                 return values.get(ord);
             }
         }
@@ -167,23 +147,11 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
 
         private final DoubleArray values;
         private final FixedBitSet set;
-        private final long numOrds;
 
-        public SingleFixedSet(DoubleArray values, FixedBitSet set, long numOrds) {
+        public SingleFixedSet(DoubleArray values, FixedBitSet set) {
             super();
             this.values = values;
             this.set = set;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
         }
 
         @Override
@@ -257,26 +225,14 @@ public abstract class DoubleArrayAtomicFieldData extends AbstractAtomicNumericFi
     public static class Single extends DoubleArrayAtomicFieldData {
 
         private final DoubleArray values;
-        private final long numOrds;
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(DoubleArray values, long numOrds) {
+        public Single(DoubleArray values) {
             super();
             this.values = values;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
         }
 
         @Override

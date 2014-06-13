@@ -23,6 +23,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PagedMutable;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -59,16 +60,6 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         }
 
         @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-        }
-
-        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
                 size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
@@ -85,11 +76,11 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
 
             private final GeoPointFieldMapper.Encoding encoding;
             private final PagedMutable lon, lat;
-            private final Ordinals.Docs ordinals;
+            private final BytesValues.WithOrdinals ordinals;
 
             private final GeoPoint scratch = new GeoPoint();
 
-            GeoPointValuesWithOrdinals(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, Ordinals.Docs ordinals) {
+            GeoPointValuesWithOrdinals(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, BytesValues.WithOrdinals ordinals) {
                 super(ordinals.isMultiValued());
                 this.encoding = encoding;
                 this.lon = lon;
@@ -119,25 +110,13 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
         private final GeoPointFieldMapper.Encoding encoding;
         private final PagedMutable lon, lat;
         private final FixedBitSet set;
-        private final long numOrds;
 
-        public SingleFixedSet(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, FixedBitSet set, long numOrds) {
+        public SingleFixedSet(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, FixedBitSet set) {
             super();
             this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
             this.set = set;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
         }
 
         @Override
@@ -190,24 +169,12 @@ public abstract class GeoPointCompressedAtomicFieldData extends AtomicGeoPointFi
 
         private final GeoPointFieldMapper.Encoding encoding;
         private final PagedMutable lon, lat;
-        private final long numOrds;
 
-        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat, long numOrds) {
+        public Single(GeoPointFieldMapper.Encoding encoding, PagedMutable lon, PagedMutable lat) {
             super();
             this.encoding = encoding;
             this.lon = lon;
             this.lat = lat;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
         }
 
         @Override

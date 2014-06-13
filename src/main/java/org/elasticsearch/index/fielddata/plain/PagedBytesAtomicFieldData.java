@@ -23,17 +23,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  */
 public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
-
-    public static PagedBytesAtomicFieldData empty() {
-        return new Empty();
-    }
 
     private final PagedBytes.Reader bytes;
     private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
@@ -54,16 +50,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
-    public boolean isMultiValued() {
-        return ordinals.isMultiValued();
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
@@ -78,7 +64,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     @Override
     public BytesValues.WithOrdinals getBytesValues() {
-        return new BytesValues(bytes, termOrdToBytesOffset, ordinals.ordinals());
+        return ordinals.ordinals(new ValuesHolder(bytes, termOrdToBytesOffset));
     }
 
     @Override
@@ -91,77 +77,30 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 
-    static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
+    private static class ValuesHolder extends Ordinals.ValuesHolder {
 
-        protected final PagedBytes.Reader bytes;
-        protected final MonotonicAppendingLongBuffer termOrdToBytesOffset;
-        protected final Ordinals.Docs ordinals;
+        private final PagedBytes.Reader bytes;
+        private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
 
-        BytesValues(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals.Docs ordinals) {
-            super(ordinals);
+        ValuesHolder(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset) {
             this.bytes = bytes;
             this.termOrdToBytesOffset = termOrdToBytesOffset;
-            this.ordinals = ordinals;
         }
 
         @Override
-        public BytesRef copyShared() {
+        public BytesRef getValueByOrd(long ord, BytesRef scratch) {
+            assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
+            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            return scratch;
+        }
+        
+        @Override
+        public BytesRef copy(BytesRef scratch) {
             // when we fill from the pages bytes, we just reference an existing buffer slice, its enough
             // to create a shallow copy of the bytes to be safe for "reads".
             return new BytesRef(scratch.bytes, scratch.offset, scratch.length);
         }
-
-        @Override
-        public final Ordinals.Docs ordinals() {
-            return this.ordinals;
-        }
-
-        @Override
-        public final BytesRef getValueByOrd(long ord) {
-            assert ord != Ordinals.MISSING_ORDINAL;
-            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return scratch;
-        }
-
-        @Override
-        public final BytesRef nextValue() {
-            bytes.fill(scratch, termOrdToBytesOffset.get(ordinals.nextOrd()));
-            return scratch;
-        }
-
-    }
-
-    private final static class Empty extends PagedBytesAtomicFieldData {
-
-        Empty() {
-            super(emptyBytes(), 0, new MonotonicAppendingLongBuffer(), EmptyOrdinals.INSTANCE);
-        }
-
-        static PagedBytes.Reader emptyBytes() {
-            PagedBytes bytes = new PagedBytes(1);
-            bytes.copyUsingLengthPrefix(new BytesRef());
-            return bytes.freeze(true);
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return 0;
-        }
-
-        @Override
-        public BytesValues.WithOrdinals getBytesValues() {
-            return new EmptyByteValuesWithOrdinals(ordinals.ordinals());
-        }
-
-        @Override
-        public ScriptDocValues.Strings getScriptValues() {
-            return ScriptDocValues.EMPTY_STRINGS;
-        }
+        
     }
 
 }

@@ -23,6 +23,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -55,16 +56,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         }
 
         @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-        }
-
-        @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
                 size = RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.sizeInBytes() + lat.sizeInBytes();
@@ -80,11 +71,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
         public static class GeoPointValuesWithOrdinals extends GeoPointValues {
 
             private final DoubleArray lon, lat;
-            private final Ordinals.Docs ordinals;
+            private final BytesValues.WithOrdinals ordinals;
 
             private final GeoPoint scratch = new GeoPoint();
 
-            GeoPointValuesWithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals.Docs ordinals) {
+            GeoPointValuesWithOrdinals(DoubleArray lon, DoubleArray lat, BytesValues.WithOrdinals ordinals) {
                 super(ordinals.isMultiValued());
                 this.lon = lon;
                 this.lat = lat;
@@ -112,24 +103,12 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
 
         private final DoubleArray lon, lat;
         private final FixedBitSet set;
-        private final long numOrds;
 
-        public SingleFixedSet(DoubleArray lon, DoubleArray lat, FixedBitSet set, long numOrds) {
+        public SingleFixedSet(DoubleArray lon, DoubleArray lat, FixedBitSet set) {
             super();
             this.lon = lon;
             this.lat = lat;
             this.set = set;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
         }
 
         @Override
@@ -180,23 +159,11 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
     public static class Single extends GeoPointDoubleArrayAtomicFieldData {
 
         private final DoubleArray lon, lat;
-        private final long numOrds;
 
-        public Single(DoubleArray lon, DoubleArray lat, long numOrds) {
+        public Single(DoubleArray lon, DoubleArray lat) {
             super();
             this.lon = lon;
             this.lat = lat;
-            this.numOrds = numOrds;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public long getNumberUniqueValues() {
-            return numOrds;
         }
 
         @Override

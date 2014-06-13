@@ -29,8 +29,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.GlobalOrdinalMapping;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -52,13 +51,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected final IncludeExclude includeExclude;
 
     protected BytesValues.WithOrdinals globalValues;
-    protected Ordinals.Docs globalOrdinals;
 
-    // TODO: cache the acceptedGlobalOrdinals per aggregation definition.
+    // TODO: cache the acceptedglobalValues per aggregation definition.
     // We can't cache this yet in ValuesSource, since ValuesSource is reused per field for aggs during the execution.
     // If aggs with same field, but different include/exclude are defined, then the last defined one will override the
     // first defined one.
-    // So currently for each instance of this aggregator the acceptedGlobalOrdinals will be computed, this is unnecessary
+    // So currently for each instance of this aggregator the acceptedglobalValues will be computed, this is unnecessary
     // especially if this agg is on a second layer or deeper.
     protected LongBitSet acceptedGlobalOrdinals;
 
@@ -82,20 +80,19 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     @Override
     public void setNextReader(AtomicReaderContext reader) {
         globalValues = valuesSource.globalBytesValues();
-        globalOrdinals = globalValues.ordinals();
         if (acceptedGlobalOrdinals != null) {
-            globalOrdinals = new FilteredOrdinals(globalOrdinals, acceptedGlobalOrdinals);
+            globalValues = new FilteredOrdinals(globalValues, acceptedGlobalOrdinals);
         } else if (includeExclude != null) {
-            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrdinals, valuesSource);
-            globalOrdinals = new FilteredOrdinals(globalOrdinals, acceptedGlobalOrdinals);
+            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalValues, valuesSource);
+            globalValues = new FilteredOrdinals(globalValues, acceptedGlobalOrdinals);
         }
     }
 
     @Override
     public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        final int numOrds = globalOrdinals.setDocument(doc);
+        final int numOrds = globalValues.setDocument(doc);
         for (int i = 0; i < numOrds; i++) {
-            final long globalOrd = globalOrdinals.nextOrd();
+            final long globalOrd = globalValues.nextOrd();
             collectExistingBucket(doc, globalOrd);
         }
     }
@@ -111,20 +108,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (globalOrdinals == null) { // no context in this reader
+        if (globalValues == null) { // no context in this reader
             return buildEmptyAggregation();
         }
 
         final int size;
         if (bucketCountThresholds.getMinDocCount() == 0) {
             // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-            size = (int) Math.min(globalOrdinals.getMaxOrd(), bucketCountThresholds.getShardSize());
+            size = (int) Math.min(globalValues.getMaxOrd(), bucketCountThresholds.getShardSize());
         } else {
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
         StringTerms.Bucket spare = null;
-        for (long globalTermOrd = Ordinals.MIN_ORDINAL; globalTermOrd < globalOrdinals.getMaxOrd(); ++globalTermOrd) {
+        for (long globalTermOrd = BytesValues.WithOrdinals.MIN_ORDINAL; globalTermOrd < globalValues.getMaxOrd(); ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
                 continue;
             }
@@ -183,9 +180,9 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public void collect(int doc, long owningBucketOrdinal) throws IOException {
-            final int numOrds = globalOrdinals.setDocument(doc);
+            final int numOrds = globalValues.setDocument(doc);
             for (int i = 0; i < numOrds; i++) {
-                final long globalOrd = globalOrdinals.nextOrd();
+                final long globalOrd = globalValues.nextOrd();
                 long bucketOrd = bucketOrds.add(globalOrd);
                 if (bucketOrd < 0) {
                     bucketOrd = -1 - bucketOrd;
@@ -217,7 +214,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         private final LongArray segmentDocCounts;
 
-        private Ordinals.Docs segmentOrdinals;
+        private BytesValues.WithOrdinals segmentOrdinals;
         private LongArray current;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
@@ -237,16 +234,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public void setNextReader(AtomicReaderContext reader) {
-            if (segmentOrdinals != null && segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+            if (segmentOrdinals != null && segmentOrdinals.getMaxOrd() != globalValues.getMaxOrd()) {
                 mapSegmentCountsToGlobalCounts();
             }
 
             globalValues = valuesSource.globalBytesValues();
-            globalOrdinals = globalValues.ordinals();
 
-            BytesValues.WithOrdinals bytesValues = valuesSource.bytesValues();
-            segmentOrdinals = bytesValues.ordinals();
-            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+            segmentOrdinals = valuesSource.bytesValues();
+            if (segmentOrdinals.getMaxOrd() != globalValues.getMaxOrd()) {
                 current = segmentDocCounts;
             } else {
                 current = getDocCounts();
@@ -255,7 +250,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         protected void doPostCollection() {
-            if (segmentOrdinals.getMaxOrd() != globalOrdinals.getMaxOrd()) {
+            if (segmentOrdinals.getMaxOrd() != globalValues.getMaxOrd()) {
                 mapSegmentCountsToGlobalCounts();
             }
         }
@@ -268,7 +263,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private void mapSegmentCountsToGlobalCounts() {
             // There is no public method in Ordinals.Docs that allows for this mapping...
             // This is the cleanest way I can think of so far
-            GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalOrdinals;
+            GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalValues;
             for (int i = 0; i < segmentDocCounts.size(); i++) {
                 final long inc = segmentDocCounts.set(i, 0);
                 if (inc == 0) {
@@ -284,16 +279,17 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
     }
 
-    private static final class FilteredOrdinals implements Ordinals.Docs {
+    private static final class FilteredOrdinals extends BytesValues.WithOrdinals {
 
-        private final Ordinals.Docs inner;
+        private final BytesValues.WithOrdinals inner;
         private final LongBitSet accepted;
 
         private long currentOrd;
         private long[] buffer = new long[0];
         private int bufferSlot;
 
-        private FilteredOrdinals(Ordinals.Docs inner, LongBitSet accepted) {
+        private FilteredOrdinals(BytesValues.WithOrdinals inner, LongBitSet accepted) {
+            super(inner.isMultiValued());
             this.inner = inner;
             this.accepted = accepted;
         }
@@ -304,17 +300,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public boolean isMultiValued() {
-            return inner.isMultiValued();
-        }
-
-        @Override
         public long getOrd(int docId) {
             long ord = inner.getOrd(docId);
             if (accepted.get(ord)) {
                 return currentOrd = ord;
             } else {
-                return currentOrd = Ordinals.MISSING_ORDINAL;
+                return currentOrd = MISSING_ORDINAL;
             }
         }
 
@@ -343,6 +334,16 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         public long currentOrd() {
             return currentOrd;
+        }
+
+        @Override
+        public BytesRef getValueByOrd(long ord) {
+            return scratch = inner.getValueByOrd(ord);
+        }
+
+        @Override
+        public BytesRef copyShared() {
+            return inner.copyShared();
         }
     }
 }

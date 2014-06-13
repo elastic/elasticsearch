@@ -25,7 +25,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -131,9 +130,8 @@ public class TermsStringFacetExecutor extends FacetExecutor {
             int maxDoc = readerContext.reader().maxDoc();
             if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
                 BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
-                Ordinals.Docs ordinals = values.ordinals();
                 // 0 = docs with no value for field, so start from 1 instead
-                for (long ord = Ordinals.MIN_ORDINAL; ord < ordinals.getMaxOrd(); ord++) {
+                for (long ord = BytesValues.WithOrdinals.MIN_ORDINAL; ord < values.getMaxOrd(); ord++) {
                     BytesRef value = values.getValueByOrd(ord);
                     aggregator.addValue(value, value.hashCode(), values);
                 }

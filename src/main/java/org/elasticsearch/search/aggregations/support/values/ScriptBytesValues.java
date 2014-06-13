@@ -50,7 +50,6 @@ public class ScriptBytesValues extends BytesValues implements ScriptValues {
 
     @Override
     public int setDocument(int docId) {
-        this.docId = docId;
         script.setNextDocId(docId);
         value = script.run();
 

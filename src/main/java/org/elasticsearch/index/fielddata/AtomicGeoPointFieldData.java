@@ -35,7 +35,6 @@ public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> im
 
             @Override
             public int setDocument(int docId) {
-                this.docId = docId;
                 return values.setDocument(docId);
             }
 

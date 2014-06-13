@@ -26,8 +26,8 @@ import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
@@ -35,10 +35,6 @@ import java.io.IOException;
 /**
  */
 public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
-
-    public static FSTBytesAtomicFieldData empty() {
-        return new Empty();
-    }
 
     // 0 ordinal in values means no value (its null)
     protected final Ordinals ordinals;
@@ -57,16 +53,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     }
 
     @Override
-    public boolean isMultiValued() {
-        return ordinals.isMultiValued();
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        return ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL;
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
@@ -79,8 +65,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
     @Override
     public BytesValues.WithOrdinals getBytesValues() {
-        assert fst != null;
-        return new BytesValues(fst, ordinals.ordinals());
+        return ordinals.ordinals(new ValuesHolder(fst));
     }
 
     @Override
@@ -94,10 +79,9 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 
-    static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
+    private static class ValuesHolder extends Ordinals.ValuesHolder {
 
-        protected final FST<Long> fst;
-        protected final Ordinals.Docs ordinals;
+        private final FST<Long> fst;
 
         // per-thread resources
         protected final BytesReader in;
@@ -105,16 +89,14 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         protected final Arc<Long> scratchArc = new Arc<>();
         protected final IntsRef scratchInts = new IntsRef();
 
-        BytesValues(FST<Long> fst, Ordinals.Docs ordinals) {
-            super(ordinals);
+        ValuesHolder(FST<Long> fst) {
             this.fst = fst;
-            this.ordinals = ordinals;
             in = fst.getBytesReader();
         }
 
         @Override
-        public BytesRef getValueByOrd(long ord) {
-            assert ord != Ordinals.MISSING_ORDINAL;
+        public BytesRef getValueByOrd(long ord, BytesRef scratch) {
+            assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
             in.setPosition(0);
             fst.getFirstArc(firstArc);
             try {
@@ -127,30 +109,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
             }
             return scratch;
         }
-
     }
-
-    final static class Empty extends FSTBytesAtomicFieldData {
-
-        Empty() {
-            super(null, EmptyOrdinals.INSTANCE);
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return false;
-        }
-
-        @Override
-        public BytesValues.WithOrdinals getBytesValues() {
-            return new EmptyByteValuesWithOrdinals(ordinals.ordinals());
-        }
-
-        @Override
-        public ScriptDocValues.Strings getScriptValues() {
-            return ScriptDocValues.EMPTY_STRINGS;
-        }
-    }
-
 
 }

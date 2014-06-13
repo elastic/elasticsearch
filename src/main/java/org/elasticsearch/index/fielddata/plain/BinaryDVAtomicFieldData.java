@@ -44,17 +44,6 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public boolean isMultiValued() {
-        return false;
-    }
-
-    @Override
-    public long getNumberUniqueValues() {
-        // probably not accurate, but a good upper limit
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getMemorySizeInBytes() {
         // TODO: Lucene doesn't expose it right now
         return -1;
@@ -80,6 +69,8 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
         }
 
         return new BytesValues(false) {
+
+            int docId;
 
             @Override
             public int setDocument(int docId) {

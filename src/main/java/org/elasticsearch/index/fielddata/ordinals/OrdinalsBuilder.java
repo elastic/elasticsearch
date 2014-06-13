@@ -27,6 +27,7 @@ import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.BytesValues;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -259,7 +260,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     private final int maxDoc;
-    private long currentOrd = Ordinals.MIN_ORDINAL - 1;
+    private long currentOrd = BytesValues.WithOrdinals.MIN_ORDINAL - 1;
     private int numDocsWithValue = 0;
     private int numMultiValuedDocs = 0;
     private int totalNumOrds = 0;

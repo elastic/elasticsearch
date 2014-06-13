@@ -38,8 +38,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -404,10 +402,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTests {
             BytesValues.WithOrdinals left = fieldData.load(readerContext).getBytesValues();
             fieldData.clear();
             BytesValues.WithOrdinals right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getBytesValues();
-            Docs leftOrds = left.ordinals();
-            Docs rightOrds = right.ordinals();
-            assertEquals(leftOrds.getMaxOrd(), rightOrds.getMaxOrd());
-            for (long ord = Ordinals.MIN_ORDINAL; ord < leftOrds.getMaxOrd(); ++ord) {
+            assertEquals(left.getMaxOrd(), right.getMaxOrd());
+            for (long ord = BytesValues.WithOrdinals.MIN_ORDINAL; ord < left.getMaxOrd(); ++ord) {
                 assertEquals(left.getValueByOrd(ord), right.getValueByOrd(ord));
             }
         }

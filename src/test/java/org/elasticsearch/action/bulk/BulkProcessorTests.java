@@ -59,15 +59,15 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
                 .build()) {
 
-            MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, "test", "test", numDocs);
+            MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
             latch.await();
 
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
             assertThat(listener.bulkFailures.size(), equalTo(0));
-            checkResponseItems(listener.bulkItems, "test", "test", numDocs);
-            checkMultiGetResponse(multiGetRequestBuilder.get(), "test", "test", numDocs);
+            assertResponseItems(listener.bulkItems, numDocs);
+            assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
         }
     }
 
@@ -83,7 +83,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
                 .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
-            MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, "test", "test", numDocs);
+            MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
             assertThat(latch.await(randomInt(500), TimeUnit.MILLISECONDS), equalTo(false));
             //we really need an explicit flush as none of the bulk thresholds was reached
@@ -93,8 +93,8 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
             assertThat(listener.bulkFailures.size(), equalTo(0));
-            checkResponseItems(listener.bulkItems, "test", "test", numDocs);
-            checkMultiGetResponse(multiGetRequestBuilder.get(), "test", "test", numDocs);
+            assertResponseItems(listener.bulkItems, numDocs);
+            assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
         }
     }
 
@@ -119,7 +119,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
                 //set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
-            multiGetRequestBuilder = indexDocs(client(), processor, "test", "test", numDocs);
+            multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
 
             latch.await();
 
@@ -147,7 +147,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
             assertThat(ids.add(bulkItemResponse.getId()), equalTo(true));
         }
 
-        checkMultiGetResponse(multiGetRequestBuilder.get(), "test", "test", numDocs);
+        assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
     }
 
     @Test
@@ -173,7 +173,7 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
                 //set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
-            indexDocs(transportClient, processor, "test", "test", numDocs);
+            indexDocs(transportClient, processor, numDocs);
 
             latch.await();
 
@@ -255,35 +255,35 @@ public class BulkProcessorTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        checkMultiGetResponse(multiGetRequestBuilder.get(), "test", "test", testDocs);
+        assertMultiGetResponse(multiGetRequestBuilder.get(), testDocs);
     }
 
-    private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, String index, String type, int numDocs) {
+    private static MultiGetRequestBuilder indexDocs(Client client, BulkProcessor processor, int numDocs) {
         MultiGetRequestBuilder multiGetRequestBuilder = client.prepareMultiGet();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(index, type, Integer.toString(i)).source("field", "value"));
-            multiGetRequestBuilder.add(index, type, Integer.toString(i));
+            processor.add(new IndexRequest("test", "test", Integer.toString(i)).source("field", randomRealisticUnicodeOfLengthBetween(1, 30)));
+            multiGetRequestBuilder.add("test", "test", Integer.toString(i));
         }
         return multiGetRequestBuilder;
     }
 
-    private static void checkResponseItems(List<BulkItemResponse> bulkItemResponses, String index, String type, int numDocs) {
+    private static void assertResponseItems(List<BulkItemResponse> bulkItemResponses, int numDocs) {
         assertThat(bulkItemResponses.size(), is(numDocs));
         int i = 1;
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
-            assertThat(bulkItemResponse.getIndex(), equalTo(index));
-            assertThat(bulkItemResponse.getType(), equalTo(type));
+            assertThat(bulkItemResponse.getIndex(), equalTo("test"));
+            assertThat(bulkItemResponse.getType(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
             assertThat(bulkItemResponse.isFailed(), equalTo(false));
         }
     }
 
-    private static void checkMultiGetResponse(MultiGetResponse multiGetResponse, String index, String type, int numDocs) {
+    private static void assertMultiGetResponse(MultiGetResponse multiGetResponse, int numDocs) {
         assertThat(multiGetResponse.getResponses().length, equalTo(numDocs));
         int i = 1;
         for (MultiGetItemResponse multiGetItemResponse : multiGetResponse) {
-            assertThat(multiGetItemResponse.getIndex(), equalTo(index));
-            assertThat(multiGetItemResponse.getType(), equalTo(type));
+            assertThat(multiGetItemResponse.getIndex(), equalTo("test"));
+            assertThat(multiGetItemResponse.getType(), equalTo("test"));
             assertThat(multiGetItemResponse.getId(), equalTo(Integer.toString(i++)));
         }
     }

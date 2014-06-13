@@ -118,6 +118,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 throw blockException;
             }
 
+            logger.trace("resolving shards based on cluster state version [{}]", clusterState.version());
             this.shardIt = shards(clusterState, request);
         }
 

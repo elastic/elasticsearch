@@ -41,7 +41,6 @@ import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
 public class GetActionTests extends ElasticsearchIntegrationTest {
@@ -853,7 +852,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").get();
-        assertNoFailures(flushResponse);
+        // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green
+        assertThat(flushResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 
         getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));

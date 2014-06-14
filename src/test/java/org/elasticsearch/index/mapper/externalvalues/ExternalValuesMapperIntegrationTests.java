@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -48,7 +49,7 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
     }
 
     @Test
-    public void testExternalGeoPoint() throws Exception {
+    public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("doc", createMapping()).execute().get();
         ensureYellow("test-idx");
 
@@ -74,6 +75,27 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
+
+        response = client().prepareSearch("test-idx")
+                .setPostFilter(FilterBuilders.termFilter("external.external", "dummy"))
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo((long) 1));
+    }
+
+    @Test
+    public void testExternalValuesWithMultifield() throws Exception {
+        prepareCreate("test-idx").addMapping("doc", createMappingWithMultifield()).execute().get();
+        ensureYellow("test-idx");
+
+        index("test-idx", "doc", "1", "f", "This is my text");
+        refresh();
+
+        SearchResponse response = client().prepareSearch("test-idx")
+                .setQuery(QueryBuilders.termQuery("f.f.raw", "dummy"))
+                .execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
 
 
@@ -83,4 +105,24 @@ public class ExternalValuesMapperIntegrationTests extends ElasticsearchIntegrati
                 .endObject().endObject().endObject();
     }
 
+    private XContentBuilder createMappingWithMultifield() throws IOException {
+        return XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
+                .startObject("f")
+                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .startObject("fields")
+                        .startObject("f")
+                            .field("type", "string")
+                            .field("stored", "yes")
+                            .startObject("fields")
+                                .startObject("raw")
+                                    .field("type", "string")
+                                    .field("index", "not_analyzed")
+                                    .field("stored", "yes")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject().endObject();
+    }
 }

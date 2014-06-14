@@ -23,15 +23,19 @@ import com.spatial4j.core.shape.Point;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 
 /**
  * This mapper add a new sub fields
@@ -54,10 +58,17 @@ public class ExternalMapper implements Mapper {
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder pointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
+        private Mapper.Builder stringBuilder;
 
         public Builder(String name) {
             super(name);
             this.builder = this;
+            this.stringBuilder = stringField(name).store(false);
+        }
+
+        public Builder string(Mapper.Builder content) {
+            this.stringBuilder = content;
+            return this;
         }
 
         @Override
@@ -70,11 +81,12 @@ public class ExternalMapper implements Mapper {
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
             GeoPointFieldMapper pointMapper = pointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
+            Mapper stringMapper = stringBuilder.build(context);
             context.path().remove();
 
             context.path().pathType(origPathType);
 
-            return new ExternalMapper(name, binMapper, boolMapper, pointMapper, shapeMapper);
+            return new ExternalMapper(name, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper);
         }
     }
 
@@ -84,6 +96,22 @@ public class ExternalMapper implements Mapper {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ExternalMapper.Builder builder = new ExternalMapper.Builder(name);
+
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = entry.getKey();
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("fields")) {
+                    Map<String, Object> fieldsNode = (Map<String, Object>) fieldNode;
+                    for (Map.Entry<String, Object> entry1 : fieldsNode.entrySet()) {
+                        String propName = entry1.getKey();
+                        Object propNode = entry1.getValue();
+                        if (name.equals(propName)) {
+                            builder.string(parserContext.typeParser(StringFieldMapper.CONTENT_TYPE).parse(name, (Map<String, Object>) propNode, parserContext));
+                        }
+                    }
+                }
+            }
+
             return builder;
         }
     }
@@ -94,14 +122,17 @@ public class ExternalMapper implements Mapper {
     private final BooleanFieldMapper boolMapper;
     private final GeoPointFieldMapper pointMapper;
     private final GeoShapeFieldMapper shapeMapper;
+    private final Mapper stringMapper;
 
     public ExternalMapper(String name,
-                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper, GeoShapeFieldMapper shapeMapper) {
+                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
+                          GeoShapeFieldMapper shapeMapper, Mapper stringMapper) {
         this.name = name;
         this.binMapper = binMapper;
         this.boolMapper = boolMapper;
         this.pointMapper = pointMapper;
         this.shapeMapper = shapeMapper;
+        this.stringMapper = stringMapper;
     }
 
     @Override
@@ -111,40 +142,33 @@ public class ExternalMapper implements Mapper {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        ContentPath.Type origPathType = context.path().pathType();
-        context.path().pathType(ContentPath.Type.FULL);
+        XContentParser parser = context.parser();
+        String content = parser.text();
+
         context.path().add(name);
 
-        // Let's add a Dummy Binary content
-        context.path().add(Names.FIELD_BIN);
         byte[] bytes = "Hello world".getBytes(Charset.defaultCharset());
         context.externalValue(bytes);
         binMapper.parse(context);
-        context.path().remove();
 
-        // Let's add a Dummy Boolean content
-        context.path().add(Names.FIELD_BOOL);
         context.externalValue(true);
         boolMapper.parse(context);
-        context.path().remove();
 
         // Let's add a Dummy Point
         Double lat = 42.0;
         Double lng = 51.0;
-        context.path().add(Names.FIELD_POINT);
         GeoPoint point = new GeoPoint(lat, lng);
         context.externalValue(point);
         pointMapper.parse(context);
-        context.path().remove();
 
         // Let's add a Dummy Shape
-        context.path().add(Names.FIELD_SHAPE);
         Point shape = ShapeBuilder.newPoint(-100, 45).build();
         context.externalValue(shape);
         shapeMapper.parse(context);
-        context.path().remove();
 
-        context.path().pathType(origPathType);
+        // Let's add a Dummy String
+        context.externalValue("dummy");
+        stringMapper.parse(context);
     }
 
     @Override
@@ -158,6 +182,7 @@ public class ExternalMapper implements Mapper {
         boolMapper.traverse(fieldMapperListener);
         pointMapper.traverse(fieldMapperListener);
         shapeMapper.traverse(fieldMapperListener);
+        stringMapper.traverse(fieldMapperListener);
     }
 
     @Override
@@ -170,6 +195,7 @@ public class ExternalMapper implements Mapper {
         boolMapper.close();
         pointMapper.close();
         shapeMapper.close();
+        stringMapper.close();
     }
 
     @Override
@@ -181,6 +207,7 @@ public class ExternalMapper implements Mapper {
         boolMapper.toXContent(builder, params);
         pointMapper.toXContent(builder, params);
         shapeMapper.toXContent(builder, params);
+        stringMapper.toXContent(builder, params);
         builder.endObject();
 
         builder.endObject();

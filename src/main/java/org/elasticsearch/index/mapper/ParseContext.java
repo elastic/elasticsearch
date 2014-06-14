@@ -400,7 +400,7 @@ public class ParseContext {
     }
 
     public boolean externalValueSet() {
-        return this.externalValueSet;
+        return this.externalValueSet || this.externalValue != null;
     }
 
     public Object externalValue() {

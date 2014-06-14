@@ -916,7 +916,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 return;
             }
 
-            context.setWithinMultiFields();
+            context = context.createMultiFieldContext();
 
             ContentPath.Type origPathType = context.path().pathType();
             context.path().pathType(pathType);
@@ -927,8 +927,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             }
             context.path().remove();
             context.path().pathType(origPathType);
-
-            context.clearWithinMultiFields();
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
@@ -1055,7 +1053,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
          * Creates an copy of the current field with given field name and boost
          */
         public void parse(String field, ParseContext context) throws IOException {
-            context.setWithinCopyTo();
+            context = context.createCopyToContext();
             FieldMappers mappers = context.docMapper().mappers().indexName(field);
             if (mappers != null && !mappers.isEmpty()) {
                 mappers.mapper().parse(context);
@@ -1109,7 +1107,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
                 }
             }
-            context.clearWithinCopyTo();
         }
 
 

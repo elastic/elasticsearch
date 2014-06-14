@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.DocumentMapper.ParseListener;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.util.*;
@@ -41,7 +42,7 @@ import java.util.*;
 /**
  *
  */
-public class ParseContext {
+public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
     public static class Document implements Iterable<IndexableField> {
@@ -121,242 +122,572 @@ public class ParseContext {
 
     }
 
-    private final DocumentMapper docMapper;
+    private static class FilterParseContext extends ParseContext {
 
-    private final DocumentMapperParser docMapperParser;
+        private final ParseContext in;
 
-    private final ContentPath path;
-
-    private XContentParser parser;
-
-    private Document document;
-
-    private List<Document> documents = Lists.newArrayList();
-
-    private Analyzer analyzer;
-
-    private final String index;
-
-    @Nullable
-    private final Settings indexSettings;
-
-    private SourceToParse sourceToParse;
-    private BytesReference source;
-
-    private String id;
-
-    private DocumentMapper.ParseListener listener;
-
-    private Field uid, version;
-
-    private StringBuilder stringBuilder = new StringBuilder();
-
-    private Map<String, String> ignoredValues = new HashMap<>();
-
-    private boolean mappingsModified = false;
-    private boolean withinNewMapper = false;
-    private boolean withinCopyTo = false;
-    private boolean withinMultiFields = false;
-
-    private boolean externalValueSet;
-
-    private Object externalValue;
-
-    private AllEntries allEntries = new AllEntries();
-
-    private float docBoost = 1.0f;
-
-    public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
-        this.index = index;
-        this.indexSettings = indexSettings;
-        this.docMapper = docMapper;
-        this.docMapperParser = docMapperParser;
-        this.path = path;
-    }
-
-    public void reset(XContentParser parser, Document document, SourceToParse source, DocumentMapper.ParseListener listener) {
-        this.parser = parser;
-        this.document = document;
-        if (document != null) {
-            this.documents = Lists.newArrayList();
-            this.documents.add(document);
-        } else {
-            this.documents = null;
+        private FilterParseContext(ParseContext in) {
+            this.in = in;
         }
-        this.analyzer = null;
-        this.uid = null;
-        this.version = null;
-        this.id = null;
-        this.sourceToParse = source;
-        this.source = source == null ? null : sourceToParse.source();
-        this.path.reset();
-        this.mappingsModified = false;
-        this.withinNewMapper = false;
-        this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
-        this.allEntries = new AllEntries();
-        this.ignoredValues.clear();
-        this.docBoost = 1.0f;
+
+        @Override
+        public boolean flyweight() {
+            return in.flyweight();
+        }
+
+        @Override
+        public DocumentMapperParser docMapperParser() {
+            return in.docMapperParser();
+        }
+
+        @Override
+        public boolean mappingsModified() {
+            return in.mappingsModified();
+        }
+
+        @Override
+        public void setMappingsModified() {
+            in.setMappingsModified();
+        }
+
+        @Override
+        public void setWithinNewMapper() {
+            in.setWithinNewMapper();
+        }
+
+        @Override
+        public void clearWithinNewMapper() {
+            in.clearWithinNewMapper();
+        }
+
+        @Override
+        public boolean isWithinNewMapper() {
+            return in.isWithinNewMapper();
+        }
+
+        @Override
+        public boolean isWithinCopyTo() {
+            return in.isWithinCopyTo();
+        }
+
+        @Override
+        public boolean isWithinMultiFields() {
+            return in.isWithinMultiFields();
+        }
+
+        @Override
+        public String index() {
+            return in.index();
+        }
+
+        @Override
+        public Settings indexSettings() {
+            return in.indexSettings();
+        }
+
+        @Override
+        public String type() {
+            return in.type();
+        }
+
+        @Override
+        public SourceToParse sourceToParse() {
+            return in.sourceToParse();
+        }
+
+        @Override
+        public BytesReference source() {
+            return in.source();
+        }
+
+        @Override
+        public void source(BytesReference source) {
+            in.source(source);
+        }
+
+        @Override
+        public ContentPath path() {
+            return in.path();
+        }
+
+        @Override
+        public XContentParser parser() {
+            return in.parser();
+        }
+
+        @Override
+        public ParseListener listener() {
+            return in.listener();
+        }
+
+        @Override
+        public Document rootDoc() {
+            return in.rootDoc();
+        }
+
+        @Override
+        public List<Document> docs() {
+            return in.docs();
+        }
+
+        @Override
+        public Document doc() {
+            return in.doc();
+        }
+
+        @Override
+        public void addDoc(Document doc) {
+            in.addDoc(doc);
+        }
+
+        @Override
+        public Document switchDoc(Document doc) {
+            return in.switchDoc(doc);
+        }
+
+        @Override
+        public RootObjectMapper root() {
+            return in.root();
+        }
+
+        @Override
+        public DocumentMapper docMapper() {
+            return in.docMapper();
+        }
+
+        @Override
+        public AnalysisService analysisService() {
+            return in.analysisService();
+        }
+
+        @Override
+        public String id() {
+            return in.id();
+        }
+
+        @Override
+        public void ignoredValue(String indexName, String value) {
+            in.ignoredValue(indexName, value);
+        }
+
+        @Override
+        public String ignoredValue(String indexName) {
+            return in.ignoredValue(indexName);
+        }
+
+        @Override
+        public void id(String id) {
+            in.id(id);
+        }
+
+        @Override
+        public Field uid() {
+            return in.uid();
+        }
+
+        @Override
+        public void uid(Field uid) {
+            in.uid(uid);
+        }
+
+        @Override
+        public Field version() {
+            return in.version();
+        }
+
+        @Override
+        public void version(Field version) {
+            in.version(version);
+        }
+
+        @Override
+        public AllEntries allEntries() {
+            return in.allEntries();
+        }
+
+        @Override
+        public Analyzer analyzer() {
+            return in.analyzer();
+        }
+
+        @Override
+        public void analyzer(Analyzer analyzer) {
+            in.analyzer(analyzer);
+        }
+
+        @Override
+        public boolean externalValueSet() {
+            return in.externalValueSet();
+        }
+
+        @Override
+        public Object externalValue() {
+            return in.externalValue();
+        }
+
+        @Override
+        public float docBoost() {
+            return in.docBoost();
+        }
+
+        @Override
+        public void docBoost(float docBoost) {
+            in.docBoost(docBoost);
+        }
+
+        @Override
+        public StringBuilder stringBuilder() {
+            return in.stringBuilder();
+        }
+
     }
 
-    public boolean flyweight() {
-        return sourceToParse.flyweight();
+    public static class InternalParseContext extends ParseContext {
+
+        private final DocumentMapper docMapper;
+
+        private final DocumentMapperParser docMapperParser;
+
+        private final ContentPath path;
+
+        private XContentParser parser;
+
+        private Document document;
+
+        private List<Document> documents = Lists.newArrayList();
+
+        private Analyzer analyzer;
+
+        private final String index;
+
+        @Nullable
+        private final Settings indexSettings;
+
+        private SourceToParse sourceToParse;
+        private BytesReference source;
+
+        private String id;
+
+        private DocumentMapper.ParseListener listener;
+
+        private Field uid, version;
+
+        private StringBuilder stringBuilder = new StringBuilder();
+
+        private Map<String, String> ignoredValues = new HashMap<>();
+
+        private boolean mappingsModified = false;
+        private boolean withinNewMapper = false;
+
+        private AllEntries allEntries = new AllEntries();
+
+        private float docBoost = 1.0f;
+
+        public InternalParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
+            this.index = index;
+            this.indexSettings = indexSettings;
+            this.docMapper = docMapper;
+            this.docMapperParser = docMapperParser;
+            this.path = path;
+        }
+
+        public void reset(XContentParser parser, Document document, SourceToParse source, DocumentMapper.ParseListener listener) {
+            this.parser = parser;
+            this.document = document;
+            if (document != null) {
+                this.documents = Lists.newArrayList();
+                this.documents.add(document);
+            } else {
+                this.documents = null;
+            }
+            this.analyzer = null;
+            this.uid = null;
+            this.version = null;
+            this.id = null;
+            this.sourceToParse = source;
+            this.source = source == null ? null : sourceToParse.source();
+            this.path.reset();
+            this.mappingsModified = false;
+            this.withinNewMapper = false;
+            this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
+            this.allEntries = new AllEntries();
+            this.ignoredValues.clear();
+            this.docBoost = 1.0f;
+        }
+
+        public boolean flyweight() {
+            return sourceToParse.flyweight();
+        }
+
+        public DocumentMapperParser docMapperParser() {
+            return this.docMapperParser;
+        }
+
+        public boolean mappingsModified() {
+            return this.mappingsModified;
+        }
+
+        public void setMappingsModified() {
+            this.mappingsModified = true;
+        }
+
+        public void setWithinNewMapper() {
+            this.withinNewMapper = true;
+        }
+
+        public void clearWithinNewMapper() {
+            this.withinNewMapper = false;
+        }
+
+        public boolean isWithinNewMapper() {
+            return withinNewMapper;
+        }
+
+        public String index() {
+            return this.index;
+        }
+
+        @Nullable
+        public Settings indexSettings() {
+            return this.indexSettings;
+        }
+
+        public String type() {
+            return sourceToParse.type();
+        }
+
+        public SourceToParse sourceToParse() {
+            return this.sourceToParse;
+        }
+
+        public BytesReference source() {
+            return source;
+        }
+
+        // only should be used by SourceFieldMapper to update with a compressed source
+        public void source(BytesReference source) {
+            this.source = source;
+        }
+
+        public ContentPath path() {
+            return this.path;
+        }
+
+        public XContentParser parser() {
+            return this.parser;
+        }
+
+        public DocumentMapper.ParseListener listener() {
+            return this.listener;
+        }
+
+        public Document rootDoc() {
+            return documents.get(0);
+        }
+
+        public List<Document> docs() {
+            return this.documents;
+        }
+
+        public Document doc() {
+            return this.document;
+        }
+
+        public void addDoc(Document doc) {
+            this.documents.add(doc);
+        }
+
+        public Document switchDoc(Document doc) {
+            Document prev = this.document;
+            this.document = doc;
+            return prev;
+        }
+
+        public RootObjectMapper root() {
+            return docMapper.root();
+        }
+
+        public DocumentMapper docMapper() {
+            return this.docMapper;
+        }
+
+        public AnalysisService analysisService() {
+            return docMapperParser.analysisService;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public void ignoredValue(String indexName, String value) {
+            ignoredValues.put(indexName, value);
+        }
+
+        public String ignoredValue(String indexName) {
+            return ignoredValues.get(indexName);
+        }
+
+        /**
+         * Really, just the id mapper should set this.
+         */
+        public void id(String id) {
+            this.id = id;
+        }
+
+        public Field uid() {
+            return this.uid;
+        }
+
+        /**
+         * Really, just the uid mapper should set this.
+         */
+        public void uid(Field uid) {
+            this.uid = uid;
+        }
+
+        public Field version() {
+            return this.version;
+        }
+
+        public void version(Field version) {
+            this.version = version;
+        }
+
+        public AllEntries allEntries() {
+            return this.allEntries;
+        }
+
+        public Analyzer analyzer() {
+            return this.analyzer;
+        }
+
+        public void analyzer(Analyzer analyzer) {
+            this.analyzer = analyzer;
+        }
+
+        public float docBoost() {
+            return this.docBoost;
+        }
+
+        public void docBoost(float docBoost) {
+            this.docBoost = docBoost;
+        }
+
+        /**
+         * A string builder that can be used to construct complex names for example.
+         * Its better to reuse the.
+         */
+        public StringBuilder stringBuilder() {
+            stringBuilder.setLength(0);
+            return this.stringBuilder;
+        }
     }
 
-    public DocumentMapperParser docMapperParser() {
-        return this.docMapperParser;
-    }
+    public abstract boolean flyweight();
 
-    public boolean mappingsModified() {
-        return this.mappingsModified;
-    }
+    public abstract DocumentMapperParser docMapperParser();
 
-    public void setMappingsModified() {
-        this.mappingsModified = true;
-    }
+    public abstract boolean mappingsModified();
 
-    public void setWithinNewMapper() {
-        this.withinNewMapper = true;
-    }
+    public abstract void setMappingsModified();
 
-    public void clearWithinNewMapper() {
-        this.withinNewMapper = false;
-    }
+    public abstract void setWithinNewMapper();
 
-    public boolean isWithinNewMapper() {
-        return withinNewMapper;
-    }
+    public abstract void clearWithinNewMapper();
 
-    public void setWithinCopyTo() {
-        this.withinCopyTo = true;
-    }
+    public abstract boolean isWithinNewMapper();
 
-    public void clearWithinCopyTo() {
-        this.withinCopyTo = false;
+    /**
+     * Return a new context that will be within a copy-to operation.
+     */
+    public final ParseContext createCopyToContext() {
+        return new FilterParseContext(this) {
+            @Override
+            public boolean isWithinCopyTo() {
+                return true;
+            }
+        };
     }
 
     public boolean isWithinCopyTo() {
-        return withinCopyTo;
+        return false;
     }
 
-    public void setWithinMultiFields() {
-        this.withinMultiFields = true;
+    /**
+     * Return a new context that will be within multi-fields.
+     */
+    public final ParseContext createMultiFieldContext() {
+        return new FilterParseContext(this) {
+            @Override
+            public boolean isWithinMultiFields() {
+                return true;
+            }
+        };
     }
 
-    public void clearWithinMultiFields() {
-        this.withinMultiFields = false;
+    public boolean isWithinMultiFields() {
+        return false;
     }
 
-    public String index() {
-        return this.index;
-    }
+    public abstract String index();
 
     @Nullable
-    public Settings indexSettings() {
-        return this.indexSettings;
-    }
+    public abstract Settings indexSettings();
 
-    public String type() {
-        return sourceToParse.type();
-    }
+    public abstract String type();
 
-    public SourceToParse sourceToParse() {
-        return this.sourceToParse;
-    }
+    public abstract SourceToParse sourceToParse();
 
-    public BytesReference source() {
-        return source;
-    }
+    public abstract BytesReference source();
 
     // only should be used by SourceFieldMapper to update with a compressed source
-    public void source(BytesReference source) {
-        this.source = source;
-    }
+    public abstract void source(BytesReference source);
 
-    public ContentPath path() {
-        return this.path;
-    }
+    public abstract ContentPath path();
 
-    public XContentParser parser() {
-        return this.parser;
-    }
+    public abstract XContentParser parser();
 
-    public DocumentMapper.ParseListener listener() {
-        return this.listener;
-    }
+    public abstract DocumentMapper.ParseListener listener();
 
-    public Document rootDoc() {
-        return documents.get(0);
-    }
+    public abstract Document rootDoc();
 
-    public List<Document> docs() {
-        return this.documents;
-    }
+    public abstract List<Document> docs();
 
-    public Document doc() {
-        return this.document;
-    }
+    public abstract Document doc();
 
-    public void addDoc(Document doc) {
-        this.documents.add(doc);
-    }
+    public abstract void addDoc(Document doc);
 
-    public Document switchDoc(Document doc) {
-        Document prev = this.document;
-        this.document = doc;
-        return prev;
-    }
+    public abstract Document switchDoc(Document doc);
 
-    public RootObjectMapper root() {
-        return docMapper.root();
-    }
+    public abstract RootObjectMapper root();
 
-    public DocumentMapper docMapper() {
-        return this.docMapper;
-    }
+    public abstract DocumentMapper docMapper();
 
-    public AnalysisService analysisService() {
-        return docMapperParser.analysisService;
-    }
+    public abstract AnalysisService analysisService();
 
-    public String id() {
-        return id;
-    }
+    public abstract String id();
 
-    public void ignoredValue(String indexName, String value) {
-        ignoredValues.put(indexName, value);
-    }
+    public abstract void ignoredValue(String indexName, String value);
 
-    public String ignoredValue(String indexName) {
-        return ignoredValues.get(indexName);
-    }
+    public abstract String ignoredValue(String indexName);
 
     /**
      * Really, just the id mapper should set this.
      */
-    public void id(String id) {
-        this.id = id;
-    }
+    public abstract void id(String id);
 
-    public Field uid() {
-        return this.uid;
-    }
+    public abstract Field uid();
 
     /**
      * Really, just the uid mapper should set this.
      */
-    public void uid(Field uid) {
-        this.uid = uid;
-    }
+    public abstract void uid(Field uid);
 
-    public Field version() {
-        return this.version;
-    }
+    public abstract Field version();
 
-    public void version(Field version) {
-        this.version = version;
-    }
+    public abstract void version(Field version);
 
-    public boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
+    public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexed());
     }
 
@@ -366,13 +697,13 @@ public class ParseContext {
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
     private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
-        if (withinCopyTo) {
+        if (isWithinCopyTo()) {
             return false;
         }
-        if (withinMultiFields) {
+        if (isWithinMultiFields()) {
             return false;
         }
-        if (!docMapper.allFieldMapper().enabled()) {
+        if (!docMapper().allFieldMapper().enabled()) {
             return false;
         }
         // not explicitly set
@@ -382,30 +713,34 @@ public class ParseContext {
         return specificIncludeInAll;
     }
 
-    public AllEntries allEntries() {
-        return this.allEntries;
-    }
+    public abstract AllEntries allEntries();
 
-    public Analyzer analyzer() {
-        return this.analyzer;
-    }
+    public abstract Analyzer analyzer();
 
-    public void analyzer(Analyzer analyzer) {
-        this.analyzer = analyzer;
-    }
+    public abstract void analyzer(Analyzer analyzer);
 
-    public void externalValue(Object externalValue) {
-        this.externalValueSet = true;
-        this.externalValue = externalValue;
+    /**
+     * Return a new context that will have the external value set.
+     */
+    public final ParseContext createExternalValueContext(final Object externalValue) {
+        return new FilterParseContext(this) {
+            @Override
+            public boolean externalValueSet() {
+                return true;
+            }
+            @Override
+            public Object externalValue() {
+                return externalValue;
+            }
+        };
     }
 
     public boolean externalValueSet() {
-        return this.externalValueSet;
+        return false;
     }
 
     public Object externalValue() {
-        externalValueSet = false;
-        return externalValue;
+        throw new ElasticsearchIllegalStateException("External value is not set");
     }
 
     /**
@@ -413,7 +748,7 @@ public class ParseContext {
      * @param clazz Expected class for external value
      * @return null if no external value has been set or the value
      */
-    public <T> T parseExternalValue(Class<T> clazz) {
+    public final <T> T parseExternalValue(Class<T> clazz) {
         if (!externalValueSet() || externalValue() == null) {
             return null;
         }
@@ -422,24 +757,17 @@ public class ParseContext {
             throw new ElasticsearchIllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
-        return (T) externalValue();
+        return clazz.cast(externalValue());
     }
 
-    public float docBoost() {
-        return this.docBoost;
-    }
+    public abstract float docBoost();
 
-    public void docBoost(float docBoost) {
-        this.docBoost = docBoost;
-    }
+    public abstract void docBoost(float docBoost);
 
     /**
      * A string builder that can be used to construct complex names for example.
      * Its better to reuse the.
      */
-    public StringBuilder stringBuilder() {
-        stringBuilder.setLength(0);
-        return this.stringBuilder;
-    }
+    public abstract StringBuilder stringBuilder();
 
 }

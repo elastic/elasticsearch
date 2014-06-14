@@ -81,7 +81,7 @@ public class NodesFaultDetection extends AbstractComponent {
         this.threadPool = threadPool;
         this.transportService = transportService;
 
-        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", true);
+        this.connectOnNetworkDisconnect = componentSettings.getAsBoolean("connect_on_network_disconnect", false);
         this.pingInterval = componentSettings.getAsTime("ping_interval", timeValueSeconds(1));
         this.pingRetryTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(30));
         this.pingRetryCount = componentSettings.getAsInt("ping_retries", 3);

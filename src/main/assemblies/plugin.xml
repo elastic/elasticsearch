@@ -12,6 +12,7 @@
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <excludes>
                 <exclude>org.elasticsearch:elasticsearch</exclude>
+                <exclude>org.slf4j:slf4j-api</exclude>
             </excludes>
         </dependencySet>
         <dependencySet>
@@ -21,6 +22,9 @@
             <includes>
                 <include>org.apache.tika:tika-parsers</include>
             </includes>
+            <excludes>
+                <exclude>org.slf4j:slf4j-api</exclude>
+            </excludes>
         </dependencySet>
     </dependencySets>
 </assembly>

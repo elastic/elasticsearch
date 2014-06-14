@@ -93,7 +93,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery();
         mltQuery.setSimilarity(parseContext.searchSimilarity());
         Analyzer analyzer = null;
-        Map<String, Analyzer> fieldAnalyzers = null;
+        Map<String, Analyzer> fieldAnalyzers = Collections.emptyMap();
         List<String> moreLikeFields = null;
         boolean failOnUnsupportedField = true;
         String queryName = null;
@@ -181,9 +181,8 @@ public class MoreLikeThisQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "more_like_this requires at least 'like_text' or 'ids/docs' to be specified");
         }
 
-        Analyzer defaultAnalyzer = parseContext.mapperService().searchAnalyzer();
         if (analyzer == null) {
-            analyzer = defaultAnalyzer;
+            analyzer = parseContext.mapperService().searchAnalyzer(); // analyzer at field-settings
         }
         mltQuery.setAnalyzer(analyzer);
 
@@ -229,7 +228,7 @@ public class MoreLikeThisQueryParser implements QueryParser {
             // right now we are just building a boolean query
             BooleanQuery boolQuery = new BooleanQuery();
             for (MoreLikeThisFetchService.LikeText likeText : likeTexts) {
-                addMoreLikeThis(boolQuery, mltQuery, likeText.field, likeText.text, fieldAnalyzers, defaultAnalyzer);
+                addMoreLikeThis(boolQuery, mltQuery, likeText.field, likeText.text, fieldAnalyzers);
             }
             // exclude the items from the search
             if (!include) {
@@ -247,20 +246,15 @@ public class MoreLikeThisQueryParser implements QueryParser {
         return mltQuery;
     }
 
-    private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, String fieldName, String likeText, Map<String, Analyzer> fieldAnalyzers, Analyzer defaultAnalyzer) {
+    private void addMoreLikeThis(BooleanQuery boolQuery, MoreLikeThisQuery mltQuery, String fieldName, String likeText, Map<String, Analyzer> fieldAnalyzers) {
         MoreLikeThisQuery mlt = new MoreLikeThisQuery();
         mlt.setMoreLikeFields(new String[] {fieldName});
         mlt.setLikeText(likeText);
-        if (fieldAnalyzers != null) {
-            Analyzer a = fieldAnalyzers.get(fieldName);
-            if (a != null) {
-                mlt.setAnalyzer(a);
-            } else {
-                mlt.setAnalyzer(defaultAnalyzer);
-            }
-        } else {
-            mlt.setAnalyzer(mltQuery.getAnalyzer());
+        Analyzer analyzer = fieldAnalyzers.get(fieldName);
+        if (analyzer == null) {
+            analyzer = mltQuery.getAnalyzer();
         }
+        mlt.setAnalyzer(analyzer);
         mlt.setPercentTermsToMatch(mltQuery.getPercentTermsToMatch());
         mlt.setBoostTerms(mltQuery.isBoostTerms());
         mlt.setBoostTermsFactor(mltQuery.getBoostTermsFactor());

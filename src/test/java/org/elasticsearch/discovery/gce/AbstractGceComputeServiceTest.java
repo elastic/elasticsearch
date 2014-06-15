@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.gce;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -55,6 +56,7 @@ public abstract class AbstractGceComputeServiceTest extends ElasticsearchIntegra
         return ImmutableSettings.builder()
                 .put("transport.tcp.port", getPort(nodeOrdinal))
                 .put("http.enabled", false)
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();
     }
 

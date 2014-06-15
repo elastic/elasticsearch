@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cloud.gce.AbstractGceTest;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -36,10 +37,18 @@ import org.junit.Test;
  */
 @AbstractGceTest.GceTest
 @ElasticsearchIntegrationTest.ClusterScope(
-        scope = ElasticsearchIntegrationTest.Scope.TEST,
+        scope = ElasticsearchIntegrationTest.Scope.SUITE,
         numDataNodes = 1,
         transportClientRatio = 0.0)
 public class GceSimpleITest extends AbstractGceTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .build();
+    }
 
     @Test
     public void one_node_should_run() {

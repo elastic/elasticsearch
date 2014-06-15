@@ -145,7 +145,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 boolean filterByTag = false;
                 if (tags.length > 0) {
                     logger.trace("start filtering instance {} with tags {}.", name, tags);
-                    if (instance.getTags() == null || instance.getTags().isEmpty()) {
+                    if (instance.getTags() == null || instance.getTags().isEmpty()
+                            || instance.getTags().getItems() == null || instance.getTags().getItems().isEmpty()) {
                         // If this instance have no tag, we filter it
                         logger.trace("no tags for this instance but we asked for tags. {} won't be part of the cluster.", name);
                         filterByTag = true;
@@ -169,7 +170,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 }
                 if (filterByTag) {
                     logger.trace("filtering out instance {} based tags {}, not part of {}", name, tags,
-                            instance.getTags() == null ? "" : instance.getTags().getItems());
+                            instance.getTags() == null || instance.getTags().getItems() == null ? "" : "");
                     continue;
                 } else {
                     logger.trace("instance {} with tags {} is added to discovery", name, tags);
@@ -225,11 +226,9 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
                         // If user has set `es_port` metadata, we don't need to ping all ports
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
-                        for (int i = 0; i < addresses.length; i++) {
-                            logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
-                                    ip_private, addresses[i], status);
-                            cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + i, addresses[i], Version.CURRENT));
-                        }
+                        logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
+                                ip_private, addresses[0], status);
+                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + 0, addresses[0], Version.CURRENT));
                     }
                 } catch (Exception e) {
                     logger.warn("failed to add {}, address {}", e, name, ip_private);

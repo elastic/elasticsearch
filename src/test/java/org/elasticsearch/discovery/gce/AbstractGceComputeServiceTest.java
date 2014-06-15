@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.is;
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.SUITE,
         numDataNodes = 2,
+        numClientNodes = 0,
         transportClientRatio = 0.0)
 public abstract class AbstractGceComputeServiceTest extends ElasticsearchIntegrationTest {
     /**
@@ -57,6 +58,7 @@ public abstract class AbstractGceComputeServiceTest extends ElasticsearchIntegra
                 .put("transport.tcp.port", getPort(nodeOrdinal))
                 .put("http.enabled", false)
                 .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put(super.nodeSettings(nodeOrdinal))
                 .build();
     }
 

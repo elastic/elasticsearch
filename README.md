@@ -52,14 +52,19 @@ How to start (long story)
 Before starting, you should have:
 
 * Your project ID. Let's say here `es-cloud`. Get it from [Google APIS Console](https://code.google.com/apis/console/).
-* [GCUtil](https://developers.google.com/compute/docs/gcutil/#install)
+* [Google Cloud SDK](https://developers.google.com/cloud/sdk/)
 
+If you did not set it yet, you can define your default project you will work on:
+
+```sh
+gcloud config set project es-cloud
+```
 
 ### Creating your first instance
 
 
 ```sh
-gcutil --project=es-cloud addinstance myesnode1 \
+gcutil addinstance myesnode1 \
        --service_account_scope=compute-rw,storage-full \
        --persistent_boot_disk
 ```
@@ -73,7 +78,7 @@ Then, choose your zone. Let's say here that we choose `europe-west1-a`.
 
 Choose your compute instance size. Let's say `f1-micro`.
 
-Choose your OS. Let's say `projects/debian-cloud/global/images/debian-7-wheezy-v20130617`.
+Choose your OS. Let's say `projects/debian-cloud/global/images/debian-7-wheezy-v20140606`.
 
 You may be asked to create a ssh key. Follow instructions to create one.
 
@@ -89,9 +94,13 @@ Table of resources:
 +-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
 ```
 
-You can now connect to your machine using the external IP address in order to install Elasticsearch:
+You can now connect to your instance:
 
 ```
+# Connect using google cloud SDK
+gcloud compute ssh myesnode1 --zone europe-west1-a
+
+# Or using SSH with external IP address
 ssh -i ~/.ssh/google_compute_engine 192.158.29.199
 ```
 
@@ -100,38 +109,14 @@ Once connected, install Elasticsearch:
 ```sh
 sudo apt-get update
 
-# Install curl if needed
-sudo apt-get install curl
-
 # Download Elasticsearch
-wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.0.0.RC1.deb
+wget https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.2.1.deb
 
 # Prepare Java installation
 sudo apt-get install java7-runtime-headless
 
 # Prepare Elasticsearch installation
-sudo dpkg -i elasticsearch-1.0.0.RC1.deb
-
-# Check that elasticsearch is running:
-curl http://localhost:9200/
-```
-
-This command should give you a JSON result:
-
-```javascript
-{
-  "ok" : true,
-  "status" : 200,
-  "name" : "Shriker",
-  "version" : {
-    "number" : "1.0.0.RC1",
-    "build_hash" : "0a5781f44876e8d1c30b6360628d59cb2a7a2bbb",
-    "build_timestamp" : "2014-01-10T10:18:37Z",
-    "build_snapshot" : false,
-    "lucene_version" : "4.6"
-  },
-  "tagline" : "You Know, for Search"
-}
+sudo dpkg -i elasticsearch-1.2.1.deb
 ```
 
 ### Install elasticsearch cloud gce plugin
@@ -140,7 +125,7 @@ Install the plugin:
 
 ```sh
 # Use Plugin Manager to install it
-sudo /usr/share/elasticsearch/bin/plugin --install elasticsearch/elasticsearch-cloud-gce/2.0.0.RC1
+sudo /usr/share/elasticsearch/bin/plugin --install elasticsearch/elasticsearch-cloud-gce/2.2.0
 
 # Configure it:
 sudo vi /etc/elasticsearch/elasticsearch.yml
@@ -149,19 +134,19 @@ sudo vi /etc/elasticsearch/elasticsearch.yml
 And add the following lines:
 
 ```yaml
-  cloud:
-      gce:
-          project_id: es-cloud
-          zone: europe-west1-a
-  discovery:
-          type: gce
+cloud:
+  gce:
+      project_id: es-cloud
+      zone: europe-west1-a
+discovery:
+      type: gce
 ```
 
 
-Restart elasticsearch:
+Start elasticsearch:
 
 ```sh
-sudo /etc/init.d/elasticsearch restart
+sudo /etc/init.d/elasticsearch start
 ```
 
 If anything goes wrong, you should check logs:
@@ -188,17 +173,13 @@ First create an image of your running instance and upload it to Google Cloud Sto
 
 ```sh
 # Create an image of yur current instance
-sudo python /usr/share/imagebundle/image_bundle.py \
-  -r / -o /tmp/ --log_file=/tmp/abc.log
+sudo /usr/bin/gcimagebundle -d /dev/sda -o /tmp/
 
 # An image has been created in `/tmp` directory:
 ls /tmp
 e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # Upload your image to Google Cloud Storage:
-# Launch this command and follow instructions to give your instance an access to your storage
-gsutil config
-
 # Create a bucket to hold your image, let's say `esimage`:
 gsutil mb gs://esimage
 
@@ -206,17 +187,7 @@ gsutil mb gs://esimage
 gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
 
 # Then add your image to images collection:
-gcutil listkernels --project es-cloud
-+----------------------------------------------+--------------------------------------------------+-------------+
-|                     name                     |                   description                    | deprecation |
-+----------------------------------------------+--------------------------------------------------+-------------+
-| projects/google/global/kernels/gce-20120621  | 2.6.39-gcg built 2012-03-29 01:07:00             | DEPRECATED  |
-| projects/google/global/kernels/gce-v20130603 | SCSI-enabled 3.3.8-gcg built 2013-05-29 01:04:00 |             |
-+----------------------------------------------+--------------------------------------------------+-------------+
-# Note the kernel you prefer to use and add your image to your catalog:
-gcutil --project=es-cloud addimage elasticsearch-1-0-0-RC1 \
-       gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz \
-       --preferred_kernel=projects/google/global/kernels/gce-v20130603
+gcutil addimage elasticsearch-1-2-1 gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
 
 # If the previous command did not work for you, logout from your instance
 # and launch the same command from your local machine.
@@ -228,7 +199,10 @@ As you have now an image, you can create as many instances as you need:
 
 ```sh
 # Just change node name (here myesnode2)
-gcutil --project=es-cloud addinstance --image=elasticsearch-1-0-0-RC1 \
+gcutil addinstance --image=elasticsearch-1-2-1 myesnode2
+
+# If you want to provide all details directly, you can use:
+gcutil addinstance --image=elasticsearch-1-2-1 \
        --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
        --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
        --persistent_boot_disk
@@ -240,11 +214,11 @@ You can use [Google Cloud Console](https://cloud.google.com/console) or CLI to m
 
 ```sh
 # Stopping and removing instances
-gcutil --project=es-cloud deleteinstance myesnode1 myesnode2 \
+gcutil deleteinstance myesnode1 myesnode2 \
        --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcutil --project=es-cloud deletedisk boot-myesnode1 boot-myesnode2  \
+gcutil deletedisk boot-myesnode1 boot-myesnode2  \
        --zone=europe-west1-a
 ```
 
@@ -273,14 +247,14 @@ gcutil --project=es-cloud addinstance myesnode1 \
 Then, define it in `elasticsearch.yml`:
 
 ```yaml
-  cloud:
+cloud:
+  gce:
+      project_id: es-cloud
+      zone: europe-west1-a
+discovery:
+      type: gce
       gce:
-          project_id: es-cloud
-          zone: europe-west1-a
-  discovery:
-          type: gce
-          gce:
-                tags: elasticsearch, dev
+            tags: elasticsearch, dev
 ```
 
 Changing default transport port
@@ -295,13 +269,13 @@ Add `--metadata=es_port:9301` option:
 
 ```sh
 # when creating first instance
-gcutil --project=es-cloud addinstance myesnode1 \
+gcutil addinstance myesnode1 \
        --service_account_scope=compute-rw,storage-full \
        --persistent_boot_disk \
        --metadata=es_port:9301
 
 # when creating an instance from an image
-gcutil --project=es-cloud addinstance --image=elasticsearch-1-0-0-RC1 \
+gcutil addinstance --image=elasticsearch-1-0-0-RC1 \
        --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
        --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
        --persistent_boot_disk --metadata=es_port:9301
@@ -311,8 +285,7 @@ gcutil --project=es-cloud addinstance --image=elasticsearch-1-0-0-RC1 \
 
 ```sh
 # Get metadata fingerprint
-gcutil --project=es-cloud getinstance myesnode1 \
-       --zone=europe-west1-a
+gcutil getinstance myesnode1 --zone=europe-west1-a
 +------------------------+---------------------------------------------------------------------------------------------------------+
 |        property        |                                                  value                                                  |
 +------------------------+---------------------------------------------------------------------------------------------------------+
@@ -321,7 +294,7 @@ gcutil --project=es-cloud getinstance myesnode1 \
 +------------------------+---------------------------------------------------------------------------------------------------------+
 
 # Use that fingerprint
-gcutil --project=es-cloud setinstancemetadata myesnode1 \
+gcutil setinstancemetadata myesnode1 \
        --zone=europe-west1-a \
        --metadata=es_port:9301 \
        --fingerprint=42WmSpB8rSM=

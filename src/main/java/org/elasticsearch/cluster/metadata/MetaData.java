@@ -190,7 +190,7 @@ public class MetaData implements Iterable<IndexMetaData> {
                 AliasMetaData aliasMd = aliasCursor.value;
                 ImmutableOpenMap.Builder<String, AliasMetaData> indexAliasMap = (ImmutableOpenMap.Builder<String, AliasMetaData>) tmpAliases.get(aliasMd.alias());
                 if (indexAliasMap == null) {
-                    indexAliasMap = ImmutableOpenMap.builder(indices.size());
+                    indexAliasMap = ImmutableOpenMap.builder(1); // typically, there is 1 alias pointing to an index
                     tmpAliases.put(aliasMd.alias(), indexAliasMap);
                 }
                 indexAliasMap.put(index, aliasMd);

@@ -795,7 +795,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                    if (t instanceof ClusterService.NoLongerMasterException) {
+                        logger.debug("not processing [{}] as we are no longer master", source);
+                    } else {
+                        logger.error("unexpected failure during [{}]", t, source);
+                    }
                     callback.onFailure(t);
                 }
 

@@ -719,6 +719,7 @@ public final class TestCluster extends ImmutableTestCluster {
         }
     }
 
+    public static final String TRANSPORT_CLIENT_PREFIX = "transport_client_";
     static class TransportClientFactory extends ClientFactory {
 
         private boolean sniff;
@@ -733,7 +734,7 @@ public final class TestCluster extends ImmutableTestCluster {
         public Client client(Node node, String clusterName, Random random) {
             TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
             TransportClient client = new TransportClient(settingsBuilder().put("client.transport.nodes_sampler_interval", "1s")
-                    .put("name", "transport_client_" + node.settings().get("name"))
+                    .put("name", TRANSPORT_CLIENT_PREFIX + node.settings().get("name"))
                     .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false)
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", sniff).build());
             client.addTransportAddress(addr);

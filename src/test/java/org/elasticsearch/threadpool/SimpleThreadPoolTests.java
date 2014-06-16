@@ -19,8 +19,13 @@
 
 package org.elasticsearch.threadpool;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.network.MulticastChannel;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,22 +33,34 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.*;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes =2)
+@ClusterScope(scope= Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -51,8 +68,54 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").put(super.nodeSettings(nodeOrdinal)).build();
     }
 
+    @Test
+    public void verifyThreadNames() throws Exception {
+        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+        Set<String> preNodeStartThreadNames = Sets.newHashSet();
+        for (long l : threadBean.getAllThreadIds()) {
+            preNodeStartThreadNames.add(threadBean.getThreadInfo(l).getThreadName());
+        }
+        logger.info("pre node threads are {}", preNodeStartThreadNames);
+        String node = cluster().startNode();
+        logger.info("do some indexing, flushing, optimize, and searches");
+        int numDocs = randomIntBetween(2, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
+                    .startObject()
+                    .field("str_value", "s" + i)
+                    .field("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
+                    .field("l_value", i)
+                    .field("l_values", new int[] {i * 2, i * 2 + 1})
+                    .field("d_value", i)
+                    .field("d_values", new double[]{i * 2, i * 2 + 1})
+                    .endObject());
+        }
+        indexRandom(true, builders);
+        int numSearches = randomIntBetween(2, 100);
+        for (int i = 0; i < numSearches; i++) {
+            assertAllSuccessful(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)).get());
+            assertAllSuccessful(client().prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)).get());
+        }
+        Set<String> threadNames = Sets.newHashSet();
+        for (long l : threadBean.getAllThreadIds()) {
+            threadNames.add(threadBean.getThreadInfo(l).getThreadName());
+        }
+        logger.info("post node threads are {}", threadNames);
+        threadNames.removeAll(preNodeStartThreadNames);
+        logger.info("post node *new* threads are {}", threadNames);
+        for (String threadName : threadNames) {
+            // ignore some shared threads we know that are created within the same VM, like the shared discovery one
+            if (threadName.contains("[" + MulticastChannel.SHARED_CHANNEL_NAME + "]")) {
+                continue;
+            }
+            assertThat(threadName, anyOf(containsString("[" + node + "]"), containsString("[" + TestCluster.TRANSPORT_CLIENT_PREFIX + node + "]")));
+        }
+    }
+
     @Test(timeout = 20000)
     public void testUpdatingThreadPoolSettings() throws Exception {
+        cluster().startNodesAsync(2).get();
         ThreadPool threadPool = cluster().getDataNodeInstance(ThreadPool.class);
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(5L));

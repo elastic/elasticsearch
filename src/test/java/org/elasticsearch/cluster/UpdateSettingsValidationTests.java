@@ -39,7 +39,7 @@ public class UpdateSettingsValidationTests extends ElasticsearchIntegrationTest 
 
     @Test
     public void testUpdateSettingsValidation() throws Exception {
-        List<String> nodes = cluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodesAsync(
                 settingsBuilder().put("node.data", false).build(),
                 settingsBuilder().put("node.master", false).build(),
                 settingsBuilder().put("node.master", false).build()

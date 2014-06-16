@@ -57,7 +57,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     @Override
     protected int minimumNumberOfShards() {
-        return immutableCluster().numDataNodes();
+        return cluster().numDataNodes();
     }
 
     @Override
@@ -106,7 +106,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", between(immutableCluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 

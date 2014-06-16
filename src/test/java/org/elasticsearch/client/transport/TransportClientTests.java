@@ -32,9 +32,9 @@ public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = cluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        String nodeName = internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
 
-        TransportClient client = (TransportClient) cluster().client(nodeName);
+        TransportClient client = (TransportClient) internalCluster().client(nodeName);
         assertThat(client.connectedNodes().get(0).dataNode(), Matchers.equalTo(false));
 
     }

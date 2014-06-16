@@ -44,7 +44,7 @@ public class BenchmarkNegativeTest extends ElasticsearchIntegrationTest {
     @Test(expected = BenchmarkNodeMissingException.class)
     public void testSubmitBenchmarkNegative() {
         client().bench(BenchmarkTestUtil.randomRequest(
-                client(), new String[] {INDEX_NAME}, cluster().size(), null)).actionGet();
+                client(), new String[] {INDEX_NAME}, internalCluster().size(), null)).actionGet();
     }
 
     public void testListBenchmarkNegative() {

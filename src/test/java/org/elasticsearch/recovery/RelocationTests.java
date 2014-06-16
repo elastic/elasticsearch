@@ -53,7 +53,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     @Test
     public void testSimpleRelocationNoIndexing() {
         logger.info("--> starting [node1] ...");
-        final String node_1 = cluster().startNode();
+        final String node_1 = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
@@ -79,7 +79,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         assertThat(client().prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
 
         logger.info("--> start another node");
-        final String node_2 = cluster().startNode();
+        final String node_2 = internalCluster().startNode();
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
@@ -109,7 +109,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         String[] nodes = new String[numberOfNodes];
         logger.info("--> starting [node1] ...");
-        nodes[0] = cluster().startNode();
+        nodes[0] = internalCluster().startNode();
 
         logger.info("--> creating test index ...");
         client().admin().indices().prepareCreate("test")
@@ -121,7 +121,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node{}] ...", i + 1);
-            nodes[i] = cluster().startNode();
+            nodes[i] = internalCluster().startNode();
             if (i != numberOfNodes - 1) {
                 ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(i + 1)).setWaitForGreenStatus().execute().actionGet();

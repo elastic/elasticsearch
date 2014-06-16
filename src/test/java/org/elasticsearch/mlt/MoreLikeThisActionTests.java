@@ -136,7 +136,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("2"));
 
         logger.info("Running moreLikeThis on alias with node client");
-        mltResponse = cluster().clientNodeClient().moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        mltResponse = internalCluster().clientNodeClient().moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
         assertHitCount(mltResponse, 1l);
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("3"));
 

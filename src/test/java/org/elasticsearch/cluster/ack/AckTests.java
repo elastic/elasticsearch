@@ -179,7 +179,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, between(immutableCluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
         ));
         ensureGreen();
@@ -214,7 +214,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, between(immutableCluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 
@@ -228,7 +228,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, between(immutableCluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 
@@ -261,7 +261,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
     public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put(SETTING_NUMBER_OF_SHARDS, between(immutableCluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put(SETTING_NUMBER_OF_REPLICAS, 0)).get();
         ensureGreen();
 

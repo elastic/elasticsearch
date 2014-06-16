@@ -34,7 +34,7 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.TestCluster.RestartCallback;
+import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
@@ -63,7 +63,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testX() throws Exception {
 
-        cluster().startNode(settingsBuilder().build());
+        internalCluster().startNode(settingsBuilder().build());
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
@@ -88,7 +88,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         refresh();
         assertHitCount(client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ensureYellow();
@@ -96,7 +96,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertHitCount(client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
 
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ensureYellow();
@@ -109,7 +109,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testSingleNodeNoFlush() throws Exception {
 
-        cluster().startNode(settingsBuilder().build());
+        internalCluster().startNode(settingsBuilder().build());
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
@@ -166,7 +166,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
             logger.info("Ensure all primaries have been started");
             ensureYellow();
         }
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ensureYellow();
@@ -178,7 +178,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
             assertHitCount(client().prepareCount().setQuery(termQuery("num", 179)).get(), value1Docs);
         }
 
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
@@ -197,7 +197,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testSingleNodeWithFlush() throws Exception {
 
-        cluster().startNode(settingsBuilder().build());
+        internalCluster().startNode(settingsBuilder().build());
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
@@ -205,7 +205,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
 
         assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
 
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ensureYellow();
@@ -214,7 +214,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         ensureYellow();
@@ -228,8 +228,8 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testTwoNodeFirstNodeCleared() throws Exception {
 
-        final String firstNode = cluster().startNode(settingsBuilder().build());
-        cluster().startNode(settingsBuilder().build());
+        final String firstNode = internalCluster().startNode(settingsBuilder().build());
+        internalCluster().startNode(settingsBuilder().build());
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         flush();
@@ -243,7 +243,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
             assertHitCount(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return settingsBuilder().put("gateway.recover_after_nodes", 2).build();
@@ -268,7 +268,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     @Slow
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        cluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
+        internalCluster().startNodesAsync(2, settingsBuilder().put("gateway.recover_after_nodes", 2).build()).get();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute().actionGet();
         client().admin().indices().prepareFlush().execute().actionGet();
@@ -286,7 +286,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         assertThat(metaDataUuid, not(equalTo("_na_")));
 
         logger.info("--> closing first node, and indexing more data to the second node");
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
 
             @Override
             public void doAfterNodes(int numNodes, Client client) throws Exception {
@@ -344,7 +344,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                 .put(MockDirectoryHelper.CRASH_INDEX, false)
                 .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
 
-        cluster().startNodesAsync(4, settings.build()).get();
+        internalCluster().startNodesAsync(4, settings.build()).get();
 
         logger.info("--> indexing docs");
         for (int i = 0; i < 1000; i++) {
@@ -361,7 +361,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
         logger.info("Running Cluster Health");
         ensureGreen();
@@ -369,7 +369,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
-        cluster().fullRestart();
+        internalCluster().fullRestart();
 
 
         logger.info("Running Cluster Health");
@@ -393,15 +393,15 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
     public void testRecoveryDifferentNodeOrderStartup() throws Exception {
         // we need different data paths so we make sure we start the second node fresh
 
-        final String node_1 = cluster().startNode(settingsBuilder().put("path.data", "data/data1").build());
+        final String node_1 = internalCluster().startNode(settingsBuilder().put("path.data", "data/data1").build());
 
         client().prepareIndex("test", "type1", "1").setSource("field", "value").execute().actionGet();
 
-        cluster().startNode(settingsBuilder().put("path.data", "data/data2").build());
+        internalCluster().startNode(settingsBuilder().put("path.data", "data/data2").build());
 
         ensureGreen();
 
-        cluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new RestartCallback() {
 
             @Override
             public boolean doRestart(String nodeName) {

@@ -45,8 +45,8 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
                 .put("indices.analysis.hunspell.dictionary.ignore_case", true)
                 .build();
 
-        cluster().startNode(settings);
-        Dictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
+        internalCluster().startNode(settings);
+        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
         assertIgnoreCase(true, dictionary);
     }
@@ -61,15 +61,15 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
                 .put("indices.analysis.hunspell.dictionary.en_US.ignore_case", false)
                 .build();
 
-        cluster().startNode(settings);
-        Dictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
+        internalCluster().startNode(settings);
+        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
         assertIgnoreCase(false, dictionary);
 
 
 
         // testing that dictionary specific settings override node level settings
-        dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US_custom");
+        dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US_custom");
         assertThat(dictionary, notNullValue());
         assertIgnoreCase(true, dictionary);
     }
@@ -80,8 +80,8 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
                 .put("indices.analysis.hunspell.dictionary.location", getResource("/indices/analyze/conf_dir/hunspell"))
                 .build();
 
-        cluster().startNode(settings);
-        Dictionary dictionary = cluster().getInstance(HunspellService.class).getDictionary("en_US");
+        internalCluster().startNode(settings);
+        Dictionary dictionary = internalCluster().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
     }
     

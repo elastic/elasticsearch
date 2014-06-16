@@ -86,7 +86,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
             if (firstError != null) {
                 fail(firstError.getMessage());
             }
-            cluster().wipeIndices("test");
+            internalCluster().wipeIndices("test");
         }
     }
 

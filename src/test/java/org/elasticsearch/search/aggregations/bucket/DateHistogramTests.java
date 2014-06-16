@@ -114,7 +114,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     @After
     public void afterEachTest() throws IOException {
-        cluster().wipeIndices("idx2");
+        internalCluster().wipeIndices("idx2");
     }
 
     private static DateHistogram.Bucket getBucket(DateHistogram histogram, DateTime key) {

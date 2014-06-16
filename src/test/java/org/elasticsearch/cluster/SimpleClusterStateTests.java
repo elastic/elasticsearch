@@ -64,7 +64,7 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(immutableCluster().size()));
+        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
 
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
         assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));

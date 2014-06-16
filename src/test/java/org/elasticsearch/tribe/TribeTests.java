@@ -33,7 +33,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.InternalTestCluster;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class TribeTests extends ElasticsearchIntegrationTest {
 
-    private static TestCluster cluster2;
+    private static InternalTestCluster cluster2;
 
     private Node tribeNode;
     private Client tribeClient;
@@ -58,7 +58,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public static void setupSecondCluster() throws Exception {
         ElasticsearchIntegrationTest.beforeClass();
         // create another cluster
-        cluster2 = new TestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false);
+        cluster2 = new InternalTestCluster(randomLong(), 2, 2, Strings.randomBase64UUID(getRandom()), 0, false);
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);
     }
@@ -91,7 +91,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
 
     private void setupTribeNode(Settings settings) {
         Settings merged = ImmutableSettings.builder()
-                .put("tribe.t1.cluster.name", cluster().getClusterName())
+                .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.blocks.write", false)
                 .put("tribe.blocks.read", false)
@@ -107,7 +107,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGlobalReadWriteBlocks() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
-        cluster().client().admin().indices().prepareCreate("test1").get();
+        internalCluster().client().admin().indices().prepareCreate("test1").get();
         cluster2.client().admin().indices().prepareCreate("test2").get();
 
 
@@ -145,8 +145,8 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     @Test
     public void testIndexWriteBlocks() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
-        cluster().client().admin().indices().prepareCreate("test1").get();
-        cluster().client().admin().indices().prepareCreate("block_test1").get();
+        internalCluster().client().admin().indices().prepareCreate("test1").get();
+        internalCluster().client().admin().indices().prepareCreate("block_test1").get();
         cluster2.client().admin().indices().prepareCreate("test2").get();
         cluster2.client().admin().indices().prepareCreate("block_test2").get();
 
@@ -209,9 +209,9 @@ public class TribeTests extends ElasticsearchIntegrationTest {
         logger.info("testing preference for tribe {}", tribe);
 
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
-        cluster().client().admin().indices().prepareCreate("conflict").get();
+        internalCluster().client().admin().indices().prepareCreate("conflict").get();
         cluster2.client().admin().indices().prepareCreate("conflict").get();
-        cluster().client().admin().indices().prepareCreate("test1").get();
+        internalCluster().client().admin().indices().prepareCreate("test1").get();
         cluster2.client().admin().indices().prepareCreate("test2").get();
 
         setupTribeNode(ImmutableSettings.builder()
@@ -232,7 +232,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     public void testTribeOnOneCluster() throws Exception {
         setupTribeNode(ImmutableSettings.EMPTY);
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
-        cluster().client().admin().indices().prepareCreate("test1").get();
+        internalCluster().client().admin().indices().prepareCreate("test1").get();
         cluster2.client().admin().indices().prepareCreate("test2").get();
 
 
@@ -328,7 +328,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
             @Override
             public boolean apply(Object o) {
                 DiscoveryNodes tribeNodes = tribeNode.client().admin().cluster().prepareState().get().getState().getNodes();
-                return countDataNodesForTribe("t1", tribeNodes) == cluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()
+                return countDataNodesForTribe("t1", tribeNodes) == internalCluster().client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size()
                         && countDataNodesForTribe("t2", tribeNodes) == cluster2.client().admin().cluster().prepareState().get().getState().getNodes().dataNodes().size();
             }
         });

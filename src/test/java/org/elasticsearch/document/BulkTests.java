@@ -348,7 +348,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
         int replica = randomInt(2);
 
-        cluster().ensureAtLeastNumDataNodes(1 + replica);
+        internalCluster().ensureAtLeastNumDataNodes(1 + replica);
 
         assertAcked(prepareCreate("test").setSettings(
                 ImmutableSettings.builder()

@@ -65,7 +65,7 @@ public class ResponseHeaderPluginTests extends ElasticsearchIntegrationTest {
     }
 
     private HttpClient httpClient() {
-        HttpServerTransport httpServerTransport = cluster().getDataNodeInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
         return new HttpClient(httpServerTransport.boundAddress().publishAddress());
     }
 }

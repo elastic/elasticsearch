@@ -6,9 +6,9 @@ The directory layout of an installation is as follows:
 [cols="<,<,<,<",options="header",]
 |=======================================================================
 |Type |Description |Default Location |Setting
-|*home* |Home of elasticsearch installation | | `path.home`
+|*home* |Home of elasticsearch installation. | | `path.home`
 
-|*bin* |Binary scripts including `elasticsearch` to start a node | `{path.home}/bin` |
+|*bin* |Binary scripts including `elasticsearch` to start a node. | `{path.home}/bin` |
 
 |*conf* |Configuration files including `elasticsearch.yml` |`{path.home}/config` |`path.conf`
 
@@ -17,7 +17,7 @@ on the node. Can hold multiple locations. |`{path.home}/data`|`path.data`
 
 |*work* |Temporal files that are used by different nodes. |`{path.home}/work` |`path.work`
 
-|*logs* |Log files location |`{path.home}/logs` |`path.logs`
+|*logs* |Log files location. |`{path.home}/logs` |`path.logs`
 
 |*plugins* |Plugin files location. Each plugin will be contained in a subdirectory. |`{path.home}/plugins` |`path.plugins`
 |=======================================================================
@@ -45,3 +45,54 @@ Or the in an array format:
 ----------------------------------------
 path.data: ["/mnt/first", "/mnt/second"]
 ----------------------------------------
+
+
+[float]
+[[Default Paths]]
+=== Default Paths
+
+Below are the default paths that *elasticsearch* will use, if not explictly changed.
+
+==== deb and rpm
+[cols="<,<,<,<",options="header",]
+|=======================================================================
+|Type |Description |Location Debian/Ubuntu | Location RHEL/CentOS
+|*home* |Home of elasticsearch installation. | /usr/share/elasticsearch |/usr/share/elasticsearch
+
+|*bin* |Binary scripts including `elasticsearch` to start a node. |/usr/share/elasticsearch/bin |/usr/share/elasticsearch/bin
+
+|*conf* |Configuration files `elasticsearch.yml` and `logging.yml`. |/etc/elasticsearch |/etc/elasticsearch
+
+|*conf* |Environment variables including heap size, file descriptors. |/etc/default/elasticseach |/etc/sysconfig/elasticsearch
+
+|*data* |The location of the data files of each index / shard allocated
+on the node. | /var/lib/elasticsearch/data |/var/lib/elasticsearch
+
+|*work* |Temporal files that are used by different nodes. |/tmp/elasticsearch |/tmp/elasticsearch
+
+|*logs* |Log files location |/var/log/elasticsearch |/var/log/elasticsearch
+
+|*plugins* |Plugin files location. Each plugin will be contained in a subdirectory. |/usr/share/elasticsearch/plugins |/usr/share/elasticsearch/plugins
+|=======================================================================
+
+==== zip and tar.gz
+[cols="<,<,<,<",options="header",]
+|=======================================================================
+|Type |Description |Location
+|*home* |Home of elasticsearch installation | {extract.path}
+
+|*bin* |Binary scripts including `elasticsearch` to start a node | {extract.path}/bin
+
+|*conf* |Configuration files `elasticsearch.yml` and `logging.yml` | {extract.path}/config
+
+|*conf* |Environment variables including heap size, file descriptors | {extract.path}/config
+
+|*data* |The location of the data files of each index / shard allocated
+on the node | {extract.path}/data
+
+|*work* |Temporal files that are used by different nodes | Not used
+
+|*logs* |Log files location | {extract.path}/logs
+
+|*plugins* |Plugin files location. Each plugin will be contained in a subdirectory | {extract.path}/plugins
+|=======================================================================

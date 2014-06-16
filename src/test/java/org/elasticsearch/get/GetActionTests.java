@@ -19,11 +19,13 @@
 
 package org.elasticsearch.get;
 
-import org.apache.lucene.util.English;
+import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -34,12 +36,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -847,6 +850,20 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().size(), equalTo(2));
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
+
+        // Flush fails if shard has ongoing recoveries
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                RecoveryResponse response = client().admin().indices().prepareRecoveries("my-index").setActiveOnly(true).get();
+                for (Map.Entry<String, List<ShardRecoveryResponse>> entry : response.shardResponses().entrySet()) {
+                    if (!entry.getValue().isEmpty()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }, 1 , TimeUnit.MINUTES);
 
         FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
         // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green

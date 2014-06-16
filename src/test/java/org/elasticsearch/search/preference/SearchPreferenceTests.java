@@ -28,6 +28,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -37,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 public class SearchPreferenceTests extends ElasticsearchIntegrationTest {
 
     @Test // see #2896
-    public void testStopOneNodePreferenceWithRedState() throws InterruptedException {
+    public void testStopOneNodePreferenceWithRedState() throws InterruptedException, IOException {
         assertAcked(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", cluster().numDataNodes()+2).put("index.number_of_replicas", 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {

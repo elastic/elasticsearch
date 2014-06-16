@@ -20,12 +20,13 @@
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  * Entry point for the explain feature.
  */
-public class ExplainAction extends Action<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
+public class ExplainAction extends ClientAction<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
     public static final ExplainAction INSTANCE = new ExplainAction();
     public static final String NAME = "explain";

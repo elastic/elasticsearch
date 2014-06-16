@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,12 +45,12 @@ import java.util.Map;
 /**
  * A search action request builder.
  */
-public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder> {
+public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, SearchRequestBuilder, Client> {
 
     private SearchSourceBuilder sourceBuilder;
 
     public SearchRequestBuilder(Client client) {
-        super((InternalClient) client, new SearchRequest());
+        super(client, new SearchRequest());
     }
 
     /**
@@ -1089,7 +1088,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         if (sourceBuilder != null) {
             request.source(sourceBuilder());
         }
-        ((Client) client).search(request, listener);
+        client.search(request, listener);
     }
 
     private SearchSourceBuilder sourceBuilder() {

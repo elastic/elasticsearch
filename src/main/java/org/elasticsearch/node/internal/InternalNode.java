@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node.internal;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -46,6 +47,8 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.CachedStreams;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
@@ -323,7 +326,7 @@ public final class InternalNode implements Node {
         stopWatch.stop().start("snapshot_service");
         injector.getInstance(SnapshotsService.class).close();
         stopWatch.stop().start("client");
-        injector.getInstance(Client.class).close();
+        Releasables.close(injector.getInstance(Client.class));
         stopWatch.stop().start("indices_cluster");
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");

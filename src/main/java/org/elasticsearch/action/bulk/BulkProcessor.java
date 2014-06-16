@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -182,7 +181,7 @@ public class BulkProcessor implements Closeable {
 
         this.flushInterval = flushInterval;
         if (flushInterval != null) {
-            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(((InternalClient) client).settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
+            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
             this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
             this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);

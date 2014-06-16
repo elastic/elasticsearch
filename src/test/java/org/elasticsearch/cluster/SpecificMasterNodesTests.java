@@ -27,6 +27,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -42,7 +44,7 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void simpleOnlyMasterNodeElection() {
+    public void simpleOnlyMasterNodeElection() throws IOException {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {
@@ -73,7 +75,7 @@ public class SpecificMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void electOnlyBetweenMasterNodes() {
+    public void electOnlyBetweenMasterNodes() throws IOException {
         logger.info("--> start data node / non master node");
         internalCluster().startNode(settingsBuilder().put("node.data", true).put("node.master", false).put("discovery.initial_state_timeout", "1s"));
         try {

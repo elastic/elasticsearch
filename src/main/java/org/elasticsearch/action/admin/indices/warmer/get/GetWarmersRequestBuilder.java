@@ -23,13 +23,12 @@ import com.google.common.collect.ObjectArrays;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
 public class GetWarmersRequestBuilder extends ClusterInfoRequestBuilder<GetWarmersRequest, GetWarmersResponse, GetWarmersRequestBuilder> {
 
-    public GetWarmersRequestBuilder(InternalGenericClient client, String... indices) {
+    public GetWarmersRequestBuilder(IndicesAdminClient client, String... indices) {
         super(client, new GetWarmersRequest().indices(indices));
     }
 
@@ -45,6 +44,6 @@ public class GetWarmersRequestBuilder extends ClusterInfoRequestBuilder<GetWarme
 
     @Override
     protected void doExecute(ActionListener<GetWarmersResponse> listener) {
-        ((IndicesAdminClient) client).getWarmers(request, listener);
+        client.getWarmers(request, listener);
     }
 }

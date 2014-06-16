@@ -60,16 +60,16 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 
 /**
  *
  */
-public abstract class AbstractClient implements InternalClient {
+public abstract class AbstractClient implements Client {
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder> action) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder, Client> action) {
         return action.newRequestBuilder(this);
     }
 

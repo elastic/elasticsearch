@@ -24,7 +24,6 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,11 +38,11 @@ import java.util.Map;
 public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
 
     public IndexRequestBuilder(Client client) {
-        super((InternalClient) client, new IndexRequest());
+        super(client, new IndexRequest());
     }
 
     public IndexRequestBuilder(Client client, @Nullable String index) {
-        super((InternalClient) client, new IndexRequest(index));
+        super(client, new IndexRequest(index));
     }
 
     /**
@@ -311,6 +310,6 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
 
     @Override
     protected void doExecute(ActionListener<IndexResponse> listener) {
-        ((Client) client).index(request, listener);
+        client.index(request, listener);
     }
 }

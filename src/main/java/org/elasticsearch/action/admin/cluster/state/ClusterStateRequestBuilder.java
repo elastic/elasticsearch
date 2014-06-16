@@ -22,15 +22,14 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 
 /**
  *
  */
-public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder> {
+public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterStateRequest, ClusterStateResponse, ClusterStateRequestBuilder, ClusterAdminClient> {
 
     public ClusterStateRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new ClusterStateRequest());
+        super(clusterClient, new ClusterStateRequest());
     }
 
     /**
@@ -92,6 +91,6 @@ public class ClusterStateRequestBuilder extends MasterNodeReadOperationRequestBu
 
     @Override
     protected void doExecute(ActionListener<ClusterStateResponse> listener) {
-        ((ClusterAdminClient) client).state(request, listener);
+        client.state(request, listener);
     }
 }

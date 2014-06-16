@@ -19,13 +19,12 @@
 
 package org.elasticsearch.action.termvector;
 
-import org.elasticsearch.action.Action;
-
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class TermVectorAction extends Action<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder> {
+public class TermVectorAction extends ClientAction<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder> {
 
     public static final TermVectorAction INSTANCE = new TermVectorAction();
     public static final String NAME = "tv";

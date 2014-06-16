@@ -23,15 +23,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 
 /**
  * A request builder for multiple search requests.
  */
-public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
+public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder, Client> {
 
     public MultiSearchRequestBuilder(Client client) {
-        super((InternalClient) client, new MultiSearchRequest());
+        super(client, new MultiSearchRequest());
     }
 
     /**
@@ -76,6 +75,6 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
 
     @Override
     protected void doExecute(ActionListener<MultiSearchResponse> listener) {
-        ((Client) client).multiSearch(request, listener);
+        client.multiSearch(request, listener);
     }
 }

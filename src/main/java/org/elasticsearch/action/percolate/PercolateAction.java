@@ -20,11 +20,12 @@
 package org.elasticsearch.action.percolate;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class PercolateAction extends Action<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+public class PercolateAction extends ClientAction<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
 
     public static final PercolateAction INSTANCE = new PercolateAction();
     public static final String NAME = "percolate";

@@ -21,14 +21,16 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public abstract class BroadcastOperationRequestBuilder<Request extends BroadcastOperationRequest<Request>, Response extends BroadcastOperationResponse, RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+public abstract class BroadcastOperationRequestBuilder<Request extends BroadcastOperationRequest<Request>, Response extends BroadcastOperationResponse, RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder, Client>, Client extends ElasticsearchClient>
+        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
 
-    protected BroadcastOperationRequestBuilder(InternalGenericClient client, Request request) {
+    protected BroadcastOperationRequestBuilder(Client client, Request request) {
         super(client, request);
     }
 

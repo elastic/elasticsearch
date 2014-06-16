@@ -20,11 +20,12 @@
 package org.elasticsearch.action.count;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  */
-public class CountAction extends Action<CountRequest, CountResponse, CountRequestBuilder> {
+public class CountAction extends ClientAction<CountRequest, CountResponse, CountRequestBuilder> {
 
     public static final CountAction INSTANCE = new CountAction();
     public static final String NAME = "count";

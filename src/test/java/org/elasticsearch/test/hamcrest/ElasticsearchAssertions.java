@@ -85,7 +85,7 @@ import static org.junit.Assert.fail;
  */
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?> builder) {
+    public static void assertAcked(AcknowledgedRequestBuilder<?, ?, ?, ?> builder) {
         assertAcked(builder.get());
     }
 
@@ -391,11 +391,11 @@ public class ElasticsearchAssertions {
         return (T) q.getClauses()[i].getQuery();
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass) {
         assertThrows(builder.execute(), exceptionClass);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, Class<E> exceptionClass, String extraInfo) {
         assertThrows(builder.execute(), exceptionClass, extraInfo);
     }
 
@@ -423,11 +423,11 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, RestStatus status) {
         assertThrows(builder.execute(), status);
     }
 
-    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?> builder, RestStatus status, String extraInfo) {
+    public static <E extends Throwable> void assertThrows(ActionRequestBuilder<?, ?, ?, ?> builder, RestStatus status, String extraInfo) {
         assertThrows(builder.execute(), status, extraInfo);
     }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
@@ -29,11 +28,11 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new AnalyzeRequest());
+        super(indicesClient, new AnalyzeRequest());
     }
 
     public AnalyzeRequestBuilder(IndicesAdminClient indicesClient, String index, String text) {
-        super((InternalIndicesAdminClient) indicesClient, new AnalyzeRequest(index, text));
+        super(indicesClient, new AnalyzeRequest(index, text));
     }
 
     /**
@@ -91,6 +90,6 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
 
     @Override
     protected void doExecute(ActionListener<AnalyzeResponse> listener) {
-        ((IndicesAdminClient) client).analyze(request, listener);
+        client.analyze(request, listener);
     }
 }

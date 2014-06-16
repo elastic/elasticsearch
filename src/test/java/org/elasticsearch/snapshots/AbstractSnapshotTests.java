@@ -31,6 +31,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
 
 import java.io.File;
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,7 +64,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
         return count;
     }
 
-    public static void stopNode(final String node) {
+    public static void stopNode(final String node) throws IOException {
         internalCluster().stopRandomNode(new Predicate<Settings>() {
             @Override
             public boolean apply(Settings settings) {

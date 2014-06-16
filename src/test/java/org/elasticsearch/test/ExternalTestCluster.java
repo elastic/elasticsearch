@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 
@@ -103,7 +104,7 @@ public final class ExternalTestCluster extends TestCluster {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         client.close();
     }
 

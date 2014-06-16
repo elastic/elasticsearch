@@ -24,19 +24,18 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
+public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder, IndicesAdminClient> {
 
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest().name(name));
+        super(indicesClient, new PutWarmerRequest().name(name));
     }
 
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest());
+        super(indicesClient, new PutWarmerRequest());
     }
 
     /**
@@ -65,6 +64,6 @@ public class PutWarmerRequestBuilder extends AcknowledgedRequestBuilder<PutWarme
 
     @Override
     protected void doExecute(ActionListener<PutWarmerResponse> listener) {
-        ((IndicesAdminClient) client).putWarmer(request, listener);
+        client.putWarmer(request, listener);
     }
 }

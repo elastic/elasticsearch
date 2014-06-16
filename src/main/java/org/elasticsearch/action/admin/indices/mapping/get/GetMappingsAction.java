@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
@@ -36,7 +35,7 @@ public class GetMappingsAction extends IndicesAction<GetMappingsRequest, GetMapp
 
     @Override
     public GetMappingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetMappingsRequestBuilder((InternalGenericClient) client);
+        return new GetMappingsRequestBuilder(client);
     }
 
     @Override

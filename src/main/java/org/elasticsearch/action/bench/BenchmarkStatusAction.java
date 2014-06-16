@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.bench;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
  * Benchmark status action
  */
-public class BenchmarkStatusAction extends Action<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder> {
+public class BenchmarkStatusAction extends ClientAction<BenchmarkStatusRequest, BenchmarkStatusResponse, BenchmarkStatusRequestBuilder> {
 
     public static final BenchmarkStatusAction INSTANCE = new BenchmarkStatusAction();
     public static final String NAME = "benchmark/status";

@@ -22,15 +22,15 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
 public abstract class ShardReplicationOperationRequestBuilder<Request extends ShardReplicationOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends ShardReplicationOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
 
-    protected ShardReplicationOperationRequestBuilder(InternalGenericClient client, Request request) {
+    protected ShardReplicationOperationRequestBuilder(Client client, Request request) {
         super(client, request);
     }
 

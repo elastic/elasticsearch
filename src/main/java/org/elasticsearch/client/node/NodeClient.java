@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public class NodeClient extends AbstractClient implements InternalClient {
+public class NodeClient extends AbstractClient {
 
     private final Settings settings;
     private final ThreadPool threadPool;
@@ -80,14 +80,14 @@ public class NodeClient extends AbstractClient implements InternalClient {
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder> action, Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
         TransportAction<Request, Response> transportAction = actions.get(action);
         return transportAction.execute(request);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
         TransportAction<Request, Response> transportAction = actions.get(action);
         transportAction.execute(request, listener);
     }

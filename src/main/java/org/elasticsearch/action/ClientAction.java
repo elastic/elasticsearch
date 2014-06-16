@@ -17,13 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.client.internal;
+package org.elasticsearch.action;
 
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
 
 /**
+ * Indices action (used with {@link IndicesAdminClient} API.
  */
-public interface InternalGenericClient {
+public abstract class ClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>>
+        extends Action<Request, Response, RequestBuilder, Client> {
 
-    ThreadPool threadPool();
+    protected ClientAction(String name) {
+        super(name);
+    }
 }

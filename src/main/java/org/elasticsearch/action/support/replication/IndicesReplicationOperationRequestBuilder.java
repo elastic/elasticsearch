@@ -23,15 +23,15 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  */
 public abstract class IndicesReplicationOperationRequestBuilder<Request extends IndicesReplicationOperationRequest<Request>, Response extends ActionResponse, RequestBuilder extends IndicesReplicationOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response, RequestBuilder> {
+        extends ActionRequestBuilder<Request, Response, RequestBuilder, Client> {
 
-    protected IndicesReplicationOperationRequestBuilder(InternalGenericClient client, Request request) {
+    protected IndicesReplicationOperationRequestBuilder(Client client, Request request) {
         super(client, request);
     }
 

@@ -22,7 +22,6 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.common.Strings;
@@ -34,11 +33,11 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
     public GetRequestBuilder(Client client) {
-        super((InternalClient) client, new GetRequest());
+        super(client, new GetRequest());
     }
 
     public GetRequestBuilder(Client client, @Nullable String index) {
-        super((InternalClient) client, new GetRequest(index));
+        super(client, new GetRequest(index));
     }
 
     /**
@@ -179,7 +178,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     @Override
     protected void doExecute(ActionListener<GetResponse> listener) {
-        ((Client) client).get(request, listener);
+        client.get(request, listener);
     }
 
 

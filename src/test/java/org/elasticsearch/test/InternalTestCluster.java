@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -413,7 +414,7 @@ public final class InternalTestCluster extends TestCluster {
      * If less nodes that <code>n</code> are running this method
      * will not start any additional nodes.
      */
-    public synchronized void ensureAtMostNumDataNodes(int n) {
+    public synchronized void ensureAtMostNumDataNodes(int n) throws IOException {
         int size = numDataNodes();
         if (size <= n) {
             return;
@@ -659,22 +660,14 @@ public final class InternalTestCluster extends TestCluster {
             return transportClient;
         }
 
-        void resetClient() {
+        void resetClient() throws IOException {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            if (client != null) {
-                client.close();
-                client = null;
-            }
-            if (nodeClient != null) {
-                nodeClient.close();
-                nodeClient = null;
-            }
-            if (transportClient != null) {
-                transportClient.close();
-                transportClient = null;
-            }
+            Releasables.close(client, nodeClient, transportClient);
+            client = null;
+            nodeClient = null;
+            transportClient = null;
         }
 
         void restart(RestartCallback callback) throws Exception {
@@ -698,16 +691,11 @@ public final class InternalTestCluster extends TestCluster {
 
 
         @Override
-        public void close() {
+        public void close() throws IOException {
             closed.set(true);
-            if (client != null) {
-                client.close();
-                client = null;
-            }
-            if (nodeClient != null) {
-                nodeClient.close();
-                nodeClient = null;
-            }
+            Releasables.close(client, nodeClient);
+            client = null;
+            nodeClient = null;
             node.close();
         }
     }
@@ -767,7 +755,7 @@ public final class InternalTestCluster extends TestCluster {
         reset(true);
     }
 
-    private synchronized void reset(boolean wipeData) {
+    private synchronized void reset(boolean wipeData) throws IOException {
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
         if (wipeData) {
             wipeDataDirectories();
@@ -846,12 +834,12 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void afterTest() {
+    public synchronized void afterTest() throws IOException {
         wipeDataDirectories();
         resetClients(); /* reset all clients - each test gets its own client based on the Random instance created above. */
     }
 
-    private void resetClients() {
+    private void resetClients() throws IOException {
         final Collection<NodeAndClient> nodesAndClients = nodes.values();
         for (NodeAndClient nodeAndClient : nodesAndClients) {
             nodeAndClient.resetClient();
@@ -959,7 +947,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops a random data node in the cluster.
      */
-    public synchronized void stopRandomDataNode() {
+    public synchronized void stopRandomDataNode() throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
@@ -973,7 +961,7 @@ public final class InternalTestCluster extends TestCluster {
      * Stops a random node in the cluster that applies to the given filter or non if the non of the nodes applies to the
      * filter.
      */
-    public synchronized void stopRandomNode(final Predicate<Settings> filter) {
+    public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new Predicate<InternalTestCluster.NodeAndClient>() {
             @Override
@@ -991,7 +979,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops the current master node forcefully
      */
-    public synchronized void stopCurrentMasterNode() {
+    public synchronized void stopCurrentMasterNode() throws IOException {
         ensureOpen();
         assert size() > 0;
         String masterNodeName = getMasterName();
@@ -1004,7 +992,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Stops the any of the current nodes but not the master node.
      */
-    public void stopRandomNonMasterNode() {
+    public void stopRandomNonMasterNode() throws IOException {
         NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
@@ -1296,7 +1284,7 @@ public final class InternalTestCluster extends TestCluster {
         nodes.put(nodeAndClient.name, nodeAndClient);
     }
 
-    public void closeNonSharedNodes(boolean wipeData) {
+    public void closeNonSharedNodes(boolean wipeData) throws IOException {
         reset(wipeData);
     }
 

@@ -20,19 +20,19 @@
 package org.elasticsearch.action.admin.indices.status;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * This class will be removed in future versions
  * Use the recovery API instead
  */
 @Deprecated
-public class IndicesStatusRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatusRequest, IndicesStatusResponse, IndicesStatusRequestBuilder> {
+public class IndicesStatusRequestBuilder extends ActionRequestBuilder<IndicesStatusRequest, IndicesStatusResponse, IndicesStatusRequestBuilder, IndicesAdminClient> {
 
     public IndicesStatusRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new IndicesStatusRequest());
+        super(indicesClient, new IndicesStatusRequest());
     }
 
     /**
@@ -51,8 +51,18 @@ public class IndicesStatusRequestBuilder extends BroadcastOperationRequestBuilde
         return this;
     }
 
+    public final IndicesStatusRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return  this;
+    }
+
+    public final IndicesStatusRequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
+        request.indicesOptions(indicesOptions);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatusResponse> listener) {
-        ((IndicesAdminClient) client).status(request, listener);
+        client.status(request, listener);
     }
 }

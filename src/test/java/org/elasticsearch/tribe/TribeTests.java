@@ -39,6 +39,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,7 +77,7 @@ public class TribeTests extends ElasticsearchIntegrationTest {
     }
 
     @After
-    public void tearDownTribeNode() {
+    public void tearDownTribeNode() throws IOException {
         if (cluster2 != null) {
             try {
                 cluster2.wipe();

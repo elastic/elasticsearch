@@ -81,19 +81,14 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * Administrative actions/operations against indices.
  *
  * @see AdminClient#cluster()
  */
-public interface ClusterAdminClient {
-
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request);
-
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final ClusterAction<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
-
-    <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final ClusterAction<Request, Response, RequestBuilder> action);
+public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClient> {
 
     /**
      * The health of the cluster.

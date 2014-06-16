@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,14 +31,14 @@ import java.util.Map;
 /**
  *
  */
-public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder, IndicesAdminClient> {
 
     public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new PutIndexTemplateRequest());
+        super(indicesClient, new PutIndexTemplateRequest());
     }
 
     public PutIndexTemplateRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super((InternalIndicesAdminClient) indicesClient, new PutIndexTemplateRequest(name));
+        super(indicesClient, new PutIndexTemplateRequest(name));
     }
 
     /**
@@ -233,6 +232,6 @@ public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBu
 
     @Override
     protected void doExecute(ActionListener<PutIndexTemplateResponse> listener) {
-        ((IndicesAdminClient) client).putTemplate(request, listener);
+        client.putTemplate(request, listener);
     }
 }

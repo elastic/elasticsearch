@@ -51,7 +51,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -568,7 +567,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static Client client() {
         Client client = cluster().client();
         if (frequently()) {
-            client = new RandomizingClient((InternalClient) client, getRandom());
+            client = new RandomizingClient(client, getRandom());
         }
         return client;
     }
@@ -576,7 +575,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static Client dataNodeClient() {
         Client client = internalCluster().dataNodeClient();
         if (frequently()) {
-            client = new RandomizingClient((InternalClient) client, getRandom());
+            client = new RandomizingClient(client, getRandom());
         }
         return client;
     }

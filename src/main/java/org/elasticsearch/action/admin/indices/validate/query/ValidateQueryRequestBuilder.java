@@ -23,19 +23,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  *
  */
-public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
+public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder, IndicesAdminClient> {
 
     private QuerySourceBuilder sourceBuilder;
 
     public ValidateQueryRequestBuilder(IndicesAdminClient client) {
-        super((InternalIndicesAdminClient) client, new ValidateQueryRequest());
+        super(client, new ValidateQueryRequest());
     }
 
     /**
@@ -102,7 +101,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
             request.source(sourceBuilder);
         }
 
-        ((IndicesAdminClient) client).validateQuery(request, listener);
+        client.validateQuery(request, listener);
     }
 
     private QuerySourceBuilder sourceBuilder() {

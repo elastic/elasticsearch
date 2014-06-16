@@ -23,19 +23,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * Builder for for open index request
  */
-public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder> {
+public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenIndexRequest, OpenIndexResponse, OpenIndexRequestBuilder, IndicesAdminClient> {
 
     public OpenIndexRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest());
+        super(indicesClient, new OpenIndexRequest());
     }
 
     public OpenIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
-        super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest(indices));
+        super(indicesClient, new OpenIndexRequest(indices));
     }
 
     /**
@@ -62,6 +61,6 @@ public class OpenIndexRequestBuilder extends AcknowledgedRequestBuilder<OpenInde
 
     @Override
     protected void doExecute(ActionListener<OpenIndexResponse> listener) {
-        ((IndicesAdminClient) client).open(request, listener);
+        client.open(request, listener);
     }
 }

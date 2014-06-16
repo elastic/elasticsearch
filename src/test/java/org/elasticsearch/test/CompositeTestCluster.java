@@ -23,11 +23,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.*;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.client.FilterClient;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -56,7 +54,7 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void afterTest() {
+    public synchronized void afterTest() throws IOException {
         cluster.afterTest();
     }
 
@@ -214,9 +212,9 @@ public class CompositeTestCluster extends TestCluster {
         return runningNodes().size();
     }
 
-    private synchronized InternalClient internalClient() {
+    private synchronized Client internalClient() {
         Collection<ExternalNode> externalNodes = runningNodes();
-        return random.nextBoolean() && !externalNodes.isEmpty() ? (InternalClient) RandomPicks.randomFrom(random, externalNodes).getClient() : (InternalClient) cluster.client();
+        return random.nextBoolean() && !externalNodes.isEmpty() ? RandomPicks.randomFrom(random, externalNodes).getClient() : cluster.client();
     }
 
     private final class ExternalClient extends FilterClient {
@@ -226,10 +224,36 @@ public class CompositeTestCluster extends TestCluster {
         }
 
         @Override
-        protected InternalClient delegate() {
+        protected Client in() {
             return internalClient();
         }
 
+        @Override
+        public ClusterAdminClient cluster() {
+            return new ClusterAdmin(null) {
+
+                @Override
+                protected ClusterAdminClient in() {
+                    return internalClient().admin().cluster();
+                }
+            };
+        }
+
+        @Override
+        public IndicesAdminClient indices() {
+            return new IndicesAdmin(null) {
+
+                @Override
+                protected IndicesAdminClient in() {
+                    return internalClient().admin().indices();
+                }
+            };
+        }
+
+        @Override
+        public void close() {
+            // never close this client
+        }
     }
 
 }

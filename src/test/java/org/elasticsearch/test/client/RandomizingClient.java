@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.FilterClient;
 
 import java.util.Arrays;
 import java.util.Random;
@@ -33,7 +33,7 @@ public class RandomizingClient extends FilterClient {
 
     private final SearchType defaultSearchType;
 
-    public RandomizingClient(InternalClient client, Random random) {
+    public RandomizingClient(Client client, Random random) {
         super(client);
         // we don't use the QUERY_AND_FETCH types that break quite a lot of tests
         // given that they return `size*num_shards` hits instead of `size`
@@ -44,7 +44,7 @@ public class RandomizingClient extends FilterClient {
     
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return delegate().prepareSearch(indices).setSearchType(defaultSearchType);
+        return in.prepareSearch(indices).setSearchType(defaultSearchType);
     }
 
     @Override

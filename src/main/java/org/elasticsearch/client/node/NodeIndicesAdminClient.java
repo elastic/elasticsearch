@@ -39,15 +39,15 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     private final ThreadPool threadPool;
 
-    private final ImmutableMap<IndicesAction, TransportAction> actions;
+    private final ImmutableMap<Action, TransportAction> actions;
 
     @Inject
     public NodeIndicesAdminClient(Settings settings, ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
         this.threadPool = threadPool;
-        MapBuilder<IndicesAction, TransportAction> actionsBuilder = new MapBuilder<>();
+        MapBuilder<Action, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
             if (entry.getKey() instanceof IndicesAction) {
-                actionsBuilder.put((IndicesAction) entry.getKey(), entry.getValue());
+                actionsBuilder.put((Action) entry.getKey(), entry.getValue());
             }
         }
         this.actions = actionsBuilder.immutableMap();
@@ -60,14 +60,14 @@ public class NodeIndicesAdminClient extends AbstractIndicesAdminClient implement
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(IndicesAction<Request, Response, RequestBuilder> action, Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
         TransportAction<Request, Response> transportAction = actions.get(action);
         return transportAction.execute(request);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(IndicesAction<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
         TransportAction<Request, Response> transportAction = actions.get(action);
         transportAction.execute(request, listener);
     }

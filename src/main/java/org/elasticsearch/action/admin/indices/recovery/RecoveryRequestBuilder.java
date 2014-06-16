@@ -22,12 +22,11 @@ package org.elasticsearch.action.admin.indices.recovery;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * Recovery information request builder.
  */
-public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder> {
+public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<RecoveryRequest, RecoveryResponse, RecoveryRequestBuilder, IndicesAdminClient> {
 
     /**
      * Constructs a new recovery information request builder.
@@ -35,12 +34,12 @@ public class RecoveryRequestBuilder extends BroadcastOperationRequestBuilder<Rec
      * @param indicesClient Indices admin client
      */
     public RecoveryRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new RecoveryRequest());
+        super(indicesClient, new RecoveryRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<RecoveryResponse> listener) {
-        ((IndicesAdminClient) client).recoveries(request, listener);
+        client.recoveries(request, listener);
     }
 
     public RecoveryRequestBuilder setDetailed(boolean detailed) {

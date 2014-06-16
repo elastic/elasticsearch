@@ -23,19 +23,18 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 
 /**
  * Request builder for benchmarks
  */
-public class BenchmarkRequestBuilder extends ActionRequestBuilder<BenchmarkRequest, BenchmarkResponse, BenchmarkRequestBuilder> {
+public class BenchmarkRequestBuilder extends ActionRequestBuilder<BenchmarkRequest, BenchmarkResponse, BenchmarkRequestBuilder, Client> {
 
     public BenchmarkRequestBuilder(Client client, String[] indices) {
-        super((InternalClient) client, new BenchmarkRequest(indices));
+        super(client, new BenchmarkRequest(indices));
     }
 
     public BenchmarkRequestBuilder(Client client) {
-        super((InternalClient) client, new BenchmarkRequest());
+        super(client, new BenchmarkRequest());
     }
 
     public BenchmarkRequestBuilder setAllowCacheClearing(boolean allowCacheClearing) {
@@ -114,6 +113,6 @@ public class BenchmarkRequestBuilder extends ActionRequestBuilder<BenchmarkReque
 
     @Override
     protected void doExecute(ActionListener<BenchmarkResponse> listener) {
-        ((Client) client).bench(request, listener);
+        client.bench(request, listener);
     }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,12 +38,12 @@ import java.util.Map;
 /**
  *
  */
-public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder> {
+public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<PercolateRequest, PercolateResponse, PercolateRequestBuilder, Client> {
 
     private PercolateSourceBuilder sourceBuilder;
 
     public PercolateRequestBuilder(Client client) {
-        super((InternalClient) client, new PercolateRequest());
+        super(client, new PercolateRequest());
     }
 
     /**
@@ -254,7 +253,7 @@ public class PercolateRequestBuilder extends BroadcastOperationRequestBuilder<Pe
         if (sourceBuilder != null) {
             request.source(sourceBuilder);
         }
-        ((Client) client).percolate(request, listener);
+        client.percolate(request, listener);
     }
 
 }

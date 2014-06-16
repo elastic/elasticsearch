@@ -84,7 +84,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * This method should be executed during tear down, after each test (but after assertAfterTest)
      */
-    public abstract void afterTest();
+    public abstract void afterTest() throws IOException;
 
     /**
      * Returns a client connected to any node in the cluster

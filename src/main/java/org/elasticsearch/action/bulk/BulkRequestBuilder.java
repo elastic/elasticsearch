@@ -30,7 +30,6 @@ import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -38,10 +37,10 @@ import org.elasticsearch.common.unit.TimeValue;
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
  * it in a single batch.
  */
-public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder> {
+public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkResponse, BulkRequestBuilder, Client> {
 
     public BulkRequestBuilder(Client client) {
-        super((InternalClient) client, new BulkRequest());
+        super(client, new BulkRequest());
     }
 
     /**
@@ -162,6 +161,6 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
 
     @Override
     protected void doExecute(ActionListener<BulkResponse> listener) {
-        ((Client) client).bulk(request, listener);
+        client.bulk(request, listener);
     }
 }

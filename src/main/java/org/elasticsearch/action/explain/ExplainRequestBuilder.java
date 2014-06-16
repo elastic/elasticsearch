@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,11 +37,11 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     private QuerySourceBuilder sourceBuilder;
 
     ExplainRequestBuilder(Client client) {
-        super((InternalClient) client, new ExplainRequest());
+        super(client, new ExplainRequest());
     }
 
     public ExplainRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new ExplainRequest().index(index).type(type).id(id));
+        super(client, new ExplainRequest().index(index).type(type).id(id));
     }
 
     /**
@@ -181,7 +180,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
             request.source(sourceBuilder);
         }
 
-        ((Client) client).explain(request, listener);
+        client.explain(request, listener);
     }
 
     private QuerySourceBuilder sourceBuilder() {

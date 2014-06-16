@@ -31,6 +31,8 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
+
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.is;
 
@@ -126,7 +128,7 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testValuesSmokeScreen() {
+    public void testValuesSmokeScreen() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(5);
         internalCluster().ensureAtLeastNumDataNodes(1);
         SigarService sigarService = internalCluster().getInstance(SigarService.class);

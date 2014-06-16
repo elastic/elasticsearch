@@ -22,16 +22,15 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
  */
-public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuilder<NodesShutdownRequest, NodesShutdownResponse, NodesShutdownRequestBuilder> {
+public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuilder<NodesShutdownRequest, NodesShutdownResponse, NodesShutdownRequestBuilder, ClusterAdminClient> {
 
     public NodesShutdownRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new NodesShutdownRequest());
+        super(clusterClient, new NodesShutdownRequest());
     }
 
     /**
@@ -68,6 +67,6 @@ public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuild
 
     @Override
     protected void doExecute(ActionListener<NodesShutdownResponse> listener) {
-        ((ClusterAdminClient) client).nodesShutdown(request, listener);
+        client.nodesShutdown(request, listener);
     }
 }

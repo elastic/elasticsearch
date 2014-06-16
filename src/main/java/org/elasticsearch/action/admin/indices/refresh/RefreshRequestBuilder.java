@@ -22,17 +22,16 @@ package org.elasticsearch.action.admin.indices.refresh;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time
  * capabilities depends on the index engine used. For example, the internal one requires refresh to be called, but by
  * default a refresh is scheduled periodically.
  */
-public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, RefreshResponse, RefreshRequestBuilder> {
+public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<RefreshRequest, RefreshResponse, RefreshRequestBuilder, IndicesAdminClient> {
 
     public RefreshRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new RefreshRequest());
+        super(indicesClient, new RefreshRequest());
     }
 
     /**
@@ -46,6 +45,6 @@ public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<Refr
 
     @Override
     protected void doExecute(ActionListener<RefreshResponse> listener) {
-        ((IndicesAdminClient) client).refresh(request, listener);
+        client.refresh(request, listener);
     }
 }

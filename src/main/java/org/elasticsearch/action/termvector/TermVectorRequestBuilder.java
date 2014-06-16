@@ -22,18 +22,17 @@ package org.elasticsearch.action.termvector;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 
 /**
  */
-public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder> {
+public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorRequest, TermVectorResponse, TermVectorRequestBuilder, Client> {
 
     public TermVectorRequestBuilder(Client client) {
-        super((InternalClient) client, new TermVectorRequest());
+        super(client, new TermVectorRequest());
     }
 
     public TermVectorRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new TermVectorRequest(index, type, id));
+        super(client, new TermVectorRequest(index, type, id));
     }
 
     /**
@@ -96,6 +95,6 @@ public class TermVectorRequestBuilder extends ActionRequestBuilder<TermVectorReq
 
     @Override
     protected void doExecute(ActionListener<TermVectorResponse> listener) {
-        ((Client) client).termVector(request, listener);
+        client.termVector(request, listener);
     }
 }

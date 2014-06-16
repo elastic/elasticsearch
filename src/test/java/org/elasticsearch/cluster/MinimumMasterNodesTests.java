@@ -33,6 +33,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
@@ -253,7 +254,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void dynamicUpdateMinimumMasterNodes() throws InterruptedException {
+    public void dynamicUpdateMinimumMasterNodes() throws InterruptedException, IOException {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping_timeout", "400ms")

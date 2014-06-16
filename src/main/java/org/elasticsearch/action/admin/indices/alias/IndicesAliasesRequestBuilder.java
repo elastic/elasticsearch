@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.index.query.FilterBuilder;
 
@@ -32,10 +31,10 @@ import java.util.Map;
 /**
  *
  */
-public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder> {
+public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<IndicesAliasesRequest, IndicesAliasesResponse, IndicesAliasesRequestBuilder, IndicesAdminClient> {
 
     public IndicesAliasesRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new IndicesAliasesRequest());
+        super(indicesClient, new IndicesAliasesRequest());
     }
     
     /**
@@ -169,7 +168,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
     
     @Override
     protected void doExecute(ActionListener<IndicesAliasesResponse> listener) {
-        ((IndicesAdminClient) client).aliases(request, listener);
+        client.aliases(request, listener);
     }
     
     /**

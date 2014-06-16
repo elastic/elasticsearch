@@ -63,7 +63,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @Test
     public void restorePersistentSettingsTest() throws Exception {
         logger.info("--> start node");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         Client client = client();
 
         // Add dummy persistent setting
@@ -145,8 +145,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     public void snapshotWithStuckNodeTest() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = newArrayList();
-        nodes.add(cluster().startNode());
-        nodes.add(cluster().startNode());
+        nodes.add(internalCluster().startNode());
+        nodes.add(internalCluster().startNode());
         Client client = client();
 
         assertAcked(prepareCreate("test-idx", 2, settingsBuilder().put("number_of_shards", 2).put("number_of_replicas", 0).put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)));
@@ -182,7 +182,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
-        ListenableActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = cluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
+        ListenableActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode(blockedNode);
@@ -206,9 +206,9 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
     @TestLogging("snapshots:TRACE")
     public void restoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        cluster().startNode(settingsBuilder().put("gateway.type", "local"));
-        immutableCluster().wipeIndices("_all");
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        cluster().wipeIndices("_all");
 
         assertAcked(prepareCreate("test-idx-1", 2, settingsBuilder().put("number_of_shards", 6)
                 .put("number_of_replicas", 0)
@@ -223,7 +223,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         assertThat(client().prepareCount("test-idx-1").get().getCount(), equalTo(100L));
 
         logger.info("--> shutdown one of the nodes");
-        cluster().stopRandomDataNode();
+        internalCluster().stopRandomDataNode();
         assertThat(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("1m").setWaitForNodes("<2").execute().actionGet().isTimedOut(), equalTo(false));
 
         assertAcked(prepareCreate("test-idx-2", 1, settingsBuilder().put("number_of_shards", 6)
@@ -308,7 +308,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         int initialNodes = between(1, 3);
         logger.info("--> start {} nodes", initialNodes);
         for (int i = 0; i < initialNodes; i++) {
-            cluster().startNode(settings);
+            internalCluster().startNode(settings);
         }
 
         logger.info("-->  creating repository");
@@ -327,7 +327,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         int asyncNodes = between(0, 5);
         logger.info("--> start {} additional nodes asynchronously", asyncNodes);
-        ListenableFuture<List<String>> asyncNodesFuture = cluster().startNodesAsync(asyncNodes, settings);
+        ListenableFuture<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes, settings);
 
         int asyncIndices = between(0, 10);
         logger.info("--> create {} additional indices asynchronously", asyncIndices);
@@ -360,13 +360,13 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 if (indices.size() > 0) {
                     String index = indices.remove(randomInt(indices.size() - 1));
                     logger.info("--> deleting random index [{}]", index);
-                    cluster().wipeIndices(index);
+                    internalCluster().wipeIndices(index);
                 }
             } else if (chaosType < 6) {
                 // Randomly shutdown a node
                 if (cluster().size() > 1) {
                     logger.info("--> shutting down random node");
-                    cluster().stopRandomDataNode();
+                    internalCluster().stopRandomDataNode();
                 }
             } else if (chaosType < 8) {
                 // Randomly create an index

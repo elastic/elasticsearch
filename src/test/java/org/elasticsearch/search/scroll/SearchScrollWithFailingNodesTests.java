@@ -55,8 +55,8 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
     @Test
     @TestLogging("action.search:TRACE")
     public void testScanScrollWithShardExceptions() throws Exception {
-        cluster().startNode();
-        cluster().startNode();
+        internalCluster().startNode();
+        internalCluster().startNode();
         assertAcked(
                 prepareCreate("test")
                         // Enforces that only one shard can only be allocated to a single node
@@ -90,7 +90,7 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
         assertThat(numHits, equalTo(100l));
         clearScroll("_all");
 
-        cluster().stopRandomNonMasterNode();
+        internalCluster().stopRandomNonMasterNode();
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())

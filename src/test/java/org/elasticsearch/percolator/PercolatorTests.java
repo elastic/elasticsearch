@@ -296,7 +296,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        immutableCluster().wipeIndices("test");
+        cluster().wipeIndices("test");
         createIndex("test");
         ensureGreen();
 
@@ -1582,7 +1582,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                for (Client client : cluster()) {
+                for (Client client : internalCluster()) {
                     GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("test1", "test2").get();
                     boolean hasPercolatorType = getMappingsResponse.getMappings().get("test1").containsKey(PercolatorService.TYPE_NAME);
                     if (!hasPercolatorType) {

@@ -38,7 +38,7 @@ import java.util.Iterator;
  * It is a pure immutable test cluster that allows to send requests to a pre-existing cluster
  * and supports by nature all the needed test operations like wipeIndices etc.
  */
-public final class ExternalTestCluster extends ImmutableTestCluster {
+public final class ExternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 

@@ -37,17 +37,17 @@ import java.util.Iterator;
 import java.util.Random;
 
 /**
- * A test cluster implementation that holds a fixed set of external nodes as well as a TestCluster
+ * A test cluster implementation that holds a fixed set of external nodes as well as a InternalTestCluster
  * which is used to run mixed version clusters in tests like backwards compatibility tests.
  * Note: this is an experimental API
  */
-public class CompositeTestCluster extends ImmutableTestCluster {
-    private final TestCluster cluster;
+public class CompositeTestCluster extends TestCluster {
+    private final InternalTestCluster cluster;
     private final ExternalNode[] externalNodes;
     private final ExternalClient client = new ExternalClient();
     private static final String NODE_PREFIX = "external_";
 
-    public CompositeTestCluster(TestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
+    public CompositeTestCluster(InternalTestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
         this.cluster = cluster;
         this.externalNodes = new ExternalNode[numExternalNodes];
         for (int i = 0; i < externalNodes.length; i++) {

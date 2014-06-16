@@ -203,7 +203,7 @@ public class TTLPercolatorTests extends ElasticsearchIntegrationTest {
                 return indicesStatsResponse.getIndices().get("test").getTotal().getIndexing().getTotal().getDeleteCount() != 0;
             }
         }, 5, TimeUnit.SECONDS), equalTo(true));
-        cluster().wipeIndices("test");
+        internalCluster().wipeIndices("test");
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", typeMapping)
                 .execute().actionGet();

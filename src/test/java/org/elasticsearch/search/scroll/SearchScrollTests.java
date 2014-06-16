@@ -401,8 +401,8 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         assertThat(clearResponse.getNumFreed(), greaterThan(0));
         assertThat(clearResponse.status(), equalTo(RestStatus.OK));
 
-        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
-        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
+        assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse1.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
+        assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
     @Test
@@ -446,6 +446,6 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertThrows(cluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
+        assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 }

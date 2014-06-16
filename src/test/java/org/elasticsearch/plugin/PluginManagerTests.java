@@ -78,7 +78,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URI uri = URI.create(PluginManagerTests.class.getResource("plugin_single_folder.zip").toString());
         downloadAndExtract(pluginName, "file://" + uri.getPath());
 
-        cluster().startNode(SETTINGS);
+        internalCluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -92,7 +92,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URI uri = URI.create(PluginManagerTests.class.getResource("plugin_folder_site.zip").toString());
         downloadAndExtract(pluginName, "file://" + uri.getPath());
 
-        String nodeName = cluster().startNode(SETTINGS);
+        String nodeName = internalCluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -105,7 +105,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URI uri = URI.create(PluginManagerTests.class.getResource("plugin_without_folders.zip").toString());
         downloadAndExtract(pluginName, "file://" + uri.getPath());
 
-        cluster().startNode(SETTINGS);
+        internalCluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -118,7 +118,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         URI uri = URI.create(PluginManagerTests.class.getResource("plugin_folder_file.zip").toString());
         downloadAndExtract(pluginName, "file://" + uri.getPath());
 
-        cluster().startNode(SETTINGS);
+        internalCluster().startNode(SETTINGS);
 
         assertPluginLoaded(pluginName);
         assertPluginAvailable(pluginName);
@@ -167,7 +167,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertPluginAvailable(String pluginName) throws InterruptedException {
-        HttpServerTransport httpServerTransport = cluster().getInstance(HttpServerTransport.class);
+        HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         final HttpClient httpClient = new HttpClient(httpServerTransport.boundAddress().publishAddress());
         logger.info("--> tested http address [{}]", httpServerTransport.info().getAddress());
 
@@ -179,7 +179,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
                 if (response.errorCode() != RestStatus.OK.getStatus()) {
                     // We want to trace what's going on here before failing the test
                     logger.info("--> error caught [{}], headers [{}]", response.errorCode(), response.getHeaders());
-                    logger.info("--> cluster state [{}]", cluster().clusterService().state());
+                    logger.info("--> cluster state [{}]", internalCluster().clusterService().state());
                     return false;
                 }
                 return true;

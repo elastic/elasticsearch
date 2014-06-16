@@ -85,12 +85,12 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     public CompositeTestCluster backwardsCluster() {
-        return (CompositeTestCluster) immutableCluster();
+        return (CompositeTestCluster) cluster();
     }
 
-    protected ImmutableTestCluster buildTestCluster(Scope scope) throws IOException {
-        ImmutableTestCluster cluster = super.buildTestCluster(scope);
-        return new CompositeTestCluster((TestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), new ExternalNode(backwardsCompatibilityPath(), randomLong()));
+    protected TestCluster buildTestCluster(Scope scope) throws IOException {
+        TestCluster cluster = super.buildTestCluster(scope);
+        return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), new ExternalNode(backwardsCompatibilityPath(), randomLong()));
     }
 
     protected int minExternalNodes() {

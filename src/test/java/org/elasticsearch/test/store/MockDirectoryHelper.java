@@ -36,7 +36,6 @@ import org.elasticsearch.index.store.fs.MmapFsDirectoryService;
 import org.elasticsearch.index.store.fs.NioFsDirectoryService;
 import org.elasticsearch.index.store.fs.SimpleFsDirectoryService;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
-import org.elasticsearch.test.TestCluster;
 
 import java.io.IOException;
 import java.util.Random;

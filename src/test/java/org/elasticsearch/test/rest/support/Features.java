@@ -45,7 +45,7 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if ("benchmark".equals(feature) && ElasticsearchIntegrationTest.immutableCluster().numBenchNodes() > 0) {
+            if ("benchmark".equals(feature) && ElasticsearchIntegrationTest.cluster().numBenchNodes() > 0) {
                 continue;
             }
             if (!SUPPORTED.contains(feature)) {

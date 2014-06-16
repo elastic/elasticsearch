@@ -76,7 +76,7 @@ on the node. | /var/lib/elasticsearch/data |/var/lib/elasticsearch
 |=======================================================================
 
 ==== zip and tar.gz
-[cols="<,<,<,<",options="header",]
+[cols="<,<,<",options="header",]
 |=======================================================================
 |Type |Description |Location
 |*home* |Home of elasticsearch installation | {extract.path}

@@ -26,6 +26,7 @@ import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -123,7 +125,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
         }
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(this));
-        StringTerms.Bucket spare = null;
+        OrdBucket spare = new OrdBucket(-1, 0, null);
         for (long globalTermOrd = Ordinals.MIN_ORDINAL; globalTermOrd < globalOrdinals.getMaxOrd(); ++globalTermOrd) {
             if (includeExclude != null && !acceptedGlobalOrdinals.get(globalTermOrd)) {
                 continue;
@@ -133,14 +135,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
-            if (spare == null) {
-                spare = new StringTerms.Bucket(new BytesRef(), 0, null);
-            }
+            spare.globalOrd = globalTermOrd;
             spare.bucketOrd = bucketOrd;
             spare.docCount = bucketDocCount;
-            copy(globalValues.getValueByOrd(globalTermOrd), spare.termBytes);
             if (bucketCountThresholds.getShardMinDocCount() <= spare.docCount) {
-                spare = (StringTerms.Bucket) ordered.insertWithOverflow(spare);
+                spare = (OrdBucket) ordered.insertWithOverflow(spare);
+                if (spare == null) {
+                    spare = new OrdBucket(-1, 0, null);
+                }
             }
         }
 
@@ -148,9 +150,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         final InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
+            final OrdBucket bucket = (OrdBucket) ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
-            list[i] = bucket;
+            BytesRef scratch = new BytesRef();
+            copy(globalValues.getValueByOrd(bucket.globalOrd), scratch);
+            list[i] = new StringTerms.Bucket(scratch, bucket.docCount, null);
+            list[i].bucketOrd = bucket.bucketOrd;
         }
         //replay any deferred collections
         runDeferredCollections(survivingBucketOrds);    
@@ -163,6 +168,46 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         
 
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), Arrays.asList(list));
+    }
+    
+    /** This is used internally only, just for compare using global ordinal instead of term bytes in the PQ */
+    static class OrdBucket extends InternalTerms.Bucket {
+        long globalOrd;
+
+        OrdBucket(long globalOrd, long docCount, InternalAggregations aggregations) {
+            super(docCount, aggregations);
+            this.globalOrd = globalOrd;
+        }
+
+        @Override
+        int compareTerm(Terms.Bucket other) {
+            return Long.compare(globalOrd, ((OrdBucket)other).globalOrd);
+        }
+
+        @Override
+        public String getKey() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Text getKeyAsText() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        Object getKeyAsObject() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        Bucket newBucket(long docCount, InternalAggregations aggs) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Number getKeyAsNumber() {
+            throw new UnsupportedOperationException();
+        }
     }
 
     /**

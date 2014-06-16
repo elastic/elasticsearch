@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -73,7 +74,7 @@ public class ShardSearchRequest extends TransportRequest {
     private BytesReference extraSource;
     private BytesReference templateSource;
     private String templateName;
-    private String templateId;
+    private ScriptService.ScriptType templateType;
     private Map<String, String> templateParams;
 
     private long nowInMillis;
@@ -93,7 +94,7 @@ public class ShardSearchRequest extends TransportRequest {
         this.extraSource = searchRequest.extraSource();
         this.templateSource = searchRequest.templateSource();
         this.templateName = searchRequest.templateName();
-        this.templateId = searchRequest.templateId();
+        this.templateType = searchRequest.templateType();
         this.templateParams = searchRequest.templateParams();
         this.scroll = searchRequest.scroll();
         this.types = searchRequest.types();
@@ -153,8 +154,8 @@ public class ShardSearchRequest extends TransportRequest {
         return templateName;
     }
 
-    public String templateId() {
-        return templateId;
+    public ScriptService.ScriptType templateType() {
+        return templateType;
     }
 
     public Map<String, String> templateParams() {
@@ -230,7 +231,7 @@ public class ShardSearchRequest extends TransportRequest {
             templateSource = in.readBytesReference();
             templateName = in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                templateId = in.readOptionalString();
+                templateType = ScriptService.ScriptType.readFrom(in);
             }
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
@@ -267,7 +268,7 @@ public class ShardSearchRequest extends TransportRequest {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
             if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-                out.writeOptionalString(templateId);
+                ScriptService.ScriptType.writeTo(templateType, out);
             }
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);

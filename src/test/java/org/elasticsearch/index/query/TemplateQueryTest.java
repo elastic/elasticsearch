@@ -268,13 +268,13 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateId("/mustache/1a").setTemplateParams(templateParams).get();
+                setTemplateName("/mustache/1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         Exception e = null;
         try {
             searchResponse = client().prepareSearch("test").setTypes("type").
-                    setTemplateId("/template_index/mustache/1000").setTemplateParams(templateParams).get();
+                    setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         } catch (SearchPhaseExecutionException spee) {
             e = spee;
         }
@@ -282,21 +282,21 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         e = null;
         try {
             searchResponse = client().prepareSearch("test").setTypes("type").
-                    setTemplateId("/myindex/mustache/1").setTemplateParams(templateParams).get();
+                    setTemplateName("/myindex/mustache/1").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
             assertFailures(searchResponse);
-        } catch (SearchPhaseExecutionException spee){
+        } catch (SearchPhaseExecutionException spee) {
             e = spee;
         }
         assert e != null;
 
 
         searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateId("1a").setTemplateParams(templateParams).get();
+                setTemplateName("1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         templateParams.put("fieldParam", "bar");
         searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateId("/mustache/2").setTemplateParams(templateParams).get();
+                setTemplateName("/mustache/2").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 1);
 
         Map<String, Object> vars = new HashMap<>();
@@ -315,8 +315,6 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         query = "{\"template\": {\"id\": \"/mustache/3\",\"params\" : {\"fieldParam\" : \"foo\"}}}";
         sr = client().prepareSearch().setQuery(query).get();
         assertHitCount(sr, 4);
-        throw new ElasticsearchException("foo");
     }
-
 
 }

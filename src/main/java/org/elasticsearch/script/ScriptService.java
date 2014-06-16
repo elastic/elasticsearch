@@ -30,11 +30,14 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -113,10 +116,47 @@ public class ScriptService extends AbstractComponent {
         }
     }
 
-    public enum ScriptType {
+    public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
+
+    public static final ParseField VALUE_SCRIPT_FILE = new ParseField("value_script_file");
+    public static final ParseField VALUE_SCRIPT_ID = new ParseField("value_script_id");
+    public static final ParseField VALUE_SCRIPT_INLINE = new ParseField("value_script");
+
+    public static final ParseField KEY_SCRIPT_FILE = new ParseField("key_script_file");
+    public static final ParseField KEY_SCRIPT_ID = new ParseField("key_script_id");
+    public static final ParseField KEY_SCRIPT_INLINE = new ParseField("key_script");
+
+    public static final ParseField SCRIPT_FILE = new ParseField("script_file","file");
+    public static final ParseField SCRIPT_ID = new ParseField("script_id", "id");
+    public static final ParseField SCRIPT_INLINE = new ParseField("script","scriptField");
+
+
+    public static enum ScriptType {
         INLINE,
         INDEXED,
-        FILE
+        FILE;
+
+        public static ScriptType readFrom(StreamInput in) throws IOException {
+            int scriptTypeOrd = in.read();
+            if (scriptTypeOrd != -1) {
+                if (scriptTypeOrd == INDEXED.ordinal()) {
+                    return INDEXED;
+                } else if (scriptTypeOrd == INLINE.ordinal()) {
+                    return INLINE;
+                } else if (scriptTypeOrd == FILE.ordinal()) {
+                    return FILE;
+                }
+            }
+            return null;
+        }
+
+        public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
+            if (scriptType != null) {
+                out.write(scriptType.ordinal());
+            } else {
+                out.write(INLINE.ordinal()); //Default to inline
+            }
+        }
     }
 
     class IndexedScript {
@@ -212,8 +252,11 @@ public class ScriptService extends AbstractComponent {
     }
 
     public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
-        logger.trace("Compiling " + lang + " " + script + scriptType);
-        CacheKey cacheKey = null;
+        if (logger.isTraceEnabled()) {
+            logger.trace("Compiling lang: [{}] type: [{}] script: {}",  lang, scriptType, script);
+        }
+
+        CacheKey cacheKey;
         CompiledScript compiled;
 
         if(scriptType == ScriptType.INDEXED) {
@@ -228,7 +271,7 @@ public class ScriptService extends AbstractComponent {
                 lang = indexedScript.lang;
             }
 
-            verifyDynamicScripting(lang); //Since anyone can index a script, disable indexed scripting
+            verifyDynamicScripting(indexedScript.lang); //Since anyone can index a script, disable indexed scripting
                                           // if dynamic scripting is disabled, perhaps its own setting ?
 
             script = getScriptFromIndex(client, SCRIPT_INDEX, indexedScript.lang, indexedScript.id);
@@ -243,12 +286,13 @@ public class ScriptService extends AbstractComponent {
             }
         }
 
-        //For backwards compat attempt to load from disk
-        compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
+        if (scriptType != ScriptType.INDEXED) {
+            //For backwards compat attempt to load from disk
+            compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
 
-
-        if (compiled != null) {
-            return compiled;
+            if (compiled != null) {
+                return compiled;
+            }
         }
 
         if (lang == null) {
@@ -276,7 +320,7 @@ public class ScriptService extends AbstractComponent {
         }
         // not the end of the world if we compile it twice...
         compiled = getCompiledScript(lang, script);
-        if (scriptType != ScriptType.INDEXED ) {
+        if (scriptType != ScriptType.INDEXED) {
             cache.put(cacheKey, compiled); //Only cache non indexed scripts
         }
 
@@ -309,8 +353,8 @@ public class ScriptService extends AbstractComponent {
                     Object template = source.get("template");
                     builder.map((Map<String, Object>)template);
                     return builder.string();
-                } catch( IOException|ClassCastException e ){
-                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json",e);
+                } catch (IOException|ClassCastException e) {
+                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
                 }
             } else  if (source.containsKey("script")) {
                 return source.get("script").toString();
@@ -319,8 +363,8 @@ public class ScriptService extends AbstractComponent {
                     XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                     builder.map(responseFields.getSource());
                     return builder.string();
-                } catch( IOException|ClassCastException e ){
-                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json",e);
+                } catch (IOException|ClassCastException e) {
+                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
                 }
             }
         }
@@ -333,10 +377,6 @@ public class ScriptService extends AbstractComponent {
         return executable(compile(lang, script, scriptType), vars);
     }
 
-/*    public ExecutableScript executable(String lang, String script, Map vars) {
-        return executable(compile(lang, script), vars);
-    }
-*/
     public ExecutableScript executable(CompiledScript compiledScript, Map vars) {
         return scriptEngines.get(compiledScript.lang()).executable(compiledScript.compiled(), vars);
     }
@@ -394,7 +434,7 @@ public class ScriptService extends AbstractComponent {
 
         @Override
         public void onFileInit(File file) {
-            logger.trace("Loading script file" + file.toString());
+            logger.trace("Loading script file : [{}]", file.toString());
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
             if (scriptNameExt != null) {
                 boolean found = false;

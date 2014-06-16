@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -71,7 +72,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     private BytesReference templateSource;
     private boolean templateSourceUnsafe;
     private String templateName;
-    private String templateId;
+    private ScriptService.ScriptType templateType;
     private Map<String, String> templateParams = Collections.emptyMap();
 
     private BytesReference source;
@@ -405,8 +406,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         this.templateName = templateName;
     }
 
-    public void templateId(String templateId){
-        this.templateId = templateId;
+    public void templateType(ScriptService.ScriptType templateType){
+        this.templateType = templateType;
     }
 
     /**
@@ -426,8 +427,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The name of the stored template
      */
-    public String templateId() {
-        return templateId;
+    public ScriptService.ScriptType templateType() {
+        return templateType;
     }
 
     /**
@@ -521,7 +522,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             templateSource = in.readBytesReference();
             templateName =  in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                templateId = in.readOptionalString();
+                templateType = ScriptService.ScriptType.readFrom(in);
             }
             if (in.readBoolean()) {
                 templateParams = (Map<String, String>) in.readGenericValue();
@@ -560,10 +561,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             out.writeBytesReference(templateSource);
             out.writeOptionalString(templateName);
             if (out.getVersion().onOrAfter(Version.V_1_3_0)){
-                out.writeOptionalString(templateId);
+                ScriptService.ScriptType.writeTo(templateType,out);
             }
-
-
             boolean existTemplateParams = templateParams != null;
             out.writeBoolean(existTemplateParams);
             if (existTemplateParams) {

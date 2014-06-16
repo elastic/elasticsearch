@@ -126,15 +126,17 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
-                } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
+                } else if (ScriptService.SCRIPT_INLINE.match(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("script_field_id".equals(currentFieldName) || "scriptFieldId".equals(currentFieldName)) {
+                } else if (ScriptService.SCRIPT_ID.match(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("script_field_file".equals(currentFieldName) || "scriptFieldFile".equals(currentFieldName)) {
+                } else if (ScriptService.SCRIPT_FILE.match(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(currentFieldName)) {
+                    scriptLang = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
@@ -147,10 +149,6 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
                     regexFlags = parser.text();
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsFacet.ComparatorType.fromString(parser.text());
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
                 } else if ("execution_hint".equals(currentFieldName) || "executionHint".equals(currentFieldName)) {
                     executionHint = parser.textOrNull();
                 } else {

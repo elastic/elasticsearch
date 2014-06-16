@@ -92,27 +92,27 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
                     interval = parser.longValue();
                 } else if ("time_interval".equals(fieldName) || "timeInterval".equals(fieldName)) {
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
-                } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
-                    keyScript = parser.text();
-                    keyScriptType = ScriptService.ScriptType.INLINE;
-                } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
-                    valueScript = parser.text();
-                    valueScriptType = ScriptService.ScriptType.INLINE;
-                } else if ("key_script_id".equals(fieldName) || "keyScriptId".equals(fieldName)) {
-                    keyScript = parser.text();
-                    keyScriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("value_script_id".equals(fieldName) || "valueScriptId".equals(fieldName)) {
-                    valueScript = parser.text();
-                    valueScriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("key_script_file".equals(fieldName) || "keyScriptFile".equals(fieldName)) {
-                    keyScript = parser.text();
-                    keyScriptType = ScriptService.ScriptType.FILE;
-                } else if ("value_script_file".equals(fieldName) || "valueScriptFile".equals(fieldName)) {
-                    valueScript = parser.text();
-                    valueScriptType = ScriptService.ScriptType.FILE;
                 } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
                     comparatorType = HistogramFacet.ComparatorType.fromString(parser.text());
-                } else if ("lang".equals(fieldName)) {
+                } else if (ScriptService.KEY_SCRIPT_INLINE.match(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.KEY_SCRIPT_ID.match(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.KEY_SCRIPT_FILE.match(fieldName)) {
+                    keyScript = parser.text();
+                    keyScriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(fieldName)) {
+                    valueScript = parser.text();
+                    valueScriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(fieldName)) {
                     scriptLang = parser.text();
                 }
             }

@@ -78,18 +78,19 @@ public class ScriptSortParser implements SortParser {
                     reverse = parser.booleanValue();
                 } else if ("order".equals(currentName)) {
                     reverse = "desc".equals(parser.text());
-                } else if ("script".equals(currentName)) {
+                } else if (ScriptService.SCRIPT_INLINE.match(currentName)) {
                     script = parser.text();
-                } else if ("file".equals(currentName)){
-                    script = parser.text();
-                    scriptType = ScriptService.ScriptType.FILE;
-                } else if ("id".equals(currentName)){
+                    scriptType = ScriptService.ScriptType.INLINE;
+                } else if (ScriptService.SCRIPT_ID.match(currentName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
+                } else if (ScriptService.SCRIPT_FILE.match(currentName)) {
+                    script = parser.text();
+                    scriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(currentName)) {
+                    scriptLang = parser.text();
                 } else if ("type".equals(currentName)) {
                     type = parser.text();
-                } else if ("lang".equals(currentName)) {
-                    scriptLang = parser.text();
                 } else if ("mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {

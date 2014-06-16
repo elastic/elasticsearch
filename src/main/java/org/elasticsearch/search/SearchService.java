@@ -587,11 +587,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         final ExecutableScript executable;
         if (hasLength(request.templateName())) {
-            executable = this.scriptService.executable("mustache", request.templateName(), ScriptService.ScriptType.FILE, request.templateParams());
-        } else if (hasLength(request.templateId())) {
-            executable = this.scriptService.executable("mustache", request.templateId(), ScriptService.ScriptType.INDEXED, request.templateParams());
+            executable = this.scriptService.executable("mustache", request.templateName(), request.templateType(), request.templateParams());
         } else {
-            if (request.templateSource() == null || request.templateSource().length() == 0) {
+            if (!hasLength(request.templateSource())) {
                 return;
             }
             XContentParser parser = null;

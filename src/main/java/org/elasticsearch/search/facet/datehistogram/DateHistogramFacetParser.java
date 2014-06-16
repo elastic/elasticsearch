@@ -139,18 +139,18 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
                     postOffset = parseOffset(parser.text());
                 } else if ("factor".equals(fieldName)) {
                     factor = parser.floatValue();
-                } else if ("value_script".equals(fieldName) || "valueScript".equals(fieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(fieldName)) {
                     valueScript = parser.text();
                     valueScriptType = ScriptService.ScriptType.INLINE;
-                } else if ("value_script_id".equals(fieldName) || "valueScriptId".equals(fieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(fieldName)) {
                     valueScript = parser.text();
                     valueScriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("value_script_file".equals(fieldName) || "valueScriptFile".equals(fieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(fieldName)) {
                     valueScript = parser.text();
                     valueScriptType = ScriptService.ScriptType.FILE;
                 } else if ("order".equals(fieldName) || "comparator".equals(fieldName)) {
                     comparatorType = DateHistogramFacet.ComparatorType.fromString(parser.text());
-                } else if ("lang".equals(fieldName)) {
+                } else if (ScriptService.SCRIPT_LANG.match(fieldName)) {
                     scriptLang = parser.text();
                 }
             }

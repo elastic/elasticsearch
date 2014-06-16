@@ -18,47 +18,28 @@
  */
 package org.elasticsearch.script;
 
-import com.carrotsearch.randomizedtesting.LifecycleScope;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-/**
- */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+//Use Suite scope so that paths get set correctly
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
-
-    @Before
-    public void setup() throws IOException {
-        createIndex("test");
-        ensureGreen("test");
-        refresh();
-    }
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        String scriptPath = this.getClass().getResource("config").getPath();
-        return ImmutableSettings.settingsBuilder().put("path.conf", scriptPath).build();
-/*
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.settingsBuilder();
-        settingsBuilder.put(super.nodeSettings(nodeOrdinal));
-        settingsBuilder.put("path.conf", "/org/elasticsearch/index/query/config/");
-        return settingsBuilder.build();
-        */
+        //Set path so ScriptService will pick up the test scripts
+        return settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
     }
 
 

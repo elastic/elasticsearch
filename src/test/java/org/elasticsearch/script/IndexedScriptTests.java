@@ -33,9 +33,6 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-/**
- */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 3)
 public class IndexedScriptTests extends ElasticsearchIntegrationTest {
 
     @Test

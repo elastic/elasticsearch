@@ -129,16 +129,16 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if ("value_field".equals(currentName) || "valueField".equals(currentName)) {
                     valueFieldName = parser.text();
-                } else if ("value_script".equals(currentName) || "valueScript".equals(currentName)) {
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(currentName)) {
                     valueScript = parser.text();
                     scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("value_script_id".equals(currentName) || "valueScriptId".equals(currentName)) {
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(currentName)) {
                     valueScript = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("value_script_file".equals(currentName) || "valueScriptFile".equals(currentName)) {
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(currentName)) {
                     valueScript = parser.text();
                     scriptType = ScriptService.ScriptType.FILE;
-                } else if ("lang".equals(currentName)) {
+                } else if (ScriptService.SCRIPT_LANG.match(currentName)) {
                     scriptLang = parser.text();
                 } else if ("normalize".equals(currentName)) {
                     normalizeLat = parser.booleanValue();

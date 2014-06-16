@@ -38,6 +38,11 @@ public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushR
         return this;
     }
 
+    public FlushRequestBuilder setForce(boolean force) {
+        request.force(force);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<FlushResponse> listener) {
         ((IndicesAdminClient) client).flush(request, listener);

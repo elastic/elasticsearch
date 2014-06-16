@@ -851,7 +851,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").get();
+        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
         // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green
         assertThat(flushResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 

@@ -215,7 +215,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
         refresh();
 
-        for (Client client : cluster()) {
+        for (Client client : internalCluster()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setSource("foo".getBytes(Charsets.UTF_8))
                     .setExplain(true)
@@ -227,7 +227,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
 
         }
         
-        for (Client client : cluster()) {
+        for (Client client : internalCluster()) {
                 ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
                     .setQuery(QueryBuilders.queryString("foo"))
                     .setExplain(true)

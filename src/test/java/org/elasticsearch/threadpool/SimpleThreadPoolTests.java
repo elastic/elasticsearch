@@ -53,7 +53,7 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
 
     @Test(timeout = 20000)
     public void testUpdatingThreadPoolSettings() throws Exception {
-        ThreadPool threadPool = cluster().getDataNodeInstance(ThreadPool.class);
+        ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
         // Check that settings are changed
         assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(5L));
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.keep_alive", "10m").build()).execute().actionGet();

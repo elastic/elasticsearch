@@ -89,7 +89,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
     public void beforeBenchmarkIntegrationTests() throws Exception {
         waitForTestLatch = null;
         waitForQuery = null;
-        numExecutorNodes = cluster().numBenchNodes();
+        numExecutorNodes = internalCluster().numBenchNodes();
         competitionSettingsMap = new HashMap<>();
         logger.info("--> indexing random data");
         indices = randomData();
@@ -166,7 +166,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
            without doing busy waiting etc. This Script calls the two static latches above and this test
            will not work if somebody messes around with them but it's much faster and less resource intensive / hardware
            dependent to run massive benchmarks and do busy waiting. */
-        cluster(); // mark that we need a JVM local cluster!
+        internalCluster(); // mark that we need a JVM local cluster!
         waitForQuery = new CountDownLatch(1);
         waitForTestLatch = new CountDownLatch(1);
         String className = "BenchmarkIntegrationTest";

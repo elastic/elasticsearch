@@ -153,7 +153,7 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         final int maxNumTerms = randomIntBetween(10, 5000);
 
         final IntOpenHashSet valuesSet = new IntOpenHashSet();
-        immutableCluster().wipeIndices("idx");
+        cluster().wipeIndices("idx");
         prepareCreate("idx")
                 .setSettings(ImmutableSettings.builder().put(InternalGlobalOrdinalsBuilder.ORDINAL_MAPPING_THRESHOLD_INDEX_SETTING_KEY, randomIntBetween(1, maxNumTerms)))
                 .addMapping("type", jsonBuilder().startObject()

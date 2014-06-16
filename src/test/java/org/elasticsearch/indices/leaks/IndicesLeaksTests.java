@@ -54,7 +54,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        IndicesService indicesService = cluster().getInstance(IndicesService.class);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         Injector indexInjector = indexService.injector();
         IndexShard shard = indexService.shardSafe(0);

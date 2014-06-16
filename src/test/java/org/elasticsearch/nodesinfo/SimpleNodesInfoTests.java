@@ -60,15 +60,15 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testNodesInfos() throws Exception {
-        List<String> nodesIds = cluster().startNodesAsync(2).get();
+        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
         final String node_1 = nodesIds.get(0);
         final String node_2 = nodesIds.get(1);
 
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        String server1NodeId = cluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();
-        String server2NodeId = cluster().getInstance(ClusterService.class, node_2).state().nodes().localNodeId();
+        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();
+        String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().localNodeId();
         logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
@@ -168,12 +168,12 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
             settings.putArray("plugin.types", pluginClassNames);
         }
 
-        String nodeName = cluster().startNode(settings);
+        String nodeName = internalCluster().startNode(settings);
 
         // We wait for a Green status
         client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
 
-        return cluster().getInstance(ClusterService.class, nodeName).state().nodes().localNodeId();
+        return internalCluster().getInstance(ClusterService.class, nodeName).state().nodes().localNodeId();
     }
 
 

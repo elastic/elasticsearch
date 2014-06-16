@@ -124,7 +124,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 3 : 1));
+        assertThat(scriptCounter.get(), equalTo(internalCluster().hasFilterCache() ? 3 : 1));
 
         scriptCounter.set(0);
         logger.info("running script filter the second time");

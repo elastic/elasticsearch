@@ -57,7 +57,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     public void testSimpleStats() throws Exception {
         // clear all stats first
         client().admin().indices().prepareStats().clear().execute().actionGet();
-        final int numNodes = immutableCluster().numDataNodes();
+        final int numNodes = cluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
@@ -89,7 +89,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = cluster().clientNodeClient().prepareSearch()
+            SearchResponse searchResponse = internalCluster().clientNodeClient().prepareSearch()
                     .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
                     .addHighlightedField("field")
                     .addScriptField("scrip1", "_source.field")

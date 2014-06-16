@@ -57,12 +57,12 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
 
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         // start a second node, create an index, and then shut it down so we have no master block
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        cluster().stopRandomDataNode();
+        internalCluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -128,7 +128,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 }

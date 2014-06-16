@@ -87,19 +87,19 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
             } else if (token.isValue()) {
                 if ("key_field".equals(currentFieldName) || "keyField".equals(currentFieldName)) {
                     keyField = parser.text();
-                } else if ("value_field".equals(currentFieldName) || "valueField".equals(currentFieldName)) {
-                    valueField = parser.text();
-                } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
-                    script = parser.text();
-                } else if ("value_script".equals(currentFieldName) || "valueScript".equals(currentFieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_INLINE.match(currentFieldName) || ScriptService.SCRIPT_INLINE.match(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("value_script_id".equals(currentFieldName) || "valueScriptId".equals(currentFieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_ID.match(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("value_script_file".equals(currentFieldName) || "valueScriptFile".equals(currentFieldName)) {
+                } else if (ScriptService.VALUE_SCRIPT_FILE.match(currentFieldName)) {
                     script = parser.text();
                     scriptType = ScriptService.ScriptType.FILE;
+                } else if (ScriptService.SCRIPT_LANG.match(currentFieldName)) {
+                    scriptLang = parser.text();
+                } else if ("value_field".equals(currentFieldName) || "valueField".equals(currentFieldName)) {
+                    valueField = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
                 } else if ("shard_size".equals(currentFieldName) || "shardSize".equals(currentFieldName)) {
@@ -110,9 +110,6 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     }
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsStatsFacet.ComparatorType.fromString(parser.text());
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
-                }
             }
         }
 

@@ -61,6 +61,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -522,6 +523,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         .masterNodeId(null).build();
                 latestDiscoNodes = discoveryNodes;
 
+                // flush any pending cluster states from old master, so it will not be set as master again
+                ArrayList<ProcessClusterState> pendingNewClusterStates = new ArrayList<>();
+                processNewClusterStates.drainTo(pendingNewClusterStates);
+                logger.trace("removed [{}] pending cluster states", pendingNewClusterStates.size());
+
                 if (rejoinOnMasterGone) {
                     return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
                 }
@@ -678,6 +684,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                             // we are going to use it for sure, poll (remove) it
                             potentialState = processNewClusterStates.poll();
+                            if (potentialState == null) {
+                                // might happen if the queue is drained
+                                break;
+                            }
+
                             potentialState.processed = true;
 
                             if (potentialState.clusterState.version() > stateToProcess.clusterState.version()) {

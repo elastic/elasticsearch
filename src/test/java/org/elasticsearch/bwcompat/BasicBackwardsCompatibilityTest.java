@@ -18,14 +18,18 @@
  */
 package org.elasticsearch.bwcompat;
 
+import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -43,6 +47,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
@@ -405,4 +410,95 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
     public Version getMasterVersion() {
         return client().admin().cluster().prepareState().get().getState().nodes().masterNode().getVersion();
     }
+
+    @Test
+    public void testSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+        String[] indices = new String[randomIntBetween(1,5)];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = "index_" + i;
+            createIndex(indices[i]);
+        }
+        ensureYellow();
+        logger.info("--> indexing some data");
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[randomIntBetween(10, 200)];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex(RandomPicks.randomFrom(getRandom(), indices), "foo", Integer.toString(i)).setSource("{ \"foo\" : \"bar\" } ");
+        }
+        indexRandom(true, builders);
+        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long)builders.length));
+        long[] counts = new long[indices.length];
+        for (int i = 0; i < indices.length; i++) {
+            counts[i] = client().prepareCount(indices[i]).get().getCount();
+        }
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("index_*").get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+
+        assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
+
+        logger.info("--> delete some data");
+        int howMany = randomIntBetween(1, builders.length);
+        
+        for (int i = 0; i < howMany; i++) {
+            IndexRequestBuilder indexRequestBuilder = RandomPicks.randomFrom(getRandom(), builders);
+            IndexRequest request = indexRequestBuilder.request();
+            client().prepareDelete(request.index(), request.type(), request.id()).get();
+        }
+        refresh();
+        final long numDocs = client().prepareCount(indices).get().getCount();
+        assertThat(client().prepareCount(indices).get().getCount(), lessThan((long)builders.length));
+
+
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "none")).get();
+        backwardsCluster().allowOnAllNodes(indices);
+        logClusterState();
+        boolean upgraded;
+        do {
+            logClusterState();
+            CountResponse countResponse = client().prepareCount().get();
+            assertHitCount(countResponse, numDocs);
+            upgraded = backwardsCluster().upgradeOneNode();
+            ensureYellow();
+            countResponse = client().prepareCount().get();
+            assertHitCount(countResponse, numDocs);
+        } while (upgraded);
+        client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
+
+        logger.info("--> close indices");
+
+        client().admin().indices().prepareClose(indices).get();
+
+        logger.info("--> restore all indices from the snapshot");
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        ensureYellow();
+        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long)builders.length));
+        for (int i = 0; i < indices.length; i++) {
+            assertThat(counts[i], equalTo(client().prepareCount(indices[i]).get().getCount()));
+        }
+
+        // Test restore after index deletion
+        logger.info("--> delete indices");
+        String index = RandomPicks.randomFrom(getRandom(), indices);
+        cluster().wipeIndices(index);
+        logger.info("--> restore one index after deletion");
+        restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices(index).execute().actionGet();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        ensureYellow();
+        assertThat(client().prepareCount(indices).get().getCount(), equalTo((long)builders.length));
+        for (int i = 0; i < indices.length; i++) {
+            assertThat(counts[i], equalTo(client().prepareCount(indices[i]).get().getCount()));
+        }
+    }
+
+
 }

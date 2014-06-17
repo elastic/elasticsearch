@@ -135,7 +135,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
     void recover(RecoveryHandler recoveryHandler) throws EngineException;
 
     /** fail engine due to some error. the engine will also be closed. */
-    void failEngine(String reason, @Nullable Throwable failure);
+    void failEngine(String reason, Throwable failure);
 
     static interface FailedEngineListener {
         void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);

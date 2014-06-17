@@ -34,7 +34,6 @@ fi
 exec="/usr/share/elasticsearch/bin/elasticsearch"
 prog="elasticsearch"
 pidfile=/var/run/elasticsearch/${prog}.pid
-LOG_DIR="/var/log/logstash"
 
 [ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
 

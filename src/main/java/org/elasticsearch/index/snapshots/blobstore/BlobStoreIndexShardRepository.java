@@ -21,6 +21,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -423,19 +424,19 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 int indexNumberOfFiles = 0;
                 long indexTotalFilesSize = 0;
                 ArrayList<FileInfo> filesToSnapshot = newArrayList();
+                final Store.MetadataSnapshot metadata;
+                try {
+                    metadata = store.getMetadata();
+                } catch (IOException e) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                }
                 for (String fileName : snapshotIndexCommit.getFiles()) {
                     if (snapshotStatus.aborted()) {
                         logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
                         throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                     }
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
-                    final StoreFileMetaData md;
-                    try {
-                        md = store.metaData(fileName);
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
-                    }
-
+                    final StoreFileMetaData md = metadata.get(fileName);
                     boolean snapshotRequired = false;
                     // TODO: For now segment files are copied on each commit because segment files don't have checksum
     //            if (snapshot.indexChanged() && fileName.equals(snapshotIndexCommit.getSegmentsFileName())) {
@@ -453,7 +454,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         indexNumberOfFiles++;
                         indexTotalFilesSize += md.length();
                         // create a new FileInfo
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), fileName, md.length(), chunkSize, md.checksum());
+                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize);
                         indexCommitPointFiles.add(snapshotFileInfo);
                         filesToSnapshot.add(snapshotFileInfo);
                     } else {
@@ -535,7 +536,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 IndexInput indexInput = null;
                 try {
                     final String file = fileInfo.physicalName();
-                    indexInput = store.openInputRaw(file, IOContext.READONCE);
+                    indexInput = store.directory().openInput(file, IOContext.READONCE);
                     indexInput.seek(i * fileInfo.partBytes());
                     InputStreamIndexInput inputStreamIndexInput = new ThreadSafeInputStreamIndexInput(indexInput, fileInfo.partBytes());
 
@@ -670,16 +671,16 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 long totalSize = 0;
                 int numberOfReusedFiles = 0;
                 long reusedTotalSize = 0;
-
+                final Store.MetadataSnapshot metadata;
+                try {
+                    metadata = store.getMetadata();
+                } catch (Throwable e) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                }
                 List<FileInfo> filesToRecover = Lists.newArrayList();
                 for (FileInfo fileInfo : snapshot.indexFiles()) {
                     String fileName = fileInfo.physicalName();
-                    StoreFileMetaData md = null;
-                    try {
-                        md = store.metaData(fileName);
-                    } catch (IOException e) {
-                        // no file
-                    }
+                    final StoreFileMetaData md = metadata.get(fileName);
                     numberOfFiles++;
                     // we don't compute checksum for segments, so always recover them
                     if (!fileName.startsWith("segments") && md != null && fileInfo.isSame(md)) {
@@ -704,7 +705,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                     }
                 }
 
-                recoveryState.getIndex().files(numberOfFiles, totalSize, numberOfReusedFiles, reusedTotalSize);
+                final RecoveryState.Index index = recoveryState.getIndex();
+                index.totalFileCount(numberOfFiles);
+                index.totalByteCount(totalSize);
+                index.reusedFileCount(numberOfReusedFiles);
+                index.reusedByteCount(reusedTotalSize);
                 if (filesToRecover.isEmpty()) {
                     logger.trace("no files to recover, all exists within the local store");
                 }
@@ -775,7 +780,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try {
                 // we create an output with no checksum, this is because the pure binary data of the file is not
                 // the checksum (because of seek). We will create the checksum file once copying is done
-                indexOutput = store.createOutputRaw(fileInfo.physicalName());
+                indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), IOContext.DEFAULT, fileInfo.metadata());
             } catch (IOException e) {
                 try {
                     failures.add(e);
@@ -814,10 +819,14 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         } else {
                             // we are done...
                             try {
+                                Store.verify(indexOutput);
                                 indexOutput.close();
                                 // write the checksum
-                                if (fileInfo.checksum() != null) {
-                                    store.writeChecksum(fileInfo.physicalName(), fileInfo.checksum());
+                                if (fileInfo.metadata().hasLegacyChecksum()) {
+                                    Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
+                                    legacyChecksums.add(fileInfo.metadata());
+                                    legacyChecksums.write(store);
+
                                 }
                                 store.directory().sync(Collections.singleton(fileInfo.physicalName()));
                                 recoveryState.getIndex().addRecoveredFileCount(1);

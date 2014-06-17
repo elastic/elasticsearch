@@ -84,6 +84,7 @@ import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -421,6 +422,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
         if (random.nextBoolean()) {
             builder.put(IndicesStore.INDICES_STORE_THROTTLE_TYPE, RandomPicks.randomFrom(random, StoreRateLimiting.Type.values()));
+        }
+
+        if (random.nextBoolean()) {
+            builder.put(StoreModule.DISTIBUTOR_KEY, random.nextBoolean() ? StoreModule.LEAST_USED_DISTRIBUTOR : StoreModule.RANDOM_WEIGHT_DISTRIBUTOR);
         }
 
         if (random.nextBoolean()) {

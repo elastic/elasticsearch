@@ -27,9 +27,11 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -106,13 +108,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     private Settings defaultSettings;
 
-
     @Before
     public void setUp() throws Exception {
         super.setUp();
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_GC_DELETES, "1h") // make sure this doesn't kick in on us
+                .put(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, randomBoolean())
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
@@ -598,6 +600,60 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
+    }
+    
+    @Test
+    public void testFailEngineOnCorruption() {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
+        engine.create(new Engine.Create(null, newUid("1"), doc));
+        engine.flush(new Engine.Flush());
+        final boolean failEngine = defaultSettings.getAsBoolean(InternalEngine.ENGINE_FAIL_ON_CORRUPTION, false);
+        final int failInPhase = randomIntBetween(1,3);
+        try {
+            engine.recover(new Engine.RecoveryHandler() {
+                @Override
+                public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
+                   if (failInPhase == 1) {
+                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                   }
+                }
+
+                @Override
+                public void phase2(Translog.Snapshot snapshot) throws EngineException {
+                    if (failInPhase == 2) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
+                }
+
+                @Override
+                public void phase3(Translog.Snapshot snapshot) throws EngineException {
+                    if (failInPhase == 3) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
+                }
+            });
+            fail("exception expected");
+        } catch (RuntimeException ex) {
+
+        }
+        try {
+            Engine.Searcher searchResult = engine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+            searchResult.close();
+
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_2, false);
+            engine.create(new Engine.Create(null, newUid("2"), doc2));
+            engine.refresh(new Engine.Refresh("foo"));
+
+            searchResult = engine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
+            searchResult.close();
+            assertThat(failEngine, is(false));
+        } catch (EngineClosedException ex) {
+            assertThat(failEngine, is(true));
+        }
     }
 
 

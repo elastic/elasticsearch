@@ -126,6 +126,9 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                 }
                 if (indexShouldExists && indexShard.store().indexStore().persistent()) {
+                    if (indexShard.store().isMarkedCorrupted()) {
+                        throw new IndexShardGatewayRecoveryException(shardId(), "Shard is corrupted can't recover " + files, e);
+                    }
                     throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                 }
             }
@@ -162,9 +165,13 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 totalSizeInBytes += length;
                 recoveryState.getIndex().addFileDetail(name, length, length);
             }
-            recoveryState.getIndex().files(numberOfFiles, totalSizeInBytes, numberOfFiles, totalSizeInBytes);
-            recoveryState.getIndex().recoveredFileCount(numberOfFiles);
-            recoveryState.getIndex().recoveredByteCount(totalSizeInBytes);
+            RecoveryState.Index index = recoveryState.getIndex();
+            index.totalFileCount(numberOfFiles);
+            index.totalByteCount(totalSizeInBytes);
+            index.reusedFileCount(numberOfFiles);
+            index.reusedByteCount(totalSizeInBytes);
+            index.recoveredFileCount(numberOfFiles);
+            index.recoveredByteCount(totalSizeInBytes);
         } catch (Exception e) {
             // ignore
         }

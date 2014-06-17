@@ -24,10 +24,12 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -522,6 +524,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             return store.stats();
         } catch (IOException e) {
             throw new ElasticsearchException("io exception while building 'store stats'", e);
+        } catch (AlreadyClosedException ex) {
+            return null; // already closed
         }
     }
 
@@ -633,7 +637,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public void failShard(String reason, @Nullable Throwable e) {
+    public void failShard(String reason, Throwable e) {
         // fail the engine. This will cause this shard to also be removed from the node's index service.
         engine.failEngine(reason, e);
     }

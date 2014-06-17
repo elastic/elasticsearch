@@ -162,16 +162,17 @@ public class RecoveryTarget extends AbstractComponent {
             listener.onIgnoreRecovery(false, "already in recovering process, " + e.getMessage());
             return;
         }
+        // create a new recovery status, and process...
+        final RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard);
+        recoveryStatus.recoveryState.setType(request.recoveryType());
+        recoveryStatus.recoveryState.setSourceNode(request.sourceNode());
+        recoveryStatus.recoveryState.setTargetNode(request.targetNode());
+        recoveryStatus.recoveryState.setPrimary(indexShard.routingEntry().primary());
+        onGoingRecoveries.put(recoveryStatus.recoveryId, recoveryStatus);
+
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-                // create a new recovery status, and process...
-                RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard);
-                recoveryStatus.recoveryState.setType(request.recoveryType());
-                recoveryStatus.recoveryState.setSourceNode(request.sourceNode());
-                recoveryStatus.recoveryState.setTargetNode(request.targetNode());
-                recoveryStatus.recoveryState.setPrimary(indexShard.routingEntry().primary());
-                onGoingRecoveries.put(recoveryStatus.recoveryId, recoveryStatus);
                 doRecovery(request, recoveryStatus, listener);
             }
         });
@@ -187,7 +188,6 @@ public class RecoveryTarget extends AbstractComponent {
     }
 
     private void doRecovery(final StartRecoveryRequest request, final RecoveryStatus recoveryStatus, final RecoveryListener listener) {
-
         assert request.sourceNode() != null : "can't do a recovery without a source node";
 
         final InternalIndexShard shard = recoveryStatus.indexShard;
@@ -244,7 +244,9 @@ public class RecoveryTarget extends AbstractComponent {
             removeAndCleanOnGoingRecovery(recoveryStatus);
             listener.onRecoveryDone();
         } catch (Throwable e) {
-//            logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
+            }
             if (recoveryStatus.isCanceled()) {
                 // don't remove it, the cancellation code will remove it...
                 listener.onIgnoreRecovery(false, "canceled recovery");
@@ -360,7 +362,7 @@ public class RecoveryTarget extends AbstractComponent {
             iterator.remove();
 
         }
-        status.checksums = null;
+        status.legacyChecksums.clear();
     }
 
     class PrepareForTranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
@@ -456,12 +458,14 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
             validateRecoveryStatus(onGoingRecovery, request.shardId());
-
-            onGoingRecovery.recoveryState().getIndex().addFileDetails(request.phase1FileNames, request.phase1FileSizes);
-            onGoingRecovery.recoveryState().getIndex().addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
-            onGoingRecovery.recoveryState().getIndex().totalByteCount(request.phase1TotalSize);
-            onGoingRecovery.recoveryState().getIndex().reusedByteCount(request.phase1ExistingTotalSize);
-            onGoingRecovery.recoveryState().getIndex().totalFileCount(request.phase1FileNames.size());
+            final RecoveryState.Index index = onGoingRecovery.recoveryState().getIndex();
+            index.addFileDetails(request.phase1FileNames, request.phase1FileSizes);
+            index.addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
+            index.totalByteCount(request.phase1TotalSize);
+            index.totalFileCount(request.phase1FileNames.size() + request.phase1ExistingFileNames.size());
+            index.reusedByteCount(request.phase1ExistingTotalSize);
+            index.reusedFileCount(request.phase1ExistingFileNames.size());
+            // recoveryBytesCount / recoveryFileCount will be set as we go...
             onGoingRecovery.stage(RecoveryState.Stage.INDEX);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -514,7 +518,7 @@ public class RecoveryTarget extends AbstractComponent {
                     }
                 }
                 // now write checksums
-                store.writeChecksums(onGoingRecovery.checksums);
+                onGoingRecovery.legacyChecksums.write(store);
 
                 for (String existingFile : store.directory().listAll()) {
                     // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
@@ -550,13 +554,13 @@ public class RecoveryTarget extends AbstractComponent {
             RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
             validateRecoveryStatus(onGoingRecovery, request.shardId());
 
-            Store store = onGoingRecovery.indexShard.store();
+            final Store store = onGoingRecovery.indexShard.store();
             store.incRef();
             try {
                 IndexOutput indexOutput;
                 if (request.position() == 0) {
                     // first request
-                    onGoingRecovery.checksums.remove(request.name());
+                    onGoingRecovery.legacyChecksums.remove(request.name());
                     indexOutput = onGoingRecovery.removeOpenIndexOutputs(request.name());
                     IOUtils.closeWhileHandlingException(indexOutput);
                     // we create an output with no checksum, this is because the pure binary data of the file is not
@@ -571,7 +575,7 @@ public class RecoveryTarget extends AbstractComponent {
                     if (store.directory().fileExists(fileName)) {
                         fileName = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + fileName;
                     }
-                    indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, store);
+                    indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, request.metadata(), store);
                 } else {
                     indexOutput = onGoingRecovery.getOpenIndexOutput(request.name());
                 }
@@ -596,12 +600,11 @@ public class RecoveryTarget extends AbstractComponent {
                             file.updateRecovered(request.length());
                         }
                         if (indexOutput.getFilePointer() == request.length()) {
+                            Store.verify(indexOutput);
                             // we are done
                             indexOutput.close();
                             // write the checksum
-                            if (request.checksum() != null) {
-                                onGoingRecovery.checksums.put(request.name(), request.checksum());
-                            }
+                            onGoingRecovery.legacyChecksums.add(request.metadata());
                             store.directory().sync(Collections.singleton(request.name()));
                             IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
                             onGoingRecovery.recoveryState.getIndex().addRecoveredFileCount(1);
@@ -610,9 +613,14 @@ public class RecoveryTarget extends AbstractComponent {
                         success = true;
                     } finally {
                         if (!success || onGoingRecovery.isCanceled()) {
-                            IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                            assert remove == null || remove == indexOutput;
-                            IOUtils.closeWhileHandlingException(indexOutput);
+                            try {
+                                IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
+                                assert remove == null || remove == indexOutput;
+                                IOUtils.closeWhileHandlingException(indexOutput);
+                            } finally {
+                                // trash the file - unsuccessful
+                                store.deleteQuiet(request.name(), "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + request.name());
+                            }
                         }
                     }
                 }

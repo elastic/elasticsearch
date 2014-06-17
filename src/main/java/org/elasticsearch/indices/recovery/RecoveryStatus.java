@@ -19,11 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 
 import java.io.IOException;
 import java.util.Map.Entry;
@@ -53,7 +55,7 @@ public class RecoveryStatus {
     volatile boolean sentCanceledToSource;
 
     private volatile ConcurrentMap<String, IndexOutput> openIndexOutputs = ConcurrentCollections.newConcurrentMap();
-    ConcurrentMap<String, String> checksums = ConcurrentCollections.newConcurrentMap();
+    public final Store.LegacyChecksums legacyChecksums = new Store.LegacyChecksums();
 
     public RecoveryState recoveryState() {
         return recoveryState;
@@ -103,12 +105,12 @@ public class RecoveryStatus {
         return outputs.remove(name);
     }
 
-    public synchronized IndexOutput openAndPutIndexOutput(String key, String name, Store store) throws IOException {
+    public synchronized IndexOutput openAndPutIndexOutput(String key, String fileName, StoreFileMetaData metaData, Store store) throws IOException {
         if (isCanceled()) {
             return null;
         }
         final ConcurrentMap<String, IndexOutput> outputs = openIndexOutputs;
-        IndexOutput indexOutput = store.createOutputRaw(name);
+        IndexOutput indexOutput = store.createVerifyingOutput(fileName, IOContext.DEFAULT, metaData);
         outputs.put(key, indexOutput);
         return indexOutput;
     }

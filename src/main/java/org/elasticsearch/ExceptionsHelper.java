@@ -19,12 +19,15 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
@@ -119,5 +122,35 @@ public final class ExceptionsHelper {
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
         e.printStackTrace(printWriter);
         return stackTraceStringWriter.toString();
+    }
+
+    /**
+     * Rethrows the first exception in the list and adds all remaining to the suppressed list.
+     * If the given list is empty no exception is thrown
+     *
+     */
+    public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
+        T main = null;
+        for (T ex : exceptions) {
+            if (main == null) {
+                main = ex;
+            } else {
+                main.addSuppressed(ex);
+            }
+        }
+        if (main != null) {
+            throw main;
+        }
+    }
+
+    public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
+        if (t != null) {
+            do {
+                if (clazz.isInstance(t)) {
+                    return clazz.cast(t);
+                }
+            } while ((t = t.getCause()) != null);
+        }
+        return null;
     }
 }

@@ -376,12 +376,17 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
         ensureGreen();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
             if (!recoveryState.getPrimary()) {
                 logger.info("--> shard {}, recovered {}, reuse {}", response.getShardId(), recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat(recoveryState.getIndex().recoveredByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
                 assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
+                assertThat(recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
+                assertThat(recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat(recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
             }
         }

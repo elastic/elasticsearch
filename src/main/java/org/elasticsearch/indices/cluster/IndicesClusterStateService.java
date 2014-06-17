@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -60,6 +62,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -560,12 +563,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private void cleanFailedShards(final ClusterChangedEvent event) {
         RoutingTable routingTable = event.state().routingTable();
         RoutingNodes.RoutingNodeIterator routingNode = event.state().readOnlyRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
-
         if (routingNode == null) {
             failedShards.clear();
             return;
         }
-
         DiscoveryNodes nodes = event.state().nodes();
         long now = System.currentTimeMillis();
         String localNodeId = nodes.localNodeId();
@@ -712,11 +713,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // For replicas: we are recovering a backup from a primary
 
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.RELOCATION : RecoveryState.Type.REPLICA;
-                final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                        false, indexShard.store().list(), type, recoveryIdGenerator.incrementAndGet());
+                final Store store = indexShard.store();
+                final StartRecoveryRequest request;
+                store.incRef();
+                try {
+                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
+                            false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                } finally {
+                    store.decRef();
+                }
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
 
             } catch (Throwable e) {
+                if (Lucene.isCorruptionException(e)) {
+                    indexShard.engine().failEngine("corrupted preexisting index", e);
+                }
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
             }
         } else {
@@ -763,7 +774,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRetryRecovery(TimeValue retryAfter, RecoveryStatus recoveryStatus) {
-            recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
+            /* we should not retry if the source shard is not present in the clusterstate if we do so we can end up in an endless loop
+            * if the recovery source was failed and allocated somewhere else while  we try to start the recovery*/
+            final MutableShardRouting mutableShardRouting = IndicesClusterStateService.this.clusterService.state().getRoutingNodes().activePrimary(shardRouting);
+            if (mutableShardRouting != null && mutableShardRouting.currentNodeId().equals(request.sourceNode().getId())) {
+                recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
+            } else {
+                logger.info("RECOVERY ######## {} Expected source id: {} Actual Routing {}\n ClusterState: {}" , shardRouting, request.sourceNode().getId(), mutableShardRouting, clusterService.state().prettyPrint());
+                recoveryTarget.retryRecovery(request, retryAfter, recoveryStatus, PeerRecoveryListener.this);
+//                // we cancel it in the case the clusterstate doesn't contain the recovery target
+//                onRecoveryFailure(null, true);
+            }
         }
 
         @Override

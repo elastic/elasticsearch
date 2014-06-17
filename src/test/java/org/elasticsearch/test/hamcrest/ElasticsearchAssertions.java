@@ -554,12 +554,7 @@ public class ElasticsearchAssertions {
         try {
             for (final MockDirectoryHelper.ElasticsearchMockDirectoryWrapper w : MockDirectoryHelper.wrappers) {
                 try {
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            return !w.isOpen();
-                        }
-                    });
+                    w.awaitClosed(5000);
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                 }

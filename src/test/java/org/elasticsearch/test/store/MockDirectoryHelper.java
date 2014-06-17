@@ -51,7 +51,6 @@ public class MockDirectoryHelper {
 
     public static final Set<ElasticsearchMockDirectoryWrapper> wrappers = ConcurrentCollections.newConcurrentSet();
 
-
     private final Random random;
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
@@ -125,7 +124,8 @@ public class MockDirectoryHelper {
 
         private final ESLogger logger;
         private final boolean crash;
-        private RuntimeException closeException;
+        private volatile RuntimeException closeException;
+        private final Object lock = new Object();
 
         public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, ESLogger logger, boolean crash) {
             super(random, delegate);
@@ -141,6 +141,20 @@ public class MockDirectoryHelper {
                 logger.info("MockDirectoryWrapper#close() threw exception", ex);
                 closeException = ex;
                 throw ex;
+            } finally {
+                synchronized (lock) {
+                    lock.notifyAll();
+                }
+            }
+        }
+
+
+
+        public void awaitClosed(long timeout) throws InterruptedException {
+            synchronized (lock) {
+                if(isOpen()) {
+                    lock.wait(timeout);
+                }
             }
         }
 

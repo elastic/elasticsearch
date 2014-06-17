@@ -27,6 +27,7 @@ import org.apache.lucene.store.LockFactory;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -87,7 +88,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
 
 
-    private void checkIndex(Store store) throws IndexShardException {
+    public  void checkIndex(Store store) throws IndexShardException {
         try {
             if (!Lucene.indexExists(store.directory())) {
                 return;

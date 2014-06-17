@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -555,6 +556,7 @@ public class RecoveryState implements ToXContent, Streamable {
         public List<File> fileDetails() {
             return fileDetails;
         }
+
         public List<File> reusedFileDetails() {
             return reusedFileDetails;
         }
@@ -616,13 +618,6 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public long version() {
             return this.version;
-        }
-
-        public void files(int totalFileCount, long totalByteCount, int reusedFileCount, long reusedByteCount) {
-            this.totalFileCount = totalFileCount;
-            this.totalByteCount = totalByteCount;
-            this.reusedFileCount = reusedFileCount;
-            this.reusedByteCount = reusedByteCount;
         }
 
         public int totalFileCount() {
@@ -709,6 +704,10 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public int reusedFileCount() {
             return reusedFileCount;
+        }
+
+        public void reusedFileCount(int reusedFileCount) {
+            this.reusedFileCount = reusedFileCount;
         }
 
         public long reusedByteCount() {
@@ -812,5 +811,19 @@ public class RecoveryState implements ToXContent, Streamable {
 
             return builder;
         }
+
+        @Override
+        public String toString() {
+            try {
+                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+                builder.startObject();
+                toXContent(builder, EMPTY_PARAMS);
+                builder.endObject();
+                return builder.string();
+            } catch (IOException e) {
+                return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            }
+        }
+
     }
 }

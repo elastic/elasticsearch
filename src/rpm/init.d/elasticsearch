@@ -97,7 +97,11 @@ start() {
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile $JAVA
+    if [ -f /etc/SuSE-release ]; then
+	killproc -p $pidfile -t20 $JAVA
+    else
+	killproc -p $pidfile -d 20 $JAVA
+    fi
     retval=$?
     echo
     return $retval

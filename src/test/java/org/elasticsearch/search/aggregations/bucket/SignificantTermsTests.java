@@ -309,6 +309,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testXContentResponse() throws Exception {
+        cluster().wipeIndices("goodbad");
         String type = randomBoolean() ? "string" : "long";
         prepareGoodBad(type);
         SearchResponse response = client().prepareSearch("goodbad").setTypes("doc")
@@ -342,7 +343,6 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     private void prepareGoodBad(String type) {
         String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
-        logger.info(mappings);
         assertAcked(prepareCreate("goodbad").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc", mappings));
         String[] gb = {"0", "1"};
         client().prepareIndex("goodbad", "doc", "1")

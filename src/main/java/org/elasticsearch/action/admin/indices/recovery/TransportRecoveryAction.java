@@ -136,7 +136,7 @@ public class TransportRecoveryAction extends
     }
 
     @Override
-    protected ShardRecoveryRequest newShardRequest(ShardRouting shard, RecoveryRequest request) {
+    protected ShardRecoveryRequest newShardRequest(int numShards, ShardRouting shard, RecoveryRequest request) {
         return new ShardRecoveryRequest(shard.index(), shard.id(), request);
     }
 

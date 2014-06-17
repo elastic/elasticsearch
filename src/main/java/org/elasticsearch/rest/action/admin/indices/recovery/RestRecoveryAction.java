@@ -57,12 +57,10 @@ public class RestRecoveryAction extends BaseRestHandler {
         client.admin().indices().recoveries(recoveryRequest, new RestBuilderListener<RecoveryResponse>(channel) {
             @Override
             public RestResponse buildResponse(RecoveryResponse response, XContentBuilder builder) throws Exception {
-                if (response.hasRecoveries()) {
-                    response.detailed(recoveryRequest.detailed());
-                    builder.startObject();
-                    response.toXContent(builder, request);
-                    builder.endObject();
-                }
+                response.detailed(recoveryRequest.detailed());
+                builder.startObject();
+                response.toXContent(builder, request);
+                builder.endObject();
                 return new BytesRestResponse(OK, builder);
             }
         });

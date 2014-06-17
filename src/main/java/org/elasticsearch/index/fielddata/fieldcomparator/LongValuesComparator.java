@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -28,7 +29,7 @@ public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
 
     private final long[] values;
 
-    public LongValuesComparator(IndexNumericFieldData<?> indexFieldData, long missingValue, int numHits, SortMode sortMode) {
+    public LongValuesComparator(IndexNumericFieldData<?> indexFieldData, long missingValue, int numHits, MultiValueMode sortMode) {
         super(indexFieldData, missingValue, sortMode);
         this.values = new long[numHits];
         assert indexFieldData.getNumericType().requiredBits() <= 64;

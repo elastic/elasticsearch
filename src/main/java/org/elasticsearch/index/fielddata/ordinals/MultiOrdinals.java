@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LongsRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
@@ -53,13 +51,13 @@ public class MultiOrdinals implements Ordinals {
     }
 
     private final boolean multiValued;
-    private final long numOrds;
+    private final long maxOrd;
     private final MonotonicAppendingLongBuffer endOffsets;
     private final AppendingPackedLongBuffer ords;
 
     public MultiOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         multiValued = builder.getNumMultiValuesDocs() > 0;
-        numOrds = builder.getNumOrds();
+        maxOrd = builder.getMaxOrd();
         endOffsets = new MonotonicAppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
         ords = new AppendingPackedLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
         long lastEndOffset = 0;
@@ -68,7 +66,7 @@ public class MultiOrdinals implements Ordinals {
             final long endOffset = lastEndOffset + docOrds.length;
             endOffsets.add(endOffset);
             for (int j = 0; j < docOrds.length; ++j) {
-                ords.add(docOrds.longs[docOrds.offset + j] - 1);
+                ords.add(docOrds.longs[docOrds.offset + j]);
             }
             lastEndOffset = endOffset;
         }
@@ -87,18 +85,8 @@ public class MultiOrdinals implements Ordinals {
     }
 
     @Override
-    public int getNumDocs() {
-        return (int) endOffsets.size();
-    }
-
-    @Override
-    public long getNumOrds() {
-        return numOrds;
-    }
-
-    @Override
     public long getMaxOrd() {
-        return numOrds + 1;
+        return maxOrd;
     }
 
     @Override
@@ -106,46 +94,18 @@ public class MultiOrdinals implements Ordinals {
         return new MultiDocs(this);
     }
 
-    static class MultiDocs implements Ordinals.Docs {
+    static class MultiDocs extends Ordinals.AbstractDocs {
 
-        private final MultiOrdinals ordinals;
         private final MonotonicAppendingLongBuffer endOffsets;
         private final AppendingPackedLongBuffer ords;
-        private final LongsRef longsScratch;
         private long offset;
         private long limit;
         private long currentOrd;
 
         MultiDocs(MultiOrdinals ordinals) {
-            this.ordinals = ordinals;
+            super(ordinals);
             this.endOffsets = ordinals.endOffsets;
             this.ords = ordinals.ords;
-            this.longsScratch = new LongsRef(16);
-        }
-
-        @Override
-        public Ordinals ordinals() {
-            return this.ordinals;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return ordinals.getNumDocs();
-        }
-
-        @Override
-        public long getNumOrds() {
-            return ordinals.getNumOrds();
-        }
-
-        @Override
-        public long getMaxOrd() {
-            return ordinals.getMaxOrd();
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return ordinals.isMultiValued();
         }
 
         @Override
@@ -153,32 +113,16 @@ public class MultiOrdinals implements Ordinals {
             final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
             if (startOffset == endOffset) {
-                return currentOrd = 0L; // ord for missing values
+                return currentOrd = Ordinals.MISSING_ORDINAL; // ord for missing values
             } else {
-                return currentOrd = 1L + ords.get(startOffset);
+                return currentOrd = ords.get(startOffset);
             }
-        }
-
-        @Override
-        public LongsRef getOrds(int docId) {
-            final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
-            final long endOffset = endOffsets.get(docId);
-            final int numValues = (int) (endOffset - startOffset);
-            if (longsScratch.length < numValues) {
-                longsScratch.longs = new long[ArrayUtil.oversize(numValues, RamUsageEstimator.NUM_BYTES_LONG)];
-            }
-            for (int i = 0; i < numValues; ++i) {
-                longsScratch.longs[i] = 1L + ords.get(startOffset + i);
-            }
-            longsScratch.offset = 0;
-            longsScratch.length = numValues;
-            return longsScratch;
         }
 
         @Override
         public long nextOrd() {
             assert offset < limit;
-            return currentOrd = 1L + ords.get(offset++);
+            return currentOrd = ords.get(offset++);
         }
 
         @Override

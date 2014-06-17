@@ -24,7 +24,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.OpenBitSetIterator;
 import org.elasticsearch.common.Nullable;
 
 import java.io.IOException;
@@ -54,15 +53,6 @@ public class DocIdSets {
      */
     public static boolean isFastIterator(DocIdSet set) {
         return set instanceof FixedBitSet;
-    }
-
-    /**
-     * Is {@link org.apache.lucene.search.DocIdSetIterator} implemented in a "fast" manner.
-     * For example, it does not ends up iterating one doc at a time check for its "value".
-     */
-    public static boolean isFastIterator(DocIdSetIterator iterator) {
-        // this is the iterator in the FixedBitSet.
-        return iterator instanceof OpenBitSetIterator;
     }
 
     /**

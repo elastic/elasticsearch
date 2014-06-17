@@ -37,7 +37,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -109,7 +108,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     }
 
     @Override
-    protected ShardValidateQueryRequest newShardRequest(ShardRouting shard, ValidateQueryRequest request) {
+    protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
         String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
         return new ShardValidateQueryRequest(shard.index(), shard.id(), filteringAliases, request);
     }
@@ -182,30 +181,35 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         boolean valid;
         String explanation = null;
         String error = null;
-        if (request.source().length() == 0) {
-            valid = true;
-        } else {
-            SearchContext.setCurrent(new DefaultSearchContext(0,
-                    new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis()),
-                    null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
-                    scriptService, cacheRecycler, pageCacheRecycler, bigArrays));
-            try {
-                ParsedQuery parsedQuery = queryParserService.parseQuery(request.source());
-                valid = true;
-                if (request.explain()) {
-                    explanation = parsedQuery.query().toString();
-                }
-            } catch (QueryParsingException e) {
-                valid = false;
-                error = e.getDetailedMessage();
-            } catch (AssertionError e) {
-                valid = false;
-                error = e.getMessage();
-            } finally {
-                SearchContext.current().close();
-                SearchContext.removeCurrent();
+
+        DefaultSearchContext searchContext = new DefaultSearchContext(0,
+                new ShardSearchRequest().types(request.types()).nowInMillis(request.nowInMillis())
+                        .filteringAliases(request.filteringAliases()),
+                null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
+                scriptService, cacheRecycler, pageCacheRecycler, bigArrays
+        );
+        SearchContext.setCurrent(searchContext);
+        try {
+            if (request.source() != null && request.source().length() > 0) {
+                searchContext.parsedQuery(queryParserService.parseQuery(request.source()));
             }
+            searchContext.preProcess();
+
+            valid = true;
+            if (request.explain()) {
+                explanation = searchContext.query().toString();
+            }
+        } catch (QueryParsingException e) {
+            valid = false;
+            error = e.getDetailedMessage();
+        } catch (AssertionError e) {
+            valid = false;
+            error = e.getMessage();
+        } finally {
+            SearchContext.current().close();
+            SearchContext.removeCurrent();
         }
+
         return new ShardValidateQueryResponse(request.index(), request.shardId(), valid, explanation, error);
     }
 }

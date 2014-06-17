@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * Represents a test section, which is composed of a skip section and multiple executable sections.
  */
-public class TestSection {
+public class TestSection implements Comparable<TestSection> {
     private final String name;
     private SkipSection skipSection;
     private final List<ExecutableSection> executableSections;
@@ -70,5 +70,10 @@ public class TestSection {
     @Override
     public int hashCode() {
         return name != null ? name.hashCode() : 0;
+    }
+
+    @Override
+    public int compareTo(TestSection o) {
+        return name.compareTo(o.getName());
     }
 }

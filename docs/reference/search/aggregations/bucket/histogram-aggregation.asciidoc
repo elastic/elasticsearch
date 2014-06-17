@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-histogram-aggregation]]
-=== Histogram
+=== Histogram Aggregation
 
 A multi-bucket values source based aggregation that can be applied on numeric values extracted from the documents.
 It dynamically builds fixed size (a.k.a. interval) buckets over the values. For example, if the documents have a field
@@ -25,7 +25,7 @@ The following snippet "buckets" the products based on their `price` by interval 
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50
             }
@@ -70,7 +70,7 @@ and create buckets with zero documents). This can be configured using the `min_d
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50,
                 "min_doc_count" : 0
@@ -172,7 +172,7 @@ Ordering the buckets by their key - descending:
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50,
                 "order" : { "_key" : "desc" }
@@ -189,7 +189,7 @@ Ordering the buckets by their `doc_count` - ascending:
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50,
                 "order" : { "_count" : "asc" }
@@ -206,7 +206,7 @@ If the histogram aggregation has a direct metrics sub-aggregation, the latter ca
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50,
                 "order" : { "price_stats.min" : "asc" } <1>
@@ -219,7 +219,7 @@ If the histogram aggregation has a direct metrics sub-aggregation, the latter ca
 }
 --------------------------------------------------
 
-<1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their their `price_stats` sub-aggregation.
+<1> The `{ "price_stats.min" : asc" }` will sort the buckets based on `min` value of their `price_stats` sub-aggregation.
 
 <2> There is no need to configure the `price` field for the `price_stats` aggregation as it will inherit it by default from its parent histogram aggregation.
 
@@ -275,7 +275,7 @@ limit through the `min_doc_count` option.
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50,
                 "min_doc_count": 10
@@ -336,7 +336,7 @@ instead keyed by the buckets keys:
 {
     "aggs" : {
         "prices" : {
-            "histogram" : { 
+            "histogram" : {
                 "field" : "price",
                 "interval" : 50,
                 "keyed" : true

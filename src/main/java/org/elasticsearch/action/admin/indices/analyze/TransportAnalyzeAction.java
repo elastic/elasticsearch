@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.*;
@@ -94,7 +93,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeRequest request) {
         if (request.index() != null) {
-            request.index(state.metaData().concreteIndex(request.index()));
+            request.index(state.metaData().concreteSingleIndex(request.index()));
             return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
         }
         return null;
@@ -213,7 +212,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexService == null) {
-                analyzer = Lucene.STANDARD_ANALYZER;
+                analyzer = indicesAnalysisService.analyzer("standard");
             } else {
                 analyzer = indexService.analysisService().defaultIndexAnalyzer();
             }

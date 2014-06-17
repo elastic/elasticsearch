@@ -31,15 +31,21 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -50,16 +56,73 @@ public class MappingUpdatedAction extends TransportMasterNodeOperationAction<Map
 
     private final AtomicLong mappingUpdateOrderGen = new AtomicLong();
     private final MetaDataMappingService metaDataMappingService;
+    private final IndicesService indicesService;
+
+    private final boolean waitForMappingChange;
 
     @Inject
     public MappingUpdatedAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                MetaDataMappingService metaDataMappingService) {
+                                MetaDataMappingService metaDataMappingService, IndicesService indicesService) {
         super(settings, transportService, clusterService, threadPool);
         this.metaDataMappingService = metaDataMappingService;
+        this.indicesService = indicesService;
+        this.waitForMappingChange = settings.getAsBoolean("action.wait_on_mapping_change", false);
     }
 
-    public long generateNextMappingUpdateOrder() {
-        return mappingUpdateOrderGen.incrementAndGet();
+    public void updateMappingOnMaster(String index, String type, boolean neverWaitForMappingChange) {
+        IndexMetaData metaData = clusterService.state().metaData().index(index);
+        if (metaData != null) {
+            updateMappingOnMaster(index, type, metaData.getUUID(), neverWaitForMappingChange);
+        }
+    }
+
+    public void updateMappingOnMaster(String index, String type, String indexUUID, boolean neverWaitForMappingChange) {
+        final MapperService mapperService = indicesService.indexServiceSafe(index).mapperService();
+        final DocumentMapper documentMapper = mapperService.documentMapper(type);
+        if (documentMapper != null) { // should not happen
+            updateMappingOnMaster(documentMapper, index, type, indexUUID, neverWaitForMappingChange);
+        }
+    }
+
+    public void updateMappingOnMaster(DocumentMapper documentMapper, String index, String type, String indexUUID, boolean neverWaitForMappingChange) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final MappingUpdatedAction.MappingUpdatedRequest mappingRequest;
+        try {
+            // we generate the order id before we get the mapping to send and refresh the source, so
+            // if 2 happen concurrently, we know that the later order will include the previous one
+            long orderId = mappingUpdateOrderGen.incrementAndGet();
+            documentMapper.refreshSource();
+            DiscoveryNode node = clusterService.localNode();
+            mappingRequest = new MappingUpdatedAction.MappingUpdatedRequest(
+                    index, indexUUID, type, documentMapper.mappingSource(), orderId, node != null ? node.id() : null
+            );
+        } catch (Throwable t) {
+            logger.warn("Failed to update master on updated mapping for index [" + index + "], type [" + type + "]", t);
+            latch.countDown();
+            throw t;
+        }
+        logger.trace("Sending mapping updated to master: {}", mappingRequest);
+        execute(mappingRequest, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
+            @Override
+            public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
+                // all is well
+                latch.countDown();
+                logger.debug("Successfully updated master with mapping update: {}", mappingRequest);
+            }
+
+            @Override
+            public void onFailure(Throwable e) {
+                latch.countDown();
+                logger.warn("Failed to update master on updated mapping for {}", e, mappingRequest);
+            }
+        });
+        if (waitForMappingChange && !neverWaitForMappingChange) {
+            try {
+                latch.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     @Override

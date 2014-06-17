@@ -296,7 +296,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        immutableCluster().wipeIndices("test");
+        cluster().wipeIndices("test");
         createIndex("test");
         ensureGreen();
 
@@ -868,7 +868,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         logger.info("--> Percolate doc to index test2 and test3, with ignore missing");
         response = client().preparePercolate()
                 .setIndices("test1", "test3").setDocumentType("type")
-                .setIndicesOptions(IndicesOptions.lenient())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(jsonBuilder().startObject().startObject("doc").field("field1", "value").endObject().endObject())
                 .execute().actionGet();
         assertMatchCount(response, 5l);
@@ -1582,7 +1582,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
-                for (Client client : cluster()) {
+                for (Client client : internalCluster()) {
                     GetMappingsResponse getMappingsResponse = client.admin().indices().prepareGetMappings("test1", "test2").get();
                     boolean hasPercolatorType = getMappingsResponse.getMappings().get("test1").containsKey(PercolatorService.TYPE_NAME);
                     if (!hasPercolatorType) {
@@ -1596,6 +1596,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 return true;
             }
         });
+
+        ensureGreen("test1", "test2");
 
         assertAcked(client().admin().indices().prepareDeleteMapping("test1").setType(PercolatorService.TYPE_NAME));
         response = client().preparePercolate()
@@ -1661,6 +1663,16 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void makeSureNonNestedDocumentDoesNotTriggerAssertion() throws IOException {
+        initNestedIndexAndPercolation();
+        XContentBuilder doc = jsonBuilder();
+        doc.startObject();
+        doc.field("some_unnested_field", "value");
+        PercolateResponse response = client().preparePercolate().setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc(doc)).setIndices("nestedindex").setDocumentType("company").get();
+        assertNoFailures(response);
+    }
+
+    @Test
     public void testNestedPercolationOnExistingDoc() throws IOException {
         initNestedIndexAndPercolation();
         client().prepareIndex("nestedindex", "company", "notmatching").setSource(getNotMatchingNestedDoc()).get();
@@ -1684,7 +1696,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .field("incude_in_all", false)
                 .endObject()
                 .endObject()
-                .startArray("dynamic_template")
+                .startArray("dynamic_templates")
                 .startObject()
                 .startObject("custom_fields")
                 .field("path_match", "custom.*")
@@ -1772,6 +1784,29 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         Map<String, Object> properties = (Map<String, Object>) mappingsResponse.getMappings().get("test").get("type1").getSourceAsMap().get("properties");
         assertThat(((Map<String, String>) properties.get("field1")).get("type"), equalTo("long"));
         assertThat(((Map<String, String>) properties.get("field2")).get("type"), equalTo("string"));
+    }
+
+    @Test
+    public void testDontReportDeletedPercolatorDocs() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
+                .get();
+        refresh();
+
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field", "value").endObject()))
+                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .get();
+        assertMatchCount(response, 1l);
+        assertThat(response.getMatches(), arrayWithSize(1));
+        assertThat(convertFromTextArray(response.getMatches(), "test"), arrayContainingInAnyOrder("1"));
     }
 
     void initNestedIndexAndPercolation() throws IOException {

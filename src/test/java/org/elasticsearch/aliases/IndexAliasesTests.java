@@ -526,7 +526,7 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
-        AliasMetaData aliasMetaData = cluster().clusterService().state().metaData().aliases().get("alias1").get("test");
+        AliasMetaData aliasMetaData = internalCluster().clusterService().state().metaData().aliases().get("alias1").get("test");
         assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":\"bar\"}}"));
 
         logger.info("--> deleting alias1");

@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.object;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,10 +30,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -124,7 +122,23 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        protected void processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+
+            ObjectMapper.Builder builder = createBuilder(name);
+            Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)
+                        || processField(builder, fieldName, fieldNode)) {
+                    iterator.remove();
+                }
+            }
+            return builder;
+        }
+
+        protected boolean processField(ObjectMapper.Builder builder, String fieldName, Object fieldNode) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 List<FormatDateTimeFormatter> dateTimeFormatters = newArrayList();
                 if (fieldNode instanceof List) {
@@ -141,6 +155,7 @@ public class RootObjectMapper extends ObjectMapper {
                 } else {
                     ((Builder) builder).dynamicDateTimeFormatter(dateTimeFormatters);
                 }
+                return true;
             } else if (fieldName.equals("dynamic_templates")) {
                 //  "dynamic_templates" : [
                 //      {
@@ -160,11 +175,15 @@ public class RootObjectMapper extends ObjectMapper {
                     Map.Entry<String, Object> entry = tmpl.entrySet().iterator().next();
                     ((Builder) builder).add(DynamicTemplate.parse(entry.getKey(), (Map<String, Object>) entry.getValue()));
                 }
+                return true;
             } else if (fieldName.equals("date_detection")) {
                 ((Builder) builder).dateDetection = nodeBooleanValue(fieldNode);
+                return true;
             } else if (fieldName.equals("numeric_detection")) {
                 ((Builder) builder).numericDetection = nodeBooleanValue(fieldNode);
+                return true;
             }
+            return false;
         }
     }
 

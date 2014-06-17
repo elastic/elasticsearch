@@ -12,16 +12,16 @@ results to retrieve from each shard. For example, if we have 10 shards,
 the 1st shard might hold the most relevant results from 0 till 10, with
 other shards results ranking below it. For this reason, when executing a
 request, we will need to get results from 0 till 10 from all shards,
-sort them, and then return the results if we want to insure correct
+sort them, and then return the results if we want to ensure correct
 results.
 
-Another question, which relates to search engine, is the fact that each
+Another question, which relates to the search engine, is the fact that each
 shard stands on its own. When a query is executed on a specific shard,
 it does not take into account term frequencies and other search engine
 information from the other shards. If we want to support accurate
-ranking, we would need to first execute the query against all shards and
-gather the relevant term frequencies, and then, based on it, execute the
-query.
+ranking, we would need to first gather the term frequencies from all
+shards to calculate global term frequencies, then execute the query on
+each shard using these globale frequencies.
 
 Also, because of the need to sort the results, getting back a large
 document set, or even scrolling it, while maintaing the correct sorting
@@ -58,7 +58,7 @@ specified in `size`, since they are the only ones that are fetched. This
 is very handy when the index has a lot of shards (not replicas, shard id
 groups).
 
-NOTE: This is the default setting, if you do not specify a `search_type` 
+NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
 
 [[dfs-query-and-fetch]]

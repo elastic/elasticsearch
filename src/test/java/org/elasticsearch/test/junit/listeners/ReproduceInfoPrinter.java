@@ -21,11 +21,12 @@ package org.elasticsearch.test.junit.listeners;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import com.carrotsearch.randomizedtesting.TraceFormatting;
+import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
@@ -35,6 +36,7 @@ import org.junit.runner.notification.RunListener;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
+import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_BLACKLIST;
 import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SUITE;
 
@@ -133,16 +135,18 @@ public class ReproduceInfoPrinter extends RunListener {
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TESTS_CLUSTER, TestCluster.TESTS_ENABLE_MOCK_MODULES,
-                    "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", "tests.client.ratio", "tests.heap.size");
+            appendProperties("es.logger.level", "es.node.mode", "es.node.local", TESTS_CLUSTER, InternalTestCluster.TESTS_ENABLE_MOCK_MODULES,
+                    "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", "tests.client.ratio", "tests.heap.size",
+                    "tests.bwc", "tests.bwc.path", "tests.bwc.version");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
+            appendOpt(AbstractRandomizedTest.SYSPROP_PROCESSORS, Integer.toString(AbstractRandomizedTest.TESTS_PROCESSORS));
             return this;
         }
 
         public ReproduceErrorMessageBuilder appendRestTestsProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC);
+            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

@@ -26,12 +26,12 @@ The default `match` query is of type `boolean`. It means that the text
 provided is analyzed and the analysis process constructs a boolean query
 from the provided text. The `operator` flag can be set to `or` or `and`
 to control the boolean clauses (defaults to `or`). The minimum number of
-should clauses to match can be set using the
+optional `should` clauses to match can be set using the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
 parameter.
 
 The `analyzer` can be set to control which analyzer will perform the
-analysis process on the text. It default to the field explicit mapping
+analysis process on the text. It defaults to the field explicit mapping
 definition, or the default search analyzer.
 
 `fuzziness` allows _fuzzy matching_ based on the type of field being queried.
@@ -41,7 +41,7 @@ The `prefix_length` and
 `max_expansions` can be set in this case to control the fuzzy process.
 If the fuzzy option is set the query will use `constant_score_rewrite`
 as its <<query-dsl-multi-term-rewrite,rewrite
-method>> the `rewrite` parameter allows to control how the query will get
+method>> the `fuzzy_rewrite` parameter allows to control how the query will get
 rewritten.
 
 Here is an example when providing additional parameters (note the slight

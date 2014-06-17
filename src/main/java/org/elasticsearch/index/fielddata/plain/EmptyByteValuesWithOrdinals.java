@@ -48,9 +48,4 @@ final class EmptyByteValuesWithOrdinals extends BytesValues.WithOrdinals {
         throw new ElasticsearchIllegalStateException("Empty BytesValues has no next value");
     }
 
-    @Override
-    public int currentValueHash() {
-        throw new ElasticsearchIllegalStateException("Empty BytesValues has no hash for the current value");
-    }
-
 }

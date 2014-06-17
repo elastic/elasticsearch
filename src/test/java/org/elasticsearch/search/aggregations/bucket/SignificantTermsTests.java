@@ -23,9 +23,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
@@ -34,18 +36,23 @@ import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class SignificantTermsTests extends ElasticsearchIntegrationTest {
+
+    public String randomExecutionHint() {
+        return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
+    }
 
     @Override
     public Settings indexSettings() {
@@ -103,7 +110,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category")
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();
@@ -112,6 +119,42 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         Number topCategory = topTerms.getBuckets().iterator().next().getKeyAsNumber();
         assertTrue(topCategory.equals(new Long(SNOWBOARDING_CATEGORY)));
     }
+
+    @Test
+    public void includeExclude() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                        .exclude("weller"))
+                .get();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        Set<String> terms  = new HashSet<>();
+        for (Bucket topTerm : topTerms) {
+            terms.add(topTerm.getKey());
+        }
+        assertThat(terms, hasSize(6));
+        assertThat(terms.contains("jam"), is(true));
+        assertThat(terms.contains("council"), is(true));
+        assertThat(terms.contains("style"), is(true));
+        assertThat(terms.contains("paul"), is(true));
+        assertThat(terms.contains("of"), is(true));
+        assertThat(terms.contains("the"), is(true));
+
+        response = client().prepareSearch("test")
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                        .include("weller"))
+                .get();
+        assertSearchResponse(response);
+        topTerms = response.getAggregations().get("mySignificantTerms");
+        terms  = new HashSet<>();
+        for (Bucket topTerm : topTerms) {
+            terms.add(topTerm.getKey());
+        }
+        assertThat(terms, hasSize(1));
+        assertThat(terms.contains("weller"), is(true));
+    }
     
     @Test
     public void unmapped() throws Exception {
@@ -119,8 +162,8 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category")
-                           .minDocCount(2))
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
+                        .minDocCount(2))
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
@@ -134,15 +177,66 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
-                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);
-    }    
+    }   
     
+    @Test
+    public void badFilteredAnalysis() throws Exception {
+        // Deliberately using a bad choice of filter here for the background context in order
+        // to test robustness. 
+        // We search for the name of a snowboarder but use music-related content (fact_category:1)
+        // as the background source of term statistics.
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0).setSize(60).setExplain(true)                
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(2).backgroundFilter(FilterBuilders.termFilter("fact_category", 1)))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        // We expect at least one of the significant terms to have been selected on the basis
+        // that it is present in the foreground selection but entirely missing from the filtered
+        // background used as context.
+        boolean hasMissingBackgroundTerms = false;
+        for (Bucket topTerm : topTerms) {
+            if (topTerm.getSupersetDf() == 0) {
+                hasMissingBackgroundTerms = true;
+                break;
+            }
+        }
+        assertTrue(hasMissingBackgroundTerms);
+    }       
+    
+    @Test
+    public void filteredAnalysis() throws Exception {
+        SearchResponse response = client().prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setFrom(0).setSize(60).setExplain(true)                
+                .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                           .minDocCount(1).backgroundFilter(FilterBuilders.termsFilter("description",  "paul")))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        HashSet<String> topWords = new HashSet<String>();
+        for (Bucket topTerm : topTerms) {
+            topWords.add(topTerm.getKey());
+        }
+        //The word "paul" should be a constant of all docs in the background set and therefore not seen as significant 
+        assertFalse(topWords.contains("paul"));
+        //"Weller" is the only Paul who was in The Jam and therefore this should be identified as a differentiator from the background of all other Pauls. 
+        assertTrue(topWords.contains("jam"));
+    }       
+
     @Test
     public void nestedAggs() throws Exception {
         String[][] expectedKeywordsByCategory={
@@ -154,6 +248,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(new TermsBuilder("myCategories").field("fact_category").minDocCount(2)
                         .subAggregation(
                                    new SignificantTermsBuilder("mySignificantTerms").field("description")
+                                   .executionHint(randomExecutionHint())
                                    .minDocCount(2)))
                 .execute()
                 .actionGet();
@@ -180,6 +275,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                 .setQuery(new TermQueryBuilder("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
+                            .executionHint(randomExecutionHint())
                            .minDocCount(2))
                 .execute()
                 .actionGet();

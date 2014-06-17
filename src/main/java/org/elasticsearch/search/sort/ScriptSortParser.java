@@ -25,7 +25,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleScriptDataComparator;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.fieldcomparator.StringScriptDataComparator;
 import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -55,7 +55,7 @@ public class ScriptSortParser implements SortParser {
         String type = null;
         Map<String, Object> params = null;
         boolean reverse = false;
-        SortMode sortMode = null;
+        MultiValueMode sortMode = null;
         String nestedPath = null;
         Filter nestedFilter = null;
 
@@ -83,7 +83,7 @@ public class ScriptSortParser implements SortParser {
                 } else if ("lang".equals(currentName)) {
                     scriptLang = parser.text();
                 } else if ("mode".equals(currentName)) {
-                    sortMode = SortMode.fromString(parser.text());
+                    sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
                     nestedPath = parser.text();
                 }
@@ -106,12 +106,12 @@ public class ScriptSortParser implements SortParser {
             throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
         }
 
-        if ("string".equals(type) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
+        if ("string".equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");
         }
 
         if (sortMode == null) {
-            sortMode = reverse ? SortMode.MAX : SortMode.MIN;
+            sortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
         }
 
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`

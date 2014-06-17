@@ -170,7 +170,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             }
             in.setVersion(request.version());
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
-
+            clusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
             logger.debug("received cluster state version {}", clusterState.version());
             listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {
                 @Override

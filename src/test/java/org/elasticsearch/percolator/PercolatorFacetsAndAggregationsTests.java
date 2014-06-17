@@ -23,6 +23,7 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -37,6 +38,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -78,7 +80,9 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
 
             boolean useAggs = randomBoolean();
             if (useAggs) {
-                percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2"));
+                SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
+                percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2")
+                        .collectMode(aggCollectionMode ));
             } else {
                 percolateRequestBuilder.addFacet(FacetBuilders.termsFacet("a").field("field2"));
 
@@ -120,6 +124,18 @@ public class PercolatorFacetsAndAggregationsTests extends ElasticsearchIntegrati
                 assertThat(((TermsFacet) response.getFacets().facets().get(0)).getEntries().get(0).getTerm().string(), equalTo("b"));
             }
         }
+    }
+
+    @Test
+    public void testSignificantAggs() throws Exception {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        ensureGreen();
+        PercolateRequestBuilder percolateRequestBuilder = client().preparePercolate()
+                .setIndices("test").setDocumentType("type")
+                .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", "value").endObject()))
+                .addAggregation(AggregationBuilders.significantTerms("a").field("field2"));
+        PercolateResponse response = percolateRequestBuilder.get();
+        assertNoFailures(response);
     }
 
 }

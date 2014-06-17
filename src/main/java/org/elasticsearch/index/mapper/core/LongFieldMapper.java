@@ -79,7 +79,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         protected Long nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
             builder = this;
         }
 
@@ -91,7 +91,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         @Override
         public LongFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
+            LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -331,7 +331,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_64_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {

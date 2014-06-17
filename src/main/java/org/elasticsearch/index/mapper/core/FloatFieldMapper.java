@@ -83,7 +83,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -96,7 +96,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         public FloatFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             FloatFieldMapper fieldMapper = new FloatFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context), postingsProvider, 
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, ignoreMalformed(context), coerce(context), postingsProvider, 
                     docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -354,7 +354,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP_32_BIT) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {

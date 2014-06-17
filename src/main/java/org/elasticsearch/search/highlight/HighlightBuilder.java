@@ -74,6 +74,8 @@ public class HighlightBuilder implements ToXContent {
 
     private Boolean forceSource;
 
+    private boolean useExplicitFieldOrder = false;
+
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5 using the default encoder
@@ -289,6 +291,15 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Send the fields to be highlighted using a syntax that is specific about the order in which they should be highlighted.
+     * @return this for chaining
+     */
+    public HighlightBuilder useExplicitFieldOrder(boolean useExplicitFieldOrder) {
+        this.useExplicitFieldOrder = useExplicitFieldOrder;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -347,8 +358,15 @@ public class HighlightBuilder implements ToXContent {
             builder.field("force_source", forceSource);
         }
         if (fields != null) {
-            builder.startObject("fields");
+            if (useExplicitFieldOrder) {
+                builder.startArray("fields");
+            } else {
+                builder.startObject("fields");
+            }
             for (Field field : fields) {
+                if (useExplicitFieldOrder) {
+                    builder.startObject();
+                }
                 builder.startObject(field.name());
                 if (field.preTags != null) {
                     builder.field("pre_tags", field.preTags);
@@ -406,10 +424,16 @@ public class HighlightBuilder implements ToXContent {
                 }
 
                 builder.endObject();
+                if (useExplicitFieldOrder) {
+                    builder.endObject();
+                }
             }
-            builder.endObject();
+            if (useExplicitFieldOrder) {
+                builder.endArray();
+            } else {
+                builder.endObject();
+            }
         }
-
         builder.endObject();
         return builder;
     }

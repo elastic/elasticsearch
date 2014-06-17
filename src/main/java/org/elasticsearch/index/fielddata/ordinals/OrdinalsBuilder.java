@@ -138,7 +138,7 @@ public final class OrdinalsBuilder implements Closeable {
         // First level (0) of ordinals and pointers to the next level
         private final GrowableWriter firstOrdinals;
         private PagedGrowableWriter firstNextLevelSlices;
-        // Ordinals and pointers for other levels, starting at 1
+        // Ordinals and pointers for other levels +1
         private final PagedGrowableWriter[] ordinals;
         private final PagedGrowableWriter[] nextLevelSlices;
         private final int[] sizes;
@@ -181,7 +181,7 @@ public final class OrdinalsBuilder implements Closeable {
             if (position == 0L) { // on the first level
                 // 0 or 1 ordinal
                 if (firstOrdinals.get(docID) == 0L) {
-                    firstOrdinals.set(docID, ordinal);
+                    firstOrdinals.set(docID, ordinal + 1);
                     return 1;
                 } else {
                     final long newSlice = newSlice(1);
@@ -190,7 +190,7 @@ public final class OrdinalsBuilder implements Closeable {
                     }
                     firstNextLevelSlices.set(docID, newSlice);
                     final long offset = startOffset(1, newSlice);
-                    ordinals[1].set(offset, ordinal);
+                    ordinals[1].set(offset, ordinal + 1);
                     positions.set(docID, position(1, offset)); // current position is on the 1st level and not allocated yet
                     return 2;
                 }
@@ -212,7 +212,7 @@ public final class OrdinalsBuilder implements Closeable {
                     // just go to the next slot
                     ++offset;
                 }
-                ordinals[level].set(offset, ordinal);
+                ordinals[level].set(offset, ordinal + 1);
                 final long newPosition = position(level, offset);
                 positions.set(docID, newPosition);
                 return numOrdinals(level, offset);
@@ -226,7 +226,7 @@ public final class OrdinalsBuilder implements Closeable {
                 return;
             }
             ords.longs = ArrayUtil.grow(ords.longs, ords.offset + ords.length + 1);
-            ords.longs[ords.offset + ords.length++] = firstOrd;
+            ords.longs[ords.offset + ords.length++] = firstOrd - 1;
             if (firstNextLevelSlices == null) {
                 return;
             }
@@ -244,7 +244,7 @@ public final class OrdinalsBuilder implements Closeable {
                     if (ord == 0L) {
                         return;
                     }
-                    ords.longs[ords.offset + ords.length++] = ord;
+                    ords.longs[ords.offset + ords.length++] = ord - 1;
                 }
                 if (nextLevelSlices[level] == null) {
                     return;
@@ -259,7 +259,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     private final int maxDoc;
-    private long currentOrd = 0;
+    private long currentOrd = Ordinals.MIN_ORDINAL - 1;
     private int numDocsWithValue = 0;
     private int numMultiValuedDocs = 0;
     private int totalNumOrds = 0;
@@ -295,7 +295,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal if it exists and 0 otherwise.
+     * Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
      */
     public PackedInts.Reader getFirstOrdinals() {
         return ordinals.firstOrdinals;
@@ -369,8 +369,8 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * Returns the number of distinct ordinals in this builder.
      */
-    public long getNumOrds() {
-        return currentOrd;
+    public long getMaxOrd() {
+        return currentOrd + 1;
     }
 
     /**
@@ -395,7 +395,7 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public Ordinals build(Settings settings) {
         final float acceptableOverheadRatio = settings.getAsFloat("acceptable_overhead_ratio", PackedInts.FASTEST);
-        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getNumOrds(), acceptableOverheadRatio)) {
+        if (numMultiValuedDocs > 0 || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(maxDoc, numDocsWithValue, getMaxOrd(), acceptableOverheadRatio)) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {

@@ -5,7 +5,7 @@
       cat.shards: {}
 
   - match:
-      $body: >
+      $body: |
                /^$/
 
   - do:
@@ -22,7 +22,7 @@
       cat.shards: {}
 
   - match:
-      $body: >
+      $body: |
                /^(index1 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+)  \n?){10}$/
 
   - do:
@@ -35,16 +35,17 @@
   - do:
        cluster.health:
          wait_for_status: yellow
+         wait_for_relocating_shards: 0
 
   - do:
       cat.shards: {}
   - match:
-      $body: >
+      $body: |
                /^(index(1|2) \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){15}$/
 
   - do:
       cat.shards:
         index: index2
   - match:
-      $body: >
+      $body: |
                /^(index2 \s+ \d \s+ (p|r) \s+ ((STARTED|INITIALIZING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){5}$/

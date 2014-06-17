@@ -37,7 +37,6 @@ import org.junit.Test;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
-import static org.elasticsearch.test.TestCluster.DEFAULT_MAX_NUM_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -58,7 +57,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     @Override
     protected int minimumNumberOfShards() {
-        return immutableCluster().size();
+        return cluster().numDataNodes();
     }
 
     @Override
@@ -107,7 +106,7 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
-                        .put("number_of_shards", between(immutableCluster().dataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
 

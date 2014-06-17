@@ -23,15 +23,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigest;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  *
@@ -58,7 +55,7 @@ public class PercentilesParser implements Aggregator.Parser {
 
         double[] percents = DEFAULT_PERCENTS;
         boolean keyed = true;
-        Map<String, Object> settings = null;
+        double compression = 100;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -84,43 +81,24 @@ public class PercentilesParser implements Aggregator.Parser {
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
-            } else if (token.isValue()) {
-                if (token == XContentParser.Token.VALUE_BOOLEAN && "keyed".equals(currentFieldName)) {
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
                 } else {
-                    if (settings == null) {
-                        settings = new HashMap<>();
-                    }
-                    settings.put(currentFieldName, parser.objectText());
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if ("compression".equals(currentFieldName)) {
+                    compression = parser.doubleValue();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + aggregationName + "].");
             }
         }
 
-        PercentilesEstimator.Factory estimatorFactory = EstimatorType.TDIGEST.estimatorFactory(settings);
-        return new PercentilesAggregator.Factory(aggregationName, vsParser.config(), percents, estimatorFactory, keyed);
+        return new PercentilesAggregator.Factory(aggregationName, vsParser.config(), percents, compression, keyed);
     }
 
-    /**
-     *
-     */
-    public static enum EstimatorType {
-        TDIGEST() {
-            @Override
-            public PercentilesEstimator.Factory estimatorFactory(Map<String, Object> settings) {
-                return new TDigest.Factory(settings);
-            }
-        };
-
-        public abstract PercentilesEstimator.Factory estimatorFactory(Map<String, Object> settings);
-
-        public static EstimatorType resolve(String name, SearchContext context) {
-            if (name.equals("tdigest")) {
-                return TDIGEST;
-            }
-            throw new SearchParseException(context, "Unknown percentile estimator [" + name + "]");
-        }
-
-    }
 }

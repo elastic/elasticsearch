@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ImmutableTestCluster;
 import org.elasticsearch.test.engine.MockInternalEngine;
 import org.elasticsearch.test.engine.ThrowingAtomicReaderWrapper;
 import org.junit.Test;
@@ -201,7 +200,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
             private final double lowLevelRatio;
 
             ThrowingSubReaderWrapper(Settings settings) {
-                final long seed = settings.getAsLong(ImmutableTestCluster.SETTING_INDEX_SEED, 0l);
+                final long seed = settings.getAsLong(SETTING_INDEX_SEED, 0l);
                 this.topLevelRatio = settings.getAsDouble(EXCEPTION_TOP_LEVEL_RATIO_KEY, 0.1d);
                 this.lowLevelRatio = settings.getAsDouble(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d);
                 this.random = new Random(seed);

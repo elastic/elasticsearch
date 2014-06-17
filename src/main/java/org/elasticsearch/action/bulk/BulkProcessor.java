@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -182,7 +181,7 @@ public class BulkProcessor implements Closeable {
 
         this.flushInterval = flushInterval;
         if (flushInterval != null) {
-            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(((InternalClient) client).settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
+            this.scheduler = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(1, EsExecutors.daemonThreadFactory(client.settings(), (name != null ? "[" + name + "]" : "") + "bulk_processor"));
             this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
             this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
             this.scheduledFuture = this.scheduler.scheduleWithFixedDelay(new Flush(), flushInterval.millis(), flushInterval.millis(), TimeUnit.MILLISECONDS);
@@ -276,17 +275,22 @@ public class BulkProcessor implements Closeable {
 
         if (concurrentRequests == 0) {
             // execute in a blocking fashion...
+            boolean afterCalled = false;
             try {
                 listener.beforeBulk(executionId, bulkRequest);
-                listener.afterBulk(executionId, bulkRequest, client.bulk(bulkRequest).actionGet());
+                BulkResponse bulkItemResponses = client.bulk(bulkRequest).actionGet();
+                afterCalled = true;
+                listener.afterBulk(executionId, bulkRequest, bulkItemResponses);
             } catch (Exception e) {
-                listener.afterBulk(executionId, bulkRequest, e);
+                if (!afterCalled) {
+                    listener.afterBulk(executionId, bulkRequest, e);
+                }
             }
         } else {
             boolean success = false;
             try {
-                semaphore.acquire();
                 listener.beforeBulk(executionId, bulkRequest);
+                semaphore.acquire();
                 client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse response) {
@@ -310,12 +314,13 @@ public class BulkProcessor implements Closeable {
             } catch (InterruptedException e) {
                 Thread.interrupted();
                 listener.afterBulk(executionId, bulkRequest, e);
+            } catch (Throwable t) {
+                listener.afterBulk(executionId, bulkRequest, t);
             } finally {
                  if (!success) {  // if we fail on client.bulk() release the semaphore
                      semaphore.release();
                  }
             }
-
         }
     }
 

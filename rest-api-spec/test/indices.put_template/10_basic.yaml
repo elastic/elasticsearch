@@ -39,3 +39,33 @@
   - match: { test.aliases.test_blias.search_routing: "b" }
   - match: { test.aliases.test_clias.filter.term.user: "kimchy" }
 
+---
+"Put template create":
+  - do:
+      indices.put_template:
+        name: test
+        create: true
+        body:
+          template: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      indices.get_template:
+        name: test
+
+  - match: {test.template: "test-*"}
+  - match: {test.settings: {index.number_of_shards: '1', index.number_of_replicas: '0'}}
+
+  - do:
+      catch: request
+      indices.put_template:
+        name: test
+        create: true
+        body:
+          template: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+

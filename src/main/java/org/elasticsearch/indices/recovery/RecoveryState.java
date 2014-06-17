@@ -658,6 +658,10 @@ public class RecoveryState implements ToXContent, Streamable {
             }
         }
 
+        public float percentFilesRecovered() {
+            return percentFilesRecovered(recoveredFileCount.get());
+        }
+
         public int numberOfRecoveredFiles() {
             return totalFileCount - reusedFileCount;
         }
@@ -697,6 +701,10 @@ public class RecoveryState implements ToXContent, Streamable {
                 float result = 100.0f * (numberRecovered / (float) d);
                 return result;
             }
+        }
+
+        public float percentBytesRecovered() {
+            return percentBytesRecovered(recoveredByteCount.get());
         }
 
         public int reusedFileCount() {

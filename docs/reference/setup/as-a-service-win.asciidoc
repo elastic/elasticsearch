@@ -61,3 +61,5 @@ image::images/service-manager-win.png["Windows Service Manager GUI",align="cente
 Customizing `service.bat`:: at its core, `service.bat` relies on http://commons.apache.org/proper/commons-daemon/[Apache Commons Daemon] project
 to install the services. For full flexibility such as customizing the user under which the service runs, one can modify the installation
 parameters to tweak all the parameters accordingly. Do note that this requires reinstalling the service for the new settings to be applied.
+
+NOTE: There is also a community supported customizable MSI installer available: https://github.com/salyh/elasticsearch-msi-installer (by Hendrik Saly).

@@ -27,8 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -116,7 +119,7 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                     "category", randomBoolean() ? "marvel hero" : "bogus",
                     "skill", between(1, 3)));
         }
-        indexRandom(true, builders);
+        indexRandom(true, false, builders);
     }
 
     private XContentBuilder createMapping() throws IOException {
@@ -210,6 +213,52 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSingleField() throws NoSuchFieldException, IllegalAccessException {
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(randomizeType(multiMatchQuery("15", "skill"))).get();
+        assertNoFailures(searchResponse);
+        assertFirstHit(searchResponse, hasId("theone"));
+        String[] fields = {"full_name", "first_name", "last_name", "last_name_phrase", "first_name_phrase", "category_phrase", "category"};
+
+        String[] query = {"marvel","hero", "captain",  "america", "15", "17", "1", "5", "ultimate", "Man",
+                "marvel", "wolferine", "ninja"};
+
+        // check if it's equivalent to a match query.
+        int numIters = scaledRandomIntBetween(10, 100);
+        for (int i = 0; i < numIters; i++) {
+            String field = RandomPicks.randomFrom(getRandom(), fields);
+            int numTerms = randomIntBetween(1, query.length);
+            StringBuilder builder = new StringBuilder();
+            for (int j = 0; j < numTerms; j++) {
+                builder.append(RandomPicks.randomFrom(getRandom(), query)).append(" ");
+            }
+            MultiMatchQueryBuilder multiMatchQueryBuilder = randomizeType(multiMatchQuery(builder.toString(), field));
+            SearchResponse multiMatchResp = client().prepareSearch("test")
+                    // _uid sort field is a tie, in case hits have the same score,
+                    // the hits will be sorted the same consistently
+                    .addSort("_score", SortOrder.DESC)
+                    .addSort("_uid", SortOrder.ASC)
+                    .setQuery(multiMatchQueryBuilder).get();
+            MatchQueryBuilder matchQueryBuilder = QueryBuilders.matchQuery(field, builder.toString());
+            if (getType(multiMatchQueryBuilder) != null) {
+                matchQueryBuilder.type(MatchQueryBuilder.Type.valueOf(getType(multiMatchQueryBuilder).matchQueryType().toString()));
+            }
+            SearchResponse matchResp = client().prepareSearch("test")
+                    // _uid tie sort
+                    .addSort("_score", SortOrder.DESC)
+                    .addSort("_uid", SortOrder.ASC)
+                    .setQuery(matchQueryBuilder).get();
+            assertThat("field: " + field + " query: " + builder.toString(), multiMatchResp.getHits().getTotalHits(), equalTo(matchResp.getHits().getTotalHits()));
+            SearchHits hits = multiMatchResp.getHits();
+            for (int j = 0; j < hits.hits().length; j++) {
+                assertThat(hits.getHits()[j].score(), equalTo(matchResp.getHits().getHits()[j].score()));
+                assertThat(hits.getHits()[j].getId(), equalTo(matchResp.getHits().getHits()[j].getId()));
+            }
+        }
+
+    }
+
+    @Test
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
         final long numDocs = client().prepareCount("test")
                 .setQuery(matchAllQuery()).get().getCount();
@@ -282,10 +331,12 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                 MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean() ? multiMatchQuery("marvel hero captain america", "full_name", "first_name", "last_name", "category") :
                         multiMatchQuery("marvel hero captain america", "*_name", randomBoolean() ? "category" : "categ*");
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(randomizeType(multiMatchQueryBuilder
                                 .operator(MatchQueryBuilder.Operator.OR).type(type))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(disMaxQuery().
                                 add(matchQuery("full_name", "marvel hero captain america"))
                                 .add(matchQuery("first_name", "marvel hero captain america"))
@@ -302,10 +353,12 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                 MultiMatchQueryBuilder multiMatchQueryBuilder = randomBoolean() ? multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category") :
                         multiMatchQuery("captain america", "*_name", randomBoolean() ? "category" : "categ*");
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(randomizeType(multiMatchQueryBuilder
                                 .operator(op).useDisMax(false).minimumShouldMatch(minShouldMatch).type(type))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(randomBoolean() ? termQuery("full_name", "captain america") : matchQuery("full_name", "captain america").operator(op))
                                 .should(matchQuery("first_name", "captain america").operator(op))
@@ -319,10 +372,12 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
                 MatchQueryBuilder.Operator op = randomBoolean() ? MatchQueryBuilder.Operator.AND : MatchQueryBuilder.Operator.OR;
                 SearchResponse left = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(randomizeType(multiMatchQuery("capta", "full_name", "first_name", "last_name", "category")
                                 .type(MatchQueryBuilder.Type.PHRASE_PREFIX).useDisMax(false).minimumShouldMatch(minShouldMatch))).get();
 
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(matchPhrasePrefixQuery("full_name", "capta"))
                                 .should(matchPhrasePrefixQuery("first_name", "capta").operator(op))
@@ -337,14 +392,17 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
                 SearchResponse left;
                 if (randomBoolean()) {
                     left = client().prepareSearch("test").setSize(numDocs)
+                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
                                     .type(MatchQueryBuilder.Type.PHRASE).useDisMax(false).minimumShouldMatch(minShouldMatch))).get();
                 } else {
                     left = client().prepareSearch("test").setSize(numDocs)
+                            .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                             .setQuery(randomizeType(multiMatchQuery("captain america", "full_name", "first_name", "last_name", "category")
                                     .type(MatchQueryBuilder.Type.PHRASE).tieBreaker(1.0f).minimumShouldMatch(minShouldMatch))).get();
                 }
                 SearchResponse right = client().prepareSearch("test").setSize(numDocs)
+                        .addSort(SortBuilders.scoreSort()).addSort(SortBuilders.fieldSort("_uid"))
                         .setQuery(boolQuery().minimumShouldMatch(minShouldMatch)
                                 .should(matchPhraseQuery("full_name", "captain america"))
                                 .should(matchPhraseQuery("first_name", "captain america").operator(op))
@@ -512,9 +570,7 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
 
     public MultiMatchQueryBuilder randomizeType(MultiMatchQueryBuilder builder) {
         try {
-            Field field = MultiMatchQueryBuilder.class.getDeclaredField("type");
-            field.setAccessible(true);
-            MultiMatchQueryBuilder.Type type = (MultiMatchQueryBuilder.Type) field.get(builder);
+            MultiMatchQueryBuilder.Type type = getType(builder);
             if (type == null && randomBoolean()) {
                 return builder;
             }
@@ -555,5 +611,11 @@ public class MultiMatchQueryTests extends ElasticsearchIntegrationTest {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private MultiMatchQueryBuilder.Type getType(MultiMatchQueryBuilder builder) throws NoSuchFieldException, IllegalAccessException {
+        Field field = MultiMatchQueryBuilder.class.getDeclaredField("type");
+        field.setAccessible(true);
+        return (MultiMatchQueryBuilder.Type) field.get(builder);
     }
 }

@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,7 +41,7 @@ import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
     public static class CommonSettings {
-        public static String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
+        public static final String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
 
         public enum MemoryStorageFormat {
             ORDINALS, PACKED, PAGED;
@@ -97,7 +97,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Comparator used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode);
+    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode);
 
     /**
      * Clears any resources associated with this field data.

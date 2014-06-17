@@ -325,9 +325,9 @@ Depending on the percolate action different parameters can be specified. For exa
 document actions support different parameters.
 
 .The following endpoints are supported
-* GET|POST /[index]/[type]/_mpercolate
-* GET}POST /[index]/_mpercolate
-* GET|POST /_mpercolate
+* `GET|POST /[index]/[type]/_mpercolate`
+* `GET|POST /[index]/_mpercolate`
+* `GET|POST /_mpercolate`
 
 The `index` and `type` defined in the url path are the default index and type.
 

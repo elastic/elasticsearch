@@ -2,9 +2,9 @@
 	"span_multi":{
 		"match":{
 			"range" : {
-     		   "age" : { 
-            		"from" : 10, 
-            		"to" : 20, 
+     		   "user" : { 
+            		"from" : "alice", 
+            		"to" : "bob", 
             		"include_lower" : true, 
             		"include_upper": false, 
             		"boost" : 2.0

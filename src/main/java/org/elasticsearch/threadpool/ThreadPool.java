@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -75,6 +74,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String SNAPSHOT_DATA = "snapshot_data";
         public static final String OPTIMIZE = "optimize";
         public static final String BENCH = "bench";
     }
@@ -118,6 +118,7 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
                 .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .put(Names.SNAPSHOT_DATA, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
                 .put(Names.BENCH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .build();
@@ -501,6 +502,7 @@ public class ThreadPool extends AbstractComponent {
         EstimatedTimeThread(String name, long interval) {
             super(name);
             this.interval = interval;
+            this.estimatedTimeInMillis = System.currentTimeMillis();
             setDaemon(true);
         }
 

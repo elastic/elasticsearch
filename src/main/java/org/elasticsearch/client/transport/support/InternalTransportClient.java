@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.internal.InternalClient;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,7 +38,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalTransportClient extends AbstractClient implements InternalClient {
+public class InternalTransportClient extends AbstractClient {
 
     private final Settings settings;
     private final ThreadPool threadPool;
@@ -89,7 +89,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder> action, final Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, Client> action, final Request request) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
             @Override
@@ -101,7 +101,7 @@ public class InternalTransportClient extends AbstractClient implements InternalC
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(final Action<Request, Response, RequestBuilder, Client> action, final Request request, ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

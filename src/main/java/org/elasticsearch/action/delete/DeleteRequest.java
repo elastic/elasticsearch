@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.replication.ShardReplicationOperationReq
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     @Nullable
     private String routing;
     private boolean refresh;
-    private long version;
+    private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
     /**
@@ -94,8 +95,8 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
         }
-        if (!versionType.validateVersion(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type ["+ versionType.name() + "]", validationException);
+        if (!versionType.validateVersionForWrites(version)) {
+            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
         return validationException;
     }
@@ -205,7 +206,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         id = in.readString();
         routing = in.readOptionalString();
         refresh = in.readBoolean();
-        version = in.readLong();
+        version = Versions.readVersion(in);
         versionType = VersionType.fromValue(in.readByte());
     }
 
@@ -216,7 +217,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeBoolean(refresh);
-        out.writeLong(version);
+        Versions.writeVersion(version, out);
         out.writeByte(versionType.getValue());
     }
 

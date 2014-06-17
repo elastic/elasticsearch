@@ -1,14 +1,14 @@
 [[cat-nodes]]
-== Nodes
+== cat nodes
 
 The `nodes` command shows the cluster topology.
 
 [source,shell]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/nodes
-SP4H 4727 192.168.56.30 9300 1.0.0.Beta2 1.6.0_27 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
-_uhJ 5134 192.168.56.10 9300 1.0.0.Beta2 1.6.0_27 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
-HfDp 4562 192.168.56.20 9300 1.0.0.Beta2 1.6.0_27 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
+SP4H 4727 192.168.56.30 9300 1.0.1 1.6.0_27 72.1gb 35.4 93.9mb 79 239.1mb 0.45 3.4h d m Boneyard
+_uhJ 5134 192.168.56.10 9300 1.0.1 1.6.0_27 72.1gb 33.3 93.9mb 85 239.1mb 0.06 3.4h d * Athena
+HfDp 4562 192.168.56.20 9300 1.0.1 1.6.0_27 72.2gb 74.5 93.9mb 83 239.1mb 0.12 3.4h d m Zarek
 --------------------------------------------------
 
 The first few columns tell you where your nodes live.  For sanity it
@@ -16,10 +16,10 @@ also tells you what version of ES and the JVM each one runs.
 
 [source,shell]
 --------------------------------------------------
-nodeId pid  ip            port es          jdk
-u2PZ   4234 192.168.56.30 9300 1.0.0.Beta1 1.6.0_27
-URzf   5443 192.168.56.10 9300 1.0.0.Beta1 1.6.0_27
-ActN   3806 192.168.56.20 9300 1.0.0.Beta1 1.6.0_27
+nodeId pid  ip            port version jdk
+u2PZ   4234 192.168.56.30 9300 1.0.1   1.6.0_27
+URzf   5443 192.168.56.10 9300 1.0.1   1.6.0_27
+ActN   3806 192.168.56.20 9300 1.0.1   1.6.0_27
 --------------------------------------------------
 
 
@@ -46,3 +46,137 @@ uptime data/client master name
   3.5h d           *      Athena
   3.5h d           m      Zarek
 --------------------------------------------------
+
+[float]
+=== Columns
+
+Below is an exhaustive list of the existing headers that can be
+passed to `nodes?h=` to retrieve the relevant details in ordered
+columns.  If no headers are specified, then those marked to Appear
+by Default will appear. If any header is specified, then the defaults
+are not used.
+
+Aliases can be used in place of the full header name for brevity.
+Columns appear in the order that they are listed below unless a
+different order is specified (e.g., `h=pid,id` versus `h=id,pid`).
+
+When specifying headers, the headers are not placed in the output
+by default.  To have the headers appear in the output, use verbose
+mode (`v`). The header name will match the supplied value (e.g.,
+`pid` versus `p`).  For example:
+
+[source,shell]
+--------------------------------------------------
+% curl 192.168.56.10:9200/_cat/nodes?v\&h=id,ip,port,v,m
+id   ip            port version m
+pLSN 192.168.56.30 9300 1.0.1   m
+k0zy 192.168.56.10 9300 1.0.1   m
+6Tyi 192.168.56.20 9300 1.0.1   *
+% curl 192.168.56.10:9200/_cat/nodes?h=id,ip,port,v,m
+pLSN 192.168.56.30 9300 1.0.1 m
+k0zy 192.168.56.10 9300 1.0.1 m
+6Tyi 192.168.56.20 9300 1.0.1 *
+--------------------------------------------------
+
+[cols="<,<,<,<,<",options="header",]
+|=======================================================================
+|Header |Alias |Appear by Default |Description |Example
+|`id` |`nodeId` |No |Unique node ID |k0zy
+|`pid` |`p` |No |Process ID |13061
+|`host` |`h` |Yes |Host name |n1
+|`ip` |`i` |Yes |IP address |127.0.1.1
+|`port` |`po` |No |Bound transport port |9300
+|`version` |`v` |No |Elasticsearch version |1.0.1
+|`build` |`b` |No |Elasticsearch Build hash |5c03844
+|`jdk` |`j` |No |Running Java version |1.8.0
+|`disk.avail` |`d`, `disk`, `diskAvail` |No |Available disk space |1.8gb
+|`heap.percent` |`hp`, `heapPercent` |No |Used heap percentage |7
+|`heap.max` |`hm`, `heapMax` |No |Maximum configured heap |1015.6mb
+|`ram.percent` |`rp`, `ramPercent` |No |Used total memory percentage |47
+|`ram.max` |`rm`, `ramMax` |No |Total memory |2.9gb
+|`load` |`l` |No |Most recent load average |0.22
+|`uptime` |`u` |No |Node uptime |17.3m
+|`node.role` |`r`, `role`, `dc`, `nodeRole` |Yes |Data node (d); Client
+node (c) |d
+|`master` |`m` |Yes |Current master (*); master eligible (m) |m
+|`name` |`n` |Yes |Node name |Venom
+|`completion.size` |`cs`, `completionSize` |No |Size of completion |0b
+|`fielddata.memory_size` |`fm`, `fielddataMemory` |No |Used fielddata
+cache memory |0b
+|`fielddata.evictions` |`fe`, `fielddataEvictions` |No |Fielddata cache
+evictions |0
+|`filter_cache.memory_size` |`fcm`, `filterCacheMemory` |No |Used filter
+cache memory |0b
+|`filter_cache.evictions` |`fce`, `filterCacheEvictions` |No |Filter
+cache evictions |0
+|`flush.total` |`ft`, `flushTotal` |No |Number of flushes |1
+|`flush.total_time` |`ftt`, `flushTotalTime` |No |Time spent in flush |1
+|`get.current` |`gc`, `getCurrent` |No |Number of current get
+operations |0
+|`get.time` |`gti`, `getTime` |No |Time spent in get |14ms
+|`get.total` |`gto`, `getTotal` |No |Number of get operations |2
+|`get.exists_time` |`geti`, `getExistsTime` |No |Time spent in
+successful gets |14ms
+|`get.exists_total` |`geto`, `getExistsTotal` |No |Number of successful
+get operations |2
+|`get.missing_time` |`gmti`, `getMissingTime` |No |Time spent in failed
+gets |0s
+|`get.missing_total` |`gmto`, `getMissingTotal` |No |Number of failed
+get operations |1
+|`id_cache.memory_size` |`im`, `idCacheMemory` |No |Used ID cache
+memory |216b
+|`indexing.delete_current` |`idc`, `indexingDeleteCurrent` |No |Number
+of current deletion operations |0
+|`indexing.delete_time` |`idti`, `indexingDeleteTime` |No |Time spent in
+deletions |2ms
+|`indexing.delete_total` |`idto`, `indexingDeleteTotal` |No |Number of
+deletion operations |2
+|`indexing.index_current` |`iic`, `indexingIndexCurrent` |No |Number
+of current indexing operations |0
+|`indexing.index_time` |`iiti`, `indexingIndexTime` |No |Time spent in
+indexing |134ms
+|`indexing.index_total` |`iito`, `indexingIndexTotal` |No |Number of
+indexing operations |1
+|`merges.current` |`mc`, `mergesCurrent` |No |Number of current
+merge operations |0
+|`merges.current_docs` |`mcd`, `mergesCurrentDocs` |No |Number of
+current merging documents |0
+|`merges.current_size` |`mcs`, `mergesCurrentSize` |No |Size of current
+merges |0b
+|`merges.total` |`mt`, `mergesTotal` |No |Number of completed merge
+operations |0
+|`merges.total_docs` |`mtd`, `mergesTotalDocs` |No |Number of merged
+documents |0
+|`merges.total_size` |`mts`, `mergesTotalSize` |No |Size of current
+merges |0b
+|`merges.total_time` |`mtt`, `mergesTotalTime` |No |Time spent merging
+documents |0s
+|`percolate.current` |`pc`, `percolateCurrent` |No |Number of current
+percolations |0
+|`percolate.memory_size` |`pm`, `percolateMemory` |No |Memory used by
+current percolations |0b
+|`percolate.queries` |`pq`, `percolateQueries` |No |Number of
+registered percolation queries |0
+|`percolate.time` |`pti`, `percolateTime` |No |Time spent
+percolating |0s
+|`percolate.total` |`pto`, `percolateTotal` |No |Total percolations |0
+|`refresh.total` |`rto`, `refreshTotal` |No |Number of refreshes |16
+|`refresh.time` |`rti`, `refreshTime` |No |Time spent in refreshes |91ms
+|`search.fetch_current` |`sfc`, `searchFetchCurrent` |No |Current fetch
+phase operations |0
+|`search.fetch_time` |`sfti`, `searchFetchTime` |No |Time spent in fetch
+phase |37ms
+|`search.fetch_total` |`sfto`, `searchFetchTotal` |No |Number of fetch
+operations |7
+|`search.open_contexts` |`so`, `searchOpenContexts` |No |Open search
+contexts |0
+|`search.query_current` |`sqc`, `searchFetchCurrent` |No |Current query
+phase operations |0
+|`search.query_time` |`sqti`, `searchFetchTime` |No |Time spent in query
+phase |43ms
+|`search.query_total` |`sqto`, `searchFetchTotal` |No |Number of query
+operations |9
+|`segments.count` |`sc`, `segmentsCount` |No |Number of segments |4
+|`segments.memory` |`sm`, `segmentsMemory` |No |Memory used by
+segments |1.4kb
+|=======================================================================

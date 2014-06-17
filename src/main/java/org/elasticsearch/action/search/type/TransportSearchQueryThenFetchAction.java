@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchOperationThreading;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -83,7 +82,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
         @Override
         protected void moveToSecondPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(request, useSlowScroll, firstResults);
+            boolean useScroll = !useSlowScroll && request.scroll() != null;
+            sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
             if (docIdsToLoad.asList().isEmpty()) {
@@ -95,57 +95,11 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                     request, sortedShardList, firstResults.length()
             );
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
-            int localOperations = 0;
             for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 QuerySearchResult queryResult = firstResults.get(entry.index);
                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                if (node.id().equals(nodes.localNodeId())) {
-                    localOperations++;
-                } else {
-                    FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
-                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                }
-            }
-
-            if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-                                QuerySearchResult queryResult = firstResults.get(entry.index);
-                                DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                                if (node.id().equals(nodes.localNodeId())) {
-                                    FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
-                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-                        final QuerySearchResult queryResult = firstResults.get(entry.index);
-                        final DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                        if (node.id().equals(nodes.localNodeId())) {
-                            final FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
-                            try {
-                                if (localAsync) {
-                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                        }
-                                    });
-                                } else {
-                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                }
-                            } catch (Throwable t) {
-                                onFetchFailure(t, fetchSearchRequest, entry.index, queryResult.shardTarget(), counter);
-                            }
-                        }
-                    }
-                }
+                FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
+                executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
             }
         }
 
@@ -162,6 +116,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
 
                 @Override
                 public void onFailure(Throwable t) {
+                    // the failure might happen without managing to clear the search context..., potentially need to clear its context (for example)
+                    docIdsToLoad.set(shardIndex, null);
                     onFetchFailure(t, fetchSearchRequest, shardIndex, shardTarget, counter);
                 }
             });

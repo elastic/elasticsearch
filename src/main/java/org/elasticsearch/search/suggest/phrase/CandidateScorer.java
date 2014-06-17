@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
@@ -42,7 +43,7 @@ final class CandidateScorer {
         PriorityQueue<Correction> corrections = new PriorityQueue<Correction>(maxNumCorrections) {
             @Override
             protected boolean lessThan(Correction a, Correction b) {
-                return a.score < b.score;
+                return a.compareTo(b) < 0;
             }
         };
         int numMissspellings = 1;
@@ -98,7 +99,7 @@ final class CandidateScorer {
                 Candidate[] c = new Candidate[candidates.length];
                 System.arraycopy(path, 0, c, 0, path.length);
                 corrections.add(new Correction(score, c));
-            } else if (corrections.top().score < score) {
+            } else if (corrections.top().compareTo(score, path) < 0) {
                 Correction top = corrections.top();
                 System.arraycopy(path, 0, top.candidates, 0, path.length);
                 top.score = score;

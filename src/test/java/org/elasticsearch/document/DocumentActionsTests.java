@@ -31,7 +31,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -53,7 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
     protected void createIndex() {
-        immutableCluster().wipeIndices(getConcreteIndexName());
+        cluster().wipeIndices(getConcreteIndexName());
         createIndex(getConcreteIndexName());
     }
 
@@ -162,23 +161,8 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client().prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
+            CountResponse countResponse = client().prepareCount("test").setQuery(termQuery("_type", "type1")).execute().actionGet();
             assertNoFailures(countResponse);
-            assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
-
-            countResponse = client().prepareCount("test")
-                    .setQuery(termQuery("_type", "type1"))
-                    .setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD)
-                    .get();
-            assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
-
-            countResponse = client().prepareCount("test")
-                    .setQuery(termQuery("_type", "type1"))
-                    .setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD).get();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));

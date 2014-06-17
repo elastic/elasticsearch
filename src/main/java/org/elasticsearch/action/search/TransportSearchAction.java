@@ -43,19 +43,12 @@ import static org.elasticsearch.action.search.SearchType.*;
 public class TransportSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
     private final ClusterService clusterService;
-
     private final TransportSearchDfsQueryThenFetchAction dfsQueryThenFetchAction;
-
     private final TransportSearchQueryThenFetchAction queryThenFetchAction;
-
     private final TransportSearchDfsQueryAndFetchAction dfsQueryAndFetchAction;
-
     private final TransportSearchQueryAndFetchAction queryAndFetchAction;
-
     private final TransportSearchScanAction scanAction;
-
     private final TransportSearchCountAction countAction;
-
     private final boolean optimizeSingleShard;
 
     @Inject
@@ -87,7 +80,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
             try {
                 ClusterState clusterState = clusterService.state();
-                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), searchRequest.indicesOptions());
+                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indicesOptions(), searchRequest.indices());
                 Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
                 int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, routingMap, searchRequest.preference());
                 if (shardCount == 1) {
@@ -128,10 +121,6 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
             request.listenerThreaded(false);
-            // we don't spawn, so if we get a request with no threading, change it to single threaded
-            if (request.operationThreading() == SearchOperationThreading.NO_THREADS) {
-                request.operationThreading(SearchOperationThreading.SINGLE_THREAD);
-            }
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

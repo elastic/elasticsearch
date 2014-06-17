@@ -80,7 +80,7 @@ public class TransportSingleShardTermVectorAction extends TransportShardSingleOp
     protected void resolveRequest(ClusterState state, TermVectorRequest request) {
         // update the routing (request#index here is possibly an alias)
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index()));
 
         // Fail fast on the node that received the request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {

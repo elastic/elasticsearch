@@ -45,8 +45,6 @@ $ curl -XGET 'http://localhost:9200/_cluster/state/{metrics}/{indices}'
 `blocks`::
     Shows the `blocks` part of the response
 
-In addition the `index_templates` parameter can be specified, which returns the specified index templates only. This works only if the `metadata` is asked to be returned.
-
 A couple of example calls:
 
 [source,js]
@@ -59,9 +57,5 @@ $ curl -XGET 'http://localhost:9200/_cluster/state/_all/foo,bar'
 
 # Return only blocks data
 $ curl -XGET 'http://localhost:9200/_cluster/state/blocks'
-
-# Return only metadata and a specific index_template
-# You should use the dedicated template endpoint for this
-$ curl -XGET 'http://localhost:9200/_cluster/state/metadata?index_templates=template_1'
 --------------------------------------------------
 

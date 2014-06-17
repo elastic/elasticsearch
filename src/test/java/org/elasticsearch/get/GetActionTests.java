@@ -19,9 +19,13 @@
 
 package org.elasticsearch.get;
 
+import com.google.common.base.Predicate;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -36,7 +40,9 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -155,11 +161,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void simpleMultiGetTests() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // fine
-        }
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
         ensureGreen();
@@ -850,7 +851,23 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getField(field).getValues().get(0).toString(), equalTo("value1"));
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
 
-        client().admin().indices().prepareFlush("my-index").get();
+        // Flush fails if shard has ongoing recoveries
+        awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                RecoveryResponse response = client().admin().indices().prepareRecoveries("my-index").setActiveOnly(true).get();
+                for (Map.Entry<String, List<ShardRecoveryResponse>> entry : response.shardResponses().entrySet()) {
+                    if (!entry.getValue().isEmpty()) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }, 1 , TimeUnit.MINUTES);
+
+        FlushResponse flushResponse = client().admin().indices().prepareFlush("my-index").setForce(true).get();
+        // the flush must at least succeed on one shard and not all shards, because we don't wait for yellow/green
+        assertThat(flushResponse.getSuccessfulShards(), greaterThanOrEqualTo(1));
 
         getResponse = client().prepareGet("my-index", "my-type1", "1").setFields(field).get();
         assertThat(getResponse.isExists(), equalTo(true));

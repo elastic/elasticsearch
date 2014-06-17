@@ -150,6 +150,46 @@ that is initialized with a `seed`.
 }
 --------------------------------------------------
 
+===== Field Value factor
+The `field_value_factor` function allows you to use a field from a document to
+influence the score. It's similar to using the `script_score` function, however,
+it avoids the overhead of scripting. If used on a multi-valued field, only the
+first value of the field is used in calculations.
+
+As an example, imagine you have a document indexed with a numeric `popularity`
+field and wish to influence the score of a document with this field, an example
+doing so would look like:
+
+[source,js]
+--------------------------------------------------
+"field_value_factor": {
+  "field": "popularity",
+  "factor": 1.2,
+  "modifier": "sqrt"
+}
+--------------------------------------------------
+
+Which will translate into the following forumla for scoring:
+
+`sqrt(1.2 * doc['popularity'].value)`
+
+There are a number of options for the `field_value_factor` function:
+
+[cols="<,<",options="header",]
+|=======================================================================
+| Parameter |Description
+|`field` |Field to be extracted from the document.
+|`factor` |Optional factor to multiply the field value with, defaults to 1.
+|`modifier` |Modifier to apply to the field value, can be one of: `none`, `log`,
+ `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
+ Defaults to `none`.
+|=======================================================================
+
+Keep in mind that taking the log() of 0, or the square root of a negative number
+is an illegal operation, and an exception will be thrown. Be sure to limit the
+values of the field with a range filter to avoid this, or use `log1p` and
+`ln1p`.
+
 ===== Decay functions
 
 Decay functions score a document with a function that decays depending
@@ -197,7 +237,7 @@ The `offset` and `decay` parameters are optional.
 
 [horizontal]
 `offset`::
-    If an `offset` is defined, the decay function will only compute a the
+    If an `offset` is defined, the decay function will only compute the
     decay function for documents with a distance greater that the defined
     `offset`. The default is 0.
 
@@ -246,45 +286,31 @@ In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.
 
-===== Field Value factor
-The `field_value_factor` function allows you to use a field from a document to
-influence the score. It's similar to using the `script_score` function, however,
-it avoids the overhead of scripting. If used on a multi-valued field, only the
-first value of the field is used in calculations.
+===== Multiple values:
 
-As an example, imagine you have a document indexed with a numeric `popularity`
-field and wish in influence the score of a document with this field, an example
-doing so would look like:
+If a field used for computing the decay contains multiple values, per default the value closest to the origin is chosen for determining the distance.
+This can be changed by setting `multi_value_mode`.
+
+[horizontal]
+`min`:: Distance is the minimum distance
+`max`:: Distance is the maximum distance
+`avg`:: Distance is the average distance
+`sum`:: Distance is the sum of all distances
+
+Example:
 
 [source,js]
 --------------------------------------------------
-"field_value_factor": {
-  "field": "popularity",
-  "factor": 1.2,
-  "modifier": "sqrt"
-}
+    "DECAY_FUNCTION": {
+        "FIELD_NAME": {
+              "origin": ...,
+              "scale": ...
+        },
+        "multi_value_mode": "avg"
+    }
 --------------------------------------------------
 
-Which will translate into the following forumla for scoring:
 
-`sqrt(1.2 * doc['popularity'].value)`
-
-There are a number of options for the `field_value_factor` function:
-
-[cols="<,<",options="header",]
-|=======================================================================
-| Parameter |Description
-|`field` |Field to be extracted from the document.
-|`factor` |Optional factor to multiply the field value with, defaults to 1.
-|`modifier` |Modifier to apply to the field value, can be one of: `none`, `log`,
- `log1p`, `log2p`, `ln`, `ln1p`, `ln2p`, `square`, `sqrt`, or `reciprocal`.
- Defaults to `none`.
-|=======================================================================
-
-Keep in mind that taking the log() of 0, or the square root of a negative number
-is an illegal operation, and an exception will be thrown. Be sure to limit the
-values of the field with a range filter to avoid this, or use `log1p` and
-`ln1p`.
 
 ==== Detailed example
 
@@ -420,7 +446,7 @@ image::https://f.cloud.github.com/assets/4320215/768165/19d8b1aa-e899-11e2-91bc-
 Only single valued numeric fields, including time and geo locations,
 are supported.
 
-==== What is a field is missing?
+==== What if a field is missing?
 
 If the numeric field is missing in the document, the function will
 return 1.
@@ -485,11 +511,11 @@ and the `custom_filters_score`
 "custom_filters_score": {
     "filters": [
         {
-            "boost_factor": "3",
+            "boost": "3",
             "filter": {...}
         },
         {
-            "filter": {â¦},
+            "filter": {...},
             "script": "_score * doc['my_numeric_field'].value / pow(param1, param2)"
         }
     ],

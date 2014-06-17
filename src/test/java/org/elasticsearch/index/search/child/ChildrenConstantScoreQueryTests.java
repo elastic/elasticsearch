@@ -120,6 +120,9 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
         IndexReader indexReader = DirectoryReader.open(indexWriter.w, false);
         IndexSearcher searcher = new IndexSearcher(indexReader);
+        ((TestSearchContext) SearchContext.current()).setSearcher(new ContextIndexSearcher(
+                SearchContext.current(), new Engine.SimpleSearcher(ChildrenConstantScoreQueryTests.class.getSimpleName(), searcher)
+        ));
 
         TermQuery childQuery = new TermQuery(new Term("field1", "value" + (1 + random().nextInt(3))));
         TermFilter parentFilter = new TermFilter(new Term(TypeFieldMapper.NAME, "parent"));
@@ -240,7 +243,8 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
 
             // Simulate a parent update
             if (random().nextBoolean()) {
-                int numberOfUpdates = scaledRandomIntBetween(1, 25);
+                final int numberOfUpdatableParents = numParentDocs - filteredOrDeletedDocs.size();
+                int numberOfUpdates = scaledRandomIntBetween(0, numberOfUpdatableParents);
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int parentId;
                     do {

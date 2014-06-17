@@ -22,12 +22,13 @@ package org.elasticsearch.indices.ttl;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.*;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -199,7 +200,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
         for (IndexShard shardToPurge : shardsToPurge) {
-            Query query = NumericRangeQuery.newLongRange(TTLFieldMapper.NAME, null, System.currentTimeMillis(), false, true);
+            Query query = shardToPurge.indexService().mapperService().smartNameFieldMapper(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true, null);
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());

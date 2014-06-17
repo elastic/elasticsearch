@@ -19,7 +19,9 @@
 
 package org.elasticsearch.discovery;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -29,7 +31,7 @@ import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ClusterScope(scope=Scope.TEST, numNodes=2)
+@ClusterScope(scope=Scope.TEST, numDataNodes =2)
 public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -43,10 +45,16 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     
     @Test
     public void testUnicastDiscovery() {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
-
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        assertThat(state.nodes().size(), equalTo(2));
+        for (Client client : clients()) {
+            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
+            //client nodes might be added randomly
+            int dataNodes = 0;
+            for (DiscoveryNode discoveryNode : state.nodes()) {
+                if (discoveryNode.isDataNode()) {
+                    dataNodes++;
+                }
+            }
+            assertThat(dataNodes, equalTo(2));
+        }
     }
 }

@@ -88,7 +88,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
             //everything well
         }
 
-        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenient());
+        deleteByQueryRequestBuilder.setIndicesOptions(IndicesOptions.lenientExpandOpen());
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
         assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
@@ -116,7 +116,7 @@ public class DeleteByQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.getIndices().get("twitter").getFailedShards(), equalTo(twitter.numPrimaries));
         assertThat(response.getIndices().get("twitter").getFailures().length, equalTo(twitter.numPrimaries));
         for (ShardOperationFailedException failure : response.getIndices().get("twitter").getFailures()) {
-            assertThat(failure.reason(), containsString("[twitter] [has_child] No mapping for for type [type]"));
+            assertThat(failure.reason(), containsString("[twitter] [has_child] unsupported in delete_by_query api"));
             assertThat(failure.status(), equalTo(RestStatus.BAD_REQUEST));
             assertThat(failure.shardId(), greaterThan(-1));
         }

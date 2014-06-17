@@ -111,9 +111,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                     snapshotIds, request.masterNodeTimeout(), new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
                 @Override
                 public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                    ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
-                            snapshotsService.currentSnapshots(request.repository(), request.snapshots());
-                    listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                    try {
+                        ImmutableList<SnapshotMetaData.Entry> currentSnapshots =
+                                snapshotsService.currentSnapshots(request.repository(), request.snapshots());
+                        listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
+                    } catch (Throwable e) {
+                        listener.onFailure(e);
+                    }
                 }
 
                 @Override
@@ -169,6 +173,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                             stage = SnapshotIndexShardStage.FAILURE;
                             break;
                         case INIT:
+                        case WAITING:
                         case STARTED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
@@ -206,6 +211,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                                 state = SnapshotMetaData.State.FAILED;
                                 break;
                             case SUCCESS:
+                            case PARTIAL:
+                                // Translating both PARTIAL and SUCCESS to SUCCESS for now
+                                // TODO: add the differentiation on the metadata level in the next major release
                                 state = SnapshotMetaData.State.SUCCESS;
                                 break;
                             default:

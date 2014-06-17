@@ -5,7 +5,7 @@ Basic support for hunspell stemming. Hunspell dictionaries will be
 picked up from a dedicated hunspell directory on the filesystem
 (defaults to `<path.conf>/hunspell`). Each dictionary is expected to
 have its own directory named after its associated locale (language).
-This dictionary directory is expected to hold both the \*.aff and \*.dic
+This dictionary directory is expected to hold both the `*.aff` and `*.dic`
 files (all of which will automatically be picked up). For example,
 assuming the default hunspell location is used, the following directory
 layout will define the `en_US` dictionary:
@@ -23,26 +23,19 @@ The location of the hunspell directory can be configured using the
 `indices.analysis.hunspell.dictionary.location` settings in
 _elasticsearch.yml_.
 
-Each dictionary can be configured with two settings:
+Each dictionary can be configured with one setting:
 
 `ignore_case`:: 
     If true, dictionary matching will be case insensitive
     (defaults to `false`)
 
-`strict_affix_parsing`::
-    Determines whether errors while reading a
-    affix rules file will cause exception or simple be ignored (defaults to
-    `true`)
+This setting can be configured globally in `elasticsearch.yml` using
 
-These settings can be configured globally in `elasticsearch.yml` using
-
-* `indices.analysis.hunspell.dictionary.ignore_case` and
-* `indices.analysis.hunspell.dictionary.strict_affix_parsing`
+* `indices.analysis.hunspell.dictionary.ignore_case`
 
 or for specific dictionaries:
 
-* `indices.analysis.hunspell.dictionary.en_US.ignore_case` and
-* `indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing`.
+* `indices.analysis.hunspell.dictionary.en_US.ignore_case`.
 
 It is also possible to add `settings.yml` file under the dictionary
 directory which holds these settings (this will override any other
@@ -87,10 +80,9 @@ The hunspell token filter accepts four options:
     If only unique terms should be returned, this needs to be
     set to `true`. Defaults to `true`.
 
-`recursion_level`:: 
-    Configures the recursion level a
-    stemmer can go into. Defaults to `2`. Some languages (for example czech)
-    give better results when set to `1` or `0`, so you should test it out.
+`longest_only`:: 
+    If only the longest term should be returned, set this to `true`.
+    Defaults to `false`: all possible stems are returned.
 
 NOTE: As opposed to the snowball stemmers (which are algorithm based)
 this is a dictionary lookup based stemmer and therefore the quality of

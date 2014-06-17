@@ -24,7 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 
 public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BinaryDVAtomicFieldData> {
@@ -49,7 +49,7 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, SortMode sortMode) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
         return new BytesRefFieldComparatorSource(this, missingValue, sortMode);
     }
 }

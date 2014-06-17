@@ -205,15 +205,15 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             if (current != null) {
-                missing += current.counts.get(0);
-                total += current.total - current.counts.get(0);
-                if (current.values.ordinals().getNumOrds() > 0) {
+                missing += current.missing;
+                total += current.total;
+                if (current.values.ordinals().getMaxOrd() > Ordinals.MIN_ORDINAL) {
                     aggregators.add(current);
                 } else {
                     Releasables.close(current);
                 }
             }
-            values = indexFieldData.load(context).getBytesValues(false);
+            values = indexFieldData.load(context).getBytesValues();
             current = new ReaderAggregator(values, ordinalsCacheAbove, cacheRecycler);
             ordinals = values.ordinals();
         }
@@ -232,10 +232,10 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         @Override
         public void postCollection() {
             if (current != null) {
-                missing += current.counts.get(0);
-                total += current.total - current.counts.get(0);
+                missing += current.missing;
+                total += current.total;
                 // if we have values for this one, add it
-                if (current.values.ordinals().getNumOrds() > 0) {
+                if (current.values.ordinals().getMaxOrd() > Ordinals.MIN_ORDINAL) {
                     aggregators.add(current);
                 } else {
                     Releasables.close(current);
@@ -253,7 +253,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
         final BytesValues.WithOrdinals values;
         final IntArray counts;
-        long position = 0;
+        int missing = 0;
+        long position = Ordinals.MIN_ORDINAL - 1;
         BytesRef current;
         int total;
 
@@ -270,8 +271,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
 
         final void incrementMissing(int numMissing) {
-            counts.increment(0, numMissing);
-            total += numMissing;
+            missing += numMissing;
         }
 
         public boolean nextPosition() {

@@ -1,5 +1,7 @@
 [[analysis-uppercase-tokenfilter]]
 === Uppercase Token Filter
 
+added[1.2.0]
+
 A token filter of type `uppercase` that normalizes token text to upper
 case.

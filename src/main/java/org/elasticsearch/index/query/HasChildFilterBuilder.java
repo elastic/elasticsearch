@@ -32,6 +32,9 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private String childType;
     private String filterName;
     private Integer shortCircuitCutoff;
+    private Integer minChildren;
+    private Integer maxChildren;
+
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -52,6 +55,23 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         this.filterName = filterName;
         return this;
     }
+
+    /**
+     * Defines the minimum number of children that are required to match for the parent to be considered a match.
+     */
+    public HasChildFilterBuilder minChildren(int minChildren) {
+        this.minChildren = minChildren;
+        return this;
+    }
+
+    /**
+     * Defines the maximum number of children that are required to match for the parent to be considered a match.
+     */
+    public HasChildFilterBuilder maxChildren(int maxChildren) {
+        this.maxChildren = maxChildren;
+        return this;
+    }
+
 
     /**
      * This is a noop since has_child can't be cached.
@@ -87,6 +107,12 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
             filterBuilder.toXContent(builder, params);
         }
         builder.field("child_type", childType);
+        if (minChildren != null) {
+            builder.field("min_children", minChildren);
+        }
+        if (maxChildren != null) {
+            builder.field("max_children", maxChildren);
+        }
         if (filterName != null) {
             builder.field("_name", filterName);
         }

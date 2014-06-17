@@ -184,6 +184,10 @@ public final class HyperLogLogPlusPlus implements Releasable {
         alphaMM = alpha * m * m;
     }
 
+    public int precision() {
+        return p;
+    }
+
     public long maxBucket() {
         return runLens.size() >>> p;
     }

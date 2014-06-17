@@ -43,17 +43,17 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ClusterScope(scope = Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndexStateShardChanged() throws Throwable {
 
         //start with a single node
-        String node1 = cluster().startNode();
+        String node1 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode1 = new IndexShardStateChangeListener();
         //add a listener that keeps track of the shard state changes
-        cluster().getInstance(IndicesLifecycle.class, node1).addListener(stateChangeListenerNode1);
+        internalCluster().getInstance(IndicesLifecycle.class, node1).addListener(stateChangeListenerNode1);
 
         //create an index
         assertAcked(client().admin().indices().prepareCreate("test")
@@ -68,10 +68,10 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
         //disable allocation before starting a new node, as we need to register the listener first
         assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(builder().put(CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)));
-        String node2 = cluster().startNode();
+        String node2 = internalCluster().startNode();
         IndexShardStateChangeListener stateChangeListenerNode2 = new IndexShardStateChangeListener();
         //add a listener that keeps track of the shard state changes
-        cluster().getInstance(IndicesLifecycle.class, node2).addListener(stateChangeListenerNode2);
+        internalCluster().getInstance(IndicesLifecycle.class, node2).addListener(stateChangeListenerNode2);
         //re-enable allocation
         assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(builder().put(CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, false)));

@@ -28,18 +28,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 
+import java.io.IOException;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
 
-
-    public void testLoadDefaultShardsAllocator() {
+    public void testLoadDefaultShardsAllocator() throws IOException {
         assertAllocatorInstance(ImmutableSettings.Builder.EMPTY_SETTINGS, BalancedShardsAllocator.class);
     }
 
-    public void testLoadByShortKeyShardsAllocator() {
+    public void testLoadByShortKeyShardsAllocator() throws IOException {
         Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, ShardsAllocatorModule.EVEN_SHARD_COUNT_ALLOCATOR_KEY)
                 .build();
         assertAllocatorInstance(build, EvenShardsCountAllocator.class);
@@ -47,7 +49,7 @@ public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
         assertAllocatorInstance(build, BalancedShardsAllocator.class);
     }
 
-    public void testLoadByClassNameShardsAllocator() {
+    public void testLoadByClassNameShardsAllocator() throws IOException {
         Settings build = settingsBuilder().put(ShardsAllocatorModule.TYPE_KEY, "EvenShardsCount").build();
         assertAllocatorInstance(build, EvenShardsCountAllocator.class);
 
@@ -56,12 +58,12 @@ public class ShardsAllocatorModuleTests extends ElasticsearchIntegrationTest {
         assertAllocatorInstance(build, EvenShardsCountAllocator.class);
     }
 
-    private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) {
-        while (immutableCluster().size() != 0) {
-            cluster().stopRandomNode();     
+    private void assertAllocatorInstance(Settings settings, Class<? extends ShardsAllocator> clazz) throws IOException {
+        while (cluster().size() != 0) {
+            internalCluster().stopRandomDataNode();
         }
-        cluster().startNode(settings);
-        ShardsAllocator instance = cluster().getInstance(ShardsAllocator.class);
+        internalCluster().startNode(settings);
+        ShardsAllocator instance = internalCluster().getInstance(ShardsAllocator.class);
         assertThat(instance, instanceOf(clazz));
     }
 }

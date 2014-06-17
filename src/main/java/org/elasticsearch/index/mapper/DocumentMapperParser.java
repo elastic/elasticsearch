@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -48,7 +49,9 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 
@@ -201,31 +204,38 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
 
         Mapper.TypeParser.ParserContext parserContext = parserContext();
+        // parse RootObjectMapper
         DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
-
-        for (Map.Entry<String, Object> entry : mapping.entrySet()) {
+        Iterator<Map.Entry<String, Object>> iterator = mapping.entrySet().iterator();
+        // parse DocumentMapper
+        while(iterator.hasNext()) {
+            Map.Entry<String, Object> entry = iterator.next();
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
             if ("index_analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for index_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.indexAnalyzer(analyzer);
             } else if ("search_analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.searchAnalyzer(analyzer);
             } else if ("search_quote_analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for search_analyzer setting on root type [" + type + "]");
                 }
                 docBuilder.searchQuoteAnalyzer(analyzer);
             } else if ("analyzer".equals(fieldName)) {
+                iterator.remove();
                 NamedAnalyzer analyzer = analysisService.analyzer(fieldNode.toString());
                 if (analyzer == null) {
                     throw new MapperParsingException("Analyzer [" + fieldNode.toString() + "] not found for analyzer setting on root type [" + type + "]");
@@ -235,11 +245,25 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             } else {
                 Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
                 if (typeParser != null) {
+                    iterator.remove();
                     docBuilder.put(typeParser.parse(fieldName, (Map<String, Object>) fieldNode, parserContext));
                 }
             }
         }
 
+        ImmutableMap<String, Object> attributes = ImmutableMap.of();
+        if (mapping.containsKey("_meta")) {
+            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.remove("_meta"));
+        }
+        docBuilder.meta(attributes);
+
+        if (!mapping.isEmpty()) {
+            StringBuilder remainingFields = new StringBuilder();
+            for (String key : mapping.keySet()) {
+                remainingFields.append(" [").append(key).append(" : ").append(mapping.get(key).toString()).append("]");
+            }
+            throw new MapperParsingException("Root type mapping not empty after parsing! Remaining fields:" + remainingFields.toString());
+        }
         if (!docBuilder.hasIndexAnalyzer()) {
             docBuilder.indexAnalyzer(analysisService.defaultIndexAnalyzer());
         }
@@ -249,12 +273,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         if (!docBuilder.hasSearchQuoteAnalyzer()) {
             docBuilder.searchAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
         }
-
-        ImmutableMap<String, Object> attributes = ImmutableMap.of();
-        if (mapping.containsKey("_meta")) {
-            attributes = ImmutableMap.copyOf((Map<String, Object>) mapping.get("_meta"));
-        }
-        docBuilder.meta(attributes);
 
         DocumentMapper documentMapper = docBuilder.build(this);
         // update the source with the generated one
@@ -279,7 +297,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             // if we don't have any keys throw an exception
             throw new MapperParsingException("malformed mapping no root object found");
         }
-
         String rootName = root.keySet().iterator().next();
         Tuple<String, Map<String, Object>> mapping;
         if (type == null || type.equals(rootName)) {
@@ -287,7 +304,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
         } else {
             mapping = new Tuple<>(type, root);
         }
-
         return mapping;
     }
 }

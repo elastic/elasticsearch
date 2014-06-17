@@ -52,7 +52,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
                 .indices(Strings.splitStringByCommaToArray(request.param("index")))
-                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strict()))
+                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
                 .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
 

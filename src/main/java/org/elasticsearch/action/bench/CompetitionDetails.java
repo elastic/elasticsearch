@@ -37,6 +37,14 @@ public class CompetitionDetails implements ToXContent {
         this.nodeResults = nodeResults;
     }
 
+    /**
+     * Gets node-level competition results
+     * @return  A list of node-level competition results
+     */
+    public List<CompetitionNodeResult> getNodeResults() {
+        return nodeResults;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
@@ -106,6 +114,18 @@ public class CompetitionDetails implements ToXContent {
         return builder;
     }
 
+    /**
+     * Calculates detailed statistics for each iteration. Should be called prior to
+     * accessing individual measurements.
+     */
+    public void computeAllStatistics() {
+        for (CompetitionNodeResult nodeResult : nodeResults) {
+            for (CompetitionIteration iteration : nodeResult.iterations()) {
+                iteration.computeStatistics();
+            }
+        }
+    }
+
     private CompetitionIteration prototypicalIteration() {
         if (nodeResults != null && nodeResults.size() > 0) {
             CompetitionNodeResult nodeResult = nodeResults.get(0);
@@ -114,14 +134,6 @@ public class CompetitionDetails implements ToXContent {
             }
         }
         return null;
-    }
-
-    private void computeAllStatistics() {
-        for (CompetitionNodeResult nodeResult : nodeResults) {
-            for (CompetitionIteration iteration : nodeResult.iterations()) {
-                iteration.computeStatistics();
-            }
-        }
     }
 
     private int highestCompletedIteration() {

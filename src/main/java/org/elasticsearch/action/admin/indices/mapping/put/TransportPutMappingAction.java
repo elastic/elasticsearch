@@ -71,7 +71,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void doExecute(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indicesOptions(), request.indices()));
         super.doExecute(request, listener);
     }
 

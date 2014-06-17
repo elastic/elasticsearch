@@ -30,6 +30,7 @@ import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,8 +72,8 @@ public class MockRepository extends FsRepository {
     private volatile boolean blocked = false;
 
     @Inject
-    public MockRepository(RepositoryName name, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
-        super(name, repositorySettings, indexShardRepository);
+    public MockRepository(RepositoryName name, ThreadPool threadPool, RepositorySettings repositorySettings, IndexShardRepository indexShardRepository) throws IOException {
+        super(name, repositorySettings, threadPool, indexShardRepository);
         randomControlIOExceptionRate = repositorySettings.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = repositorySettings.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         blockOnControlFiles = repositorySettings.settings().getAsBoolean("block_on_control", false);

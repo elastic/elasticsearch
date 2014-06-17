@@ -95,7 +95,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         super(settings);
         this.threadPool = threadPool;
         this.cacheRecycler = cacheRecycler;
-        this.size = componentSettings.get("size", "20%");
+        this.size = componentSettings.get("size", "10%");
         this.expire = componentSettings.getAsTime("expire", null);
         this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
         computeSizeInBytes();
@@ -123,7 +123,16 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     private void computeSizeInBytes() {
-        this.sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
+        long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
+        if (sizeInBytes > ByteSizeValue.MAX_GUAVA_CACHE_SIZE.bytes()) {
+            logger.warn("reducing requested filter cache size of [{}] to the maximum allowed size of [{}]", new ByteSizeValue(sizeInBytes),
+                    ByteSizeValue.MAX_GUAVA_CACHE_SIZE);
+            sizeInBytes = ByteSizeValue.MAX_GUAVA_CACHE_SIZE.bytes();
+            // Even though it feels wrong for size and sizeInBytes to get out of
+            // sync we don't update size here because it might cause the cache
+            // to be rebuilt every time new settings are applied.
+        }
+        this.sizeInBytes = sizeInBytes;
     }
 
     public void addReaderKeyToClean(Object readerKey) {

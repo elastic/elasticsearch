@@ -51,7 +51,6 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -182,17 +181,6 @@ public class Requests {
      */
     public static SearchScrollRequest searchScrollRequest(String scrollId) {
         return new SearchScrollRequest(scrollId);
-    }
-
-    /**
-     * Creates an indices status request.
-     *
-     * @param indices The indices to query status about. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The indices status request
-     * @see org.elasticsearch.client.IndicesAdminClient#status(org.elasticsearch.action.admin.indices.status.IndicesStatusRequest)
-     */
-    public static IndicesStatusRequest indicesStatusRequest(String... indices) {
-        return new IndicesStatusRequest(indices);
     }
 
     public static IndicesSegmentsRequest indicesSegmentsRequest(String... indices) {

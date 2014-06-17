@@ -50,6 +50,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDirectoryToString() throws IOException {
+        internalCluster().wipeTemplates(); // no random settings please
         createIndexWithStoreType("test", "niofs", "least_used");
         String storeString = getStoreDirectory("test", 0).toString();
         logger.info(storeString);
@@ -108,7 +109,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexWithStoreType(String index, String storeType, String distributor) {
-        immutableCluster().wipeIndices(index);
+        cluster().wipeIndices(index);
         client().admin().indices().prepareCreate(index)
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)
@@ -121,7 +122,7 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
     }
 
     private void createIndexWithoutRateLimitingStoreType(String index, String storeType, String distributor) {
-        immutableCluster().wipeIndices(index);
+        cluster().wipeIndices(index);
         client().admin().indices().prepareCreate(index)
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)
@@ -136,16 +137,16 @@ public class SimpleDistributorTests extends ElasticsearchIntegrationTest {
 
 
     private File[] dataPaths() {
-        Set<String> nodes = cluster().nodesInclude("test");
+        Set<String> nodes = internalCluster().nodesInclude("test");
         assertThat(nodes.isEmpty(), equalTo(false));
-        NodeEnvironment env = cluster().getInstance(NodeEnvironment.class, nodes.iterator().next());
+        NodeEnvironment env = internalCluster().getInstance(NodeEnvironment.class, nodes.iterator().next());
         return env.nodeDataLocations();
     }
 
     private Directory getStoreDirectory(String index, int shardId) {
-        Set<String> nodes = cluster().nodesInclude("test");
+        Set<String> nodes = internalCluster().nodesInclude("test");
         assertThat(nodes.isEmpty(), equalTo(false));
-        IndicesService indicesService = cluster().getInstance(IndicesService.class, nodes.iterator().next());
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodes.iterator().next());
         InternalIndexShard indexShard = (InternalIndexShard) (indicesService.indexService(index).shard(shardId));
         return indexShard.store().directory();
     }

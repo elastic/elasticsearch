@@ -25,25 +25,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 
-import java.lang.reflect.Field;
-
 public class SegmentReaderUtils {
-
-    private static final Field FILTER_ATOMIC_READER_IN;
-
-    static {
-        assert Version.LUCENE_47.onOrAfter(Lucene.VERSION) : "Lucene 4.8 has FilterAtomicReader.unwrap";
-
-        Field in = null;
-        try { // and another one bites the dust...
-            in = FilterAtomicReader.class.getDeclaredField("in");
-            in.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            assert false : "Failed to get field: " + e.getMessage();
-        }
-        FILTER_ATOMIC_READER_IN = in;
-
-    }
 
     /**
      * Tries to extract a segment reader from the given index reader.
@@ -63,6 +45,10 @@ public class SegmentReaderUtils {
         return internalSegmentReader(reader, false);
     }
 
+    static {
+        assert Version.LUCENE_48.onOrAfter(Lucene.VERSION) : "Use AtomicReader.addCoreClosedListener instead of trying to unwrap the atomic reader: https://issues.apache.org/jira/browse/LUCENE-5701";
+    }
+
     public static boolean registerCoreListener(AtomicReader reader, SegmentReader.CoreClosedListener listener) {
         SegmentReader segReader = SegmentReaderUtils.segmentReaderOrNull(reader);
         if (segReader != null) {
@@ -80,11 +66,7 @@ public class SegmentReaderUtils {
             return (SegmentReader) reader;
         } else if (reader instanceof FilterAtomicReader) {
             final FilterAtomicReader fReader = (FilterAtomicReader) reader;
-            try {
-                return FILTER_ATOMIC_READER_IN == null ? null :
-                        segmentReader((AtomicReader) FILTER_ATOMIC_READER_IN.get(fReader));
-            } catch (IllegalAccessException e) {
-            }
+            return segmentReader(FilterAtomicReader.unwrap(fReader));
         }
         if (fail) {
             // hard fail - we can't get a SegmentReader

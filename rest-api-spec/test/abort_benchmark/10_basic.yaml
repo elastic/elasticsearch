@@ -1,0 +1,11 @@
+---
+"Test benchmark abort":
+
+  - skip:
+        features:    "benchmark"
+
+  - do:
+        abort_benchmark:
+            name: my_benchmark
+        catch: missing
+

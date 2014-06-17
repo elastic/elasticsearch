@@ -89,22 +89,23 @@ public class RecoveryResponse extends BroadcastOperationResponse implements ToXC
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-
-        for (String index : shardResponses.keySet()) {
-            List<ShardRecoveryResponse> responses = shardResponses.get(index);
-            if (responses == null || responses.size() == 0) {
-                continue;
-            }
-            builder.startObject(index);
-            builder.startArray("shards");
-            for (ShardRecoveryResponse recoveryResponse : responses) {
-                builder.startObject();
-                recoveryResponse.detailed(this.detailed);
-                recoveryResponse.toXContent(builder, params);
+        if (hasRecoveries()) {
+            for (String index : shardResponses.keySet()) {
+                List<ShardRecoveryResponse> responses = shardResponses.get(index);
+                if (responses == null || responses.size() == 0) {
+                    continue;
+                }
+                builder.startObject(index);
+                builder.startArray("shards");
+                for (ShardRecoveryResponse recoveryResponse : responses) {
+                    builder.startObject();
+                    recoveryResponse.detailed(this.detailed);
+                    recoveryResponse.toXContent(builder, params);
+                    builder.endObject();
+                }
+                builder.endArray();
                 builder.endObject();
             }
-            builder.endArray();
-            builder.endObject();
         }
         return builder;
     }

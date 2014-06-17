@@ -97,6 +97,7 @@ public class RecoverySource extends AbstractComponent {
         // the index operations will not be routed to it properly
         RoutingNode node = clusterService.state().readOnlyRoutingNodes().node(request.targetNode().id());
         if (node == null) {
+            logger.debug("delaying recovery of {} as source node {} is unknown", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");
         }
         ShardRouting targetShardRouting = null;
@@ -107,9 +108,12 @@ public class RecoverySource extends AbstractComponent {
             }
         }
         if (targetShardRouting == null) {
+            logger.debug("delaying recovery of {} as it is not listed as assigned to target node {}", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
         }
         if (!targetShardRouting.initializing()) {
+            logger.debug("delaying recovery of {} as it is not listed as initializing on the target node {}. known shards state is [{}]",
+                    request.shardId(), request.targetNode(), targetShardRouting.state());
             throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
         }
 

@@ -25,14 +25,16 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0, transportClientRatio = 1.0)
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testPickingUpChangesInDiscoveryNode() {
-        String nodeName = cluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        String nodeName = internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
 
-        TransportClient client = (TransportClient) cluster().client(nodeName);
+        TransportClient client = (TransportClient) internalCluster().client(nodeName);
         assertThat(client.connectedNodes().get(0).dataNode(), Matchers.equalTo(false));
 
     }

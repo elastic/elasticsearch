@@ -1,5 +1,5 @@
 [[cat-shards]]
-== Shards
+== cat shards
 
 The `shards` command is the detailed view of what nodes contain which
 shards.  It will tell you if it's a primary or replica, the number of

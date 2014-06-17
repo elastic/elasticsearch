@@ -386,6 +386,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(SourceFieldMapper.class);
     }
 
+    public AnalyzerMapper analyzerMapper() {
+        return rootMapper(AnalyzerMapper.class);
+    }
+
     public AllFieldMapper allFieldMapper() {
         return rootMapper(AllFieldMapper.class);
     }
@@ -521,10 +525,6 @@ public class DocumentMapper implements ToXContent {
 
             for (RootMapper rootMapper : rootMappersOrdered) {
                 rootMapper.postParse(context);
-            }
-
-            for (RootMapper rootMapper : rootMappersOrdered) {
-                rootMapper.validate(context);
             }
         } catch (Throwable e) {
             // if its already a mapper parsing exception, no need to wrap it...

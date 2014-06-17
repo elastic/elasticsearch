@@ -19,7 +19,10 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.*;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.fst.Util;
 
@@ -128,8 +131,8 @@ public final class CompletionTokenStream extends TokenStream {
         private CharsRef charsRef;
 
         @Override
-        public int fillBytesRef() {
-            return bytes.hashCode();
+        public void fillBytesRef() {
+            // does nothing - we change in place
         }
 
         @Override

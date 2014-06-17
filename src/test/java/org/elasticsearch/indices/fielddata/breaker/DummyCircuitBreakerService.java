@@ -42,6 +42,6 @@ public class DummyCircuitBreakerService implements CircuitBreakerService {
 
     @Override
     public FieldDataBreakerStats stats() {
-        return new FieldDataBreakerStats(-1, -1, 0);
+        return new FieldDataBreakerStats(-1, -1, 0, 0);
     }
 }

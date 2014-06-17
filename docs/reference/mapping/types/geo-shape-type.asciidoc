@@ -11,12 +11,6 @@ You can query documents using this type using
 or <<query-dsl-geo-shape-query,geo_shape
 Query>>.
 
-Note, the `geo_shape` type uses
-https://github.com/spatial4j/spatial4j[Spatial4J] and
-http://www.vividsolutions.com/jts/jtshome.htm[JTS], both of which are
-optional dependencies. Consequently you must add Spatial4J v0.3 and JTS
-v1.12 to your classpath in order to use this type.
-
 [float]
 ==== Mapping Options
 
@@ -132,49 +126,86 @@ overly bloating the resulting index too much relative to the input size.
 [float]
 ==== Input Structure
 
-The http://www.geojson.org[GeoJSON] format is used to represent Shapes
-as input as follows:
+The http://www.geojson.org[GeoJSON] format is used to represent
+http://geojson.org/geojson-spec.html#geometry-objects[shapes] as input
+as follows:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|GeoJSON Type |Elasticsearch Type |Description
+
+|`Point` |`point` |A single geographic coordinate.
+|`LineString` |`linestring` |An arbitrary line given two or more points.
+|`Polygon` |`polygon` |A _closed_ polygon whose first and last point
+must match, thus requiring `n + 1` vertices to create an `n`-sided
+polygon and a minimum of `4` vertices.
+|`MultiPoint` |`multipoint` |An array of unconnected, but likely related
+points.
+|`MultiLineString` |`multilinestring` |An array of separate linestrings.
+|`MultiPolygon` |`multipolygon` |An array of separate polygons.
+|`N/A` |`envelope` |A bounding rectangle, or envelope, specified by
+specifying only the top left and bottom right points.
+|`N/A` |`circle` |A circle specified by a center point and radius with
+units, which default to `METERS`.
+|`GeometryCollection` |`N/A` | An unsupported GeoJSON shape similar to the
+`multi*` shapes except that multiple types can coexist (e.g., a Point
+and a LineString).
+|=======================================================================
+
+[NOTE]
+=============================================
+For all types, both the inner `type` and `coordinates` fields are
+required.
+
+Note: In GeoJSON, and therefore Elasticsearch, the correct *coordinate
+order is longitude, latitude (X, Y)* within coordinate arrays. This
+differs from many Geospatial APIs (e.g., Google Maps) that generally
+use the colloquial latitude, longitude (Y, X).
+=============================================
+
+[float]
+===== http://geojson.org/geojson-spec.html#id2[Point]
+
+A point is a single geographic coordinate, such as the location of a
+building or the current position given by a smartphone's Geolocation
+API.
 
 [source,js]
 --------------------------------------------------
 {
     "location" : {
         "type" : "point",
-        "coordinates" : [45.0, -45.0]
+        "coordinates" : [-77.03653, 38.897676]
     }
 }
 --------------------------------------------------
 
-Note, both the `type` and `coordinates` fields are required.
-
-The supported `types` are `point`, `linestring`, `polygon`, `multipoint`
-and `multipolygon`.
-
-Note, in geojson the correct order is longitude, latitude coordinate
-arrays. This differs from some APIs such as e.g. Google Maps that
-generally use latitude, longitude.
-
 [float]
-===== Envelope
+===== http://geojson.org/geojson-spec.html#id3[LineString]
 
-Elasticsearch supports an `envelope` type which consists of coordinates
-for upper left and lower right points of the shape:
+A `linestring` defined by an array of two or more positions. By
+specifying only two points, the `linestring` will represent a straight
+line.  Specifying more than two points creates an arbitrary path.
 
 [source,js]
 --------------------------------------------------
 {
     "location" : {
-        "type" : "envelope",
-        "coordinates" : [[-45.0, 45.0], [45.0, -45.0]]
+        "type" : "linestring",
+        "coordinates" : [[-77.03653, 38.897676], [-77.009051, 38.889939]]
     }
 }
 --------------------------------------------------
+
+The above `linestring` would draw a straight line starting at the White
+House to the US Capitol Building.
 
 [float]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
-points in each (outer) list must be the same (the polygon must be closed).
+points in each (outer) list must be the same (the polygon must be
+closed).
 
 [source,js]
 --------------------------------------------------
@@ -205,6 +236,42 @@ arrays represent the interior shapes ("holes"):
 --------------------------------------------------
 
 [float]
+===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
+
+A list of geojson points.
+
+[source,js]
+--------------------------------------------------
+{
+    "location" : {
+        "type" : "multipoint",
+        "coordinates" : [
+            [102.0, 2.0], [103.0, 2.0]
+        ]
+    }
+}
+--------------------------------------------------
+
+[float]
+===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
+
+A list of geojson linestrings.
+
+[source,js]
+--------------------------------------------------
+{
+    "location" : {
+        "type" : "multilinestring",
+        "coordinates" : [
+            [ [102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0] ],
+            [ [100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0] ],
+            [ [100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8] ]
+        ]
+    }
+}
+--------------------------------------------------
+
+[float]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 A list of geojson polygons.
@@ -215,13 +282,51 @@ A list of geojson polygons.
     "location" : {
         "type" : "multipolygon",
         "coordinates" : [
-            [[[102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0], [102.0, 2.0]]],
-            [[[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]],
-            [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]]]
+            [ [[102.0, 2.0], [103.0, 2.0], [103.0, 3.0], [102.0, 3.0], [102.0, 2.0]] ],
+
+            [ [[100.0, 0.0], [101.0, 0.0], [101.0, 1.0], [100.0, 1.0], [100.0, 0.0]],
+              [[100.2, 0.2], [100.8, 0.2], [100.8, 0.8], [100.2, 0.8], [100.2, 0.2]] ]
         ]
     }
 }
 --------------------------------------------------
+
+[float]
+===== Envelope
+
+Elasticsearch supports an `envelope` type, which consists of coordinates
+for upper left and lower right points of the shape to represent a
+bounding rectangle:
+
+[source,js]
+--------------------------------------------------
+{
+    "location" : {
+        "type" : "envelope",
+        "coordinates" : [ [-45.0, 45.0], [45.0, -45.0] ]
+    }
+}
+--------------------------------------------------
+
+[float]
+===== Circle
+
+Elasticsearch supports a `circle` type, which consists of a center
+point with a radius:
+
+[source,js]
+--------------------------------------------------
+{
+    "location" : {
+        "type" : "circle",
+        "coordinates" : [-45.0, 45.0],
+        "radius" : "100m"
+    }
+}
+--------------------------------------------------
+
+Note: The inner `radius` field is required. If not specified, then
+the units of the `radius` will default to `METERS`.
 
 [float]
 ==== Sorting and Retrieving index Shapes

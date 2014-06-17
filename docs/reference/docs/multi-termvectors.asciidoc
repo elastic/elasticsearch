@@ -9,7 +9,6 @@ API. Here is an example:
 [source,js]
 --------------------------------------------------
 curl 'localhost:9200/_mtermvectors' -d '{
-{
    "docs": [
       {
          "_index": "testidx",
@@ -90,4 +89,4 @@ curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
 }'
 --------------------------------------------------
 
-Parameters can aslo be set by passing them as uri parameters (see <<docs-termvectors,termvectors>>). uri parameters are the default parameters and are overwritten by any parameter setting defined in the body.
+Parameters can also be set by passing them as uri parameters (see <<docs-termvectors,termvectors>>). uri parameters are the default parameters and are overwritten by any parameter setting defined in the body.

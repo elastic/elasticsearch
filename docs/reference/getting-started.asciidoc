@@ -1,0 +1,1082 @@
+[[getting-started]]
+= Getting Started
+
+[partintro]
+--
+
+Elasticsearch is a highly scalable open-source full-text search and analytics engine. It allows you to store, search, and analyze big volumes of data quickly and in near real time. It is generally used as the underlying engine/technology that powers applications that have complex search features and requirements.
+
+Here are a few sample use-cases that Elasticsearch could be used for:
+
+* You run an online web store where you allow your customers to search for products that you sell. In this case, you can use Elasticsearch to store your entire product catalog and inventory and provide search and autocomplete suggestions for them.
+* You want to collect log or transaction data and you want to analyze and mine this data to look for trends, statistics, summarizations, or anomalies. In this case, you can use Logstash (part of the Elasticsearch/Logstash/Kibana stack) to collect, aggregate, and parse your data, and then have Logstash feed this data into Elasticsearch. Once the data is in Elasticsearch, you can run searches and aggregations to mine any information that is of interest to you.
+* You run a price alerting platform which allows price-savvy customers to specify a rule like "I am interested in buying a specific electronic gadget and I want to be notified if the price of gadget falls below $X from any vendor within the next month". In this case you can scrape vendor prices, push them into Elasticsearch and use its reverse-search (Percolator) capability to match price movements against customer queries and eventually push the alerts out to the customer once matches are found.
+* You have analytics/business-intelligence needs and want to quickly investigate, analyze, visualize, and ask ad-hoc questions on a lot of data (think millions or billions of records). In this case, you can use Elasticsearch to store your data and then use Kibana (part of the Elasticsearch/Logstash/Kibana stack) to build custom dashboards that can visualize aspects of your data that are important to you. Additionally, you can use the Elasticsearch aggregations functionality to perform complex business intelligence queries against your data.
+
+For the rest of this tutorial, I will guide you through the process of getting Elasticsearch up and running, taking a peek inside it, and performing basic operations like indexing, searching, and modifying your data. At the end of this tutorial, you should have a good idea of what Elasticsearch is, how it works, and hopefully be inspired to see how you can use it to either build sophisticated search applications or to mine intelligence from your data.
+--
+
+== Basic Concepts
+
+There are few concepts that are core to Elasticsearch. Understanding these concepts from the outset will tremendously help ease the learning process.
+
+[float]
+=== Near Realtime (NRT)
+
+Elasticsearch is a near real time search platform. What this means is there is a slight latency (normally one second) from the time you index a document until the time it becomes searchable.
+
+[float]
+=== Cluster
+
+A cluster is a collection of one or more nodes (servers) that together holds your entire data and provides federated indexing and search capabilities across all nodes. A cluster is identified by a unique name which by default is "elasticsearch". This name is important because a node can only be part of cluster if the node is set up to join the cluster by its name. It is good practice to explicitly set the cluster name in production, but it is fine to use the default for testing/development purposes.
+
+Note that it is valid and perfectly fine to have a cluster with only a single node in it. Furthermore, you may also have multiple independent clusters each with its own unique cluster name.
+
+[float]
+=== Node
+
+A node is a single server that is part of your cluster, stores your data, and participates in the cluster's indexing and search capabilities. Just like a cluster, a node is identified by a name which by default is a random Marvel character name that is assigned to the node at startup. You can define any node name you want if you do not want the default.  This name is important for administration purposes where you want to identify which servers in your network correspond to which nodes in your Elasticsearch cluster.
+
+A node can be configured to join a specific cluster by the cluster name. By default, each node is set up to join a cluster named "elasticsearch" which means that if you start up a number of nodes on your network and assuming they can discover each other, they will all automatically form and join a single cluster named "elasticsearch".
+
+In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default make and then join itself into a single cluster named "elasticsearch".
+
+[sect2]
+[float]
+=== Index
+
+An index is a collection of documents that have somewhat similar characteristics. For example, you can have an index for customer data, another index for a product catalog, and yet another index for order data. An index is identified by a name (that must be all lowercase) and this name is used to refer to the index when performing indexing, search, update, and delete operations against the documents in it.
+
+In a single cluster, you can define as many indexes as you want.
+
+[float]
+=== Type
+
+Within an index, you can define one or more types. A type is a logical category/partition of your index whose semantics is completely up to you. In general, a type is defined for documents that have a set of common fields. For example, let's assume you run a blogging platform and store all your data in a single index. In this index, you may define a type for user data, another type for blog data, and yet another type for comments data.
+
+[float]
+=== Document
+
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is an ubiquitous internet data interchange format.
+
+Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
+
+[float]
+=== Shards & Replicas
+
+An index can potentially store a large amount of data that can exceed the hardware limits of a single node. For example, a single index of a billion documents taking up 1TB of disk space may not fit on the disk of a single node or may be too slow to serve search requests from a single node alone.
+
+To solve this problem, Elasticsearch provides the ability to subdivide your index into multiple pieces called shards. When you create an index, you can simply define the number of shards that you want. Each shard is in itself a fully-functional and independent "index" that can be hosted on any node in the cluster. 
+
+Sharding is important for two primary reasons:
+
+* It allows you to horizontally split/scale your content volume
+* It allows you distribute and parallelize operations across shards (potentially on multiple nodes) thus increasing performance/throughput
+
+
+The mechanics of how a shard is distributed and also how its documents are aggregated back into search requests are completely managed by Elasticsearch and is transparent to you as the user.
+
+In a network/cloud environment where failures can be expected anytime, it is very useful and highly recommended to have a failover mechanism in case a shard/node somehow goes offline or disappears for whatever reason. To this end, Elasticsearch allows you to make one or more copies of your index's shards into what are called replica shards, or replicas for short. 
+
+Replication is important for two primary reasons:
+
+* It provides high availability in case a shard/node fails. For this reason, it is important to note that a replica shard is never allocated on the same node as the original/primary shard that it was copied from.
+* It allows you to scale out your search volume/throughput since searches can be executed on all replicas in parallel.
+
+
+To summarize, each index can be split into multiple shards. An index can also be replicated zero (meaning no replicas) or more times. Once replicated, each index will have primary shards (the original shards that were replicated from) and replica shards (the copies of the primary shards).
+The number of shards and replicas can be defined per index at the time the index is created. After the index is created, you may change the number of replicas dynamically anytime but you cannot change the number shards after-the-fact.
+
+By default, each index in Elasticsearch is allocated 5 primary shards and 1 replica which means that if you have at least two nodes in your cluster, your index will have 5 primary shards and another 5 replica shards (1 complete replica) for a total of 10 shards per index.
+
+With that out of the way, let's get started with the fun part...
+
+== Installation
+
+Elasticsearch requires Java 7. Specifically as of this writing, it is recommended that you use the Oracle JDK version 1.7.0_55. Java installation varies from platform to platform so we won't go into those details here. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+
+[source,sh]
+--------------------------------------------------
+java -version
+echo $JAVA_HOME
+--------------------------------------------------
+
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elasticsearch.org/download[`www.elasticsearch.org/download`] along with all the releases that have been made in the past. For each release, you have a choice among a zip, tar, DEB, or RPM package. For simplicity, let's use the tar package.
+
+Let's download the Elasticsearch 1.1.1 tar as follows (Windows users should download the zip package):
+
+[source,sh]
+--------------------------------------------------
+curl -L -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticsearch-1.1.1.tar.gz
+--------------------------------------------------
+
+Then extract it as follows (Windows users should unzip the zip package):
+
+[source,sh]
+--------------------------------------------------
+tar -xvf elasticsearch-1.1.1.tar.gz
+--------------------------------------------------
+
+It will then create a bunch of files and folders in your current directory. We then go into the bin directory as follows:
+
+[source,sh]
+--------------------------------------------------
+cd elasticsearch-1.1.1/bin
+--------------------------------------------------
+
+And now we are ready to start our node and single cluster (Windows users should run the elasticsearch.bat file):
+
+[source,sh]
+--------------------------------------------------
+./elasticsearch
+--------------------------------------------------
+
+If everything goes well, you should see a bunch of messages that look like below:
+
+[source,sh]
+--------------------------------------------------
+./elasticsearch
+[2014-03-13 13:42:17,218][INFO ][node           ] [New Goblin] version[1.1.1], pid[2085], build[5c03844/2014-02-25T15:52:53Z]
+[2014-03-13 13:42:17,219][INFO ][node           ] [New Goblin] initializing ...
+[2014-03-13 13:42:17,223][INFO ][plugins        ] [New Goblin] loaded [], sites []
+[2014-03-13 13:42:19,831][INFO ][node           ] [New Goblin] initialized
+[2014-03-13 13:42:19,832][INFO ][node           ] [New Goblin] starting ...
+[2014-03-13 13:42:19,958][INFO ][transport      ] [New Goblin] bound_address {inet[/0:0:0:0:0:0:0:0:9300]}, publish_address {inet[/192.168.8.112:9300]}
+[2014-03-13 13:42:23,030][INFO ][cluster.service] [New Goblin] new_master [New Goblin][rWMtGj3dQouz2r6ZFL9v4g][mwubuntu1][inet[/192.168.8.112:9300]], reason: zen-disco-join (elected_as_master)
+[2014-03-13 13:42:23,100][INFO ][discovery      ] [New Goblin] elasticsearch/rWMtGj3dQouz2r6ZFL9v4g
+[2014-03-13 13:42:23,125][INFO ][http           ] [New Goblin] bound_address {inet[/0:0:0:0:0:0:0:0:9200]}, publish_address {inet[/192.168.8.112:9200]}
+[2014-03-13 13:42:23,629][INFO ][gateway        ] [New Goblin] recovered [1] indices into cluster_state
+[2014-03-13 13:42:23,630][INFO ][node           ] [New Goblin] started
+--------------------------------------------------
+
+Without going too much into detail, we can see that our node named "New Goblin" (which will be a different Marvel character in your case) has started and elected itself as a master in a single cluster. Don't worry yet at the moment what master means. The main thing that is important here is that we have started one node within one cluster.
+
+As mentioned previously, we can override either the cluster or node name. This can be done from the command line when starting Elasticsearch as follows:
+
+[source,sh]
+--------------------------------------------------
+./elasticsearch --cluster.name my_cluster_name --node.name my_node_name
+--------------------------------------------------
+
+Also note the line marked http with information about the HTTP address (`192.168.8.112`) and port (`9200`) that our node is reachable from. By default, Elasticsearch uses port `9200` to provide access to its REST API. This port is configurable if necessary.
+
+== Exploring Your Cluster
+
+[float]
+=== The REST API
+
+Now that we have our node (and cluster) up and running, the next step is to understand how to communicate with it. Fortunately, Elasticsearch provides a very comprehensive and powerful REST API that you can use to interact with your cluster. Among the few things that can be done with the API are as follows:
+ 
+* Check your cluster, node, and index health, status, and statistics
+* Administer your cluster, node, and index data and metadata
+* Perform CRUD (Create, Read, Update, and Delete) and search operations against your indexes
+* Execute advanced search operations such as paging, sorting, filtering, scripting, faceting, aggregations, and many others
+
+=== Cluster Health
+
+Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window. 
+
+To check the cluster health, we will be using the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cat.html[`_cat` API]. Remember previously that our node HTTP endpoint is available at port `9200`:
+ 
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_cat/health?v'
+--------------------------------------------------
+ 
+And the response:
+
+[source,sh]
+--------------------------------------------------
+epoch      timestamp cluster       status node.total node.data shards pri relo init unassign
+1394735289 14:28:09  elasticsearch green           1         1      0   0    0    0        0
+--------------------------------------------------
+
+We can see that our cluster named "elasticsearch" is up with a green status. 
+
+Whenever we ask for the cluster health, we either get green, yellow, or red. Green means everything is good (cluster is fully functional), yellow means all data is available but some replicas are not yet allocated (cluster is fully functional), and red means some data is not available for whatever reason. Note that even if a cluster is red, it still is partially functional (i.e. it will continue to serve search requests from the available shards) but you will likely need to fix it ASAP since you have missing data.
+ 
+Also from the above response, we can see and total of 1 node and that we have 0 shards since we have no data in it yet. Note that since we we are using the default cluster name (elasticsearch) and since Elasticsearch uses multicast network discovery by default to find other nodes, it is possible that you could accidentally start up more than one node in your network and have them all join a single cluster. In this scenario, you may see more than 1 node in the above response.
+ 
+We can also get a list of nodes in our cluster as follows:
+ 
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_cat/nodes?v'
+--------------------------------------------------
+ 
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_cat/nodes?v'
+host         ip        heap.percent ram.percent load node.role master name
+mwubuntu1    127.0.1.1            8           4 0.00 d         *      New Goblin
+--------------------------------------------------
+
+Here, we can see our one node named "New Goblin", which is the single node that is currently in our cluster.
+ 
+=== List All Indexes
+
+Now let's take a peek at our indexes:
+ 
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_cat/indices?v'
+--------------------------------------------------
+ 
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_cat/indices?v'
+health index pri rep docs.count docs.deleted store.size pri.store.size
+--------------------------------------------------
+
+Which simply means we have no indexes yet in the cluster.
+
+=== Create an Index
+
+Now let's create an index named "customer" and then list all the indexes again:
+ 
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer?pretty'
+curl 'localhost:9200/_cat/indices?v'
+--------------------------------------------------
+ 
+The first command creates the index named "customer" using the PUT verb. We simply append `pretty` to the end of the call to tell it to pretty-print the JSON response (if any).
+ 
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer?pretty'
+{
+  "acknowledged" : true
+}
+
+curl 'localhost:9200/_cat/indices?v'
+health index    pri rep docs.count docs.deleted store.size pri.store.size
+yellow customer   5   1          0            0       495b           495b
+--------------------------------------------------
+
+The results of the second command tells us that we now have 1 index named customer and it has 5 primary shards and 1 replica (the defaults) and it contains 0 documents in it.
+ 
+You might also notice that the customer index has a yellow health tagged to it. Recall from our previous discussion that yellow means that some replicas are not (yet) allocated. The reason this happens for this index is because Elasticsearch by default created one replica for this index. Since we only have one node running at the moment, that one replica cannot yet be allocated (for high availability) until a later point in time when another node joins the cluster. Once that replica gets allocated onto a second node, the health status for this index will turn to green.
+
+=== Index and Query a Document
+
+Let's now put something into our customer index. Remember previously that in order to index a document, we must tell Elasticsearch which type in the index it should go to.
+
+Let's index a simple customer document into the customer index, "external" type, with an ID of 1 as follows:
+
+Our JSON document: { "name": "John Doe" }
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+{ 
+  "name": "John Doe" 
+}'
+--------------------------------------------------
+
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+{ 
+  "name": "John Doe" 
+}'
+{
+  "_index" : "customer",
+  "_type" : "external",
+  "_id" : "1",
+  "_version" : 1,
+  "created" : true
+}
+--------------------------------------------------
+
+From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
+
+It is important to note that Elasticsearch does not require you to explicitly create an index first before you can index documents into it. In the previous example, Elasticsearch will automatically create the customer index if it didn't already exist beforehand.
+ 
+Let's now retrieve that document that we just indexed:
+ 
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/customer/external/1?pretty'
+--------------------------------------------------
+ 
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/customer/external/1?pretty'
+{
+  "_index" : "customer",
+  "_type" : "external",
+  "_id" : "1",
+  "_version" : 1,
+  "found" : true, "_source" : { "name": "John Doe" }
+}
+--------------------------------------------------
+
+Nothing out of the ordinary here other than a field, `found`, stating that we found a document with the requested ID 1 and another field, `_source`, which returns the full JSON document that we indexed from the previous step.
+ 
+=== Delete an Index
+
+Now let's delete the index that we just created and then list all the indexes again:
+ 
+[source,sh]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/customer?pretty'
+curl 'localhost:9200/_cat/indices?v'
+--------------------------------------------------
+ 
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/customer?pretty'
+{
+  "acknowledged" : true
+}
+curl 'localhost:9200/_cat/indices?v'
+health index pri rep docs.count docs.deleted store.size pri.store.size
+--------------------------------------------------
+
+Which means that the index was deleted successfully and we are now back to where we started with nothing in our cluster.
+
+Before we move on, let's take a closer look again at some of the API commands that we have learned so far:
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer'
+curl -XPUT 'localhost:9200/customer/external/1' -d '
+{ 
+  "name": "John Doe" 
+}'
+curl 'localhost:9200/customer/external/1'
+curl -XDELETE 'localhost:9200/customer'
+--------------------------------------------------
+ 
+If we study the above commands carefully, we can actually see a pattern of how we access data in Elasticsearch. That pattern can be summarized as follows:
+ 
+[source,sh]
+--------------------------------------------------
+curl -<REST Verb> <Node>:<Port>/<Index>/<Type>/<ID>
+--------------------------------------------------
+ 
+This REST access pattern is pervasive throughout all the API commands that if you can simply remember it, you will have a good head start at mastering Elasticsearch.
+
+== Modifying Your Data
+
+Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
+
+[float]
+=== Indexing/Replacing Documents
+
+We've previously seen how we can index a single document. Let's recall that command again:
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+{ 
+  "name": "John Doe" 
+}'
+--------------------------------------------------
+
+Again, the above will index the specified document into the customer index, external type, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer/external/1?pretty' -d '
+{ 
+  "name": "Jane Doe" 
+}'
+--------------------------------------------------
+
+The above changes the name of the document with the ID of 1 from "John Doe" to "Jane Doe". If, on the other hand, we use a different ID, a new document will be indexed and the existing document(s) already in the index remains untouched.
+
+[source,sh]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/customer/external/2?pretty' -d '
+{ 
+  "name": "Jane Doe" 
+}'
+--------------------------------------------------
+
+The above indexes a new document with an ID of 2.
+
+When indexing, the ID part is optional. If not specified, Elasticsearch will generate a random ID and then use it to index the document. The actual ID Elasticsearch generates (or whatever we specified explicitly in the previous examples) is returned as part of the index API call.
+
+This example shows how to index a document without an explicit ID:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/customer/external?pretty' -d '
+{ 
+  "name": "Jane Doe" 
+}'
+--------------------------------------------------
+
+Note that in the above case, we are using the POST verb instead of PUT since we didn't specify an ID.
+
+=== Updating Documents
+
+In addition to being able to index and replace documents, we can also update documents. Note though that Elasticsearch does not actually do in-place updates under the hood. Whenever we do an update, Elasticsearch deletes the old document and then indexes a new document with the update applied to it in one shot.
+
+This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe":
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+{
+  "doc": { "name": "Jane Doe" }
+}'
+--------------------------------------------------
+
+This example shows how to update our previous document (ID of 1) by changing the name field to "Jane Doe" and at the same time add an age field to it:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+{
+  "doc": { "name": "Jane Doe", "age": 20 }
+}'
+--------------------------------------------------
+
+Updates can also be performed by using simple scripts. This example uses a script to increment the age by 5:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
+{
+  "script" : "ctx._source.age += 5"
+}'
+--------------------------------------------------
+
+In the above example, `ctx._source` refers to the current source document that is about to be updated.
+
+Note that as if this writing, updates can only be performed on a single document at a time. In the future, Elasticsearch will provide the ability to update multiple documents given a query condition (like an `SQL UPDATE-WHERE` statement).
+
+=== Deleting Documents
+
+Deleting a document is fairly straightforward. This example shows how to delete our previous customer with the ID of 2:
+
+[source,sh]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/customer/external/2?pretty'
+--------------------------------------------------
+
+We also have the ability to delete multiple documents that match a query condition. This example shows how to delete all customers whose names contain "John":
+
+[source,sh]
+--------------------------------------------------
+curl -XDELETE 'localhost:9200/customer/external/_query?pretty' -d '
+{
+  "query": { "match": { "name": "John" } }
+}'
+--------------------------------------------------
+
+Note above that the URI has changed to `/_query` to signify a delete-by-query API with the delete query criteria in the body, but we are still using the DELETE verb. Don't worry yet about the query syntax as we will cover that later in this tutorial.
+
+=== Batch Processing
+
+In addition to being able to index, update, and delete individual documents, Elasticsearch also provides the ability to perform any of the above operations in batches using the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html[`_bulk` API]. This functionality is important in that it provides a very efficient mechanism to do multiple operations as fast as possible with as little network roundtrips as possible.
+
+As a quick example, the following call indexes two documents (ID 1 - John Doe and ID 2 - Jane Doe) in one bulk operation:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/customer/external/_bulk?pretty' -d '
+{"index":{"_id":"1"}}
+{"name": "John Doe" }
+{"index":{"_id":"2"}}
+{"name": "Jane Doe" }
+'
+--------------------------------------------------
+
+This example updates the first document (ID of 1) and then deletes the second document (ID of 2) in one bulk operation:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/customer/external/_bulk?pretty' -d '
+{"update":{"_id":"1"}}
+{"doc": { "name": "John Doe becomes Jane Doe" } }
+{"delete":{"_id":"2"}}
+'
+--------------------------------------------------
+
+Note above that for the delete action, there is no corresponding source document after it since deletes only require the ID of the document to be deleted.
+
+The bulk API executes all the actions sequentially and in order. If a single action fails for whatever reason, it will continue to process the remainder of the actions after it. When the bulk API returns, it will provide a status for each action (in the same order it was sent in) so that you can check if a specific action failed or not.
+
+== Exploring Your Data
+
+[float]
+=== Sample Dataset
+
+Now that we've gotten a glimpse of the basics, let's try to work on a more realistic dataset. I've prepared a sample of fictitious JSON documents of customer bank account information. Each document has the following schema:
+
+[source,sh]
+--------------------------------------------------
+{
+    "account_number": 0,
+    "balance": 16623,
+    "firstname": "Bradshaw",
+    "lastname": "Mckenzie",
+    "age": 29,
+    "gender": "F",
+    "address": "244 Columbus Place",
+    "employer": "Euron",
+    "email": "bradshawmckenzie@euron.com",
+    "city": "Hobucken",
+    "state": "CO"
+}
+--------------------------------------------------
+
+For the curious, I generated this data from http://www.json-generator.com/[`www.json-generator.com/`] so please ignore the actual values and semantics of the data as these are all randomly generated.
+
+[float]
+=== Loading the Sample Dataset
+
+You can download the sample dataset (accounts.json) from https://github.com/bly2k/files/blob/master/accounts.zip?raw=true[here]. Extract it to our current directory and let's load it into our cluster as follows:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/account/_bulk?pretty' --data-binary @accounts.json
+curl 'localhost:9200/_cat/indices?v'
+--------------------------------------------------
+
+And the response:
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/_cat/indices?v'
+health index pri rep docs.count docs.deleted store.size pri.store.size
+yellow bank    5   1       1000            0    424.4kb        424.4kb
+--------------------------------------------------
+
+Which means that we just successfully bulk indexed 1000 documents into the bank index (under the account type).
+
+=== The Search API
+
+Now let's start with some simple searches. There are two basic ways to run searches: one is by sending search parameters through the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-uri-request.html[REST request URI] and the other by sending them through the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-request-body.html[REST request body]. The request body method allows you to be more expressive and also to define your searches in a more readable JSON format. We'll try one example of the request URI method but for the remainder of this tutorial, we will exclusively be using the request body method.
+
+The REST API for search is accessible from the `_search` endpoint. This example returns all documents in the bank index:
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/bank/_search?q=*&pretty'
+--------------------------------------------------
+
+Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
+
+And the response (partially shown):
+
+[source,sh]
+--------------------------------------------------
+curl 'localhost:9200/bank/_search?q=*&pretty'
+{
+  "took" : 63,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 1000,
+    "max_score" : 1.0,
+    "hits" : [ {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "1",
+      "_score" : 1.0, "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "6",
+      "_score" : 1.0, "_source" : {"account_number":6,"balance":5686,"firstname":"Hattie","lastname":"Bond","age":36,"gender":"M","address":"671 Bristol Street","employer":"Netagy","email":"hattiebond@netagy.com","city":"Dante","state":"TN"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
+--------------------------------------------------
+
+As for the response, we see the following parts:
+
+* `took` – time in milliseconds for Elasticsearch to execute the search
+* `timed_out` – tells us if the search timed out or not
+* `_shards` – tells us how many shards were searched, as well as a count of the successful/failed searched shards
+* `hits` – search results
+* `hits.total` – total number of documents matching our search criteria
+* `hits.hits` – actual array of search results (defaults to first 10 documents)
+* `_score` and `max_score` - ignore these fields for now
+
+Here is the same exact search above using the alternative request body method:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_all": {} }
+}'
+--------------------------------------------------
+
+The difference here is that instead of passing `q=*` in the URI, we POST a JSON-style query request body to the `_search` API. We'll discuss this JSON query in the next section.
+
+And the response (partially shown):
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_all": {} }
+}'
+{
+  "took" : 26,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 1000,
+    "max_score" : 1.0,
+    "hits" : [ {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "1",
+      "_score" : 1.0, "_source" : {"account_number":1,"balance":39225,"firstname":"Amber","lastname":"Duke","age":32,"gender":"M","address":"880 Holmes Lane","employer":"Pyrami","email":"amberduke@pyrami.com","city":"Brogan","state":"IL"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "6",
+      "_score" : 1.0, "_source" : {"account_number":6,"balance":5686,"firstname":"Hattie","lastname":"Bond","age":36,"gender":"M","address":"671 Bristol Street","employer":"Netagy","email":"hattiebond@netagy.com","city":"Dante","state":"TN"}
+    }, {
+      "_index" : "bank",
+      "_type" : "account",
+      "_id" : "13",
+--------------------------------------------------
+
+It is important to understand that once you get your search results back, Elasticsearch is completely done with the request and does not maintain any kind of server-side resources or open cursors into your results. This is in stark contrast to many other platforms such as SQL wherein you may initially get a partial subset of your query results up-front and then you have to continuously go back to the server if you want to fetch (or page through) the rest of the results using some kind of stateful server-side cursor.
+
+=== Introducing the Query Language
+
+Elasticsearch provides a JSON-style domain-specific language that you can use to execute queries. This is referred to as the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl.html[Query DSL]. The query language is quite comprehensive and can be intimidating at first glance but the best way to actually learn it is to start with a few basic examples.
+
+Going back to our last example, we executed this query:
+
+[source,sh]
+--------------------------------------------------
+{
+  "query": { "match_all": {} }
+}
+--------------------------------------------------
+
+Dissecting the above, the `query` part tells us what our query definition is and the `match_all` part is simply the type of query that we want to run. The `match_all` query is simply a search for all documents in the specified index.
+
+In addition to the `query` parameter, we also can pass other parameters to influence the search results. For example, the following does a `match_all` and returns only the first document:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_all": {} },
+  "size": 1
+}'
+--------------------------------------------------
+
+Note that if `size` is not specified, it defaults to 10.
+
+This example does a `match_all` and returns documents 11 through 20:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_all": {} },
+  "from": 10,
+  "size": 10
+}'
+--------------------------------------------------
+
+The `from` parameter (0-based) specifies which document index to start from and the `size` parameter specifies how many documents to return starting at the from parameter. This feature is useful when implementing paging of search results. Note that if `from` is not specified, it defaults to 0.
+
+This example does a `match_all` and sorts the results by account balance in descending order and returns the top 10 (default size) documents.
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_all": {} },
+  "sort": { "balance": { "order": "desc" } }
+}'
+--------------------------------------------------
+
+=== Executing Searches
+
+Now that we have seen a few of the basic search parameters, let's dig in some more into the Query DSL. Let's first take a look at the returned document fields. By default, the full JSON document is returned as part of all searches. This is referred to as the source (`_source` field in the search hits). If we don't want the entire source document returned, we have the ability to request only a few fields from within source to be returned.
+
+This example shows how to return two fields, `account_number` and `balance` (inside of `_source`), from the search:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_all": {} },
+  "_source": ["account_number", "balance"]
+}'
+--------------------------------------------------
+
+Note that the above example simply reduces the `_source` field. It will still only return one field named `_source` but within it, only the fields `account_number` and `balance` are included.
+
+If you come from a SQL background, the above is somewhat similar in concept to the `SQL SELECT FROM` field list.
+
+Now let's move on to the query part. Previously, we've seen how the `match_all` query is used to match all documents. Let's now introduce a new query called the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-match-query.html[`match` query], which can be thought of as a basic fielded search query (i.e. a search done against a specific field or set of fields).
+
+This example returns the account numbered 20:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match": { "account_number": 20 } }
+}'
+--------------------------------------------------
+
+This example returns all accounts containing the term "mill" in the address:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match": { "address": "mill" } }
+}'
+--------------------------------------------------
+
+This example returns all accounts containing the term "mill" or "lane" in the address:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match": { "address": "mill lane" } }
+}'
+--------------------------------------------------
+
+This example is a variant of `match` (`match_phrase`) that returns all accounts containing the phrase "mill lane" in the address:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": { "match_phrase": { "address": "mill lane" } }
+}'
+--------------------------------------------------
+
+Let's now introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-bool-query.html[`bool`(ean) query]. The `bool` query allows us to compose smaller queries into bigger queries using boolean logic.
+
+This example composes two `match` queries and returns all accounts containing "mill" and "lane" in the address:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "address": "mill" } },
+        { "match": { "address": "lane" } }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
+In the above example, the `bool must` clause specifies all the queries that must be true for a document to be considered a match.
+
+In contrast, this example composes two `match` queries and returns all accounts containing "mill" or "lane" in the address:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": {
+    "bool": {
+      "should": [
+        { "match": { "address": "mill" } },
+        { "match": { "address": "lane" } }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
+In the above example, the `bool should` clause specifies a list of queries either of which must be true for a document to be considered a match.
+
+This example composes two `match` queries and returns all accounts that contain neither "mill" nor "lane" in the address:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": {
+    "bool": {
+      "must_not": [
+        { "match": { "address": "mill" } },
+        { "match": { "address": "lane" } }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
+In the above example, the `bool must_not` clause specifies a list of queries none of which must be true for a document to be considered a match.
+
+We can combine `must`, `should`, and `must_not` clauses simultaneously inside a `bool` query. Furthermore, we can compose `bool` queries inside any of these `bool` clauses to mimic any complex multi-level boolean logic.
+
+This example returns all accounts of anybody who is 40 years old but don't live in ID(daho):
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "age": "40" } }
+      ],
+      "must_not": [
+        { "match": { "state": "ID" } }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
+=== Executing Filters
+
+In the previous section, we skipped over a little detail called the document score (`_score` field in the search results). The score is a numeric value that is a relative measure of how well the document matches the search query that we specified. The higher the score, the more relevant the document is, the lower the score, the less relevant the document is.
+
+All queries in Elasticsearch trigger computation of the relevance scores. In cases where we do not need the relevance scores, Elasticsearch provides another query capability in the form of http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-filters.html[filters]. Filters are similar in concept to queries except that they are optimized for much faster execution speeds for two primary reasons:
+
+* Filters do not score so they are faster to execute than queries
+* Filters can be http://www.elasticsearch.org/blog/all-about-elasticsearch-filter-bitsets/[cached in memory] allowing repeated search executions to be significantly faster than queries
+
+To understand filters, let's first introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-filtered-query.html[`filtered` query], which allows you to combine a query (like `match_all`, `match`, `bool`, etc.) together with a filter. As an example, let's introduce the http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/query-dsl-range-filter.html[`range` filter], which allows us to filter documents by a range of values. This is generally used for numeric or date filtering.
+
+This example uses a filtered query to return all accounts with balances between 20000 and 30000, inclusive. In other words, we want to find accounts with a balance that is greater than or equal to 20000 and less than or equal to 30000.
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "query": {
+    "filtered": {
+      "query": { "match_all": {} },
+      "filter": {
+        "range": {
+          "balance": {
+            "gte": 20000,
+            "lte": 30000
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+Dissecting the above, the filtered query contains a `match_all` query (the query part) and a `range` filter (the filter part). We can substitute any other query into the query part as well as any other filter into the filter part. In the above case, the range filter makes perfect sense since documents falling into the range all match "equally", i.e., no document is more relevant than another.
+
+In general, the easiest way to decide whether you want a filter or a query is to ask yourself if you care about the relevance score or not. If relevance is not important, use filters, otherwise, use queries. If you come from a SQL background, queries and filters are similar in concept to the `SELECT WHERE` clause, although more so for filters than queries.
+
+In addition to the `match_all`, `match`, `bool`, `filtered`, and `range` queries, there are a lot of other query/filter types that are available and we won't go into them here. Since we already have a basic understanding of how they work, it shouldn't be too difficult to apply this knowledge in learning and experimenting with the other query/filter types.
+
+=== Executing Aggregations
+
+Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
+
+To start with, this example groups all the accounts by state, and then returns the top 10 (default) states sorted by count descending (also default):
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state"
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+In SQL, the above aggregation is similar in concept to:
+
+[source,sh]
+--------------------------------------------------
+SELECT COUNT(*) from bank GROUP BY state ORDER BY COUNT(*) DESC
+--------------------------------------------------
+
+And the response (partially shown):
+
+[source,sh]
+--------------------------------------------------
+  "hits" : {
+    "total" : 1000,
+    "max_score" : 0.0,
+    "hits" : [ ]
+  },
+  "aggregations" : {
+    "group_by_state" : {
+      "buckets" : [ {
+        "key" : "al",
+        "doc_count" : 21
+      }, {
+        "key" : "tx",
+        "doc_count" : 17
+      }, {
+        "key" : "id",
+        "doc_count" : 15
+      }, {
+        "key" : "ma",
+        "doc_count" : 15
+      }, {
+        "key" : "md",
+        "doc_count" : 15
+      }, {
+        "key" : "pa",
+        "doc_count" : 15
+      }, {
+        "key" : "dc",
+        "doc_count" : 14
+      }, {
+        "key" : "me",
+        "doc_count" : 14
+      }, {
+        "key" : "mo",
+        "doc_count" : 14
+      }, {
+        "key" : "nd",
+        "doc_count" : 14
+      } ]
+    }
+  }
+}
+--------------------------------------------------
+
+We can see that there are 21 accounts in AL(abama), followed by 17 accounts in TX, followed by 15 accounts in ID(daho), and so forth.
+
+Note that we set `size=0` to not show search hits because we only want to see the aggregation results in the response.
+
+Building on the previous aggregation, this example calculates the average account balance by state (again only for the top 10 states sorted by count in descending order):
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state"
+      },
+      "aggs": {
+        "average_balance": {
+          "avg": {
+            "field": "balance"
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+Notice how we nested the `average_balance` aggregation inside the `group_by_state` aggregation. This is a common pattern for all the aggregations. You can nest aggregations inside aggregations arbitrarily to extract pivoted summarizations that you require from your data.
+
+Building on the previous aggregation, let's now sort on the average balance in descending order:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "size": 0,
+  "aggs": {
+    "group_by_state": {
+      "terms": {
+        "field": "state",
+        "order": {
+          "average_balance": "desc"
+        }
+      },
+      "aggs": {
+        "average_balance": {
+          "avg": {
+            "field": "balance"
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+This example demonstrates how we can group by age brackets (ages 20-29, 30-29, and 40-49), then by gender, and then finally get the average account balance, per age bracket, per gender:
+
+[source,sh]
+--------------------------------------------------
+curl -XPOST 'localhost:9200/bank/_search?pretty' -d '
+{
+  "size": 0,
+  "aggs": {
+    "group_by_age": {
+      "range": {
+        "field": "age",
+        "ranges": [
+          {
+            "from": 20,
+            "to": 30
+          },
+          {
+            "from": 30,
+            "to": 40
+          },
+          {
+            "from": 40,
+            "to": 50
+          }
+        ]
+      },
+      "aggs": {
+        "group_by_gender": {
+          "terms": {
+            "field": "gender"
+          },
+          "aggs": {
+            "average_balance": {
+              "avg": {
+                "field": "balance"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+There are a many other aggregations capabilities that we won't go into detail here. The http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-aggregations.html[aggregations reference guide] is a great starting point if you want to do further experimentation.
+
+== Conclusion
+
+Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. I hope that this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!
+

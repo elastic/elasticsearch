@@ -65,6 +65,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             ThreadPool.Names.REFRESH,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.SNAPSHOT_DATA,
             ThreadPool.Names.SUGGEST,
             ThreadPool.Names.WARMER
     };
@@ -82,6 +83,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             "r",
             "s",
             "sn",
+            "sd",
             "su",
             "w"
     };
@@ -123,13 +125,12 @@ public class RestThreadPoolAction extends AbstractCatAction {
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        final String[] pools = fetchSortedPools(request, DEFAULT_THREAD_POOLS);
 
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().process(true);
+                nodesInfoRequest.clear().process(true).threadPool(true);
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
@@ -138,7 +139,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
-                                return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse, pools), channel);
+                                return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
                             }
                         });
                     }
@@ -151,7 +152,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     Table getTableWithHeader(final RestRequest request) {
         Table table = new Table();
         table.startHeaders();
-        table.addCell("id", "default:false;alias:id,nodeId;desc:unique node id");
+        table.addCell("id", "default:false;alias:nodeId;desc:unique node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
         table.addCell("host", "alias:h;desc:host name");
         table.addCell("ip", "alias:i;desc:ip address");
@@ -170,16 +171,24 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
             String defaultDisplayVal = Boolean.toString(display);
             table.addCell(
+                    pool + ".type",
+                    "alias:" + poolAlias + "t;default:false;desc:" + pool + " thread pool type"
+            );
+            table.addCell(
                     pool + ".active",
                     "alias:" + poolAlias + "a;default:" + defaultDisplayVal + ";text-align:right;desc:number of active " + pool + " threads"
             );
             table.addCell(
                     pool + ".size",
-                    "alias:" + poolAlias + "s;default:false;text-align:right;desc:number of active " + pool + " threads"
+                    "alias:" + poolAlias + "s;default:false;text-align:right;desc:number of " + pool + " threads"
             );
             table.addCell(
                     pool + ".queue",
                     "alias:" + poolAlias + "q;default:" + defaultDisplayVal + ";text-align:right;desc:number of " + pool + " threads in queue"
+            );
+            table.addCell(
+                    pool + ".queueSize",
+                    "alias:" + poolAlias + "qs;default:false;text-align:right;desc:maximum number of " + pool + " threads in queue"
             );
             table.addCell(
                     pool + ".rejected",
@@ -193,6 +202,18 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     pool + ".completed",
                     "alias:" + poolAlias + "c;default:false;text-align:right;desc:number of completed " + pool + " threads"
             );
+            table.addCell(
+                    pool + ".min",
+                    "alias:" + poolAlias + "mi;default:false;text-align:right;desc:minimum number of " + pool + " threads"
+            );
+            table.addCell(
+                    pool + ".max",
+                    "alias:" + poolAlias + "ma;default:false;text-align:right;desc:maximum number of " + pool + " threads"
+            );
+            table.addCell(
+                    pool + ".keepAlive",
+                    "alias:" + poolAlias + "k;default:false;text-align:right;desc:" + pool + " thread keep alive time"
+            );
         }
 
         table.endHeaders();
@@ -200,7 +221,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats, String[] pools) {
+    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         boolean fullId = req.paramAsBoolean("full_id", false);
         DiscoveryNodes nodes = state.getState().nodes();
         Table table = getTableWithHeader(req);
@@ -221,23 +242,60 @@ public class RestThreadPoolAction extends AbstractCatAction {
             }
 
             final Map<String, ThreadPoolStats.Stats> poolThreadStats;
+            final Map<String, ThreadPool.Info> poolThreadInfo;
+
             if (stats == null) {
                 poolThreadStats = Collections.emptyMap();
+                poolThreadInfo = Collections.emptyMap();
             } else {
                 poolThreadStats = new HashMap<>(14);
+                poolThreadInfo = new HashMap<>(14);
+
                 ThreadPoolStats threadPoolStats = stats.getThreadPool();
                 for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
                     poolThreadStats.put(threadPoolStat.getName(), threadPoolStat);
                 }
+                if (info != null) {
+                    for (ThreadPool.Info threadPoolInfo : info.getThreadPool()) {
+                        poolThreadInfo.put(threadPoolInfo.getName(), threadPoolInfo);
+                    }
+                }
             }
             for (String pool : SUPPORTED_NAMES) {
                 ThreadPoolStats.Stats poolStats = poolThreadStats.get(pool);
+                ThreadPool.Info poolInfo = poolThreadInfo.get(pool);
+
+                Long maxQueueSize = null;
+                String keepAlive = null;
+                Integer minThreads = null;
+                Integer maxThreads = null;
+
+                if (poolInfo != null) {
+                    if (poolInfo.getQueueSize() != null) {
+                        maxQueueSize = poolInfo.getQueueSize().singles();
+                    }
+                    if (poolInfo.getKeepAlive() != null) {
+                        keepAlive = poolInfo.getKeepAlive().toString();
+                    }
+                    if (poolInfo.getMin() >= 0) {
+                        minThreads = poolInfo.getMin();
+                    }
+                    if (poolInfo.getMax() >= 0) {
+                        maxThreads = poolInfo.getMax();
+                    }
+                }
+
+                table.addCell(poolInfo == null  ? null : poolInfo.getType());
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
                 table.addCell(poolStats == null ? null : poolStats.getQueue());
+                table.addCell(maxQueueSize);
                 table.addCell(poolStats == null ? null : poolStats.getRejected());
                 table.addCell(poolStats == null ? null : poolStats.getLargest());
                 table.addCell(poolStats == null ? null : poolStats.getCompleted());
+                table.addCell(minThreads);
+                table.addCell(maxThreads);
+                table.addCell(keepAlive);
             }
 
             table.endRow();

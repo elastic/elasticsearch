@@ -61,6 +61,23 @@ import java.util.Set;
  */
 public class ClusterState implements ToXContent {
 
+    public static enum ClusterStateStatus {
+        UNKNOWN((byte) 0),
+        RECEIVED((byte) 1),
+        BEING_APPLIED((byte) 2),
+        APPLIED((byte) 3);
+
+        private final byte id;
+
+        ClusterStateStatus(byte id) {
+            this.id = id;
+        }
+
+        public byte id() {
+            return this.id;
+        }
+    }
+
     public interface Custom {
 
         interface Factory<T extends Custom> {
@@ -75,7 +92,7 @@ public class ClusterState implements ToXContent {
         }
     }
 
-    public static Map<String, Custom.Factory> customFactories = new HashMap<>();
+    private final static Map<String, Custom.Factory> customFactories = new HashMap<>();
 
     /**
      * Register a custom index meta data factory. Make sure to call it from a static block.
@@ -117,6 +134,8 @@ public class ClusterState implements ToXContent {
 
     private SettingsFilter settingsFilter;
 
+    private volatile ClusterStateStatus status;
+
     public ClusterState(long version, ClusterState state) {
         this(state.clusterName, version, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.customs());
     }
@@ -129,6 +148,16 @@ public class ClusterState implements ToXContent {
         this.nodes = nodes;
         this.blocks = blocks;
         this.customs = customs;
+        this.status = ClusterStateStatus.UNKNOWN;
+    }
+
+    public ClusterStateStatus status() {
+        return status;
+    }
+
+    public ClusterState status(ClusterStateStatus newStatus) {
+        this.status = newStatus;
+        return this;
     }
 
     public long version() {
@@ -210,6 +239,8 @@ public class ClusterState implements ToXContent {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
+        sb.append("version: ").append(version).append("\n");
+        sb.append("meta data version: ").append(metaData.version()).append("\n");
         sb.append(nodes().prettyPrint());
         sb.append(routingTable().prettyPrint());
         sb.append(readOnlyRoutingNodes().prettyPrint());

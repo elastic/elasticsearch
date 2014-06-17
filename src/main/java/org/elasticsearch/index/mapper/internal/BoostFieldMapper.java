@@ -79,7 +79,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -91,7 +91,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -119,7 +119,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
+        this(name, indexName, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
                 Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
     }
 
@@ -234,10 +234,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     @Override
     public void postParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public void validate(ParseContext context) throws MapperParsingException {
     }
 
     @Override

@@ -25,14 +25,17 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramBuild
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramBuilder;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4RangeBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
+import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsBuilder;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgBuilder;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinBuilder;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesBuilder;
@@ -93,6 +96,10 @@ public class AggregationBuilders {
         return new NestedBuilder(name);
     }
 
+    public static ReverseNestedBuilder reverseNested(String name) {
+        return new ReverseNestedBuilder(name);
+    }
+
     public static GeoDistanceBuilder geoDistance(String name) {
         return new GeoDistanceBuilder(name);
     }
@@ -135,5 +142,13 @@ public class AggregationBuilders {
 
     public static CardinalityBuilder cardinality(String name) {
         return new CardinalityBuilder(name);
+    }
+
+    public static TopHitsBuilder topHits(String name) {
+        return new TopHitsBuilder(name);
+    }
+    
+    public static GeoBoundsBuilder geoBounds(String name) {
+        return new GeoBoundsBuilder(name);
     }
 }

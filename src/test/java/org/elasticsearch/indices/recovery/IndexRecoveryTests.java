@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,35 +37,38 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
     private static final String INDEX_NAME = "test-idx-1";
+    private static final String INDEX_TYPE = "test-type-1";
     private static final String REPO_NAME = "test-repo-1";
     private static final String SNAP_NAME = "test-snap-1";
 
-    private static final int DOC_COUNT = 100;
+    private static final int MIN_DOC_COUNT = 500;
+    private static final int MAX_DOC_COUNT = 1000;
     private static final int SHARD_COUNT = 1;
     private static final int REPLICA_COUNT = 0;
 
     @Test
     public void gatewayRecoveryTest() throws Exception {
         logger.info("--> start nodes");
-        String node = cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        String node = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> restarting cluster");
-        cluster().fullRestart();
+        internalCluster().fullRestart();
         ensureGreen();
 
         logger.info("--> request recoveries");
@@ -83,17 +87,19 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(node, equalTo(state.getSourceNode().getName()));
         assertThat(node, equalTo(state.getTargetNode().getName()));
         assertNull(state.getRestoreSource());
+
+        validateIndexRecoveryState(state.getIndex());
     }
 
     @Test
     public void gatewayRecoveryTestActiveOnly() throws Exception {
         logger.info("--> start nodes");
-        cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> restarting cluster");
-        cluster().fullRestart();
+        internalCluster().fullRestart();
         ensureGreen();
 
         logger.info("--> request recoveries");
@@ -106,13 +112,13 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void replicaRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create index on node: {}", nodeA);
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> start node B");
-        String nodeB = cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         ensureGreen();
 
         // force a shard recovery from nodeA to nodeB
@@ -140,6 +146,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(nodeAShardResponse.recoveryState().getTargetNode().getName(), equalTo(nodeA));
         assertThat(nodeAShardResponse.recoveryState().getType(), equalTo(RecoveryState.Type.GATEWAY));
         assertThat(nodeAShardResponse.recoveryState().getStage(), equalTo(RecoveryState.Stage.DONE));
+        validateIndexRecoveryState(nodeAShardResponse.recoveryState().getIndex());
 
         // validate node B recovery
         ShardRecoveryResponse nodeBShardResponse = nodeBResponses.get(0);
@@ -148,18 +155,19 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(nodeBShardResponse.recoveryState().getTargetNode().getName(), equalTo(nodeB));
         assertThat(nodeBShardResponse.recoveryState().getType(), equalTo(RecoveryState.Type.REPLICA));
         assertThat(nodeBShardResponse.recoveryState().getStage(), equalTo(RecoveryState.Stage.DONE));
+        validateIndexRecoveryState(nodeBShardResponse.recoveryState().getIndex());
     }
 
     @Test
     public void rerouteRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create index on node: {}", nodeA);
         createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
 
         logger.info("--> start node B");
-        String nodeB = cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
         ensureGreen();
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
@@ -183,18 +191,19 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertThat(nodeA, equalTo(state.getSourceNode().getName()));
         assertThat(nodeB, equalTo(state.getTargetNode().getName()));
         assertNull(state.getRestoreSource());
+        validateIndexRecoveryState(state.getIndex());
     }
 
     @Test
     public void snapshotRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = cluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create repository");
         assertAcked(client().admin().cluster().preparePutRepository(REPO_NAME)
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE))
-                        .put("compress", false)
+                                .put("location", newTempDir(LifecycleScope.SUITE))
+                                .put("compress", false)
                 ).get());
 
         ensureGreen();
@@ -236,6 +245,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
                 assertThat(shardResponse.recoveryState().getStage(), equalTo(RecoveryState.Stage.DONE));
                 assertNotNull(shardResponse.recoveryState().getRestoreSource());
                 assertThat(shardResponse.recoveryState().getTargetNode().getName(), equalTo(nodeA));
+                validateIndexRecoveryState(shardResponse.recoveryState().getIndex());
             }
         }
     }
@@ -250,18 +260,36 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         return nodeResponses;
     }
 
-    private IndicesStatsResponse createAndPopulateIndex(String name, int nodeCount, int shardCount, int replicaCount) {
+    private IndicesStatsResponse createAndPopulateIndex(String name, int nodeCount, int shardCount, int replicaCount)
+            throws ExecutionException, InterruptedException {
+
         logger.info("--> creating test index: {}", name);
         assertAcked(prepareCreate(name, nodeCount, settingsBuilder().put("number_of_shards", shardCount)
                 .put("number_of_replicas", replicaCount)));
         ensureGreen();
 
         logger.info("--> indexing sample data");
-        for (int i = 0; i < DOC_COUNT; i++) {
-            index(INDEX_NAME, "x", Integer.toString(i), "foo-" + i, "bar-" + i);
+        final int numDocs = between(MIN_DOC_COUNT, MAX_DOC_COUNT);
+        final IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
+
+        for (int i = 0; i < numDocs; i++) {
+            docs[i] = client().prepareIndex(INDEX_NAME, INDEX_TYPE).
+                    setSource("foo-int-" + i, randomInt(),
+                              "foo-string-" + i, randomAsciiOfLength(32),
+                              "foo-float-" + i, randomFloat());
         }
-        refresh();
-        assertThat(client().prepareCount(INDEX_NAME).get().getCount(), equalTo((long) DOC_COUNT));
+
+        indexRandom(true, docs);
+        flush();
+        assertThat(client().prepareCount(INDEX_NAME).get().getCount(), equalTo((long) numDocs));
         return client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet();
+    }
+
+    private void validateIndexRecoveryState(RecoveryState.Index indexState) {
+        assertThat(indexState.time(), greaterThanOrEqualTo(0L));
+        assertThat(indexState.percentFilesRecovered(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.percentFilesRecovered(), lessThanOrEqualTo(100.0f));
+        assertThat(indexState.percentBytesRecovered(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.percentBytesRecovered(), lessThanOrEqualTo(100.0f));
     }
 }

@@ -78,7 +78,7 @@ Defaults to `true`.
 not explicitly set.
 
 |`network.tcp.reuse_address` |Should an address be reused or not.
-Defaults to `true` on none windows machines.
+Defaults to `true` on non-windows machines.
 
 |`network.tcp.send_buffer_size` |The size of the tcp send buffer size
 (in size setting format). By default not explicitly set.

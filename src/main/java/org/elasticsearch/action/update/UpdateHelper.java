@@ -106,7 +106,9 @@ public class UpdateHelper extends AbstractComponent {
         }
 
         long updateVersion = getResult.getVersion();
+
         if (request.versionType() != VersionType.INTERNAL) {
+            assert request.versionType() == VersionType.FORCE;
             updateVersion = request.version(); // remember, match_any is excluded by the conflict test
         }
 

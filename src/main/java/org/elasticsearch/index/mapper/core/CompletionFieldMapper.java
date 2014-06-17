@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.XStringField;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -387,17 +388,10 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
                 surfaceForm, weight, payload);
     }
 
-    private static final class SuggestField extends Field {
+    private static final class SuggestField extends XStringField {
         private final BytesRef payload;
         private final CompletionTokenStream.ToFiniteStrings toFiniteStrings;
         private final ContextMapping.Context ctx;
-
-        public SuggestField(String name, ContextMapping.Context ctx, Reader value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
-            super(name, value, type);
-            this.payload = payload;
-            this.toFiniteStrings = toFiniteStrings;
-            this.ctx = ctx;
-        }
 
         public SuggestField(String name, ContextMapping.Context ctx, String value, FieldType type, BytesRef payload, CompletionTokenStream.ToFiniteStrings toFiniteStrings) {
             super(name, value, type);

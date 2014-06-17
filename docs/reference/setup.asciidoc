@@ -31,7 +31,8 @@ $ bin/elasticsearch -d
 --------------------------------------------------
 
 Elasticsearch is built using Java, and requires at least
-http://java.sun.com/javase/downloads/index.jsp[Java 6] in order to run.
+http://java.sun.com/javase/downloads/index.jsp[Java 7] in order to run
+added[1.2.0,Was at least Java 6 before].
 The version of Java that will be used can be set by setting the
 `JAVA_HOME` environment variable.
 

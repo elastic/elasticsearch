@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -74,10 +73,6 @@ public class SimpleIndexStateTests extends ElasticsearchIntegrationTest {
         stateResponse = client().admin().cluster().prepareState().get();
         assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
-
-        logger.info("--> testing indices status api...");
-        IndicesStatusResponse indicesStatusResponse = client().admin().indices().prepareStatus().get();
-        assertThat(indicesStatusResponse.getIndices().size(), equalTo(0));
 
         logger.info("--> trying to index into a closed index ...");
         try {

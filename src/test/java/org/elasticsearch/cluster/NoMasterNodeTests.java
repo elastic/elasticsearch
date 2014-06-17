@@ -29,20 +29,23 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.HashMap;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=0)
+@ClusterScope(scope= Scope.TEST, numDataNodes =0)
 public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
     @Test
+    @TestLogging("action:TRACE,cluster.service:TRACE")
     public void testNoMasterActions() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
@@ -54,12 +57,12 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
 
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         // start a second node, create an index, and then shut it down so we have no master block
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        cluster().stopRandomNode();
+        internalCluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -125,7 +128,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        cluster().startNode(settings);
+        internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 }

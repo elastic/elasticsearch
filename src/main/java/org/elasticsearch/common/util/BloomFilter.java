@@ -23,8 +23,10 @@ import com.google.common.primitives.Ints;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.SizeValue;
@@ -163,7 +165,7 @@ public class BloomFilter {
         }
 
         try {
-            return new BloomFilter(new BitArray(numBits), numHashFunctions);
+            return new BloomFilter(new BitArray(numBits), numHashFunctions, Hashing.DEFAULT);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Could not create BloomFilter of " + numBits + " bits", e);
         }
@@ -171,63 +173,48 @@ public class BloomFilter {
 
     public static BloomFilter deserialize(DataInput in) throws IOException {
         int version = in.readInt(); // we do nothing with this now..., defaults to 0
-
         int numLongs = in.readInt();
         long[] data = new long[numLongs];
         for (int i = 0; i < numLongs; i++) {
             data[i] = in.readLong();
         }
-
         int numberOfHashFunctions = in.readInt();
-
-        int hashType = in.readInt(); // again, nothing to do now...
-
-        return new BloomFilter(new BitArray(data), numberOfHashFunctions);
+        int hashType = in.readInt();
+        return new BloomFilter(new BitArray(data), numberOfHashFunctions, Hashing.fromType(hashType));
     }
 
     public static void serilaize(BloomFilter filter, DataOutput out) throws IOException {
         out.writeInt(0); // version
-
         BitArray bits = filter.bits;
         out.writeInt(bits.data.length);
         for (long l : bits.data) {
             out.writeLong(l);
         }
-
         out.writeInt(filter.numHashFunctions);
-
-        out.writeInt(0); // hashType
+        out.writeInt(filter.hashing.type()); // hashType
     }
 
-    // TODO: don't duplicate serilaize/writeTo and deserialize/readFrom code
     public static BloomFilter readFrom(StreamInput in) throws IOException {
         int version = in.readVInt(); // we do nothing with this now..., defaults to 0
-
         int numLongs = in.readVInt();
         long[] data = new long[numLongs];
         for (int i = 0; i < numLongs; i++) {
             data[i] = in.readLong();
         }
-
         int numberOfHashFunctions = in.readVInt();
-
         int hashType = in.readVInt(); // again, nothing to do now...
-
-        return new BloomFilter(new BitArray(data), numberOfHashFunctions);
+        return new BloomFilter(new BitArray(data), numberOfHashFunctions, Hashing.fromType(hashType));
     }
 
     public static void writeTo(BloomFilter filter, StreamOutput out) throws IOException {
         out.writeVInt(0); // version
-
         BitArray bits = filter.bits;
         out.writeVInt(bits.data.length);
         for (long l : bits.data) {
             out.writeLong(l);
         }
-
         out.writeVInt(filter.numHashFunctions);
-
-        out.writeVInt(0); // hashType
+        out.writeVInt(filter.hashing.type()); // hashType
     }
 
     /**
@@ -239,9 +226,12 @@ public class BloomFilter {
      */
     final int numHashFunctions;
 
-    BloomFilter(BitArray bits, int numHashFunctions) {
+    final Hashing hashing;
+
+    BloomFilter(BitArray bits, int numHashFunctions, Hashing hashing) {
         this.bits = bits;
         this.numHashFunctions = numHashFunctions;
+        this.hashing = hashing;
     /*
      * This only exists to forbid BFs that cannot use the compact persistent representation.
      * If it ever throws, at a user who was not intending to use that representation, we should
@@ -253,34 +243,11 @@ public class BloomFilter {
     }
 
     public boolean put(BytesRef value) {
-        long hash64 = hash3_x64_128(value.bytes, value.offset, value.length, 0);
-        int hash1 = (int) hash64;
-        int hash2 = (int) (hash64 >>> 32);
-        boolean bitsChanged = false;
-        for (int i = 1; i <= numHashFunctions; i++) {
-            int nextHash = hash1 + i * hash2;
-            if (nextHash < 0) {
-                nextHash = ~nextHash;
-            }
-            bitsChanged |= bits.set(nextHash % bits.size());
-        }
-        return bitsChanged;
+        return hashing.put(value, numHashFunctions, bits);
     }
 
     public boolean mightContain(BytesRef value) {
-        long hash64 = hash3_x64_128(value.bytes, value.offset, value.length, 0);
-        int hash1 = (int) hash64;
-        int hash2 = (int) (hash64 >>> 32);
-        for (int i = 1; i <= numHashFunctions; i++) {
-            int nextHash = hash1 + i * hash2;
-            if (nextHash < 0) {
-                nextHash = ~nextHash;
-            }
-            if (!bits.get(nextHash % bits.size())) {
-                return false;
-            }
-        }
-        return true;
+        return hashing.mightContain(value, numHashFunctions, bits);
     }
 
     public int getNumHashFunctions() {
@@ -288,26 +255,12 @@ public class BloomFilter {
     }
 
     public long getSizeInBytes() {
-        return bits.size() + 8;
+        return bits.bitSize() + 8;
     }
 
     @Override
     public int hashCode() {
         return bits.hashCode() + numHashFunctions;
-    }
-
-    /**
-     * Returns the probability that {@linkplain #mightContain(BytesRef)} will erroneously return
-     * {@code true} for an object that has not actually been put in the {@code BloomFilter}.
-     * <p/>
-     * <p>Ideally, this number should be close to the {@code fpp} parameter
-     * passed in create, or smaller. If it is
-     * significantly higher, it is usually the case that too many elements (more than
-     * expected) have been put in the {@code BloomFilter}, degenerating it.
-     */
-    public double getExpectedFpp() {
-        // You down with FPP? (Yeah you know me!) Who's down with FPP? (Every last homie!)
-        return Math.pow((double) bits.bitCount() / bits.size(), numHashFunctions);
     }
 
   /*
@@ -354,7 +307,179 @@ public class BloomFilter {
         return (long) (-n * Math.log(p) / (Math.log(2) * Math.log(2)));
     }
 
-    // START : MURMUR 3_128
+    // Note: We use this instead of java.util.BitSet because we need access to the long[] data field
+    static final class BitArray {
+        final long[] data;
+        final long bitSize;
+        long bitCount;
+
+        BitArray(long bits) {
+            this(new long[Ints.checkedCast(LongMath.divide(bits, 64, RoundingMode.CEILING))]);
+        }
+
+        // Used by serialization
+        BitArray(long[] data) {
+            this.data = data;
+            long bitCount = 0;
+            for (long value : data) {
+                bitCount += Long.bitCount(value);
+            }
+            this.bitCount = bitCount;
+            this.bitSize = data.length * Long.SIZE;
+        }
+
+        /** Returns true if the bit changed value. */
+        boolean set(long index) {
+            if (!get(index)) {
+                data[(int) (index >>> 6)] |= (1L << index);
+                bitCount++;
+                return true;
+            }
+            return false;
+        }
+
+        boolean get(long index) {
+            return (data[(int) (index >>> 6)] & (1L << index)) != 0;
+        }
+
+        /** Number of bits */
+        long bitSize() {
+            return bitSize;
+        }
+
+        /** Number of set bits (1s) */
+        long bitCount() {
+            return bitCount;
+        }
+
+        BitArray copy() {
+            return new BitArray(data.clone());
+        }
+
+        /** Combines the two BitArrays using bitwise OR. */
+        void putAll(BitArray array) {
+            bitCount = 0;
+            for (int i = 0; i < data.length; i++) {
+                data[i] |= array.data[i];
+                bitCount += Long.bitCount(data[i]);
+            }
+        }
+
+        @Override public boolean equals(Object o) {
+            if (o instanceof BitArray) {
+                BitArray bitArray = (BitArray) o;
+                return Arrays.equals(data, bitArray.data);
+            }
+            return false;
+        }
+
+        @Override public int hashCode() {
+            return Arrays.hashCode(data);
+        }
+    }
+
+    static enum Hashing {
+
+        V0() {
+            @Override
+            protected boolean put(BytesRef value, int numHashFunctions, BitArray bits) {
+                long bitSize = bits.bitSize();
+                long hash64 = hash3_x64_128(value.bytes, value.offset, value.length, 0);
+                int hash1 = (int) hash64;
+                int hash2 = (int) (hash64 >>> 32);
+                boolean bitsChanged = false;
+                for (int i = 1; i <= numHashFunctions; i++) {
+                    int nextHash = hash1 + i * hash2;
+                    if (nextHash < 0) {
+                        nextHash = ~nextHash;
+                    }
+                    bitsChanged |= bits.set(nextHash % bitSize);
+                }
+                return bitsChanged;
+            }
+
+            @Override
+            protected boolean mightContain(BytesRef value, int numHashFunctions, BitArray bits) {
+                long bitSize = bits.bitSize();
+                long hash64 = hash3_x64_128(value.bytes, value.offset, value.length, 0);
+                int hash1 = (int) hash64;
+                int hash2 = (int) (hash64 >>> 32);
+                for (int i = 1; i <= numHashFunctions; i++) {
+                    int nextHash = hash1 + i * hash2;
+                    if (nextHash < 0) {
+                        nextHash = ~nextHash;
+                    }
+                    if (!bits.get(nextHash % bitSize)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            protected int type() {
+                return 0;
+            }
+        },
+        V1() {
+            @Override
+            protected boolean put(BytesRef value, int numHashFunctions, BitArray bits) {
+                long bitSize = bits.bitSize();
+                MurmurHash3.Hash128 hash128 = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, new MurmurHash3.Hash128());
+
+                boolean bitsChanged = false;
+                long combinedHash = hash128.h1;
+                for (int i = 0; i < numHashFunctions; i++) {
+                    // Make the combined hash positive and indexable
+                    bitsChanged |= bits.set((combinedHash & Long.MAX_VALUE) % bitSize);
+                    combinedHash += hash128.h2;
+                }
+                return bitsChanged;
+            }
+
+            @Override
+            protected boolean mightContain(BytesRef value, int numHashFunctions, BitArray bits) {
+                long bitSize = bits.bitSize();
+                MurmurHash3.Hash128 hash128 = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, new MurmurHash3.Hash128());
+
+                long combinedHash = hash128.h1;
+                for (int i = 0; i < numHashFunctions; i++) {
+                    // Make the combined hash positive and indexable
+                    if (!bits.get((combinedHash & Long.MAX_VALUE) % bitSize)) {
+                        return false;
+                    }
+                    combinedHash += hash128.h2;
+                }
+                return true;
+            }
+
+            @Override
+            protected int type() {
+                return 1;
+            }
+        }
+        ;
+
+        protected abstract boolean put(BytesRef value, int numHashFunctions, BitArray bits);
+
+        protected abstract boolean mightContain(BytesRef value, int numHashFunctions, BitArray bits);
+
+        protected abstract int type();
+
+        public static final Hashing DEFAULT = Hashing.V1;
+
+        public static Hashing fromType(int type) {
+            if (type == 0) {
+                return Hashing.V0;
+            } if (type == 1) {
+                return Hashing.V1;
+            } else {
+                throw new ElasticsearchIllegalArgumentException("no hashing type matching " + type);
+            }
+        }
+    }
+
+    // START : MURMUR 3_128 USED FOR Hashing.V0
     // NOTE: don't replace this code with the o.e.common.hashing.MurmurHash3 method which returns a different hash
 
     protected static long getblock(byte[] key, int offset, int index) {
@@ -487,72 +612,4 @@ public class BloomFilter {
     }
 
     // END: MURMUR 3_128
-
-    // Note: We use this instead of java.util.BitSet because we need access to the long[] data field
-    static class BitArray {
-        final long[] data;
-        int bitCount;
-
-        BitArray(long bits) {
-            this(new long[Ints.checkedCast(LongMath.divide(bits, 64, RoundingMode.CEILING))]);
-        }
-
-        // Used by serialization
-        BitArray(long[] data) {
-            this.data = data;
-            int bitCount = 0;
-            for (long value : data) {
-                bitCount += Long.bitCount(value);
-            }
-            this.bitCount = bitCount;
-        }
-
-        /**
-         * Returns true if the bit changed value.
-         */
-        boolean set(int index) {
-            if (!get(index)) {
-                data[index >> 6] |= (1L << index);
-                bitCount++;
-                return true;
-            }
-            return false;
-        }
-
-        boolean get(int index) {
-            return (data[index >> 6] & (1L << index)) != 0;
-        }
-
-        /**
-         * Number of bits
-         */
-        int size() {
-            return data.length * Long.SIZE;
-        }
-
-        /**
-         * Number of set bits (1s)
-         */
-        int bitCount() {
-            return bitCount;
-        }
-
-        BitArray copy() {
-            return new BitArray(data.clone());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o instanceof BitArray) {
-                BitArray bitArray = (BitArray) o;
-                return Arrays.equals(data, bitArray.data);
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(data);
-        }
-    }
 }

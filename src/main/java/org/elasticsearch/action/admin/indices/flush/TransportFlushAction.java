@@ -99,7 +99,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
     }
 
     @Override
-    protected ShardFlushRequest newShardRequest(ShardRouting shard, FlushRequest request) {
+    protected ShardFlushRequest newShardRequest(int numShards, ShardRouting shard, FlushRequest request) {
         return new ShardFlushRequest(shard.index(), shard.id(), request);
     }
 

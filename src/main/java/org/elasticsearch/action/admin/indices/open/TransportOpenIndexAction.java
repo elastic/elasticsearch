@@ -86,7 +86,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
 
     @Override
     protected void masterOperation(final OpenIndexRequest request, final ClusterState state, final ActionListener<OpenIndexResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
         OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());

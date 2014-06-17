@@ -10,7 +10,7 @@ docs that match with the rest of the query. An example of for what filter a post
 should be used for this reason is the `geo_distance` filter. The `geo_distance` filter is
 in general an expensive filter to execute and to reduce the execution time for this filter,
 one can choose to specify it as `post_filter`, so it runs on documents that are very likely
-to be end up as matching documents.
+to end up as matching documents.
 
 Another important reason is when doing things like facet navigation,
 sometimes only the hits are needed to be filtered by the chosen facet,

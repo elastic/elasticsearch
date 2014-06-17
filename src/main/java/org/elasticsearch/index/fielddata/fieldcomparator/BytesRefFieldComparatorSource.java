@@ -24,6 +24,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -41,10 +42,10 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     }
 
     private final IndexFieldData<?> indexFieldData;
-    private final SortMode sortMode;
+    private final MultiValueMode sortMode;
     private final Object missingValue;
 
-    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, SortMode sortMode) {
+    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData, Object missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
         this.missingValue = missingValue;

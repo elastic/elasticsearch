@@ -53,6 +53,11 @@
           "type" : "string",
           "description" : "The type to percolate document into. Defaults to type."
         },
+        "percolate_format": {
+          "type" : "enum",
+          "options" : ["ids"],
+          "description" : "Return an array of matching query IDs instead of objects"
+        },
         "version" : {
           "type" : "number",
           "description" : "Explicit version number for concurrency control"

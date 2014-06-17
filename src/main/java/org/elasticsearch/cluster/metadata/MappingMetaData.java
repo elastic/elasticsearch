@@ -418,9 +418,11 @@ public class MappingMetaData {
     }
 
     public ParseContext createParseContext(@Nullable String id, @Nullable String routing, @Nullable String timestamp) {
+        // We parse the routing even if there is already a routing key in the request in order to make sure that
+        // they are the same
         return new ParseContext(
                 id == null && id().hasPath(),
-                routing == null && routing().hasPath(),
+                routing().hasPath(),
                 timestamp == null && timestamp().hasPath()
         );
     }

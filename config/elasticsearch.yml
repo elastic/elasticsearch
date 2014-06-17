@@ -18,7 +18,7 @@
 # Any element in the configuration can be replaced with environment variables
 # by placing them in ${...} notation. For example:
 #
-# node.rack: ${RACK_ENV_VAR}
+#node.rack: ${RACK_ENV_VAR}
 
 # For information on supported formats and syntax for the config file, see
 # <http://elasticsearch.org/guide/en/elasticsearch/reference/current/setup-configuration.html>
@@ -29,7 +29,7 @@
 # Cluster name identifies your cluster for auto-discovery. If you're running
 # multiple clusters on the same network, make sure you're using unique names.
 #
-# cluster.name: elasticsearch
+#cluster.name: elasticsearch
 
 
 #################################### Node #####################################
@@ -37,39 +37,39 @@
 # Node names are generated dynamically on startup, so you're relieved
 # from configuring them manually. You can tie this node to a specific name:
 #
-# node.name: "Franz Kafka"
+#node.name: "Franz Kafka"
 
 # Every node can be configured to allow or deny being eligible as the master,
 # and to allow or deny to store the data.
 #
 # Allow this node to be eligible as a master node (enabled by default):
 #
-# node.master: true
+#node.master: true
 #
 # Allow this node to store data (enabled by default):
 #
-# node.data: true
+#node.data: true
 
 # You can exploit these settings to design advanced cluster topologies.
 #
 # 1. You want this node to never become a master node, only to hold data.
 #    This will be the "workhorse" of your cluster.
 #
-# node.master: false
-# node.data: true
+#node.master: false
+#node.data: true
 #
 # 2. You want this node to only serve as a master: to not store any data and
 #    to have free resources. This will be the "coordinator" of your cluster.
 #
-# node.master: true
-# node.data: false
+#node.master: true
+#node.data: false
 #
 # 3. You want this node to be neither master nor data node, but
 #    to act as a "search load balancer" (fetching data from nodes,
 #    aggregating results, etc.)
 #
-# node.master: false
-# node.data: false
+#node.master: false
+#node.data: false
 
 # Use the Cluster Health API [http://localhost:9200/_cluster/health], the
 # Node Info API [http://localhost:9200/_nodes] or GUI tools
@@ -82,11 +82,11 @@
 # for customized shard allocation filtering, or allocation awareness. An attribute
 # is a simple key value pair, similar to node.key: value, here is an example:
 #
-# node.rack: rack314
+#node.rack: rack314
 
 # By default, multiple nodes are allowed to start from the same installation location
 # to disable it, set the following:
-# node.max_local_storage_nodes: 1
+#node.max_local_storage_nodes: 1
 
 
 #################################### Index ####################################
@@ -104,17 +104,17 @@
 
 # Set the number of shards (splits) of an index (5 by default):
 #
-# index.number_of_shards: 5
+#index.number_of_shards: 5
 
 # Set the number of replicas (additional copies) of an index (1 by default):
 #
-# index.number_of_replicas: 1
+#index.number_of_replicas: 1
 
 # Note, that for development on a local machine, with small indices, it usually
 # makes sense to "disable" the distributed features:
 #
-# index.number_of_shards: 1
-# index.number_of_replicas: 0
+#index.number_of_shards: 1
+#index.number_of_replicas: 0
 
 # These settings directly affect the performance of index and search operations
 # in your cluster. Assuming you have enough machines to hold shards and
@@ -142,36 +142,36 @@
 
 # Path to directory containing configuration (this file and logging.yml):
 #
-# path.conf: /path/to/conf
+#path.conf: /path/to/conf
 
 # Path to directory where to store index data allocated for this node.
 #
-# path.data: /path/to/data
+#path.data: /path/to/data
 #
 # Can optionally include more than one location, causing data to be striped across
 # the locations (a la RAID 0) on a file level, favouring locations with most free
 # space on creation. For example:
 #
-# path.data: /path/to/data1,/path/to/data2
+#path.data: /path/to/data1,/path/to/data2
 
 # Path to temporary files:
 #
-# path.work: /path/to/work
+#path.work: /path/to/work
 
 # Path to log files:
 #
-# path.logs: /path/to/logs
+#path.logs: /path/to/logs
 
 # Path to where plugins are installed:
 #
-# path.plugins: /path/to/plugins
+#path.plugins: /path/to/plugins
 
 
 #################################### Plugin ###################################
 
 # If a plugin listed here is not installed for current node, the node will not start.
 #
-# plugin.mandatory: mapper-attachments,lang-groovy
+#plugin.mandatory: mapper-attachments,lang-groovy
 
 
 ################################### Memory ####################################
@@ -181,7 +181,7 @@
 #
 # Set this property to true to lock the memory:
 #
-# bootstrap.mlockall: true
+#bootstrap.mlockall: true
 
 # Make sure that the ES_MIN_MEM and ES_MAX_MEM environment variables are set
 # to the same value, and that the machine has enough memory to allocate
@@ -200,36 +200,36 @@
 
 # Set the bind address specifically (IPv4 or IPv6):
 #
-# network.bind_host: 192.168.0.1
+#network.bind_host: 192.168.0.1
 
 # Set the address other nodes will use to communicate with this node. If not
 # set, it is automatically derived. It must point to an actual IP address.
 #
-# network.publish_host: 192.168.0.1
+#network.publish_host: 192.168.0.1
 
 # Set both 'bind_host' and 'publish_host':
 #
-# network.host: 192.168.0.1
+#network.host: 192.168.0.1
 
 # Set a custom port for the node to node communication (9300 by default):
 #
-# transport.tcp.port: 9300
+#transport.tcp.port: 9300
 
 # Enable compression for all communication between nodes (disabled by default):
 #
-# transport.tcp.compress: true
+#transport.tcp.compress: true
 
 # Set a custom port to listen for HTTP traffic:
 #
-# http.port: 9200
+#http.port: 9200
 
 # Set a custom allowed content length:
 #
-# http.max_content_length: 100mb
+#http.max_content_length: 100mb
 
 # Disable HTTP completely:
 #
-# http.enabled: false
+#http.enabled: false
 
 
 ################################### Gateway ###################################
@@ -244,7 +244,7 @@
 
 # The default gateway type is the "local" gateway (recommended):
 #
-# gateway.type: local
+#gateway.type: local
 
 # Settings below control how and when to start the initial recovery process on
 # a full cluster restart (to reuse as much local data as possible when using shared
@@ -252,18 +252,18 @@
 
 # Allow recovery process after N nodes in a cluster are up:
 #
-# gateway.recover_after_nodes: 1
+#gateway.recover_after_nodes: 1
 
 # Set the timeout to initiate the recovery process, once the N nodes
 # from previous setting are up (accepts time value):
 #
-# gateway.recover_after_time: 5m
+#gateway.recover_after_time: 5m
 
 # Set how many nodes are expected in this cluster. Once these N nodes
 # are up (and recover_after_nodes is met), begin recovery process immediately
 # (without waiting for recover_after_time to expire):
 #
-# gateway.expected_nodes: 2
+#gateway.expected_nodes: 2
 
 
 ############################# Recovery Throttling #############################
@@ -276,20 +276,20 @@
 #
 # 1. During the initial recovery
 #
-# cluster.routing.allocation.node_initial_primaries_recoveries: 4
+#cluster.routing.allocation.node_initial_primaries_recoveries: 4
 #
 # 2. During adding/removing nodes, rebalancing, etc
 #
-# cluster.routing.allocation.node_concurrent_recoveries: 2
+#cluster.routing.allocation.node_concurrent_recoveries: 2
 
 # Set to throttle throughput when recovering (eg. 100mb, by default 20mb):
 #
-# indices.recovery.max_bytes_per_sec: 20mb
+#indices.recovery.max_bytes_per_sec: 20mb
 
 # Set to limit the number of open concurrent streams when
 # recovering a shard from a peer:
 #
-# indices.recovery.concurrent_streams: 5
+#indices.recovery.concurrent_streams: 5
 
 
 ################################## Discovery ##################################
@@ -301,13 +301,13 @@
 # operational within the cluster. Its recommended to set it to a higher value
 # than 1 when running more than 2 nodes in the cluster.
 #
-# discovery.zen.minimum_master_nodes: 1
+#discovery.zen.minimum_master_nodes: 1
 
 # Set the time to wait for ping responses from other nodes when discovering.
 # Set this option to a higher value on a slow or congested network
 # to minimize discovery failures:
 #
-# discovery.zen.ping.timeout: 3s
+#discovery.zen.ping.timeout: 3s
 
 # For more information, see
 # <http://elasticsearch.org/guide/en/elasticsearch/reference/current/modules-discovery-zen.html>
@@ -318,12 +318,12 @@
 #
 # 1. Disable multicast discovery (enabled by default):
 #
-# discovery.zen.ping.multicast.enabled: false
+#discovery.zen.ping.multicast.enabled: false
 #
 # 2. Configure an initial list of master nodes in the cluster
 #    to perform discovery when new nodes (master or data) are started:
 #
-# discovery.zen.ping.unicast.hosts: ["host1", "host2:port"]
+#discovery.zen.ping.unicast.hosts: ["host1", "host2:port"]
 
 # EC2 discovery allows to use AWS EC2 API in order to perform discovery.
 #

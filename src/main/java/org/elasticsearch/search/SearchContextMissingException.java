@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.rest.RestStatus;
 
 /**
  *
@@ -35,5 +36,10 @@ public class SearchContextMissingException extends ElasticsearchException {
 
     public long id() {
         return this.id;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.NOT_FOUND;
     }
 }

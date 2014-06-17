@@ -106,24 +106,14 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         }
 
         public Bucket reduce(List<? extends Bucket> buckets, BigArrays bigArrays) {
-            if (buckets.size() == 1) {
-                // we still need to reduce the sub aggs
-                Bucket bucket = buckets.get(0);
-                bucket.aggregations.reduce(bigArrays);
-                return bucket;
-            }
-            Bucket reduced = null;
             List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+            long docCount = 0;
             for (Bucket bucket : buckets) {
-                if (reduced == null) {
-                    reduced = bucket;
-                } else {
-                    reduced.docCount += bucket.docCount;
-                }
+                docCount += bucket.docCount;
                 aggregationsList.add(bucket.aggregations);
             }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, bigArrays);
-            return reduced;
+            final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, bigArrays);
+            return new Bucket(geohashAsLong, docCount, aggs);
         }
 
         @Override
@@ -181,19 +171,10 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
     @Override
     public InternalGeoHashGrid reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregations.get(0);
-            grid.reduceAndTrimBuckets(reduceContext.bigArrays());
-            return grid;
-        }
-        InternalGeoHashGrid reduced = null;
 
         LongObjectPagedHashMap<List<Bucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalGeoHashGrid grid = (InternalGeoHashGrid) aggregation;
-            if (reduced == null) {
-                reduced = grid;
-            }
             if (buckets == null) {
                 buckets = new LongObjectPagedHashMap<>(grid.buckets.size(), reduceContext.bigArrays());
             }
@@ -207,12 +188,6 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
             }
         }
 
-        if (reduced == null) {
-            // there are only unmapped terms, so we just return the first one (no need to reduce)
-            return (InternalGeoHashGrid) aggregations.get(0);
-        }
-
-        // TODO: would it be better to sort the backing array buffer of the hppc map directly instead of using a PQ?
         final int size = (int) Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size);
         for (LongObjectPagedHashMap.Cursor<List<Bucket>> cursor : buckets) {
@@ -224,28 +199,7 @@ public class InternalGeoHashGrid extends InternalAggregation implements GeoHashG
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        reduced.buckets = Arrays.asList(list);
-        return reduced;
-    }
-
-    protected void reduceAndTrimBuckets(BigArrays bigArrays) {
-
-        if (requiredSize > buckets.size()) { // nothing to trim
-            for (Bucket bucket : buckets) {
-                bucket.aggregations.reduce(bigArrays);
-            }
-            return;
-        }
-
-        List<Bucket> trimmedBuckets = new ArrayList<>(requiredSize);
-        for (Bucket bucket : buckets) {
-            if (trimmedBuckets.size() >= requiredSize) {
-                break;
-            }
-            bucket.aggregations.reduce(bigArrays);
-            trimmedBuckets.add(bucket);
-        }
-        buckets = trimmedBuckets;
+        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list));
     }
 
     @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.action.support.replication;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -46,7 +45,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  *
  */
-public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ActionRequest, ShardResponse extends ActionResponse>
+public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
@@ -71,7 +70,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             throw blockException;
         }
         // update to concrete index
-        request.index(clusterState.metaData().concreteIndex(request.index()));
+        request.index(clusterState.metaData().concreteSingleIndex(request.index()));
         blockException = checkRequestBlock(clusterState, request);
         if (blockException != null) {
             throw blockException;

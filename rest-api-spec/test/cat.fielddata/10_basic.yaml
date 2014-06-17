@@ -1,0 +1,63 @@
+---
+"Help":
+  - do:
+      cat.fielddata:
+        help: true
+
+  - match:
+      $body: |
+               /^  id .+ \n
+                   host .+ \n
+                   ip .+ \n
+                   node .+ \n
+                   total .+ \n
+               $/
+
+---
+"Test cat fielddata output":
+
+  - do:
+      cat.fielddata: {}
+
+  - do:
+      index:
+        index: index
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+      search:
+        index: index
+        body:
+          query: { match_all: {} }
+          sort: foo
+  - do:
+      cat.fielddata:
+        h: total
+        v: true
+
+  - match:
+      $body: |
+               /^   total               \s \n
+                    (\s*\d+(\.\d+)?[gmk]?b  \s \n)+ $/
+
+  - do:
+      cat.fielddata:
+        h: total,foo
+        v: true
+
+  - match:
+      $body: |
+               /^   total \s+              foo \s+ \n
+                    (\s*\d+(\.\d+)?[gmk]?b \s+ \d+(\.\d+)?[gmk]?b \s \n)+ \s*$/
+
+  - do:
+      cat.fielddata:
+        h: total,foo
+        fields: notfoo,foo
+        v: true
+
+  - match:
+      $body: |
+               /^   total \s+              foo \s+ \n
+                    (\s*\d+(\.\d+)?[gmk]?b \s+ \d+(\.\d+)?[gmk]?b \s \n)+ \s*$/

@@ -21,7 +21,6 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -42,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  */
 public abstract class TransportIndicesReplicationOperationAction<Request extends IndicesReplicationOperationRequest, Response extends ActionResponse, IndexRequest extends IndexReplicationOperationRequest, IndexResponse extends ActionResponse,
-        ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ActionRequest, ShardResponse extends ActionResponse>
+        ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
         extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
@@ -75,7 +74,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
             throw blockException;
         }
         // get actual indices
-        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.indicesOptions());
+        String[] concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         blockException = checkRequestBlock(clusterState, request, concreteIndices);
         if (blockException != null) {
             throw blockException;

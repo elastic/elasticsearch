@@ -132,6 +132,15 @@ Don't count hypercores for CPU-intense tests and leave some slack
 for JVM-internal threads (like the garbage collector). Make sure there is 
 enough RAM to handle child JVMs.
 
+=== Test compatibility.
+
+It is possible to provide a version that allows to adapt the tests behaviour
+to older features or bugs that have been changed or fixed in the meantime.
+
+-----------------------------------------
+mvn test -Dtests.compatibility=1.0.0
+-----------------------------------------
+
 
 === Miscellaneous.
 
@@ -167,6 +176,24 @@ even if tests are passing.
 mvn test -Dtests.output=always
 ------------------------------
 
+== Backwards Compatibility Tests
+
+Running backwards compatibility tests is disabled by default since it
+requires a release version of elasticsearch to be present on the test system.
+To run backwards compatibiilty tests untar or unzip a release and run the tests
+with the following command:
+
+---------------------------------------------------------------------------
+mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch
+---------------------------------------------------------------------------
+
+If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` the path
+can be omitted:
+ 
+---------------------------------------------------------------------------
+mvn test -Dtests.bwc=true -Dtests.bwc.version=x.y.z 
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The available integration tests make use of the java API to communicate with
@@ -194,6 +221,9 @@ The REST tests support all the options provided by the randomized runner, plus t
 of the tests providing a sub-folder or even a single yaml file (the default
 /rest-api-spec/test prefix is optional when files are loaded from classpath)
 e.g. -Dtests.rest.suite=index,get,create/10_with_id
+* `tests.rest.blacklist`: comma separated globs that identify tests that are
+blacklisted and need to be skipped
+e.g. -Dtests.rest.blacklist=index/*/Index document,get/10_basic/*
 * `tests.rest.spec`: REST spec path (default /rest-api-spec/api)
 
 Note that the REST tests, like all the integration tests, can be run against an external
@@ -201,3 +231,5 @@ cluster by specifying the `tests.cluster` property, which if present needs to co
 comma separated list of nodes to connect to (e.g. localhost:9300). A transport client will
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
+
+

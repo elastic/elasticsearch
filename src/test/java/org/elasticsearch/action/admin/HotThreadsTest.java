@@ -88,7 +88,7 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
                     try {
                         assertThat(nodeHotThreads, notNullValue());
                         Map<String,NodeHotThreads> nodesMap = nodeHotThreads.getNodesMap();
-                        assertThat(nodesMap.size(), equalTo(immutableCluster().size()));
+                        assertThat(nodesMap.size(), equalTo(cluster().size()));
                         for (NodeHotThreads ht : nodeHotThreads) {
                             assertNotNull(ht.getHotThreads());
                             //logger.info(ht.getHotThreads());

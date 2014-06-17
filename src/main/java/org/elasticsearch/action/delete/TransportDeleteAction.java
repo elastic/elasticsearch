@@ -103,7 +103,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override
     protected boolean resolveRequest(final ClusterState state, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.index(state.metaData().concreteSingleIndex(request.index()));
         if (state.metaData().hasIndex(request.index())) {
             // check if routing is required, if so, do a broadcast delete
             MappingMetaData mappingMd = state.metaData().index(request.index()).mappingOrDefault(request.type());
@@ -112,7 +112,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                     if (request.versionType() != VersionType.INTERNAL) {
                         // TODO: implement this feature
                         throw new ElasticsearchIllegalArgumentException("routing value is required for deleting documents of type [" + request.type()
-                                + "] while using version_type [" + request.versionType());
+                                + "] while using version_type [" + request.versionType() + "]");
                     }
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
                         @Override
@@ -185,15 +185,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     protected PrimaryResponse<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
-                .versionType(request.versionType())
-                .origin(Engine.Operation.Origin.PRIMARY);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the request with teh version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 
-        assert request.versionType().validateVersion(request.version());
+        assert request.versionType().validateVersionForWrites(request.version());
 
         if (request.refresh()) {
             try {
@@ -211,8 +209,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version()).versionType(request.versionType())
-                .origin(Engine.Operation.Origin.REPLICA);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
 
         indexShard.delete(delete);
 

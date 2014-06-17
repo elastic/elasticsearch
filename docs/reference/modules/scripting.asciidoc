@@ -19,6 +19,62 @@ All places where a `script` parameter can be used, a `lang` parameter
 script. The `lang` options are `mvel`, `js`, `groovy`, `python`, and
 `native`.
 
+added[1.2.0, Dynamic scripting is disabled by default since version 1.2.0]
+
+To increase security, Elasticsearch does not allow you to specify scripts with a
+request. Instead, scripts must be placed in the `scripts` directory inside the
+configuration directory (the directory where elasticsearch.yml is). Scripts
+placed into this directory will automatically be picked up and be available to
+be used. Once a script has been placed in this directory, it can be referenced
+by name. For example, a script called `calculate-score.mvel` can be referenced
+in a request like this:
+
+[source,sh]
+--------------------------------------------------
+$ tree config
+config
+├── elasticsearch.yml
+├── logging.yml
+└── scripts
+    └── calculate-score.mvel
+--------------------------------------------------
+
+[source,sh]
+--------------------------------------------------
+$ cat config/scripts/calculate-score.mvel
+Math.log(_score * 2) + my_modifier
+--------------------------------------------------
+
+[source,js]
+--------------------------------------------------
+curl -XPOST localhost:9200/_search -d '{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "body": "foo"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "script": "calculate-score",
+            "params": {
+              "my_modifier": 8
+            }
+          }
+        }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
+The name of the script is derived from the hierarchy of directories it
+exists under, and the file name without the lang extension. For example,
+a script placed under `config/scripts/group1/group2/test.py` will be
+named `group1_group2_test`.
+
 [float]
 === Default Scripting Language
 
@@ -27,46 +83,31 @@ provided) is `mvel`. In order to change it set the `script.default_lang`
 to the appropriate language.
 
 [float]
-=== Preloaded Scripts
-
-Scripts can always be provided as part of the relevant API, but they can
-also be preloaded by placing them under `config/scripts` and then
-referencing them by the script name (instead of providing the full
-script). This helps reduce the amount of data passed between the client
-and the nodes.
-
-The name of the script is derived from the hierarchy of directories it
-exists under, and the file name without the lang extension. For example,
-a script placed under `config/scripts/group1/group2/test.py` will be
-named `group1_group2_test`.
-
-[float]
-=== Disabling dynamic scripts
+=== Enabling dynamic scripting
 
 We recommend running Elasticsearch behind an application or proxy,
 which protects Elasticsearch from the outside world. If users are
 allowed to run dynamic scripts (even in a search request), then they
 have the same access to your box as the user that Elasticsearch is
-running as.
+running as. For this reason dynamic scripting is disabled by default.
 
-First, you should not run Elasticsearch as the `root` user, as this
-would allow a script to access or do *anything* on your server, without
-limitations. Second, you should not expose Elasticsearch directly to
-users, but instead have a proxy application inbetween.  If you *do*
-intend to expose Elasticsearch directly to your users, then you have
-to decide whether you trust them enough to run scripts on your box or
-not. If not, then even if you have a proxy which only allows `GET`
-requests, you should disable dynamic scripting by adding the following
-setting to the `config/elasticsearch.yml` file on every node:
+First, you should not run Elasticsearch as the `root` user, as this would allow
+a script to access or do *anything* on your server, without limitations. Second,
+you should not expose Elasticsearch directly to users, but instead have a proxy
+application inbetween. If you *do* intend to expose Elasticsearch directly to
+your users, then you have to decide whether you trust them enough to run scripts
+on your box or not. If you do, you can enable dynamic scripting by adding the
+following setting to the `config/elasticsearch.yml` file on every node:
 
 [source,yaml]
 -----------------------------------
-script.disable_dynamic: true
+script.disable_dynamic: false
 -----------------------------------
 
-This will still allow execution of named scripts provided in the config, or
-_native_ Java scripts registered through plugins, however it will prevent
-users from running arbitrary scripts via the API.
+While this still allows execution of named scripts provided in the config, or
+_native_ Java scripts registered through plugins, it also allows users to run
+arbitrary scripts via the API. Instead of sending the name of the file as the
+script, the body of the script can be sent instead.
 
 [float]
 === Automatic Script Reloading
@@ -113,7 +154,7 @@ doc score using `doc.score`.
 [float]
 === Computing scores based on terms in scripts
 
-see <<modules-advanced-scripting, advanced scripting documentation>> 
+see <<modules-advanced-scripting, advanced scripting documentation>>
 
 [float]
 === Document Fields
@@ -206,7 +247,7 @@ miles) of this geo point field from the provided geohash.
 === Stored Fields
 
 Stored fields can also be accessed when executing a script. Note, they
-are much slower to access compared with document fields, but are not
+are much slower to access compared with document fields, as they are not
 loaded into memory. They can be simply accessed using
 `_fields['my_field_name'].value` or `_fields['my_field_name'].values`.
 

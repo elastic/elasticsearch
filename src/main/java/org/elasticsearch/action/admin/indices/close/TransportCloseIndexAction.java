@@ -86,7 +86,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void masterOperation(final CloseIndexRequest request, final ClusterState state, final ActionListener<CloseIndexResponse> listener) throws ElasticsearchException {
-        request.indices(state.metaData().concreteIndices(request.indices(), request.indicesOptions()));
+        request.indices(state.metaData().concreteIndices(request.indicesOptions(), request.indices()));
         CloseIndexClusterStateUpdateRequest updateRequest = new CloseIndexClusterStateUpdateRequest()
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());

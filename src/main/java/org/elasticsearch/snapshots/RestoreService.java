@@ -70,7 +70,7 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  * {@link org.elasticsearch.index.gateway.IndexShardGatewayService#recover(boolean, org.elasticsearch.index.gateway.IndexShardGatewayService.RecoveryListener)}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property. If this property is not null
- * {@code recover} method uses {@link org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService#restore(org.elasticsearch.index.gateway.RecoveryStatus)}
+ * {@code recover} method uses {@link org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService#restore(org.elasticsearch.index.gateway.RecoveryState)}
  * method to start shard restore process.
  * <p/>
  * At the end of the successful restore process {@code IndexShardSnapshotAndRestoreService} calls {@link #indexShardRestoreCompleted(SnapshotId, ShardId)},
@@ -119,7 +119,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             final MetaData metaData = repository.readSnapshotMetaData(snapshotId, filteredIndices);
 
             // Make sure that we can restore from this snapshot
-            if (snapshot.state() != SnapshotState.SUCCESS) {
+            if (!snapshot.state().restorable()) {
                 throw new SnapshotRestoreException(snapshotId, "unsupported snapshot state [" + snapshot.state() + "]");
             }
             if (Version.CURRENT.before(snapshot.version())) {
@@ -485,7 +485,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         private String renameReplacement;
 
-        private IndicesOptions indicesOptions = IndicesOptions.strict();
+        private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
         private Settings settings;
 

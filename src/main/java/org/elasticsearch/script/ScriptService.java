@@ -75,7 +75,7 @@ public class ScriptService extends AbstractComponent {
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
         this.defaultLang = componentSettings.get("default_lang", "mvel");
-        this.disableDynamic = componentSettings.getAsBoolean("disable_dynamic", false);
+        this.disableDynamic = componentSettings.getAsBoolean("disable_dynamic", true);
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
         if (cacheMaxSize >= 0) {
@@ -129,7 +129,7 @@ public class ScriptService extends AbstractComponent {
         if (lang == null) {
             lang = defaultLang;
         }
-        if (dynamicScriptDisabled(lang)) {
+        if (!dynamicScriptEnabled(lang)) {
             throw new ScriptException("dynamic scripting disabled");
         }
         CacheKey cacheKey = new CacheKey(lang, script);
@@ -175,12 +175,17 @@ public class ScriptService extends AbstractComponent {
         cache.invalidateAll();
     }
 
-    private boolean dynamicScriptDisabled(String lang) {
-        if (!disableDynamic) {
-            return false;
+    private boolean dynamicScriptEnabled(String lang) {
+        ScriptEngineService service = scriptEngines.get(lang);
+        if (service == null) {
+            throw new ElasticsearchIllegalArgumentException("script_lang not supported [" + lang + "]");
         }
-        // we allow "native" executions since they register through plugins, so they are "allowed"
-        return !"native".equals(lang);
+        // Templating languages and native scripts are always allowed
+        // "native" executions are registered through plugins
+        if (service.sandboxed() || "native".equals(lang)) {
+            return true;
+        }
+        return !disableDynamic;
     }
 
     private class ScriptChangesListener extends FileChangesListener {
@@ -207,7 +212,7 @@ public class ScriptService extends AbstractComponent {
                         if (s.equals(scriptNameExt.v2())) {
                             found = true;
                             try {
-                                logger.trace("compiling script file " + file.getAbsolutePath());
+                                logger.info("compiling script file [{}]", file.getAbsolutePath());
                                 String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Charsets.UTF_8));
                                 staticCache.put(scriptNameExt.v1(), new CompiledScript(engineService.types()[0], engineService.compile(script)));
                             } catch (Throwable e) {
@@ -234,7 +239,7 @@ public class ScriptService extends AbstractComponent {
         @Override
         public void onFileDeleted(File file) {
             Tuple<String, String> scriptNameExt = scriptNameExt(file);
-            logger.trace("removing script file " + file.getAbsolutePath());
+            logger.info("removing script file [{}]", file.getAbsolutePath());
             staticCache.remove(scriptNameExt.v1());
         }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -55,6 +56,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
     static int numParents;
     static int[] numChildren;
+    static SubAggCollectionMode aggCollectionMode;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -66,6 +68,8 @@ public class NestedTests extends ElasticsearchIntegrationTest {
 
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
+        aggCollectionMode = randomFrom(SubAggCollectionMode.values());
+        System.out.println("AGG COLLECTION MODE: " + aggCollectionMode);
         int totalChildren = 0;
         for (int i = 0; i < numParents; ++i) {
             if (i == numParents - 1 && totalChildren == 0) {
@@ -140,7 +144,6 @@ public class NestedTests extends ElasticsearchIntegrationTest {
                                 .endArray()
                             .endObject())
         );
-
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -202,7 +205,8 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     public void nestedWithSubTermsAgg() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(nested("nested").path("nested")
-                        .subAggregation(terms("values").field("nested.value").size(100)))
+                        .subAggregation(terms("values").field("nested.value").size(100)
+                                .collectMode(aggCollectionMode)))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -251,6 +255,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
     public void nestedAsSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("top_values").field("value").size(100)
+                        .collectMode(aggCollectionMode)
                         .subAggregation(nested("nested").path("nested")
                                 .subAggregation(max("max_value").field("nested.value"))))
                 .execute().actionGet();
@@ -280,6 +285,7 @@ public class NestedTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
                 .addAggregation(nested("level1").path("nested1")
                         .subAggregation(terms("a").field("nested1.a")
+                                .collectMode(aggCollectionMode)
                                 .subAggregation(nested("level2").path("nested1.nested2")
                                         .subAggregation(sum("sum").field("nested1.nested2.b")))))
                 .get();

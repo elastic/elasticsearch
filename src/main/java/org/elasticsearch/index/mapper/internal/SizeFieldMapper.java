@@ -61,7 +61,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.SIZE_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.SIZE_FIELD_TYPE), Defaults.PRECISION_STEP_32_BIT);
             builder = this;
         }
 
@@ -101,7 +101,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
                            DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
+        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
                 Defaults.IGNORE_MALFORMED,  Defaults.COERCE, postingsProvider, docValuesProvider, null, null, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
@@ -119,10 +119,6 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     public boolean enabled() {
         return this.enabledState.enabled;
-    }
-
-    @Override
-    public void validate(ParseContext context) throws MapperParsingException {
     }
 
     @Override

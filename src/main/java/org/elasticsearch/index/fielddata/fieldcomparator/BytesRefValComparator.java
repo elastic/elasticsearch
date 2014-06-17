@@ -24,6 +24,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -36,7 +37,7 @@ import java.io.IOException;
 public final class BytesRefValComparator extends NestedWrappableComparator<BytesRef> {
 
     private final IndexFieldData<?> indexFieldData;
-    private final SortMode sortMode;
+    private final MultiValueMode sortMode;
     private final BytesRef missingValue;
 
     private final BytesRef[] values;
@@ -44,7 +45,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
     private BytesRef top;
     private BytesValues docTerms;
 
-    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, SortMode sortMode, BytesRef missingValue) {
+    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, MultiValueMode sortMode, BytesRef missingValue) {
         this.sortMode = sortMode;
         values = new BytesRef[numHits];
         this.indexFieldData = indexFieldData;
@@ -84,7 +85,7 @@ public final class BytesRefValComparator extends NestedWrappableComparator<Bytes
 
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
-        docTerms = indexFieldData.load(context).getBytesValues(false);
+        docTerms = indexFieldData.load(context).getBytesValues();
         return this;
     }
 

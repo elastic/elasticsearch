@@ -297,20 +297,24 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      */
     public ParsedQuery parseQuery(BytesReference source) {
         try {
+            ParsedQuery parsedQuery = null;
             XContentParser parser = XContentHelper.createParser(source);
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
                     if ("query".equals(fieldName)) {
-                        return parse(parser);
+                        parsedQuery = parse(parser);
                     } else if ("query_binary".equals(fieldName) || "queryBinary".equals(fieldName)) {
                         byte[] querySource = parser.binaryValue();
                         XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-                        return parse(qSourceParser);
+                        parsedQuery = parse(qSourceParser);
                     } else {
                         throw new QueryParsingException(index(), "request does not support [" + fieldName + "]");
                     }
                 }
+            }
+            if (parsedQuery != null) {
+                return parsedQuery;
             }
         } catch (QueryParsingException e) {
             throw e;

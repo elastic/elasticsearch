@@ -42,7 +42,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     public GetFieldMappingsRequest() {
 

@@ -23,11 +23,20 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
+@ClusterScope(randomDynamicTemplates = false)
 public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected int numberOfReplicas() {
+        return 0;
+    }
 
     public void test() throws Exception {
         createIndex("test");
@@ -41,11 +50,13 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         // disable field data
         updateFormat("disabled");
 
+        SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
         SearchResponse resp = null;
         // try to run something that relies on field data and make sure that it fails
         try {
-            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();
-            assertTrue(resp.toString(), resp.getFailedShards() > 0);
+            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
+                    .collectMode(aggCollectionMode)).execute().actionGet();
+            assertFailures(resp);
         } catch (SearchPhaseExecutionException e) {
             // expected
         }
@@ -54,22 +65,25 @@ public class DisabledFieldDataFormatTests extends ElasticsearchIntegrationTest {
         updateFormat("paged_bytes");
 
         // try to run something that relies on field data and make sure that it works
-        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();
+        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
+                .collectMode(aggCollectionMode)).execute().actionGet();
         assertNoFailures(resp);
 
         // disable it again
         updateFormat("disabled");
 
         // this time, it should work because segments are already loaded
-        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();
+        resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
+                .collectMode(aggCollectionMode)).execute().actionGet();
         assertNoFailures(resp);
 
         // but add more docs and the new segment won't be loaded
         client().prepareIndex("test", "type", "-1").setSource("s", "value").execute().actionGet();
         refresh();
         try {
-            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")).execute().actionGet();
-            assertTrue(resp.toString(), resp.getFailedShards() > 0);
+            resp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("t").field("s")
+                    .collectMode(aggCollectionMode)).execute().actionGet();
+            assertFailures(resp);
         } catch (SearchPhaseExecutionException e) {
             // expected
         }

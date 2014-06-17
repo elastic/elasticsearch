@@ -45,7 +45,7 @@ public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
     private BytesRef currentTerm;
 
     public AtomicFieldDataWithOrdinalsTermsEnum(AtomicFieldData.WithOrdinals afd) {
-        this.bytesValues = afd.getBytesValues(false);
+        this.bytesValues = afd.getBytesValues();
         this.ordinals = bytesValues.ordinals();
         this.maxOrd = ordinals.getMaxOrd();
     }

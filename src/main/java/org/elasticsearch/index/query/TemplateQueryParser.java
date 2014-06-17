@@ -56,6 +56,12 @@ public class TemplateQueryParser implements QueryParser {
         return new String[] {NAME};
     }
 
+    /**
+     * Parses the template query replacing template parameters with provided values.
+     * Handles both submitting the template as part of the request as well as
+     * referencing only the template name.
+     * @param parseContext parse context containing the templated query.
+     */
     @Override
     @Nullable
     public Query parse(QueryParseContext parseContext) throws IOException {
@@ -68,7 +74,6 @@ public class TemplateQueryParser implements QueryParser {
             final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
             context.reset(qSourceParser);
             Query result = context.parseInnerQuery();
-            parser.nextToken();
             return result;
         }
     }

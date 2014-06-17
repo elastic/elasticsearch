@@ -420,11 +420,28 @@ public class AllocationService extends AbstractComponent {
         }
 
         RoutingNodes routingNodes = allocation.routingNodes();
+        boolean dirty = false;
+        if (failedShard.primary()) {
+            // we have to fail the initializing replicas if the primary fails
+            // since they might now yet have started the recovery and then they will
+            // stick in the cluster-state forever since the replica has a retry logic that
+            // retries infinitely in that case.
+            List<MutableShardRouting> initializingReplicas = new ArrayList<>();
+            for (MutableShardRouting shard : routingNodes.assignedShards(failedShard)){
+                if (!shard.primary() && shard.initializing()) {
+                    initializingReplicas.add(shard);
+                }
+            }
+            // we can't do this in the loop above since we modify the iterator and will get
+            // concurrent modification exceptions
+            for (MutableShardRouting shard : initializingReplicas) {
+                dirty |= applyFailedShard(allocation, shard, addToIgnoreList);
+            }
+        }
         if (failedShard.relocatingNodeId() != null) {
             // the shard is relocating, either in initializing (recovery from another node) or relocating (moving to another node)
             if (failedShard.state() == INITIALIZING) {
                 // the shard is initializing and recovering from another node
-                boolean dirty = false;
                 // first, we need to cancel the current node that is being initialized
                 RoutingNodes.RoutingNodeIterator initializingNode = routingNodes.routingNodeIter(failedShard.currentNodeId());
                 if (initializingNode != null) {
@@ -459,7 +476,6 @@ public class AllocationService extends AbstractComponent {
                 }
                 return dirty;
             } else if (failedShard.state() == RELOCATING) {
-                boolean dirty = false;
                 // the shard is relocating, meaning its the source the shard is relocating from
                 // first, we need to cancel the current relocation from the current node
                 // now, find the node that we are recovering from, cancel the relocation, remove it from the node
@@ -497,13 +513,11 @@ public class AllocationService extends AbstractComponent {
                 } else {
                     logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
                 }
-                return dirty;
             } else {
                 throw new ElasticsearchIllegalStateException("illegal state for a failed shard, relocating node id is set, but state does not match: " + failedShard);
             }
         } else {
             // the shard is not relocating, its either started, or initializing, just cancel it and move on...
-            boolean dirty = false;
             RoutingNodes.RoutingNodeIterator node = routingNodes.routingNodeIter(failedShard.currentNodeId());
             if (node != null) {
                 while (node.hasNext()) {
@@ -541,7 +555,7 @@ public class AllocationService extends AbstractComponent {
             if (!dirty) {
                 logger.debug("failed shard {} not found in routingNodes, ignoring it", failedShard);
             }
-            return dirty;
         }
+        return dirty;
     }
 }

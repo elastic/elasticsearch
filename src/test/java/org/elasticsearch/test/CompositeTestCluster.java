@@ -29,10 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 /**
  * A test cluster implementation that holds a fixed set of external nodes as well as a InternalTestCluster
@@ -97,6 +95,38 @@ public class CompositeTestCluster extends TestCluster {
      */
     public synchronized boolean upgradeOneNode() throws InterruptedException, IOException {
       return upgradeOneNode(ImmutableSettings.EMPTY);
+    }
+
+    /**
+     * Upgrades all external running nodes to a node from the version running the tests.
+     * All nodes are shut down before the first upgrade happens.
+     * @return <code>true</code> iff at least one node as upgraded.
+     */
+    public synchronized boolean upgradeAllNodes() throws InterruptedException, ExecutionException {
+        return upgradeAllNodes(ImmutableSettings.EMPTY);
+    }
+
+
+    /**
+     * Upgrades all external running nodes to a node from the version running the tests.
+     * All nodes are shut down before the first upgrade happens.
+     * @return <code>true</code> iff at least one node as upgraded.
+     * @param nodeSettings settings for the upgrade nodes
+     */
+    public synchronized boolean upgradeAllNodes(Settings nodeSettings) throws InterruptedException, ExecutionException {
+        Collection<ExternalNode> runningNodes = runningNodes();
+        final int numRunningNodes = runningNodes.size();
+        for (ExternalNode node : runningNodes) {
+            node.stop(true);
+        }
+        if (numRunningNodes > 0)     {
+            List<String> names = cluster.startNodesAsync(numRunningNodes, nodeSettings).get();
+            for (String nodeName : names) {
+                ExternalNode.waitForNode(cluster.client(), nodeName);
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -201,6 +231,13 @@ public class CompositeTestCluster extends TestCluster {
     @Override
     public synchronized Iterator<Client> iterator() {
         return Iterators.singletonIterator(client());
+    }
+
+    /**
+     * Delegates to {@link org.elasticsearch.test.InternalTestCluster#fullRestart()}
+     */
+    public void fullRestartInternalCluster() throws Exception {
+        cluster.fullRestart();
     }
 
     /**

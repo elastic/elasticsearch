@@ -20,6 +20,11 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -32,6 +37,8 @@ import org.junit.Ignore;
 
 import java.io.File;
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.is;
 
 /**
  * Abstract base class for backwards compatibility tests. Subclasses of this class
@@ -124,5 +131,19 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
                 .put("discovery.type", "zen") // zen is needed since we start external nodes
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName())
                 .build();
+    }
+
+    public void assertAllShardsOnNodes(String index, String pattern) {
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                for (ShardRouting shardRouting : indexShardRoutingTable) {
+                    if (shardRouting.currentNodeId() != null &&  index.equals(shardRouting.getIndex())) {
+                        String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
+                        assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
+                    }
+                }
+            }
+        }
     }
 }

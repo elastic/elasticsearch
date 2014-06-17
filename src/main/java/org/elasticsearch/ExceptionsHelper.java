@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.List;
 
 /**
  *
@@ -119,5 +120,48 @@ public final class ExceptionsHelper {
         PrintWriter printWriter = new PrintWriter(stackTraceStringWriter);
         e.printStackTrace(printWriter);
         return stackTraceStringWriter.toString();
+    }
+
+    /**
+     * Rethrows the first exception in the list and adds all remaining to the suppressed list.
+     * If the given list is empty no exception is thrown
+     *
+     */
+    public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
+        T main = null;
+        for (T ex : exceptions) {
+            if (main == null) {
+                main = ex;
+            } else {
+                main.addSuppressed(ex);
+            }
+        }
+        if (main != null) {
+            throw main;
+        }
+    }
+
+    public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
+        if (t != null) {
+            do {
+                if (clazz.isInstance(t)) {
+                    return clazz.cast(t);
+                }
+            } while ((t = t.getCause()) != null);
+        }
+        return null;
+    }
+
+    /**
+     * Returns <code>true</code> iff the given throwable is and OutOfMemoryException, otherwise <code>false</code>
+     */
+    public static boolean isOOM(Throwable t) {
+        return t != null
+                && (t instanceof OutOfMemoryError
+                    || (t instanceof IllegalStateException
+                        && t.getMessage() != null
+                        && t.getMessage().contains("OutOfMemoryError")
+                        )
+                    );
     }
 }

@@ -174,6 +174,17 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
     }
 
     public GroupShardsIterator allActiveShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
+        return allActiveShardsGrouped(indices, includeEmpty, false);
+    }
+
+    /**
+     * Return GroupShardsIterator where each active shard routing has it's own shard iterator.
+     *
+     * @param includeEmpty             if true, a shard iterator will be added for non-assigned shards as well
+     * @param includeRelocationTargets if true, an <b>extra</b> shard iterator will be added for relocating shards. The extra
+     *                                 iterator contains a single ShardRouting pointing at the relocating target
+     */
+    public GroupShardsIterator allActiveShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         if (indices == null || indices.length == 0) {
@@ -190,6 +201,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.active()) {
                         set.add(shardRouting.shardsIt());
+                        if (includeRelocationTargets && shardRouting.relocating()) {
+                            set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.of(shardRouting.targetRoutingIfRelocating())));
+                        }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
                         set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
                     }
@@ -200,6 +214,17 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
     }
 
     public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty) throws IndexMissingException {
+        return allAssignedShardsGrouped(indices, includeEmpty, false);
+    }
+
+    /**
+     * Return GroupShardsIterator where each assigned shard routing has it's own shard iterator.
+     *
+     * @param includeEmpty if true, a shard iterator will be added for non-assigned shards as well
+     * @param includeRelocationTargets if true, an <b>extra</b> shard iterator will be added for relocating shards. The extra
+     *                                 iterator contains a single ShardRouting pointing at the relocating target
+     */
+    public GroupShardsIterator allAssignedShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets) throws IndexMissingException {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
         if (indices == null || indices.length == 0) {
@@ -216,6 +241,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
                     if (shardRouting.assignedToNode()) {
                         set.add(shardRouting.shardsIt());
+                        if (includeRelocationTargets && shardRouting.relocating()) {
+                            set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.of(shardRouting.targetRoutingIfRelocating())));
+                        }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
                         set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
                     }

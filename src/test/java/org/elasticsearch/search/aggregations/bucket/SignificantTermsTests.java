@@ -19,24 +19,30 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -300,4 +306,63 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertEquals(4, kellyTerm.getSupersetDf());
     }
 
+    @Test
+    public void testXContentResponse() throws Exception {
+        String indexName = "10index";
+        String docType = "doc";
+        String classField = "class";
+        String textField = "text";
+        cluster().wipeIndices(indexName);
+        String type = randomBoolean() ? "string" : "long";
+        index01Docs(indexName, docType, classField, textField, type);
+        SearchResponse response = client().prepareSearch(indexName).setTypes(docType)
+                .addAggregation(new TermsBuilder("class").field(classField).subAggregation(new SignificantTermsBuilder("sig_terms").field(textField)))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        StringTerms classes = (StringTerms) response.getAggregations().get("class");
+        assertThat(classes.getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : classes.getBuckets()) {
+            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+            assertTrue(aggs.containsKey("sig_terms"));
+            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
+            assertThat(agg.getBuckets().size(), equalTo(1));
+            String term = agg.iterator().next().getKey();
+            String classTerm = classBucket.getKey();
+            assertTrue(term.equals(classTerm));
+        }
+
+        XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
+        classes.toXContent(responseBuilder, null);
+        String result = null;
+        if (type.equals("long")) {
+            result = "\"class\"{\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+        } else {
+            result = "\"class\"{\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+        }
+        assertThat(responseBuilder.string(), equalTo(result));
+
+    }
+
+    private void index01Docs(String indexName, String docType, String classField, String textField, String type) throws ExecutionException, InterruptedException {
+        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
+        assertAcked(prepareCreate(indexName).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc", mappings));
+        String[] gb = {"0", "1"};
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "1")
+                .setSource(textField, "1", classField, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "2")
+                .setSource(textField, "1", classField, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "3")
+                .setSource(textField, "0", classField, "0"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "4")
+                .setSource(textField, "0", classField, "0"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "5")
+                .setSource(textField, gb, classField, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "6")
+                .setSource(textField, gb, classField, "0"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "7")
+                .setSource(textField, "0", classField, "0"));
+        indexRandom(true, indexRequestBuilderList);
+    }
 }

@@ -106,7 +106,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
             List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, supersetSize, buckets);
+        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, minDocCount, buckets);
     }
 
     @Override

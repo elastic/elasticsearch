@@ -110,6 +110,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     }
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsStatsFacet.ComparatorType.fromString(parser.text());
+                }
             }
         }
 

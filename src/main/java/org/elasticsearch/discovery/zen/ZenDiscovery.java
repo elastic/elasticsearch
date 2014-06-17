@@ -526,10 +526,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 // flush any pending cluster states from old master, so it will not be set as master again
                 ArrayList<ProcessClusterState> pendingNewClusterStates = new ArrayList<>();
                 processNewClusterStates.drainTo(pendingNewClusterStates);
-                for (ProcessClusterState state : pendingNewClusterStates) {
-                    // mark as processed so the corresponding cluster update task will not process it.
-                    state.processed = true;
-                }
+                logger.trace("removed [{}] pending cluster states", pendingNewClusterStates.size());
 
                 if (rejoinOnMasterGone) {
                     return rejoin(ClusterState.builder(currentState).nodes(discoveryNodes).build(), "master left (reason = " + reason + ")");
@@ -677,6 +674,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                             // we are going to use it for sure, poll (remove) it
                             potentialState = processNewClusterStates.poll();
+                            if (potentialState == null) {
+                                // might happen if the queue is drained
+                                break;
+                            }
+
                             potentialState.processed = true;
 
                             if (potentialState.clusterState.version() > stateToProcess.clusterState.version()) {

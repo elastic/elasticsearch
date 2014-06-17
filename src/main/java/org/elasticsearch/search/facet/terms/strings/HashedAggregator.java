@@ -22,9 +22,10 @@ import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -39,7 +40,7 @@ public class HashedAggregator {
     private final HashCount assertHash = getAssertHash();
 
     public HashedAggregator() {
-        hash = new BytesRefHashHashCount(new BytesRefHash());
+        hash = new BytesRefHashHashCount(new BytesRefHash(10, BigArrays.NON_RECYCLING_INSTANCE));
     }
 
     public void onDoc(int docId, BytesValues values) {
@@ -48,7 +49,7 @@ public class HashedAggregator {
         total += length;
         for (int i = 0; i < length; i++) {
             final BytesRef value = values.nextValue();
-            onValue(docId, value, values.currentValueHash(), values);
+            onValue(docId, value, value.hashCode(), values);
             pendingMissing = 0;
         }
         missing += pendingMissing;
@@ -158,7 +159,7 @@ public class HashedAggregator {
 
         @Override
         public boolean add(BytesRef value, int hashCode, BytesValues values) {
-            int key = hash.add(value, hashCode);
+            int key = (int)hash.add(value, hashCode);
             if (key < 0) {
                 key = ((-key) - 1);
             } else if (key >= counts.length) {
@@ -168,7 +169,7 @@ public class HashedAggregator {
         }
 
         public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
-            int key = hash.add(value, hashCode);
+            int key = (int)hash.add(value, hashCode);
             final boolean added = key >= 0;
             if (key < 0) {
                 key = ((-key) - 1);
@@ -190,7 +191,7 @@ public class HashedAggregator {
             private int currentCount = -1;
 
             BytesRefCountIteratorImpl() {
-                this.size = hash.size();
+                this.size = (int)hash.size();
             }
 
             public BytesRef next() {
@@ -220,7 +221,7 @@ public class HashedAggregator {
 
         @Override
         public int size() {
-            return hash.size();
+            return (int)hash.size();
         }
 
         @Override

@@ -308,7 +308,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             return;
         }
 
-        serverOpenChannels = new OpenChannelsHandler(logger);
+        final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
+        this.serverOpenChannels = openChannels;
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, "transport_server_boss")),
@@ -324,7 +325,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = Channels.pipeline();
-                pipeline.addLast("openChannels", serverOpenChannels);
+                pipeline.addLast("openChannels", openChannels);
                 SizeHeaderFrameDecoder sizeHeader = new SizeHeaderFrameDecoder();
                 if (maxCumulationBufferCapacity != null) {
                     if (maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {

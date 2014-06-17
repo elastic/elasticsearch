@@ -121,7 +121,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         MetaData metaData = clusterService.state().metaData();
         String aliasOrIndex = request.index();
         request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
-        request.index(metaData.concreteIndex(request.index()));
+        request.index(metaData.concreteSingleIndex(request.index()));
 
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && state.getMetaData().routingRequired(request.index(), request.type())) {

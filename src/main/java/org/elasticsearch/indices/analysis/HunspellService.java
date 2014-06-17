@@ -21,23 +21,17 @@ package org.elasticsearch.indices.analysis;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import org.apache.lucene.analysis.hunspell.HunspellDictionary;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
 import java.net.MalformedURLException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Serves as a node level registry for hunspell dictionaries. This services expects all dictionaries to be located under
@@ -73,31 +67,28 @@ public class HunspellService extends AbstractComponent {
     private final static DictionaryFileFilter DIC_FILE_FILTER = new DictionaryFileFilter();
     private final static AffixFileFilter AFFIX_FILE_FILTER = new AffixFileFilter();
 
-    private final LoadingCache<String, HunspellDictionary> dictionaries;
-    private final Map<String, HunspellDictionary> knownDictionaries;
+    private final LoadingCache<String, Dictionary> dictionaries;
+    private final Map<String, Dictionary> knownDictionaries;
 
     private final boolean defaultIgnoreCase;
-    private final boolean defaultStrictAffixParsing;
     private final File hunspellDir;
 
     public HunspellService(final Settings settings, final Environment env) {
-        this(settings, env, Collections.<String, HunspellDictionary>emptyMap());
+        this(settings, env, Collections.<String, Dictionary>emptyMap());
     }
 
     @Inject
-    public HunspellService(final Settings settings, final Environment env, final Map<String, HunspellDictionary> knownDictionaries) {
+    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) {
         super(settings);
         this.knownDictionaries = knownDictionaries;
         this.hunspellDir = resolveHunspellDirectory(settings, env);
         this.defaultIgnoreCase = settings.getAsBoolean("indices.analysis.hunspell.dictionary.ignore_case", false);
-        this.defaultStrictAffixParsing = settings.getAsBoolean("indices.analysis.hunspell.dictionary.strict_affix_parsing", false);
-        final Version version = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
-        dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, HunspellDictionary>() {
+        dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, Dictionary>() {
             @Override
-            public HunspellDictionary load(String locale) throws Exception {
-                HunspellDictionary dictionary = knownDictionaries.get(locale);
+            public Dictionary load(String locale) throws Exception {
+                Dictionary dictionary = knownDictionaries.get(locale);
                 if (dictionary == null) {
-                    dictionary = loadDictionary(locale, settings, env, version);
+                    dictionary = loadDictionary(locale, settings, env);
                 }
                 return dictionary;
             }
@@ -110,7 +101,7 @@ public class HunspellService extends AbstractComponent {
      *
      * @param locale The name of the locale
      */
-    public HunspellDictionary getDictionary(String locale) {
+    public Dictionary getDictionary(String locale) {
         return dictionaries.getUnchecked(locale);
     }
 
@@ -147,7 +138,7 @@ public class HunspellService extends AbstractComponent {
      * @return The loaded Hunspell dictionary
      * @throws Exception when loading fails (due to IO errors or malformed dictionary files)
      */
-    private HunspellDictionary loadDictionary(String locale, Settings nodeSettings, Environment env, Version version) throws Exception {
+    private Dictionary loadDictionary(String locale, Settings nodeSettings, Environment env) throws Exception {
         if (logger.isDebugEnabled()) {
             logger.debug("Loading huspell dictionary [{}]...", locale);
         }
@@ -160,7 +151,6 @@ public class HunspellService extends AbstractComponent {
         nodeSettings = loadDictionarySettings(dicDir, nodeSettings.getByPrefix("indices.analysis.hunspell.dictionary." + locale + "."));
 
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
-        boolean strictAffixParsing = nodeSettings.getAsBoolean("strict_affix_parsing", defaultStrictAffixParsing);
 
         File[] affixFiles = dicDir.listFiles(AFFIX_FILE_FILTER);
         if (affixFiles.length != 1) {
@@ -178,7 +168,7 @@ public class HunspellService extends AbstractComponent {
 
             affixStream = new FileInputStream(affixFiles[0]);
 
-            return new HunspellDictionary(affixStream, dicStreams, version, ignoreCase, strictAffixParsing);
+            return new Dictionary(affixStream, dicStreams, ignoreCase);
 
         } catch (Exception e) {
             logger.error("Could not load hunspell dictionary [{}]", e, locale);

@@ -88,6 +88,19 @@ public interface IndicesWarmer {
         public IndexReader indexReader() {
             return indexReader;
         }
+
+        @Override
+        public String toString() {
+            final String value;
+            if (newSearcher != null) {
+                value = newSearcher.reader().toString();
+            } else if (indexReader != null) {
+                value = indexReader.toString();
+            } else {
+                value = "null";
+            }
+            return "WarmerContext: " + value;
+        }
     }
 
     void addListener(Listener listener);

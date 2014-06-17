@@ -2,7 +2,7 @@
 === Keyword Tokenizer
 
 A tokenizer of type `keyword` that emits the entire input as a single
-input.
+output.
 
 The following are settings that can be set for a `keyword` tokenizer
 type:

@@ -19,16 +19,20 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
-import org.apache.lucene.util.InPlaceMergeSorter;
+import org.apache.lucene.util.BytesRefArray;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.TopReaderContextAware;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.AtomicFieldData.Order;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.SortedAndUnique.SortedUniqueBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -140,11 +144,6 @@ public abstract class ValuesSource {
      */
     public abstract BytesValues bytesValues();
 
-    /**
-     * Ask the underlying data source to provide pre-computed hashes, optional operation.
-     */
-    public void setNeedsHashes(boolean needsHashes) {}
-
     public void setNeedsGlobalOrdinals(boolean needsGlobalOrdinals) {}
 
     public abstract MetaData metaData();
@@ -159,9 +158,12 @@ public abstract class ValuesSource {
 
             public abstract BytesValues.WithOrdinals globalBytesValues();
 
+            public abstract long globalMaxOrd(IndexSearcher indexSearcher);
+
+            public abstract TermsEnum getGlobalTermsEnum();
+
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
-                protected boolean needsHashes;
                 protected final IndexFieldData.WithOrdinals<?> indexFieldData;
                 protected final MetaData metaData;
                 private boolean needsGlobalOrdinals;
@@ -173,19 +175,16 @@ public abstract class ValuesSource {
                 protected AtomicFieldData.WithOrdinals<?> globalAtomicFieldData;
                 private BytesValues.WithOrdinals globalBytesValues;
 
+                private long maxOrd = -1;
+
                 public FieldData(IndexFieldData.WithOrdinals<?> indexFieldData, MetaData metaData) {
                     this.indexFieldData = indexFieldData;
                     this.metaData = metaData;
-                    needsHashes = false;
                 }
 
                 @Override
                 public MetaData metaData() {
                     return metaData;
-                }
-
-                public final void setNeedsHashes(boolean needsHashes) {
-                    this.needsHashes = needsHashes;
                 }
 
                 @Override
@@ -197,12 +196,12 @@ public abstract class ValuesSource {
                 public void setNextReader(AtomicReaderContext reader) {
                     atomicFieldData = indexFieldData.load(reader);
                     if (bytesValues != null) {
-                        bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                        bytesValues = atomicFieldData.getBytesValues();
                     }
                     if (globalFieldData != null) {
                         globalAtomicFieldData = globalFieldData.load(reader);
                         if (globalBytesValues != null) {
-                            globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
+                            globalBytesValues = globalAtomicFieldData.getBytesValues();
                         }
                     }
                 }
@@ -210,7 +209,7 @@ public abstract class ValuesSource {
                 @Override
                 public BytesValues.WithOrdinals bytesValues() {
                     if (bytesValues == null) {
-                        bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                        bytesValues = atomicFieldData.getBytesValues();
                     }
                     return bytesValues;
                 }
@@ -225,9 +224,33 @@ public abstract class ValuesSource {
                 @Override
                 public BytesValues.WithOrdinals globalBytesValues() {
                     if (globalBytesValues == null) {
-                        globalBytesValues = globalAtomicFieldData.getBytesValues(needsHashes);
+                        globalBytesValues = globalAtomicFieldData.getBytesValues();
                     }
                     return globalBytesValues;
+                }
+
+                @Override
+                public long globalMaxOrd(IndexSearcher indexSearcher) {
+                    if (maxOrd != -1) {
+                        return maxOrd;
+                    }
+
+                    IndexReader indexReader = indexSearcher.getIndexReader();
+                    if (indexReader.leaves().isEmpty()) {
+                        return maxOrd = 0;
+                    } else {
+                        AtomicReaderContext atomicReaderContext = indexReader.leaves().get(0);
+                        IndexFieldData.WithOrdinals<?> globalFieldData = indexFieldData.loadGlobal(indexReader);
+                        AtomicFieldData.WithOrdinals afd = globalFieldData.load(atomicReaderContext);
+                        BytesValues.WithOrdinals values = afd.getBytesValues();
+                        Ordinals.Docs ordinals = values.ordinals();
+                        return maxOrd = ordinals.getMaxOrd();
+                    }
+                }
+
+                @Override
+                public TermsEnum getGlobalTermsEnum() {
+                    return globalAtomicFieldData.getTermsEnum();
                 }
             }
 
@@ -260,14 +283,14 @@ public abstract class ValuesSource {
             public void setNextReader(AtomicReaderContext reader) {
                 atomicFieldData = indexFieldData.load(reader);
                 if (bytesValues != null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
             }
 
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
                 if (bytesValues == null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
                 return bytesValues;
             }
@@ -326,43 +349,39 @@ public abstract class ValuesSource {
             }
 
             static class SortedUniqueBytesValues extends BytesValues {
-
                 final BytesValues delegate;
-                int[] sortedIds;
-                final BytesRefHash bytes;
+                int[] indices = new int[1]; // at least one
+                final BytesRefArray bytes;
                 int numUniqueValues;
                 int pos = Integer.MAX_VALUE;
 
                 public SortedUniqueBytesValues(BytesValues delegate) {
                     super(delegate.isMultiValued());
                     this.delegate = delegate;
-                    bytes = new BytesRefHash();
+                    bytes = new BytesRefArray(Counter.newCounter(false));
                 }
 
                 @Override
                 public int setDocument(int docId) {
                     final int numValues = delegate.setDocument(docId);
-                    if (numValues == 0) {
-                        sortedIds = null;
-                        return 0;
-                    }
-                    bytes.clear();
-                    bytes.reinit();
-                    for (int i = 0; i < numValues; ++i) {
-                        final BytesRef next = delegate.nextValue();
-                        final int hash = delegate.currentValueHash();
-                        assert hash == next.hashCode();
-                        bytes.add(next, hash);
-                    }
-                    numUniqueValues = bytes.size();
-                    sortedIds = bytes.sort(BytesRef.getUTF8SortedAsUnicodeComparator());
+                    numUniqueValues = 0;
                     pos = 0;
+                    if (numValues > 0) {
+                        bytes.clear();
+                        indices = ArrayUtil.grow(this.indices, numValues);
+                        for (int i = 0; i < numValues; ++i) {
+                            final BytesRef next = delegate.nextValue();
+                            indices[i] = i;
+                            bytes.append(next);
+                        }
+                        numUniqueValues = CollectionUtils.sortAndDedup(bytes, indices);
+                    }
                     return numUniqueValues;
                 }
 
                 @Override
                 public BytesRef nextValue() {
-                    bytes.get(sortedIds[pos++], scratch);
+                    bytes.get(scratch, indices[pos++]);
                     return scratch;
                 }
 
@@ -499,15 +518,10 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public final void setNeedsHashes(boolean needsHashes) {
-                this.needsHashes = needsHashes;
-            }
-
-            @Override
             public void setNextReader(AtomicReaderContext reader) {
                 atomicFieldData = indexFieldData.load(reader);
                 if (bytesValues != null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
                 if (longValues != null) {
                     longValues = atomicFieldData.getLongValues();
@@ -520,7 +534,7 @@ public abstract class ValuesSource {
             @Override
             public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
                 if (bytesValues == null) {
-                    bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                    bytesValues = atomicFieldData.getBytesValues();
                 }
                 return bytesValues;
             }
@@ -657,21 +671,6 @@ public abstract class ValuesSource {
                 long[] array = new long[2];
                 int pos = Integer.MAX_VALUE;
 
-                final InPlaceMergeSorter sorter = new InPlaceMergeSorter() {
-                    @Override
-                    protected void swap(int i, int j) {
-                        final long tmp = array[i];
-                        array[i] = array[j];
-                        array[j] = tmp;
-                    }
-                    @Override
-                    protected int compare(int i, int j) {
-                        final long l1 = array[i];
-                        final long l2 = array[j];
-                        return Long.compare(l1, l2);
-                    }
-                };
-
                 protected SortedUniqueLongValues(LongValues delegate) {
                     super(delegate);
                 }
@@ -702,22 +701,9 @@ public abstract class ValuesSource {
 
             private static class SortedUniqueDoubleValues extends FilterDoubleValues {
 
-                int numUniqueValues;
-                double[] array = new double[2];
-                int pos = Integer.MAX_VALUE;
-
-                final InPlaceMergeSorter sorter = new InPlaceMergeSorter() {
-                    @Override
-                    protected void swap(int i, int j) {
-                        final double tmp = array[i];
-                        array[i] = array[j];
-                        array[j] = tmp;
-                    }
-                    @Override
-                    protected int compare(int i, int j) {
-                        return Double.compare(array[i], array[j]);
-                    }
-                };
+                private int numUniqueValues;
+                private double[] array = new double[2];
+                private int pos = Integer.MAX_VALUE;
 
                 SortedUniqueDoubleValues(DoubleValues delegate) {
                     super(delegate);
@@ -798,7 +784,6 @@ public abstract class ValuesSource {
 
     public static class GeoPoint extends ValuesSource implements ReaderContextAware {
 
-        protected boolean needsHashes;
         protected final IndexGeoPointFieldData<?> indexFieldData;
         private final MetaData metaData;
         protected AtomicGeoPointFieldData<?> atomicFieldData;
@@ -808,7 +793,6 @@ public abstract class ValuesSource {
         public GeoPoint(IndexGeoPointFieldData<?> indexFieldData, MetaData metaData) {
             this.indexFieldData = indexFieldData;
             this.metaData = metaData;
-            needsHashes = false;
         }
 
         @Override
@@ -817,15 +801,10 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final void setNeedsHashes(boolean needsHashes) {
-            this.needsHashes = needsHashes;
-        }
-
-        @Override
         public void setNextReader(AtomicReaderContext reader) {
             atomicFieldData = indexFieldData.load(reader);
             if (bytesValues != null) {
-                bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                bytesValues = atomicFieldData.getBytesValues();
             }
             if (geoPointValues != null) {
                 geoPointValues = atomicFieldData.getGeoPointValues();
@@ -835,7 +814,7 @@ public abstract class ValuesSource {
         @Override
         public org.elasticsearch.index.fielddata.BytesValues bytesValues() {
             if (bytesValues == null) {
-                bytesValues = atomicFieldData.getBytesValues(needsHashes);
+                bytesValues = atomicFieldData.getBytesValues();
             }
             return bytesValues;
         }

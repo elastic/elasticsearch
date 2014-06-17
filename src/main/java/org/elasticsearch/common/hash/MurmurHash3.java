@@ -55,6 +55,9 @@ public enum MurmurHash3 {
 
     /**
      * Compute the hash of the MurmurHash3_x64_128 hashing function.
+     *
+     * Note, this hashing function might be used to persist hashes, so if the way hashes are computed
+     * changes for some reason, it needs to be addressed (like in BloomFilter and MurmurHashField).
      */
     public static Hash128 hash128(byte[] key, int offset, int length, long seed, Hash128 hash) {
         long h1 = seed;

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.suggest;
 
+import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
@@ -40,6 +40,8 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.percolator.PercolatorService;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -62,7 +64,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.hamcrest.Matchers.*;
 
 public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
@@ -507,57 +509,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "path_type issue")
-    // If the path_type is set to `just_name` and the multi field is updated (for example another multi field is added)
-    // then if the path isn't specified again the path_type isn't taken into account and full path names are generated.
-    public void testThatUpgradeToMultiFieldWorks_bug() throws Exception {
-        final XContentBuilder mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .field("path", "just_name")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
-                .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
-                .field("type", "multi_field")
-                .startObject("fields")
-                .startObject(FIELD).field("type", "string").endObject()
-                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
-                .endObject()
-                .endObject()
-                .endObject().endObject()
-                .endObject())
-                .get();
-        assertThat(putMappingResponse.isAcknowledged(), is(true));
-
-        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(suggestResponse, "suggs");
-
-        client().prepareIndex(INDEX, TYPE, "1").setRefresh(true).setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
-        ensureGreen(INDEX);
-
-        SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
-        ).execute().actionGet();
-        assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
-    }
-
-    @Test
     public void testThatFuzzySuggesterWorks() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -712,7 +663,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
-                .startObject(FIELD)
+                .startObject(FIELD.toString())
                 .field("type", "completion").field("analyzer", "simple")
                 .endObject()
                 .startObject(otherField)
@@ -741,7 +692,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
 
         // regexes
         IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX).setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
-        long regexSizeInBytes = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields().get("*");
+        ObjectLongOpenHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
+        long regexSizeInBytes = fields.get(FIELD) + fields.get(otherField);
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
 
@@ -780,11 +732,16 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
 
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().field(FIELD, "Feed trolls").endObject()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Feed trolls").endArray()
+                .field("weight", 5).endObject().endObject()
         ).get();
 
+        // Higher weight so it's ranked first:
         client().prepareIndex(INDEX, TYPE, "2").setSource(jsonBuilder()
-                .startObject().field(FIELD, "Feed the trolls").endObject()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("Feed the trolls").endArray()
+                .field("weight", 10).endObject().endObject()
         ).get();
 
         refresh();
@@ -836,7 +793,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertSuggestions(SuggestResponse suggestResponse, boolean suggestionOrderStrict, String name, String... suggestions) {
-        assertNoFailures(suggestResponse);
+        assertAllSuccessful(suggestResponse);
 
         List<String> suggestionNames = Lists.newArrayList();
         for (Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion : Lists.newArrayList(suggestResponse.getSuggest().iterator())) {
@@ -908,7 +865,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                             .startArray("input").value(input[i]).endArray()
                             .field("output", surface[i])
                             .startObject("payload").field("id", i).endObject()
-                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT 
+                            .field("weight", 1) // WE FORCEFULLY INDEX A BOGUS WEIGHT
                             .endObject()
                             .endObject()
                     );
@@ -952,7 +909,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
         ).get(); // we have 2 docs in a segment...
         OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
-        assertNoFailures(actionGet);
+        assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
         client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
@@ -961,7 +918,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .endObject()
         ).get();
         actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
-        assertNoFailures(actionGet);
+        assertAllSuccessful(actionGet);
         refresh();
 
         assertSuggestions("b");
@@ -1055,6 +1012,34 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .field("output", "foobar")
                 .endObject().endObject()
         ).setRefresh(true).get();
+    }
+
+    @Test // see #5930
+    public void testIssue5930() throws IOException {
+        client().admin().indices().prepareCreate(INDEX).get();
+        ElasticsearchAssertions.assertAcked(client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+                .startObject(TYPE).startObject("properties")
+                .startObject(FIELD)
+                .field("type", "completion")
+                .endObject()
+                .endObject().endObject()
+                .endObject()));
+        ensureYellow();
+        String string = "foo bar";
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject()
+                .field(FIELD, string)
+                .endObject()
+        ).setRefresh(true).get();
+
+        try {
+            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))).execute().actionGet();
+            // Exception must be thrown
+            assertFalse(true);
+        } catch (SearchPhaseExecutionException e) {
+            assertTrue(e.getDetailedMessage().contains("found no fielddata type for field [" + FIELD + "]"));
+        }
     }
 
     private static String replaceReservedChars(String input, char replacement) {

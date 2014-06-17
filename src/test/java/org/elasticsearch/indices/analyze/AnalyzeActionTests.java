@@ -31,6 +31,8 @@ import java.io.IOException;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -170,6 +172,25 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
+        }
+    }
+
+    @Test // issue #5974
+    public void testThatStandardAndDefaultAnalyzersAreSame() throws Exception {
+        AnalyzeResponse response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("standard").get();
+        assertTokens(response, "this", "is", "a", "test");
+
+        response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("default").get();
+        assertTokens(response, "this", "is", "a", "test");
+
+        response = client().admin().indices().prepareAnalyze("this is a test").get();
+        assertTokens(response, "this", "is", "a", "test");
+    }
+
+    private void assertTokens(AnalyzeResponse response, String ... tokens) {
+        assertThat(response.getTokens(), hasSize(tokens.length));
+        for (int i = 0; i < tokens.length; i++) {
+            assertThat(response.getTokens().get(i).getTerm(), is(tokens[i]));
         }
     }
 }

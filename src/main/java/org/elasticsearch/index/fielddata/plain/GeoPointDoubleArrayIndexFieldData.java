@@ -24,7 +24,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigDoubleArrayList;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
@@ -66,43 +67,49 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractGeoPointIndexFiel
         // TODO: Use an actual estimator to estimate before loading.
         NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker());
         if (terms == null) {
-            data = new Empty(reader.maxDoc());
+            data = new Empty();
             estimator.afterLoad(null, data.getMemorySizeInBytes());
             return data;
         }
-        final BigDoubleArrayList lat = new BigDoubleArrayList();
-        final BigDoubleArrayList lon = new BigDoubleArrayList();
-        lat.add(0); // first "t" indicates null value
-        lon.add(0); // first "t" indicates null value
+        DoubleArray lat = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(128);
+        DoubleArray lon = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(128);
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio)) {
             final GeoPointEnum iter = new GeoPointEnum(builder.buildFromTerms(terms.iterator(null)));
             GeoPoint point;
+            long numTerms = 0;
             while ((point = iter.next()) != null) {
-                lat.add(point.getLat());
-                lon.add(point.getLon());
+                lat = BigArrays.NON_RECYCLING_INSTANCE.resize(lat, numTerms + 1);
+                lon = BigArrays.NON_RECYCLING_INSTANCE.resize(lon, numTerms + 1);
+                lat.set(numTerms, point.getLat());
+                lon.set(numTerms, point.getLon());
+                ++numTerms;
             }
+            lat = BigArrays.NON_RECYCLING_INSTANCE.resize(lat, numTerms);
+            lon = BigArrays.NON_RECYCLING_INSTANCE.resize(lon, numTerms);
 
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (!(build.isMultiValued() || CommonSettings.getMemoryStorageHint(fieldDataType) == CommonSettings.MemoryStorageFormat.ORDINALS)) {
                 Docs ordinals = build.ordinals();
                 int maxDoc = reader.maxDoc();
-                BigDoubleArrayList sLat = new BigDoubleArrayList(reader.maxDoc());
-                BigDoubleArrayList sLon = new BigDoubleArrayList(reader.maxDoc());
+                DoubleArray sLat = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
+                DoubleArray sLon = BigArrays.NON_RECYCLING_INSTANCE.newDoubleArray(reader.maxDoc());
                 for (int i = 0; i < maxDoc; i++) {
                     long nativeOrdinal = ordinals.getOrd(i);
-                    sLat.add(lat.get(nativeOrdinal));
-                    sLon.add(lon.get(nativeOrdinal));
+                    if (nativeOrdinal != Ordinals.MISSING_ORDINAL) {
+                        sLat.set(i, lat.get(nativeOrdinal));
+                        sLon.set(i, lon.get(nativeOrdinal));
+                    }
                 }
                 FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
-                    data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc(), ordinals.getNumOrds());
+                    data = new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 } else {
-                    data = new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set, ordinals.getNumOrds());
+                    data = new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, set, ordinals.getMaxOrd() - Ordinals.MIN_ORDINAL);
                 }
             } else {
-                data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, reader.maxDoc(), build);
+                data = new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon, lat, build);
             }
             success = true;
             return data;

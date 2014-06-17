@@ -19,9 +19,11 @@
 package org.elasticsearch.indexing;
 
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -32,6 +34,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -39,6 +42,53 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  *
  */
 public class IndexActionTests extends ElasticsearchIntegrationTest {
+
+    /**
+     * This test tries to simulate load while creating an index and indexing documents
+     * while the index is being created.
+     */
+    @Test
+    @TestLogging("action.search:TRACE,indices.recovery:TRACE,index.shard.service:TRACE")
+    public void testAutoGenerateIdNoDuplicates() throws Exception {
+        int numberOfIterations = randomIntBetween(10, 50);
+        for (int i = 0; i < numberOfIterations; i++) {
+            Throwable firstError = null;
+            createIndex("test");
+            int numOfDocs = randomIntBetween(10, 100);
+            logger.info("indexing [{}] docs", numOfDocs);
+            List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
+            for (int j = 0; j < numOfDocs; j++) {
+                builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
+            }
+            indexRandom(true, builders);
+            logger.info("verifying indexed content");
+            int numOfChecks = randomIntBetween(8, 12);
+            for (int j = 0; j < numOfChecks; j++) {
+                try {
+                    logger.debug("running search with all types");
+                    assertHitCount(client().prepareSearch("test").get(), numOfDocs);
+                } catch (Throwable t) {
+                    logger.error("search for all docs types failed", t);
+                    if (firstError == null) {
+                        firstError = t;
+                    }
+                }
+                try {
+                    logger.debug("running search with a specific type");
+                    assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
+                } catch (Throwable t) {
+                    logger.error("search for all docs of a specific type failed", t);
+                    if (firstError == null) {
+                        firstError = t;
+                    }
+                }
+            }
+            if (firstError != null) {
+                fail(firstError.getMessage());
+            }
+            internalCluster().wipeIndices("test");
+        }
+    }
 
     @Test
     public void testCreatedFlag() throws Exception {

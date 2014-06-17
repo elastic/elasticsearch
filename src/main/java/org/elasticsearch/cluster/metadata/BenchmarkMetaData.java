@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Meta data about snapshots that are currently executing
+ * Meta data about benchmarks that are currently executing
  */
 public class BenchmarkMetaData implements MetaData.Custom {
     public static final String TYPE = "benchmark";
@@ -152,15 +152,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
 
     public ImmutableList<Entry> entries() {
         return this.entries;
-    }
-
-    public Entry snapshot(SnapshotId snapshotId) {
-        for (Entry entry : entries) {
-            if (snapshotId.equals(entry.benchmarkId())) {
-                return entry;
-            }
-        }
-        return null;
     }
 
 

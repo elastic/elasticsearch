@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,13 +30,16 @@ import org.junit.Test;
 
 import java.util.List;
 
+import static org.apache.lucene.util.LuceneTestCase.Slow;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@LuceneTestCase.Slow
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numNodes = 0)
+@Slow
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ZenUnicastDiscoveryTestsSpecificNodes extends ElasticsearchIntegrationTest {
 
     @Test
@@ -54,14 +56,14 @@ public class ZenUnicastDiscoveryTestsSpecificNodes extends ElasticsearchIntegrat
                 .put("discovery.zen.ping.unicast.hosts", "localhost:15300,localhost:15301,localhost:15302")
                 .put("transport.tcp.port", "15300-15400")
                 .build();
-        List<String> nodes = cluster().startNodesAsync(3, settings).get();
+        List<String> nodes = internalCluster().startNodesAsync(3, settings).get();
 
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         DiscoveryNode masterDiscoNode = null;
         for (String node : nodes.toArray(new String[3])) {
-            ClusterState state = cluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(3));
             if (masterDiscoNode == null) {
                 masterDiscoNode = state.nodes().masterNode();

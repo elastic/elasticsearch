@@ -33,7 +33,7 @@ import java.io.IOException;
 /**
  *
  */
-public abstract class NumericValuesSourceMetricsAggregatorParser<S extends MetricsAggregation> implements Aggregator.Parser {
+public abstract class NumericValuesSourceMetricsAggregatorParser<S extends InternalNumericMetricsAggregation> implements Aggregator.Parser {
 
     protected final InternalAggregation.Type aggType;
 

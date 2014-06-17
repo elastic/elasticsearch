@@ -31,16 +31,24 @@
     </parent>
 
     <properties>
-        <lucene.version>4.7.2</lucene.version>
+        <lucene.version>4.8.1</lucene.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
+        <tests.bwc.path>${project.basedir}/backwards</tests.bwc.path>
         <es.logger.level>INFO</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>Codehaus Snapshots</id>
+            <url>http://repository.codehaus.org/</url>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -65,12 +73,6 @@
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.3.1</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.mahout</groupId>
-            <artifactId>mahout-core</artifactId>
-            <version>0.9</version>
             <scope>test</scope>
         </dependency>
 
@@ -181,7 +183,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>16.0</version>
+            <version>17.0</version>
             <scope>compile</scope>
         </dependency>
 
@@ -209,42 +211,42 @@
         <dependency>
             <groupId>org.mvel</groupId>
             <artifactId>mvel2</artifactId>
-            <version>2.1.9.Final</version>
+            <version>2.2.0.Final</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-cbor</artifactId>
-            <version>2.3.2</version>
+            <version>2.3.3</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.9.0.Final</version>
+            <version>3.9.1.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -252,6 +254,13 @@
             <groupId>com.ning</groupId>
             <artifactId>compress-lzf</artifactId>
             <version>0.9.6</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.tdunning</groupId>
+            <artifactId>t-digest</artifactId>
+            <version>3.0</version>
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
@@ -275,7 +284,7 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>3.3.0</version>
+            <version>4.1.0</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -327,6 +336,14 @@
                     <include>**/*.json</include>
                     <include>**/*.yml</include>
                     <include>**/*.txt</include>
+                    <include>**/*.properties</include>
+                </includes>
+                <filtering>true</filtering>
+            </testResource>
+            <testResource>
+                <directory>${basedir}/src/test/java</directory>
+                <includes>
+                    <include>**/*.gz</include>
                 </includes>
             </testResource>
             <testResource>
@@ -382,6 +399,9 @@
                          be fixed in version > 3.1
                      -->
                     <useIncrementalCompilation>false</useIncrementalCompilation>
+                    <compilerArgs>
+                        <arg>-XDignore.symbol.file</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
             <plugin>
@@ -449,7 +469,11 @@
                             <systemProperties>
                                 <java.io.tmpdir>.</java.io.tmpdir> <!-- we use '.' since this is different per JVM-->
                                 <!-- RandomizedTesting library system properties -->
+                                <tests.bwc>${tests.bwc}</tests.bwc>
+                                <tests.bwc.path>${tests.bwc.path}</tests.bwc.path>
+                                <tests.bwc.version>${tests.bwc.version}</tests.bwc.version>
                                 <tests.jvm.argline>${tests.jvm.argline}</tests.jvm.argline>
+                                <tests.processors>${tests.processors}</tests.processors>
                                 <tests.appendseed>${tests.appendseed}</tests.appendseed>
                                 <tests.iters>${tests.iters}</tests.iters>
                                 <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
@@ -457,6 +481,7 @@
                                 <tests.class>${tests.class}</tests.class>
                                 <tests.method>${tests.method}</tests.method>
                                 <tests.nightly>${tests.nightly}</tests.nightly>
+                                <tests.verbose>${tests.verbose}</tests.verbose>
                                 <tests.badapples>${tests.badapples}</tests.badapples>
                                 <tests.weekly>${tests.weekly}</tests.weekly>
                                 <tests.slow>${tests.slow}</tests.slow>
@@ -470,6 +495,7 @@
                                 <tests.assertion.disabled>${tests.assertion.disabled}</tests.assertion.disabled>
                                 <tests.rest>${tests.rest}</tests.rest>
                                 <tests.rest.suite>${tests.rest.suite}</tests.rest.suite>
+                                <tests.rest.blacklist>${tests.rest.blacklist}</tests.rest.blacklist>
                                 <tests.rest.spec>${tests.rest.spec}</tests.rest.spec>
                                 <tests.network>${tests.network}</tests.network>
                                 <tests.cluster>${tests.cluster}</tests.cluster>
@@ -478,6 +504,7 @@
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <tests.security.manager>${tests.security.manager}</tests.security.manager>
+                                <tests.compatibility>${tests.compatibility}</tests.compatibility>
                                 <java.awt.headless>true</java.awt.headless>
                                 <!-- everything below is for security manager / test.policy -->
                                 <junit4.tempDir>${project.build.directory}</junit4.tempDir>
@@ -492,6 +519,47 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <version>1.7</version>
                 <executions>
+                    <execution>
+                    <phase>validate</phase>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                    <configuration>
+                           <target>
+                               <echo>Using ${java.runtime.name} ${java.runtime.version} ${java.vendor}</echo>
+                           </target>
+                    </configuration>
+                    </execution>
+                    <execution>
+                        <id>invalid-patterns</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target unless="${validate.skip}">
+                                <pathconvert pathsep="${line.separator}" dirsep="/" property="validate.patternsFound" setonempty="false">
+                                    <fileset dir="${basedir}">
+                                        <include name="**/*.java"/>
+                                        <include name="**/*.py"/>
+                                        <include name="**/*.txt"/>
+                                        <include name="**/*.xml"/>
+                                        <include name="**/*.rb"/>
+                                        <include name="**/*.pl"/>
+                                        <exclude name="**/org/elasticsearch/cluster/routing/shard_routes.txt"/>
+                                        <exclude name="target/**/*"/>
+                                        <exclude name=".metadata/**/*"/>
+                                        <or>
+                                            <containsregexp expression="\bno(n|)commit\b" casesensitive="no"/>
+                                            <containsregexp expression="\t" casesensitive="no"/>
+                                        </or>
+                                    </fileset>
+                                    <map from="${basedir}${file.separator}" to="* "/>
+                                </pathconvert>
+                                <fail if="validate.patternsFound">The following files contain tabs or nocommits:${line.separator}${validate.patternsFound}</fail>
+                            </target>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>tests</id>
                         <phase>test</phase>
@@ -540,12 +608,30 @@
                             <goal>jar</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>attach-test-sources</id>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                        <configuration>
+                            <includes>
+                                <include>org/elasticsearch/test/**/*</include>
+                                <include>org/apache/lucene/util/AbstractRandomizedTest.java</include>
+                            </includes>
+                            <excludes>
+                                <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
+                                <exclude>org/elasticsearch/test/rest/test/**/*</exclude>
+                            </excludes>
+                            <!-- Resources are large and not really helpful as "test sources". -->
+                            <excludeResources>true</excludeResources>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.2</version>
+                <version>2.3</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -572,6 +658,7 @@
                             <include>io.netty:netty</include>
                             <include>com.ning:compress-lzf</include>
                             <include>com.github.spullara.mustache.java:compiler</include>
+                            <include>com.tdunning:t-digest</include>
                         </includes>
                     </artifactSet>
                     <relocations>
@@ -606,6 +693,14 @@
                         <relocation>
                             <pattern>com.ning.compress</pattern>
                             <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
+                        </relocation>
+                        <relocation>
+                        <pattern>com.github.mustachejava</pattern>
+                            <shadedPattern>org.elasticsearch.common.mustache</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>com.tdunning.math.stats</pattern>
+                            <shadedPattern>org.elasticsearch.common.stats</shadedPattern>
                         </relocation>
                     </relocations>
                     <filters>
@@ -1050,7 +1145,6 @@
                                 <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
                                 <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
                                 <exclude>org/elasticsearch/Version.class</exclude>
-                                <exclude>org/elasticsearch/index/merge/Merges.class</exclude>
                                 <exclude>org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class</exclude>
                                 <!-- end excludes for valid system-out -->
                                 <!-- start excludes for Unsafe -->
@@ -1059,7 +1153,11 @@
                                 <!-- start excludes for Math.abs -->
                                 <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
                                 <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class</exclude>
                                 <!-- end excludes for Math.abs -->
+                                <!-- start exclude for FilteredQuery -->
+                                <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
+                                <!-- end exclude for FilteredQuery -->
                             </excludes>
                             <bundledSignatures>
                                 <!-- This will automatically choose the right signatures based on 'targetVersion': -->
@@ -1069,6 +1167,7 @@
                             </bundledSignatures>
                             <signaturesFiles>
                                 <signaturesFile>core-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
                             </signaturesFiles>
                             <signatures>${forbidden.signatures}</signatures>
                         </configuration>
@@ -1090,6 +1189,10 @@
                                 <bundledSignature>jdk-unsafe</bundledSignature>
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>test-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
                             <signatures>${forbidden.test.signatures}</signatures>
                         </configuration>
                         <phase>test-compile</phase>
@@ -1098,27 +1201,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <artifactId>exec-maven-plugin</artifactId>
-                <groupId>org.codehaus.mojo</groupId>
-                <version>1.2.1</version>
-                <executions>
-                    <execution>
-                        <id>Java Version</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <executable>java</executable>
-                            <arguments>
-                                <argument>-version</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

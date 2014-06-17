@@ -34,17 +34,18 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
-@ClusterScope(scope= ElasticsearchIntegrationTest.Scope.TEST, numNodes=1)
+@ClusterScope(scope= Scope.TEST, numDataNodes =1)
 public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
 
     @SuppressWarnings({"ConstantConditions", "unchecked"})
     @Test
-    @BadApple
+    @BadApple(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/3232")
     public void testIndexShardLifecycleLeak() throws Exception {
 
         client().admin().indices().prepareCreate("test")
@@ -53,7 +54,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        IndicesService indicesService = cluster().getInstance(IndicesService.class);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         Injector indexInjector = indexService.injector();
         IndexShard shard = indexService.shardSafe(0);

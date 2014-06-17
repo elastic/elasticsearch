@@ -18,22 +18,34 @@
  */
 package org.elasticsearch.versioning;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.lucene.util.LuceneTestCase.Slow;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashMap;
-
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  *
@@ -336,4 +348,307 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
         assertThat(indexResponse.getVersion(), equalTo(1l));
     }
+
+
+    // Poached from Lucene's TestIDVersionPostingsFormat:
+
+    private interface IDSource {
+        String next();
+    }
+
+    private IDSource getRandomIDs() {
+        IDSource ids;
+        final Random random = getRandom();
+        switch (random.nextInt(6)) {
+        case 0:
+            // random simple
+            if (VERBOSE) {
+                System.out.println("TEST: use random simple ids");
+            }
+            ids = new IDSource() {
+                    @Override
+                    public String next() {
+                        return TestUtil.randomSimpleString(random);
+                    }
+                };
+            break;
+        case 1:
+            // random realistic unicode
+            if (VERBOSE) {
+                System.out.println("TEST: use random realistic unicode ids");
+            }
+            ids = new IDSource() {
+                    @Override
+                    public String next() {
+                        return TestUtil.randomRealisticUnicodeString(random);
+                    }
+                };
+            break;
+        case 2:
+            // sequential
+            if (VERBOSE) {
+                System.out.println("TEST: use seuquential ids");
+            }
+            ids = new IDSource() {
+                    int upto;
+                    @Override
+                    public String next() {
+                        return Integer.toString(upto++);
+                    }
+                };
+            break;
+        case 3:
+            // zero-pad sequential
+            if (VERBOSE) {
+                System.out.println("TEST: use zero-pad seuquential ids");
+            }
+            ids = new IDSource() {
+                    final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
+                    final String zeroPad = String.format(Locale.ROOT, "%0" + TestUtil.nextInt(random, 4, 20) + "d", 0);
+                    int upto;
+                    @Override
+                    public String next() {
+                        String s = Integer.toString(upto++);
+                        return zeroPad.substring(zeroPad.length() - s.length()) + s;
+                    }
+                };
+            break;
+        case 4:
+            // random long
+            if (VERBOSE) {
+                System.out.println("TEST: use random long ids");
+            }
+            ids = new IDSource() {
+                    final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
+                    int upto;
+                    @Override
+                    public String next() {
+                        return Long.toString(random.nextLong() & 0x3ffffffffffffffL, radix);
+                    }
+                };
+            break;
+        case 5:
+            // zero-pad random long
+            if (VERBOSE) {
+                System.out.println("TEST: use zero-pad random long ids");
+            }
+            ids = new IDSource() {
+                    final int radix = TestUtil.nextInt(random, Character.MIN_RADIX, Character.MAX_RADIX);
+                    final String zeroPad = String.format(Locale.ROOT, "%015d", 0);
+                    int upto;
+                    @Override
+                    public String next() {
+                        return Long.toString(random.nextLong() & 0x3ffffffffffffffL, radix);
+                    }
+                };
+            break;
+        default:
+            throw new AssertionError();
+        }
+
+        return ids;
+    }
+
+
+    private static class IDAndVersion {
+        public String id;
+        public long version;
+        public boolean delete;
+    }
+
+
+    @Test
+    @Slow
+    public void testRandomIDsAndVersions() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        // TODO: sometimes use _bulk API
+        // TODO: test non-aborting exceptions (Rob suggested field where positions overflow)
+
+        // TODO: not great we don't test deletes GC here:
+
+        // We test deletes, but can't rely on wall-clock delete GC:
+        HashMap<String,Object> newSettings = new HashMap<>();
+        newSettings.put("index.gc_deletes", "1000000h");
+        client().admin().indices().prepareUpdateSettings("test").setSettings(newSettings).execute().actionGet();
+
+        Random random = getRandom();
+
+        // Generate random IDs:
+        IDSource idSource = getRandomIDs();
+        Set<String> idsSet = new HashSet<>();
+
+        String idPrefix;
+        if (randomBoolean()) {
+            idPrefix = "";
+        } else {
+            idPrefix = TestUtil.randomSimpleString(random);
+            if (VERBOSE) {
+                System.out.println("TEST: use id prefix: " + idPrefix);
+            }
+        }
+
+        int numIDs;
+        if (isNightly()) {
+            numIDs = scaledRandomIntBetween(300, 1000);
+        } else {
+            numIDs = scaledRandomIntBetween(50, 100);
+        }
+
+        while (idsSet.size() < numIDs) {
+            idsSet.add(idPrefix + idSource.next());
+        }
+
+        String[] ids = idsSet.toArray(new String[numIDs]);
+
+        boolean useMonotonicVersion = randomBoolean();
+
+        // Attach random versions to them:
+        long version = 0;
+        final IDAndVersion[] idVersions = new IDAndVersion[TestUtil.nextInt(random, numIDs/2, numIDs*(isNightly() ? 8 : 2))];
+        final Map<String,IDAndVersion> truth = new HashMap<>();
+
+        if (VERBOSE) {
+            System.out.println("TEST: use " + numIDs + " ids; " + idVersions.length + " operations");
+        }
+
+        for(int i=0;i<idVersions.length;i++) {
+
+            if (useMonotonicVersion) {
+                version += TestUtil.nextInt(random, 1, 10);
+            } else {
+                version = random.nextLong() & 0x3fffffffffffffffL;
+            }
+
+            idVersions[i] = new IDAndVersion();
+            idVersions[i].id = ids[random.nextInt(numIDs)];
+            idVersions[i].version = version;
+            // 20% of the time we delete:
+            idVersions[i].delete = random.nextInt(5) == 2;
+            IDAndVersion curVersion = truth.get(idVersions[i].id);
+            if (curVersion == null || idVersions[i].version > curVersion.version) {
+                // Save highest version per id:
+                truth.put(idVersions[i].id, idVersions[i]);
+            }
+        }
+
+        // Shuffle
+        for(int i = idVersions.length - 1; i > 0; i--) {
+            int index = random.nextInt(i + 1);
+            IDAndVersion x = idVersions[index];
+            idVersions[index] = idVersions[i];
+            idVersions[i] = x;
+        }
+
+        if (VERBOSE) {
+            for(IDAndVersion idVersion : idVersions) {
+                System.out.println("id=" + idVersion.id + " version=" + idVersion.version + " delete?=" + idVersion.delete + " truth?=" + (truth.get(idVersion.id) == idVersion));
+            }
+        }
+
+        final AtomicInteger upto = new AtomicInteger();
+        final CountDownLatch startingGun = new CountDownLatch(1);
+        Thread[] threads = new Thread[TestUtil.nextInt(random, 1, isNightly() ? 20 : 5)];
+        for(int i=0;i<threads.length;i++) {
+            threads[i] = new Thread() {
+                    @Override
+                    public void run() {
+                        try {
+                            //final Random threadRandom = RandomizedContext.current().getRandom();
+                            final Random threadRandom = getRandom();
+                            startingGun.await();
+                            while (true) {
+
+                                // TODO: sometimes us bulk:
+
+                                int index = upto.getAndIncrement();
+                                if (index >= idVersions.length) {
+                                    break;
+                                }
+                                if (VERBOSE && index % 100 == 0) {
+                                    System.out.println(Thread.currentThread().getName() + ": index=" + index);
+                                }
+
+                                String id = idVersions[index].id;
+                                long version = idVersions[index].version;
+                                if (idVersions[index].delete) {
+                                    try {
+                                        client().prepareDelete("test", "type", id)
+                                            .setVersion(version)
+                                            .setVersionType(VersionType.EXTERNAL).execute().actionGet();
+                                    } catch (VersionConflictEngineException vcee) {
+                                        // OK: our version is too old
+                                        assertThat(version, lessThanOrEqualTo(truth.get(id).version));
+                                    }
+                                } else {
+                                    for (int x=0;x<2;x++) {
+                                        // Try create first:
+                                    
+                                        IndexRequest.OpType op;
+                                        if (x == 0) {
+                                            op = IndexRequest.OpType.CREATE;
+                                        } else {
+                                            op = IndexRequest.OpType.INDEX;
+                                        }
+                                    
+                                        // index document
+                                        try {
+                                            client().prepareIndex("test", "type", id)
+                                                .setSource("foo", "bar")
+                                                .setOpType(op)
+                                                .setVersion(version)
+                                                .setVersionType(VersionType.EXTERNAL).execute().actionGet();
+                                            break;
+                                        } catch (DocumentAlreadyExistsException vcee) {
+                                            if (x == 0) {
+                                                // OK: id was already index by another thread, now use index:
+                                            } else {
+                                                // Should not happen with op=INDEX:
+                                                throw vcee;
+                                            }
+                                        } catch (VersionConflictEngineException vcee) {
+                                            // OK: our version is too old
+                                            assertThat(version, lessThanOrEqualTo(truth.get(id).version));
+                                        }
+                                    }
+                                }
+
+                                if (threadRandom.nextInt(100) == 7) {
+                                    refresh();
+                                }
+                                if (threadRandom.nextInt(100) == 7) {
+                                    try {
+                                        flush();
+                                    } catch (FlushNotAllowedEngineException fnaee) {
+                                        // OK
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                };
+            threads[i].start();
+        }
+
+        startingGun.countDown();
+        for(Thread thread : threads) {
+            thread.join();
+        }
+
+        // Verify against truth:
+        for(String id : ids) {
+            long expected;
+            IDAndVersion idVersion = truth.get(id);
+            if (idVersion != null && idVersion.delete == false) {
+                expected = idVersion.version;
+            } else {
+                expected = -1;
+            }
+            assertThat("id=" + id + " idVersion=" + idVersion, client().prepareGet("test", "type", id).execute().actionGet().getVersion(), equalTo(expected));
+        }
+    }
+
 }

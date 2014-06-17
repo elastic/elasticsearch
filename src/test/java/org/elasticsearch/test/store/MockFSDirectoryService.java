@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.fs.FsDirectoryService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.test.ImmutableTestCluster;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
     @Inject
     public MockFSDirectoryService(final ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service) {
         super(shardId, indexSettings, indexStore);
-        final long seed = indexSettings.getAsLong(ImmutableTestCluster.SETTING_INDEX_SEED, 0l);
+        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
         helper = new MockDirectoryHelper(shardId, indexSettings, logger, random, seed);
         checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, random.nextDouble() < 0.1);

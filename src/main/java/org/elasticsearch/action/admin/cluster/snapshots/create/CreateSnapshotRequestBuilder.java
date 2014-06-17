@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -31,7 +30,7 @@ import java.util.Map;
 /**
  * Create snapshot request builder
  */
-public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder> {
+public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuilder<CreateSnapshotRequest, CreateSnapshotResponse, CreateSnapshotRequestBuilder, ClusterAdminClient> {
 
     /**
      * Constructs a new create snapshot request builder
@@ -39,7 +38,7 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      * @param clusterAdminClient cluster admin client
      */
     public CreateSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient) {
-        super((InternalClusterAdminClient) clusterAdminClient, new CreateSnapshotRequest());
+        super(clusterAdminClient, new CreateSnapshotRequest());
     }
 
     /**
@@ -50,7 +49,7 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
      * @param snapshot           snapshot name
      */
     public CreateSnapshotRequestBuilder(ClusterAdminClient clusterAdminClient, String repository, String snapshot) {
-        super((InternalClusterAdminClient) clusterAdminClient, new CreateSnapshotRequest(repository, snapshot));
+        super(clusterAdminClient, new CreateSnapshotRequest(repository, snapshot));
     }
 
     /**
@@ -188,6 +187,6 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     @Override
     protected void doExecute(ActionListener<CreateSnapshotResponse> listener) {
-        ((ClusterAdminClient) client).createSnapshot(request, listener);
+        client.createSnapshot(request, listener);
     }
 }

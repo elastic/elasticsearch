@@ -31,6 +31,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
 
 import java.io.File;
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -41,7 +42,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
 
     public static long getFailureCount(String repository) {
         long failureCount = 0;
-        for (RepositoriesService repositoriesService : cluster().getInstances(RepositoriesService.class)) {
+        for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
             MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
             failureCount += mockRepository.getFailureCount();
         }
@@ -63,8 +64,8 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
         return count;
     }
 
-    public static void stopNode(final String node) {
-        cluster().stopRandomNode(new Predicate<Settings>() {
+    public static void stopNode(final String node) throws IOException {
+        internalCluster().stopRandomNode(new Predicate<Settings>() {
             @Override
             public boolean apply(Settings settings) {
                 return settings.get("name").equals(node);
@@ -74,7 +75,7 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
 
     public void waitForBlock(String node, String repository, TimeValue timeout) throws InterruptedException {
         long start = System.currentTimeMillis();
-        RepositoriesService repositoriesService = cluster().getInstance(RepositoriesService.class, node);
+        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, node);
         MockRepository mockRepository = (MockRepository) repositoriesService.repository(repository);
         while (System.currentTimeMillis() - start < timeout.millis()) {
             if (mockRepository.blocked()) {
@@ -106,8 +107,8 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
     }
 
     public static String blockNodeWithIndex(String index) {
-        for(String node : cluster().nodesInclude("test-idx")) {
-            ((MockRepository)cluster().getInstance(RepositoriesService.class, node).repository("test-repo")).blockOnDataFiles(true);
+        for(String node : internalCluster().nodesInclude("test-idx")) {
+            ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).blockOnDataFiles(true);
             return node;
         }
         fail("No nodes for the index " + index + " found");
@@ -115,6 +116,6 @@ public abstract class AbstractSnapshotTests extends ElasticsearchIntegrationTest
     }
 
     public static void unblockNode(String node) {
-        ((MockRepository)cluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository("test-repo")).unblock();
     }
 }

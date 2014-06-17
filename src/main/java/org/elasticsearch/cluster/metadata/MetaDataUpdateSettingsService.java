@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
@@ -48,6 +49,9 @@ import java.util.*;
  */
 public class MetaDataUpdateSettingsService extends AbstractComponent implements ClusterStateListener {
 
+    // the value we recognize in the "max" position to mean all the nodes
+    private static final String ALL_NODES_VALUE = "all";
+
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
@@ -69,6 +73,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         if (!event.state().nodes().localNodeMaster()) {
             return;
         }
+        // we will want to know this for translating "all" to a number
+        final int dataNodeCount = event.state().nodes().dataNodes().size();
 
         Map<Integer, List<String>> nrReplicasChanged = new HashMap<>();
 
@@ -77,22 +83,37 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
             String autoExpandReplicas = indexMetaData.settings().get(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
             if (autoExpandReplicas != null && Booleans.parseBoolean(autoExpandReplicas, true)) { // Booleans only work for false values, just as we want it here
                 try {
-                    int min;
-                    int max;
-                    try {
-                        min = Integer.parseInt(autoExpandReplicas.substring(0, autoExpandReplicas.indexOf('-')));
-                        String sMax = autoExpandReplicas.substring(autoExpandReplicas.indexOf('-') + 1);
-                        if (sMax.equals("all")) {
-                            max = event.state().nodes().dataNodes().size() - 1;
-                        } else {
-                            max = Integer.parseInt(sMax);
-                        }
-                    } catch (Exception e) {
-                        logger.warn("failed to set [{}], wrong format [{}]", e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, autoExpandReplicas);
+                    final int min;
+                    final int max;
+
+                    final int dash = autoExpandReplicas.indexOf('-');
+                    if (-1 == dash) {
+                        logger.warn("Unexpected value [{}] for setting [{}]; it should be dash delimited",
+                                autoExpandReplicas, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
                         continue;
                     }
+                    final String sMin = autoExpandReplicas.substring(0, dash);
+                    try {
+                        min = Integer.parseInt(sMin);
+                    } catch (NumberFormatException e) {
+                        logger.warn("failed to set [{}], minimum value is not a number [{}]",
+                                e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, sMin);
+                        continue;
+                    }
+                    String sMax = autoExpandReplicas.substring(dash + 1);
+                    if (sMax.equals(ALL_NODES_VALUE)) {
+                        max = dataNodeCount - 1;
+                    } else {
+                        try {
+                            max = Integer.parseInt(sMax);
+                        } catch (NumberFormatException e) {
+                            logger.warn("failed to set [{}], maximum value is neither [{}] nor a number [{}]",
+                                    e, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, ALL_NODES_VALUE, sMax);
+                            continue;
+                        }
+                    }
 
-                    int numberOfReplicas = event.state().nodes().dataNodes().size() - 1;
+                    int numberOfReplicas = dataNodeCount - 1;
                     if (numberOfReplicas < min) {
                         numberOfReplicas = min;
                     } else if (numberOfReplicas > max) {
@@ -228,7 +249,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                String[] actualIndices = currentState.metaData().concreteIndices(request.indices());
+                String[] actualIndices = currentState.metaData().concreteIndices(IndicesOptions.strictExpand(), request.indices());
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
 

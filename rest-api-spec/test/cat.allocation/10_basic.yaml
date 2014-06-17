@@ -5,7 +5,7 @@
         help: true
 
   - match:
-      $body: >
+      $body: |
                /^  shards           .+   \n
                    disk.used        .+   \n
                    disk.avail       .+   \n
@@ -23,15 +23,15 @@
       cat.allocation: {}
 
   - match:
-      $body: >
+      $body: |
             /^
-              ( 0                   \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( 0                      \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b    \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b    \s+)?  #no value from client nodes
+                (\d+                   \s+)?  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )+
@@ -53,21 +53,23 @@
         cat.allocation: {}
 
   - match:
-      $body: >
+      $body: |
             /^
-              ( \d+                 \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( \s*                          #allow leading spaces to account for right-justified text
+                \d+                    \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+                  \s+)?  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )+
               (
-                \d+                 \s+
-                UNASSIGNED          \s+
+                \s*                          #allow leading spaces to account for right-justified text
+                \d+                    \s+
+                UNASSIGNED             \s+
                 \n
               )?
             $/
@@ -80,15 +82,15 @@
             node_id: _master
 
   - match:
-      $body: >
+      $body: |
             /^
-              ( 0                   \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( 0                      \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+                  \s+)?  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )
@@ -99,7 +101,7 @@
             node_id: non_existent
 
   - match:
-      $body: >
+      $body: |
             /^
             $/
 
@@ -111,24 +113,25 @@
             v: true
   - match:
 
-      $body: >
-           /^  shards               \s+
-               disk.used            \s+
-               disk.avail           \s+
-               disk.total           \s+
-               disk.percent         \s+
-               host                 \s+
-               ip                   \s+
-               node                 \s+
+      $body: |
+           /^  shards                  \s+
+               disk.used               \s+
+               disk.avail              \s+
+               disk.total              \s+
+               disk.percent            \s+
+               host                    \s+
+               ip                      \s+
+               node                    \s+
                \n
 
-              ( \s+0                \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+(\.\d+)?[kmgt]b  \s+
-                \d+                 \s+
-                [-\w.]+             \s+
-                \d+(\.\d+){3}       \s+
+              ( \s*                          #allow leading spaces to account for right-justified text
+                0                      \s+
+                \d+(\.\d+)?[kmgt]?b    \s+
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
+                (\d+                  \s+)?  #no value from client nodes
+                [-\w.]+                \s+
+                \d+(\.\d+){3}          \s+
                 \w.*
                 \n
               )+
@@ -142,9 +145,9 @@
             h: [disk.percent, node]
 
   - match:
-      $body: >
+      $body: |
             /^
-              ( \d+                 \s+
+              ( \d*                 \s+
                 \w.*
                 \n
               )+
@@ -156,13 +159,13 @@
             v: true
 
   - match:
-      $body: >
+      $body: |
             /^
               disk.percent          \s+
               node                  \s+
               \n
               (
-                \s+\d+              \s+
+                \s+\d*           \s+
                 \w.*
                 \n
               )+
@@ -178,13 +181,13 @@
         bytes: g
 
   - match:
-      $body: >
+      $body: |
             /^
               ( 0                   \s+
                 \d+                 \s+
-                \d+                 \s+
-                \d+                 \s+
-                \d+                 \s+
+                (\d+                 \s+)?  #no value from client nodes
+                (\d+                 \s+)?  #no value from client nodes
+                (\d+                 \s+)?  #no value from client nodes
                 [-\w.]+             \s+
                 \d+(\.\d+){3}       \s+
                 \w.*

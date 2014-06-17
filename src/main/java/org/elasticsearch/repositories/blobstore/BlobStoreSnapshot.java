@@ -20,7 +20,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.primitives.Longs;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -287,6 +286,16 @@ public class BlobStoreSnapshot implements Snapshot {
          */
         public Builder success() {
             this.state = SnapshotState.SUCCESS;
+            return this;
+        }
+
+        /**
+         * Marks snapshot as partially successful
+         *
+         * @return this builder
+         */
+        public Builder partial() {
+            this.state = SnapshotState.PARTIAL;
             return this;
         }
 

@@ -1,6 +1,8 @@
 [[search-facets-terms-facet]]
 === Terms Facet
 
+include::deprecated.asciidoc[]
+
 Allow to specify field facets that return the N most frequent terms. For
 example:
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -48,11 +49,6 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public int getNumDocs() {
-        return reader.maxDoc();
-    }
-
-    @Override
     public long getNumberUniqueValues() {
         // probably not accurate, but a good upper limit
         return reader.maxDoc();
@@ -65,16 +61,14 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
-        // if you want hashes to be cached, you should rather store them on disk alongside the values rather than loading them into memory
-        // here - not supported for now, and probably not useful since this field data only applies to _id and _uid?
+    public BytesValues getBytesValues() {
         final BinaryDocValues values;
         final Bits docsWithField;
         try {
             final BinaryDocValues v = reader.getBinaryDocValues(field);
             if (v == null) {
                 // segment has no value
-                values = BinaryDocValues.EMPTY;
+                values = DocValues.EMPTY_BINARY;
                 docsWithField = new Bits.MatchNoBits(reader.maxDoc());
             } else {
                 values = v;
@@ -103,7 +97,7 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
 
     @Override
     public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues(false));
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     @Override

@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
 
 import java.io.IOException;
@@ -47,7 +47,7 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
+    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue) {
         DoubleArrayIndexFieldData fieldData = getForField(fieldName);
         return new DoubleValuesComparatorSource(fieldData, missingValue, sortMode);
     }
@@ -58,7 +58,7 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
-        SortMode sortMode = SortMode.AVG;
+        MultiValueMode sortMode = MultiValueMode.AVG;
         Filter childFilter = new NotFilter(parentFilter);
         NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
         Query query = new ToParentBlockJoinQuery(new XFilteredQuery(new MatchAllDocsQuery(), childFilter), new FixedBitSetCachingWrapperFilter(parentFilter), ScoreMode.None);

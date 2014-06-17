@@ -23,15 +23,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  * Builder for a delete mapping request
  */
-public class DeleteMappingRequestBuilder extends AcknowledgedRequestBuilder<DeleteMappingRequest, DeleteMappingResponse, DeleteMappingRequestBuilder> {
+public class DeleteMappingRequestBuilder extends AcknowledgedRequestBuilder<DeleteMappingRequest, DeleteMappingResponse, DeleteMappingRequestBuilder, IndicesAdminClient> {
 
     public DeleteMappingRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new DeleteMappingRequest());
+        super(indicesClient, new DeleteMappingRequest());
     }
 
     /**
@@ -62,6 +61,6 @@ public class DeleteMappingRequestBuilder extends AcknowledgedRequestBuilder<Dele
 
     @Override
     protected void doExecute(ActionListener<DeleteMappingResponse> listener) {
-        ((IndicesAdminClient) client).deleteMapping(request, listener);
+        client.deleteMapping(request, listener);
     }
 }

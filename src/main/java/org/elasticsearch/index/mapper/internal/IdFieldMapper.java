@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsFilter;
@@ -292,10 +293,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-    }
-
-    @Override
     public boolean includeInObject() {
         return true;
     }
@@ -313,7 +310,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         } // else we are in the pre/post parse phase
 
         if (fieldType.indexed() || fieldType.stored()) {
-            fields.add(new Field(names.indexName(), context.id(), fieldType));
+            fields.add(new XStringField(names.indexName(), context.id(), fieldType));
         }
         if (hasDocValues()) {
             fields.add(new BinaryDocValuesField(names.indexName(), new BytesRef(context.id())));

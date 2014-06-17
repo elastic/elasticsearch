@@ -24,13 +24,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
-public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
+public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder, IndicesAdminClient> {
 
-    public GetSettingsRequestBuilder(InternalGenericClient client, String... indices) {
+    public GetSettingsRequestBuilder(IndicesAdminClient client, String... indices) {
         super(client, new GetSettingsRequest().indices(indices));
     }
 
@@ -61,6 +60,6 @@ public class GetSettingsRequestBuilder extends MasterNodeReadOperationRequestBui
 
     @Override
     protected void doExecute(ActionListener<GetSettingsResponse> listener) {
-        ((IndicesAdminClient) client).getSettings(request, listener);
+        client.getSettings(request, listener);
     }
 }

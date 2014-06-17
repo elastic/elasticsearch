@@ -70,7 +70,7 @@ public class ParentChildStressTest {
         }
     }
 
-    public void shutdown() {
+    public void shutdown() throws IOException {
         client.close();
         elasticNode.close();
     }
@@ -210,7 +210,7 @@ public class ParentChildStressTest {
      *
      * @param args
      */
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         ParentChildStressTest elasticTest = new ParentChildStressTest();
         try {
             // loop a bunch of times - usually fails before the count is done.

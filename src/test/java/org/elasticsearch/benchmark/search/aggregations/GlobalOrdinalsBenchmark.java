@@ -177,21 +177,22 @@ public class GlobalOrdinalsBenchmark {
         int[] thresholds = new int[]{2048};
         for (int threshold : thresholds) {
             updateThresholdInMapping(threshold);
+            System.out.println("--> Threshold: " + threshold);
 
             for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
                 String fieldName = "field_" + fieldSuffix;
-                String name = threshold + "-" + fieldName;
+                String name = "global_ordinals-" + fieldName;
                 if (USE_DOC_VALUES) {
                     fieldName = fieldName + ".doc_values";
                     name = name + "_doc_values"; // can't have . in agg name
                 }
-                stats.add(terms(name, fieldName, "global_ordinals"));
+                stats.add(terms(name, fieldName, "global_ordinals_low_cardinality"));
             }
         }
 
         for (int fieldSuffix = FIELD_START; fieldSuffix <= FIELD_LIMIT; fieldSuffix <<= 1) {
             String fieldName = "field_" + fieldSuffix;
-            String name = "segment-ordinals-" + fieldName;
+            String name = "ordinals-" + fieldName;
             if (USE_DOC_VALUES) {
                 fieldName = fieldName + ".doc_values";
                 name = name + "_doc_values"; // can't have . in agg name
@@ -199,12 +200,12 @@ public class GlobalOrdinalsBenchmark {
             stats.add(terms(name, fieldName, "ordinals"));
         }
 
-        System.out.println("------------------ SUMMARY ----------------------------------------------");
-        System.out.format(Locale.ENGLISH, "%40s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
+        System.out.println("------------------ SUMMARY -----------------------------------------");
+        System.out.format(Locale.ENGLISH, "%30s%10s%10s%15s\n", "name", "took", "millis", "fieldata size");
         for (StatsResult stat : stats) {
-            System.out.format(Locale.ENGLISH, "%40s%10s%10d%15s\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT), stat.fieldDataMemoryUsed);
+            System.out.format(Locale.ENGLISH, "%30s%10s%10d%15s\n", stat.name, TimeValue.timeValueMillis(stat.took), (stat.took / QUERY_COUNT), stat.fieldDataMemoryUsed);
         }
-        System.out.println("------------------ SUMMARY ----------------------------------------------");
+        System.out.println("------------------ SUMMARY -----------------------------------------");
 
         client.close();
         node.close();

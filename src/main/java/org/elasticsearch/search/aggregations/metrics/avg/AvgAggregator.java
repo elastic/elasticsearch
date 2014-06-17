@@ -25,7 +25,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -36,7 +36,7 @@ import java.io.IOException;
 /**
  *
  */
-public class AvgAggregator extends MetricsAggregator.SingleValue {
+public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;
     private DoubleValues values;

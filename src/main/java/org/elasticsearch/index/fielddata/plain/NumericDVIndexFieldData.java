@@ -24,7 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 
 public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements IndexNumericFieldData<NumericDVAtomicFieldData> {
@@ -49,7 +49,7 @@ public class NumericDVIndexFieldData extends DocValuesIndexFieldData implements 
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, SortMode sortMode) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
         return new LongValuesComparatorSource(this, missingValue, sortMode);
     }
 

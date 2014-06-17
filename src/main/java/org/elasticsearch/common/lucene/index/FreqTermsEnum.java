@@ -76,22 +76,18 @@ public class FreqTermsEnum extends FilterableTermsEnum implements Releasable {
             boolean found = true;
             if (needDocFreqs) {
                 currentDocFreq = termDocFreqs.get(currentTermOrd);
-                if (currentDocFreq == NOT_FOUND) {
-                    found = false;
-                }
+                found = currentDocFreq != NOT_FOUND;
             }
             if (needTotalTermFreqs) {
                 currentTotalTermFreq = termsTotalFreqs.get(currentTermOrd);
-                if (currentTotalTermFreq == NOT_FOUND) {
-                    found = false;
-                }
+                found = currentTotalTermFreq != NOT_FOUND;
             }
             current = found ? text : null;
             return found;
         }
         
         //Cache miss - gather stats
-        boolean found = super.seekExact(text);        
+        final boolean found = super.seekExact(text);
 
         //Cache the result - found or not. 
         if (needDocFreqs) {

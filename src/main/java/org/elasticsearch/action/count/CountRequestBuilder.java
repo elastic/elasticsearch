@@ -23,19 +23,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
  * A count action request builder.
  */
-public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder> {
+public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountRequest, CountResponse, CountRequestBuilder, Client> {
 
     private QuerySourceBuilder sourceBuilder;
 
     public CountRequestBuilder(Client client) {
-        super((InternalClient) client, new CountRequest());
+        super(client, new CountRequest());
     }
 
     /**
@@ -122,7 +121,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
             request.source(sourceBuilder);
         }
 
-        ((InternalClient) client).count(request, listener);
+        client.count(request, listener);
     }
 
     private QuerySourceBuilder sourceBuilder() {

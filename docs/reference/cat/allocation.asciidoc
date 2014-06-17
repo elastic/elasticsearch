@@ -1,5 +1,5 @@
 [[cat-allocation]]
-== Allocation
+== cat allocation
 
 `allocation` provides a snapshot of how shards have located around the
 cluster and the state of disk usage.

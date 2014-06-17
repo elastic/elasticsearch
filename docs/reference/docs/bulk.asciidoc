@@ -60,7 +60,7 @@ example of a correct sequence of bulk commands:
 In the above example `doc` for the `update` action is a partial
 document, that will be merged with the already stored document.
 
-The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/type/_bulk`.
+The endpoints are `/_bulk`, `/{index}/_bulk`, and `{index}/{type}/_bulk`.
 When the index or the index/type are provided, they will be used by
 default on bulk items that don't provide them explicitly.
 

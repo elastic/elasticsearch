@@ -1,5 +1,5 @@
 [[cat-thread-pool]]
-== Thread pool
+== cat thread pool
 
 The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
 statistics are returned for the bulk, index and search thread pools.
@@ -41,4 +41,71 @@ host2                  0                0                 0
 --------------------------------------------------
 
 Here the host columns and the active, rejected and completed suggest thread pool statistic are displayed. The suggest
-thread pool won't be displayed by default, so you always need be specific about what statistic you want to display.
+thread pool won't be displayed by default, so you always need to be specific about what statistic you want to display.
+
+[float]
+=== Available Thread Pools
+
+Currently available <<modules-threadpool,thread pools>>:
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Thread Pool |Alias |Description
+|`bulk` |`b` |Thread pool used for <<docs-bulk,bulk>> operations
+|`flush` |`f` |Thread pool used for <<indices-flush,flush>> operations
+|`generic` |`ge` |Thread pool used for generic operations (e.g. background node discovery)
+|`get` |`g` |Thread pool used for <<docs-get,get>> operations
+|`index` |`i` |Thread pool used for <<docs-index_,index>>/<<docs-delete,delete>> operations
+|`management` |`ma` |Thread pool used for management of Elasticsearch (e.g. cluster management)
+|`merge` |`m` |Thread pool used for <<index-modules-merge,merge>> operations
+|`optimize` |`o` |Thread pool used for <<indices-optimize,optimize>> operations
+|`percolate` |`p` |Thread pool used for <<search-percolate,percolator>> operations
+|`refresh` |`r` |Thread pool used for <<indices-refresh,refresh>> operations
+|`search` |`s` |Thread pool used for <<search-search,search>>/<<search-count,count>> operations
+|`snapshot` |`sn` |Thread pool used for <<modules-snapshots,snapshot>> operations
+|`suggest` |`su` |Thread pool used for <<search-suggesters,suggester>> operations
+|`warmer` |`w` |Thread pool used for <<indices-warmers,index warm-up>> operations
+|=======================================================================
+
+The thread pool name (or alias) must be combined with a thread pool field below
+to retrieve the requested information.
+
+[float]
+==== Thread Pool Fields
+
+For each thread pool, you can load details about it by using the field names
+in the table below, either using the full field name (e.g. `bulk.active`) or
+its alias (e.g. `sa` is equivalent to `search.active`).
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Field Name |Alias |Description
+|`type` |`t` |The current (*) type of thread pool (`cached`, `fixed` or `scaling`)
+|`active` |`a` |The number of active threads in the current thread pool
+|`size` |`s` |The number of threads in the current thread pool
+|`queue` |`q` |The number of tasks in the queue for the current thread pool
+|`queueSize` |`qs` |The maximum number of tasks in the queue for the current thread pool
+|`rejected` |`r` |The number of rejected threads in the current thread pool
+|`largest` |`l` |The highest number of active threads in the current thread pool
+|`completed` |`c` |The number of completed threads in the current thread pool
+|`min` |`mi` |The configured minimum number of active threads allowed in the current thread pool
+|`max` |`ma` |The configured maximum number of active threads allowed in the current thread pool
+|`keepAlive` |`k` |The configured keep alive time for threads
+|=======================================================================
+
+[float]
+=== Other Fields
+
+In addition to details about each thread pool, it is also convenient to get an
+understanding of where those thread pools reside.  As such, you can request
+other details like the `ip` of the responding node(s).
+
+[cols="<,<,<",options="header"]
+|=======================================================================
+|Field Name |Alias |Description
+|`id` |`nodeId` |The unique node ID
+|`pid` |`p` |The process ID of the running node
+|`host` |`h` |The hostname for the current node
+|`ip` |`i` |The IP address for the current node
+|`port` |`po` |The bound transport port for the current node
+|=======================================================================

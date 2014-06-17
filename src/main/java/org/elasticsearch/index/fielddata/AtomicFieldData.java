@@ -34,24 +34,14 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
     boolean isMultiValued();
 
     /**
-     * The number of docs in this field data.
-     */
-    int getNumDocs();
-
-    /**
      * An upper limit of the number of unique values in this atomic field data.
      */
     long getNumberUniqueValues();
 
     /**
      * Use a non thread safe (lightweight) view of the values as bytes.
-     *
-     * @param needsHashes if <code>true</code> the implementation will use pre-build hashes if
-     *                    {@link org.elasticsearch.index.fielddata.BytesValues#currentValueHash()} is used. if no hashes
-     *                    are used <code>false</code> should be passed instead.
-     *
      */
-    BytesValues getBytesValues(boolean needsHashes);
+    BytesValues getBytesValues();
     
     /**
      * Returns a "scripting" based values.
@@ -69,7 +59,7 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
          * Use a non thread safe (lightweight) view of the values as bytes.
          * @param needsHashes
          */
-        BytesValues.WithOrdinals getBytesValues(boolean needsHashes);
+        BytesValues.WithOrdinals getBytesValues();
 
         /**
          * Returns a terms enum to iterate over all the underlying values.

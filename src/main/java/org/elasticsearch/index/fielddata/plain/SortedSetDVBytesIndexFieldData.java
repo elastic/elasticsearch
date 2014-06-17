@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
@@ -53,7 +53,7 @@ public class SortedSetDVBytesIndexFieldData extends DocValuesIndexFieldData impl
         return true;
     }
 
-    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, SortMode sortMode) {
+    public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode) {
         return new BytesRefFieldComparatorSource((IndexFieldData<?>) this, missingValue, sortMode);
     }
 

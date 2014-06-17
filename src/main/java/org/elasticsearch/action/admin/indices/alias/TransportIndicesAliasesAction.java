@@ -99,7 +99,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             //expand indices
-            String[] concreteIndices = state.metaData().concreteIndices(action.indices(), request.indicesOptions());
+            String[] concreteIndices = state.metaData().concreteIndices(request.indicesOptions(), action.indices());
             //collect the aliases
             for (String alias : action.aliases()) {
                 aliases.add(alias);

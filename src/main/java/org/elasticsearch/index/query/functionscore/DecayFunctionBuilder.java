@@ -21,8 +21,10 @@ package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.Locale;
 
 public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
 
@@ -36,6 +38,7 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
     private Object scale;
     private double decay = -1;
     private Object offset;
+    private MultiValueMode multiValueMode = null;
 
     public DecayFunctionBuilder(String fieldName, Object origin, Object scale) {
         this.fieldName = fieldName;
@@ -71,8 +74,20 @@ public abstract class DecayFunctionBuilder implements ScoreFunctionBuilder {
             builder.field(OFFSET, offset);
         }
         builder.endObject();
+        if (multiValueMode != null) {
+            builder.field(DecayFunctionParser.MULTI_VALUE_MODE.getPreferredName(), multiValueMode.name());
+        }
         builder.endObject();
         return builder;
     }
 
+    public ScoreFunctionBuilder setMultiValueMode(MultiValueMode multiValueMode) {
+        this.multiValueMode = multiValueMode;
+        return this;
+    }
+
+    public ScoreFunctionBuilder setMultiValueMode(String multiValueMode) {
+        this.multiValueMode = MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT));
+        return this;
+    }
 }

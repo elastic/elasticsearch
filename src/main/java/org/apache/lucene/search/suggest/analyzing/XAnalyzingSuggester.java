@@ -24,14 +24,14 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
-import org.apache.lucene.search.suggest.Sort;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.automaton.*;
 import org.apache.lucene.util.fst.*;
 import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
-import org.apache.lucene.util.fst.Util.MinResult;
+import org.apache.lucene.util.fst.Util.Result;
+import org.apache.lucene.util.fst.Util.TopResults;
 import org.elasticsearch.common.collect.HppcMaps;
 
 import java.io.File;
@@ -419,14 +419,14 @@ public class XAnalyzingSuggester extends Lookup {
   @Override
   public void build(InputIterator iterator) throws IOException {
     String prefix = getClass().getSimpleName();
-    File directory = Sort.defaultTempDir();
+    File directory = OfflineSorter.defaultTempDir();
     File tempInput = File.createTempFile(prefix, ".input", directory);
     File tempSorted = File.createTempFile(prefix, ".sorted", directory);
 
     hasPayloads = iterator.hasPayloads();
 
-    Sort.ByteSequencesWriter writer = new Sort.ByteSequencesWriter(tempInput);
-    Sort.ByteSequencesReader reader = null;
+    OfflineSorter.ByteSequencesWriter writer = new OfflineSorter.ByteSequencesWriter(tempInput);
+    OfflineSorter.ByteSequencesReader reader = null;
     BytesRef scratch = new BytesRef();
 
     TokenStreamToAutomaton ts2a = getTokenStreamToAutomaton();
@@ -502,12 +502,12 @@ public class XAnalyzingSuggester extends Lookup {
       writer.close();
 
       // Sort all input/output pairs (required by FST.Builder):
-      new Sort(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
+      new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
 
       // Free disk space:
       tempInput.delete();
 
-      reader = new Sort.ByteSequencesReader(tempSorted);
+      reader = new OfflineSorter.ByteSequencesReader(tempSorted);
      
       PairOutputs<Long,BytesRef> outputs = new PairOutputs<>(PositiveIntOutputs.getSingleton(), ByteSequenceOutputs.getSingleton());
       Builder<Pair<Long,BytesRef>> builder = new Builder<>(FST.INPUT_TYPE.BYTE1, outputs);
@@ -692,7 +692,7 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   @Override
-  public List<LookupResult> lookup(final CharSequence key, boolean onlyMorePopular, int num) {
+  public List<LookupResult> lookup(final CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num) {
     assert num > 0;
 
     if (onlyMorePopular) {
@@ -763,7 +763,7 @@ public class XAnalyzingSuggester extends Lookup {
           }
         }
 
-        MinResult<Pair<Long,BytesRef>> completions[] = searcher.search();
+        Util.TopResults<Pair<Long,BytesRef>> completions = searcher.search();
 
         // NOTE: this is rather inefficient: we enumerate
         // every matching "exactly the same analyzed form"
@@ -777,7 +777,7 @@ public class XAnalyzingSuggester extends Lookup {
         // seach: it's bounded by how many prefix start
         // nodes we have and the
         // maxSurfaceFormsPerAnalyzedForm:
-        for(MinResult<Pair<Long,BytesRef>> completion : completions) {
+        for(Result<Pair<Long,BytesRef>> completion : completions) {
           BytesRef output2 = completion.output.output2;
           if (sameSurfaceForm(utf8Key, output2)) {
             results.add(getLookupResult(completion.output.output1, output2, spare));
@@ -832,9 +832,9 @@ public class XAnalyzingSuggester extends Lookup {
         searcher.addStartPaths(path.fstNode, path.output, true, path.input);
       }
 
-      MinResult<Pair<Long,BytesRef>> completions[] = searcher.search();
+      TopResults<Pair<Long,BytesRef>> completions = searcher.search();
 
-      for(MinResult<Pair<Long,BytesRef>> completion : completions) {
+      for(Result<Pair<Long,BytesRef>> completion : completions) {
 
         LookupResult result = getLookupResult(completion.output.output1, completion.output.output2, spare);
 
@@ -903,8 +903,6 @@ public class XAnalyzingSuggester extends Lookup {
 
       replaceSep(automaton, preserveSep, sepLabel);
 
-      assert SpecialOperations.isFinite(automaton);
-
       // Get all paths from the automaton (there can be
       // more than one path, eg if the analyzer created a
       // graph using SynFilter or WDF):
@@ -912,7 +910,7 @@ public class XAnalyzingSuggester extends Lookup {
       // TODO: we could walk & add simultaneously, so we
       // don't have to alloc [possibly biggish]
       // intermediate HashSet in RAM:
-      return SpecialOperations.getFiniteStrings(automaton, maxGraphExpansions);
+      return XSpecialOperations.getFiniteStrings(automaton, maxGraphExpansions);
   }
 
   final Automaton toLookupAutomaton(final CharSequence key) throws IOException {

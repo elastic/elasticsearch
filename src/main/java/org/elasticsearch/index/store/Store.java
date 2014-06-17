@@ -32,7 +32,6 @@ import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Directories;
-import org.elasticsearch.common.lucene.store.ChecksumIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.CloseableIndexComponent;
@@ -46,6 +45,7 @@ import org.elasticsearch.index.store.support.ForceSyncDirectory;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.Adler32;
+import java.util.zip.Checksum;
 
 /**
  */
@@ -145,7 +146,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             } else {
                 try {
                     directory.deleteFile(file);
-                } catch (FileNotFoundException e) {
+                } catch (NoSuchFileException | FileNotFoundException e) {
                     // ignore
                 } catch (IOException e) {
                     lastException = e;
@@ -649,10 +650,13 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             out.close();
             String checksum = null;
             IndexOutput underlying = out;
+            // TODO: cut over to lucene's CRC
+            // *WARNING*: lucene has classes in same o.a.l.store package with very similar names,
+            // but using CRC, not Adler!
             if (underlying instanceof BufferedChecksumIndexOutput) {
-                checksum = Long.toString(((BufferedChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
-            } else if (underlying instanceof ChecksumIndexOutput) {
-                checksum = Long.toString(((ChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
+                Checksum digest = ((BufferedChecksumIndexOutput) underlying).digest();
+                assert digest instanceof Adler32;
+                checksum = Long.toString(digest.getValue(), Character.MAX_RADIX);
             }
             synchronized (mutex) {
                 StoreFileMetaData md = new StoreFileMetaData(name, metaData.directory().fileLength(name), checksum, metaData.directory());
@@ -704,6 +708,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         @Override
         public String toString() {
             return out.toString();
+        }
+
+        @Override
+        public long getChecksum() throws IOException {
+            return out.getChecksum();
         }
     }
 }

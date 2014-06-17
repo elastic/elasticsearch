@@ -28,13 +28,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestUtils;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.test.index.service.StubIndexService;
 import org.junit.Before;
 import org.junit.Test;
@@ -105,10 +105,9 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     public void testGetBytesValues() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
-        assertThat(fieldData.getNumDocs(), equalTo(8));
         assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
-        BytesValues bytesValues = fieldData.getBytesValues(randomBoolean());
+        BytesValues bytesValues = fieldData.getBytesValues();
         assertThat(bytesValues.setDocument(0), equalTo(1));
         assertThat(bytesValues.nextValue().utf8ToString(), equalTo("1"));
 
@@ -141,7 +140,7 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTests {
     public void testSorting() throws Exception {
         IndexFieldData indexFieldData = getForField(childType);
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
-        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", SortMode.MIN);
+        IndexFieldData.XFieldComparatorSource comparator = indexFieldData.comparatorSource("_last", MultiValueMode.MIN);
 
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField(ParentFieldMapper.NAME, comparator, false)));
         assertThat(topDocs.totalHits, equalTo(8));

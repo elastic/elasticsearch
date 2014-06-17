@@ -31,7 +31,6 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.percolate.PercolateShardRequest;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
@@ -39,16 +38,15 @@ import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -73,7 +71,10 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.*;
+import org.elasticsearch.percolator.QueryCollector.Count;
+import org.elasticsearch.percolator.QueryCollector.Match;
+import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
+import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -209,7 +210,8 @@ public class PercolatorService extends AbstractComponent {
 
             // parse the source either into one MemoryIndex, if it is a single document or index multiple docs if nested
             PercolatorIndex percolatorIndex;
-            if (indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects()) {
+            if (parsedDocument.docs().size() > 1) {
+                assert indexShard.mapperService().documentMapper(request.documentType()).hasNestedObjects();
                 percolatorIndex = multi;
             } else {
                 percolatorIndex = single;
@@ -275,7 +277,9 @@ public class PercolatorService extends AbstractComponent {
                         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.parse(source(parser).type(request.documentType()).flyweight(true));
                         if (doc.mappingsModified()) {
-                            updateMappingOnMaster(docMapper, request, documentIndexService.indexUUID());
+                            mappingUpdatedAction.updateMappingOnMaster(
+                                    docMapper, request.index(), request.documentType(), documentIndexService.indexUUID(), true
+                            );
                         }
                         // the document parsing exists the "doc" object, so we need to set the new current field.
                         currentFieldName = parser.currentName();
@@ -442,7 +446,7 @@ public class PercolatorService extends AbstractComponent {
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context) {
             long count = 0;
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
-            for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
+            for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 collector.reset();
                 try {
                     context.docSearcher().search(entry.getValue(), collector);
@@ -536,7 +540,7 @@ public class PercolatorService extends AbstractComponent {
             List<Map<String, HighlightField>> hls = new ArrayList<>();
             Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
-            for (Map.Entry<HashedBytesRef, Query> entry : context.percolateQueries().entrySet()) {
+            for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 collector.reset();
                 if (context.highlight() != null) {
                     context.parsedQuery(new ParsedQuery(entry.getValue(), ImmutableMap.<String, Filter>of()));
@@ -551,7 +555,7 @@ public class PercolatorService extends AbstractComponent {
 
                 if (collector.exists()) {
                     if (!context.limit || count < context.size()) {
-                        matches.add(entry.getKey().bytes);
+                        matches.add(entry.getKey());
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());
                             hls.add(context.hitContext().hit().getHighlightFields());
@@ -743,19 +747,17 @@ public class PercolatorService extends AbstractComponent {
                 final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
                 final IndexFieldData<?> idFieldData = context.fieldData().getForField(idMapper);
                 int i = 0;
-                final HashedBytesRef spare = new HashedBytesRef(new BytesRef());
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     AtomicReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues(true);
+                    BytesValues values = idFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     final int numValues = values.setDocument(localDocId);
                     assert numValues == 1;
-                    spare.bytes = values.nextValue();
-                    spare.hash = values.currentValueHash();
+                    BytesRef bytes = values.nextValue();
                     matches.add(values.copyShared());
                     if (hls != null) {
-                        Query query = context.percolateQueries().get(spare);
+                        Query query = context.percolateQueries().get(bytes);
                         context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
                         context.hitContext().cache().clear();
                         highlightPhase.hitExecute(context, context.hitContext());
@@ -781,7 +783,7 @@ public class PercolatorService extends AbstractComponent {
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
-        FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
+        XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), percolatorTypeFilter);
         percolatorSearcher.searcher().search(query, percolateCollector);
 
         for (Collector queryCollector : percolateCollector.facetAndAggregatorCollector) {
@@ -833,31 +835,6 @@ public class PercolatorService extends AbstractComponent {
         public InternalAggregations reducedAggregations() {
             return reducedAggregations;
         }
-    }
-
-    // TODO: maybe move this logic into MappingUpdatedAction? There is similar logic for the index and bulk api now.
-    private void updateMappingOnMaster(DocumentMapper documentMapper, final PercolateShardRequest request, String indexUUID) {
-        // we generate the order id before we get the mapping to send and refresh the source, so
-        // if 2 happen concurrently, we know that the later order will include the previous one
-        long orderId = mappingUpdatedAction.generateNextMappingUpdateOrder();
-        documentMapper.refreshSource();
-        DiscoveryNode node = clusterService.localNode();
-        final MappingUpdatedAction.MappingUpdatedRequest mappingRequest = new MappingUpdatedAction.MappingUpdatedRequest(
-                request.index(), indexUUID, request.documentType(), documentMapper.mappingSource(), orderId, node != null ? node.id() : null
-        );
-        logger.trace("Sending mapping updated to master: {}", mappingRequest);
-        mappingUpdatedAction.execute(mappingRequest, new ActionListener<MappingUpdatedAction.MappingUpdatedResponse>() {
-            @Override
-            public void onResponse(MappingUpdatedAction.MappingUpdatedResponse mappingUpdatedResponse) {
-                // all is well
-                logger.debug("Successfully updated master with mapping update: {}", mappingRequest);
-            }
-
-            @Override
-            public void onFailure(Throwable e) {
-                logger.warn("Failed to update master on updated mapping for {}", e, mappingRequest);
-            }
-        });
     }
 
     private InternalFacets reduceFacets(List<PercolateShardResponse> shardResults) {

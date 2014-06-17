@@ -33,7 +33,6 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     private final ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds;
     private final long numberUniqueValues;
     private final long memorySizeInBytes;
-    private final int numDocs;
 
     public ParentChildAtomicFieldData(ImmutableOpenMap<String, PagedBytesAtomicFieldData> typeToIds) {
         this.typeToIds = typeToIds;
@@ -47,17 +46,11 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
             size += cursor.value.getMemorySizeInBytes();
         }
         this.memorySizeInBytes = size;
-        this.numDocs = typeToIds.isEmpty() ? 0 : typeToIds.values().toArray(PagedBytesAtomicFieldData.class)[0].getNumDocs();
     }
 
     @Override
     public boolean isMultiValued() {
         return true;
-    }
-
-    @Override
-    public int getNumDocs() {
-        return numDocs;
     }
 
     @Override
@@ -71,11 +64,11 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     }
 
     @Override
-    public BytesValues getBytesValues(boolean needsHashes) {
+    public BytesValues getBytesValues() {
         final BytesValues[] bytesValues = new BytesValues[typeToIds.size()];
         int index = 0;
         for (ObjectCursor<PagedBytesAtomicFieldData> cursor : typeToIds.values()) {
-            bytesValues[index++] = cursor.value.getBytesValues(needsHashes);
+            bytesValues[index++] = cursor.value.getBytesValues();
         }
         return new BytesValues(true) {
 
@@ -123,15 +116,19 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
     public BytesValues.WithOrdinals getBytesValues(String type) {
         WithOrdinals atomicFieldData = typeToIds.get(type);
         if (atomicFieldData != null) {
-            return atomicFieldData.getBytesValues(true);
+            return atomicFieldData.getBytesValues();
         } else {
             return null;
         }
     }
 
+    public WithOrdinals getAtomicFieldData(String type) {
+        return typeToIds.get(type);
+    }
+
     @Override
     public ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues(false));
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     @Override

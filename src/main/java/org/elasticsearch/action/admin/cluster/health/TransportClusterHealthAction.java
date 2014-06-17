@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -139,7 +140,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
             }
             if (request.indices().length > 0) {
                 try {
-                    clusterState.metaData().concreteIndices(request.indices());
+                    clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), request.indices());
                     waitForCounter++;
                 } catch (IndexMissingException e) {
                     response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
@@ -220,7 +221,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         }
         String[] concreteIndices;
         try {
-            concreteIndices = clusterState.metaData().concreteIndicesIgnoreMissing(request.indices());
+            concreteIndices = clusterState.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);

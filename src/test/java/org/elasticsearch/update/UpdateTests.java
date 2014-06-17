@@ -241,11 +241,8 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         // external versioning
         client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL).get();
         assertThrows(client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
-                VersionConflictEngineException.class);
+                ActionRequestValidationException.class);
 
-        client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(11).setVersionType(VersionType.EXTERNAL).get();
-
-        assertThat(client().prepareGet("test", "type", "2").get().getVersion(), equalTo(11l));
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 
@@ -255,9 +252,9 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         assertThat(get.getVersion(), equalTo(1l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
-        // With external versions, it means - if object is there with version lower than X, update it or explode. If it is not there, insert with new version.
+        // With force version
         client().prepareUpdate("test", "type", "4").setScript("ctx._source.text = 'v2'").
-                setVersion(10).setVersionType(VersionType.EXTERNAL).setUpsert("{ \"text\": \"v0\" }").get();
+                setVersion(10).setVersionType(VersionType.FORCE).setUpsert("{ \"text\": \"v0\" }").get();
         get = get("test", "type", "4");
         assertThat(get.getVersion(), equalTo(10l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));

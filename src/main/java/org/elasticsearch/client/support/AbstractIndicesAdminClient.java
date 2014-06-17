@@ -20,7 +20,6 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -105,10 +104,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusAction;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
@@ -137,16 +132,16 @@ import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.Nullable;
 
 /**
  *
  */
-public abstract class AbstractIndicesAdminClient implements InternalIndicesAdminClient {
+public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> RequestBuilder prepareExecute(final IndicesAction<Request, Response, RequestBuilder> action) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> RequestBuilder prepareExecute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action) {
         return action.newRequestBuilder(this);
     }
 
@@ -418,21 +413,6 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public IndicesStatsRequestBuilder prepareStats(String... indices) {
         return new IndicesStatsRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<IndicesStatusResponse> status(final IndicesStatusRequest request) {
-        return execute(IndicesStatusAction.INSTANCE, request);
-    }
-
-    @Override
-    public void status(final IndicesStatusRequest request, final ActionListener<IndicesStatusResponse> listener) {
-        execute(IndicesStatusAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public IndicesStatusRequestBuilder prepareStatus(String... indices) {
-        return new IndicesStatusRequestBuilder(this).setIndices(indices);
     }
 
     @Override

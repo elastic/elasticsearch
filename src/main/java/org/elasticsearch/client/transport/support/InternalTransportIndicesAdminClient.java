@@ -45,17 +45,17 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     private final ThreadPool threadPool;
 
-    private final ImmutableMap<IndicesAction, TransportActionNodeProxy> actions;
+    private final ImmutableMap<Action, TransportActionNodeProxy> actions;
 
     @Inject
     public InternalTransportIndicesAdminClient(Settings settings, TransportClientNodesService nodesService, TransportService transportService, ThreadPool threadPool,
                                                Map<String, GenericAction> actions) {
         this.nodesService = nodesService;
         this.threadPool = threadPool;
-        MapBuilder<IndicesAction, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
+        MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof IndicesAction) {
-                actionsBuilder.put((IndicesAction) action, new TransportActionNodeProxy(settings, action, transportService));
+                actionsBuilder.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));
             }
         }
         this.actions = actionsBuilder.immutableMap();
@@ -68,7 +68,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> ActionFuture<Response> execute(final IndicesAction<Request, Response, RequestBuilder> action, final Request request) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action, final Request request) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         return nodesService.execute(new TransportClientNodesService.NodeCallback<ActionFuture<Response>>() {
             @Override
@@ -80,7 +80,7 @@ public class InternalTransportIndicesAdminClient extends AbstractIndicesAdminCli
 
     @SuppressWarnings("unchecked")
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final IndicesAction<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {
+    public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(final Action<Request, Response, RequestBuilder, IndicesAdminClient> action, final Request request, ActionListener<Response> listener) {
         final TransportActionNodeProxy<Request, Response> proxy = actions.get(action);
         nodesService.execute(new TransportClientNodesService.NodeListenerCallback<Response>() {
             @Override

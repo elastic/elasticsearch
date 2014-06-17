@@ -83,9 +83,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
 
     private String[] types = Strings.EMPTY_ARRAY;
 
-    private SearchOperationThreading operationThreading = SearchOperationThreading.THREAD_PER_SHARD;
-
-    private IndicesOptions indicesOptions = IndicesOptions.strict();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     public SearchRequest() {
     }
@@ -134,12 +132,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     }
 
     /**
-     * Internal.
-     */
-    public void beforeLocalFork() {
-    }
-
-    /**
      * Sets the indices the search will be executed on.
      */
     public SearchRequest indices(String... indices) {
@@ -154,29 +146,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         }
         this.indices = indices;
         return this;
-    }
-
-    /**
-     * Controls the the search operation threading model.
-     */
-    public SearchOperationThreading operationThreading() {
-        return this.operationThreading;
-    }
-
-    /**
-     * Controls the the search operation threading model.
-     */
-    public SearchRequest operationThreading(SearchOperationThreading operationThreading) {
-        this.operationThreading = operationThreading;
-        return this;
-    }
-
-    /**
-     * Sets the string representation of the operation threading model. Can be one of
-     * "no_threads", "single_thread" and "thread_per_shard".
-     */
-    public SearchRequest operationThreading(String operationThreading) {
-        return operationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
     public IndicesOptions indicesOptions() {
@@ -509,7 +478,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        operationThreading = SearchOperationThreading.fromId(in.readByte());
+        if (in.getVersion().before(Version.V_1_2_0)) {
+            in.readByte(); // backward comp. for operation threading
+        }
         searchType = SearchType.fromId(in.readByte());
 
         indices = new String[in.readVInt()];
@@ -546,7 +517,9 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(operationThreading.id());
+        if (out.getVersion().before(Version.V_1_2_0)) {
+            out.writeByte((byte) 2); // operation threading
+        }
         out.writeByte(searchType.id());
 
         out.writeVInt(indices.length);

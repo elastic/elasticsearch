@@ -79,58 +79,71 @@ public class AggregatorParsers {
 
 
     private AggregatorFactories parseAggregators(XContentParser parser, SearchContext context, int level) throws IOException {
-        XContentParser.Token token = null;
-        String currentFieldName = null;
-
         Matcher validAggMatcher = VALID_AGG_NAME.matcher("");
-
         AggregatorFactories.Builder factories = new AggregatorFactories.Builder();
 
-        String aggregationName = null;
+        XContentParser.Token token = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                aggregationName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                String aggregatorType = null;
-                AggregatorFactory factory = null;
-                AggregatorFactories subFactories = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        if ("aggregations".equals(currentFieldName) || "aggs".equals(currentFieldName)) {
-                            subFactories = parseAggregators(parser, context, level+1);
-                        } else if (aggregatorType != null) {
-                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: [" + aggregatorType + "] and [" + currentFieldName + "]. Only one type is allowed.");
-                        } else {
-                            aggregatorType = currentFieldName;
-                            Aggregator.Parser aggregatorParser = parser(aggregatorType);
-                            if (aggregatorParser == null) {
-                                throw new SearchParseException(context, "Could not find aggregator type [" + currentFieldName + "]");
-                            }
-                            if (!validAggMatcher.reset(aggregationName).matches()) {
-                                throw new SearchParseException(context, "Invalid aggregation name [" + aggregationName + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
-                            }
-                            factory = aggregatorParser.parse(aggregationName, parser, context);
-                        }
-                    }
-                }
-
-                if (factory == null) {
-                    // skipping the aggregation
-                    continue;
-                }
-
-                if (subFactories != null) {
-                    factory.subFactories(subFactories);
-                }
-
-                if (level == 0) {
-                    factory.validate();
-                }
-
-                factories.add(factory);
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new SearchParseException(context, "Unexpected token " + token + " in [aggs]: aggregations definitions must start with the name of the aggregation.");
             }
+            final String aggregationName = parser.currentName();
+            if (!validAggMatcher.reset(aggregationName).matches()) {
+                throw new SearchParseException(context, "Invalid aggregation name [" + aggregationName + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
+            }
+
+            token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new SearchParseException(context, "Aggregation definition for [" + aggregationName + " starts with a [" + token + "], expected a [" + XContentParser.Token.START_OBJECT + "].");
+            }
+
+            AggregatorFactory factory = null;
+            AggregatorFactories subFactories = null;
+
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.FIELD_NAME + "] under a [" + XContentParser.Token.START_OBJECT + "], but got a [" + token + "] in [" + aggregationName + "]");
+                }
+                final String fieldName = parser.currentName();
+
+                token = parser.nextToken();
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new SearchParseException(context, "Expected [" + XContentParser.Token.START_OBJECT + "] under [" + fieldName + "], but got a [" + token + "] in [" + aggregationName + "]");
+                }
+
+                switch (fieldName) {
+                    case "aggregations":
+                    case "aggs":
+                        if (subFactories != null) {
+                            throw new SearchParseException(context, "Found two sub aggregation definitions under [" + aggregationName + "]");
+                        }
+                        subFactories = parseAggregators(parser, context, level+1);
+                        break;
+                    default:
+                        if (factory != null) {
+                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: [" + factory.type + "] and [" + fieldName + "]");
+                        }
+                        Aggregator.Parser aggregatorParser = parser(fieldName);
+                        if (aggregatorParser == null) {
+                            throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");
+                        }
+                        factory = aggregatorParser.parse(aggregationName, parser, context);
+                }
+            }
+
+            if (factory == null) {
+                throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]");
+            }
+
+            if (subFactories != null) {
+                factory.subFactories(subFactories);
+            }
+
+            if (level == 0) {
+                factory.validate();
+            }
+
+            factories.add(factory);
         }
 
         return factories.build();

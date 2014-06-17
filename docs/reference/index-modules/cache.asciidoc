@@ -24,7 +24,7 @@ when a cache becomes full, the least recently used data is evicted to
 make way for new data.
 
 The setting that allows one to control the memory size for the filter
-cache is `indices.cache.filter.size`, which defaults to `20%`. *Note*,
+cache is `indices.cache.filter.size`, which defaults to `10%`. *Note*,
 this is *not* an index level setting but a node level setting (can be
 configured in the node configuration).
 

@@ -43,8 +43,8 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
         assertThat(parseContext.idResolved(), equalTo(true));
-        assertThat(parseContext.routing(), nullValue());
-        assertThat(parseContext.routingResolved(), equalTo(false));
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.routingResolved(), equalTo(true));
         assertThat(parseContext.timestamp(), nullValue());
         assertThat(parseContext.timestampResolved(), equalTo(false));
     }
@@ -106,8 +106,8 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), nullValue());
         assertThat(parseContext.idResolved(), equalTo(false));
-        assertThat(parseContext.routing(), nullValue());
-        assertThat(parseContext.routingResolved(), equalTo(false));
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.routingResolved(), equalTo(true));
         assertThat(parseContext.timestamp(), equalTo("1"));
         assertThat(parseContext.timestampResolved(), equalTo(true));
     }
@@ -160,8 +160,8 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), equalTo("id"));
         assertThat(parseContext.idResolved(), equalTo(true));
-        assertThat(parseContext.routing(), nullValue());
-        assertThat(parseContext.routingResolved(), equalTo(false));
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.routingResolved(), equalTo(true));
         assertThat(parseContext.timestamp(), nullValue());
         assertThat(parseContext.timestampResolved(), equalTo(false));
     }
@@ -202,8 +202,8 @@ public class MappingMetaDataParserTests extends ElasticsearchTestCase {
         md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
         assertThat(parseContext.id(), nullValue());
         assertThat(parseContext.idResolved(), equalTo(false));
-        assertThat(parseContext.routing(), nullValue());
-        assertThat(parseContext.routingResolved(), equalTo(false));
+        assertThat(parseContext.routing(), equalTo("routing_value"));
+        assertThat(parseContext.routingResolved(), equalTo(true));
         assertThat(parseContext.timestamp(), equalTo("1"));
         assertThat(parseContext.timestampResolved(), equalTo(true));
     }

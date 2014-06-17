@@ -38,7 +38,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
     public static final String CIRCUIT_BREAKER_OVERHEAD_SETTING = "indices.fielddata.breaker.overhead";
 
     public static final double DEFAULT_OVERHEAD_CONSTANT = 1.03;
-    private static final String DEFAULT_BREAKER_LIMIT = "80%";
+    private static final String DEFAULT_BREAKER_LIMIT = "60%";
 
     private volatile MemoryCircuitBreaker breaker;
     private volatile long maxBytes;
@@ -105,7 +105,7 @@ public class InternalCircuitBreakerService extends AbstractLifecycleComponent<In
 
     @Override
     public FieldDataBreakerStats stats() {
-        return new FieldDataBreakerStats(breaker.getMaximum(), breaker.getUsed(), breaker.getOverhead());
+        return new FieldDataBreakerStats(breaker.getMaximum(), breaker.getUsed(), breaker.getOverhead(), breaker.getTrippedCount());
     }
 
     @Override

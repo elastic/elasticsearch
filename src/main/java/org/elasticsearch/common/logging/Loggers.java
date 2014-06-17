@@ -62,6 +62,11 @@ public class Loggers {
         return getLogger(clazz, settings, shardId.index(), Lists.asList(Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
     }
 
+    /** Just like {@link #getLogger(Class,Settings,ShardId,String...)} but String loggerName instead of Class. */
+    public static ESLogger getLogger(String loggerName, Settings settings, ShardId shardId, String... prefixes) {
+        return getLogger(loggerName, settings, Lists.asList(shardId.index().name(), Integer.toString(shardId.id()), prefixes).toArray(new String[0]));
+    }
+
     public static ESLogger getLogger(Class clazz, Settings settings, Index index, String... prefixes) {
         return getLogger(clazz, settings, Lists.asList(SPACE, index.name(), prefixes).toArray(new String[0]));
     }

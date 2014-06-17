@@ -22,6 +22,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -31,10 +32,10 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
     protected final long missingValue;
     protected long bottom;
     protected LongValues readerValues;
-    protected final SortMode sortMode;
+    protected final MultiValueMode sortMode;
 
 
-    public LongValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, long missingValue, SortMode sortMode) {
+    public LongValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, long missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;

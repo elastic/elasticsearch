@@ -69,7 +69,6 @@ import org.elasticsearch.rest.action.admin.indices.segments.RestIndicesSegmentsA
 import org.elasticsearch.rest.action.admin.indices.settings.RestGetSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.settings.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.stats.RestIndicesStatsAction;
-import org.elasticsearch.rest.action.admin.indices.status.RestIndicesStatusAction;
 import org.elasticsearch.rest.action.admin.indices.template.delete.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.get.RestGetIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.template.head.RestHeadIndexTemplateAction;
@@ -148,7 +147,6 @@ public class RestActionModule extends AbstractModule {
         bind(RestIndicesExistsAction.class).asEagerSingleton();
         bind(RestTypesExistsAction.class).asEagerSingleton();
         bind(RestIndicesStatsAction.class).asEagerSingleton();
-        bind(RestIndicesStatusAction.class).asEagerSingleton();
         bind(RestIndicesSegmentsAction.class).asEagerSingleton();
         bind(RestGetAliasesAction.class).asEagerSingleton();
         bind(RestAliasesExistAction.class).asEagerSingleton();
@@ -232,6 +230,7 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestAliasAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestThreadPoolAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestPluginsAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestFielddataAction.class).asEagerSingleton();
         // no abstract cat action
         bind(RestCatAction.class).asEagerSingleton();
     }

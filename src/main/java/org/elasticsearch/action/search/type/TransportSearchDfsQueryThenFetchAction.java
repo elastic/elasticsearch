@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
-import org.elasticsearch.action.search.SearchOperationThreading;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -90,58 +90,11 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         protected void moveToSecondPhase() {
             final AggregatedDfs dfs = searchPhaseController.aggregateDfs(firstResults);
             final AtomicInteger counter = new AtomicInteger(firstResults.asList().size());
-
-            int localOperations = 0;
             for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
                 DfsSearchResult dfsResult = entry.value;
                 DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
-                if (node.id().equals(nodes.localNodeId())) {
-                    localOperations++;
-                } else {
-                    QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-                    executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
-                }
-            }
-
-            if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
-                                DfsSearchResult dfsResult = entry.value;
-                                DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
-                                if (node.id().equals(nodes.localNodeId())) {
-                                    QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-                                    executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
-                        final DfsSearchResult dfsResult = entry.value;
-                        final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
-                        if (node.id().equals(nodes.localNodeId())) {
-                            final QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
-                            try {
-                                if (localAsync) {
-                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
-                                        }
-                                    });
-                                } else {
-                                    executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
-                                }
-                            } catch (Throwable t) {
-                                onQueryFailure(t, querySearchRequest, entry.index, dfsResult, counter);
-                            }
-                        }
-                    }
-                }
+                QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
+                executeQuery(entry.index, dfsResult, counter, querySearchRequest, node);
             }
         }
 
@@ -170,7 +123,11 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
-                executeFetchPhase();
+                if (successfulOps.get() == 0) {
+                    listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", buildShardFailures()));
+                } else {
+                    executeFetchPhase();
+                }
             }
         }
 
@@ -183,7 +140,8 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         void innerExecuteFetchPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(request, useSlowScroll, queryResults);
+            boolean useScroll = !useSlowScroll && request.scroll() != null;
+            sortedShardList = searchPhaseController.sortDocs(useScroll, queryResults);
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
             if (docIdsToLoad.asList().isEmpty()) {
@@ -195,57 +153,11 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                     request, sortedShardList, firstResults.length()
             );
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
-            int localOperations = 0;
             for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 QuerySearchResult queryResult = queryResults.get(entry.index);
                 DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                if (node.id().equals(nodes.localNodeId())) {
-                    localOperations++;
-                } else {
-                    FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
-                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                }
-            }
-
-            if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-                                QuerySearchResult queryResult = queryResults.get(entry.index);
-                                DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                                if (node.id().equals(nodes.localNodeId())) {
-                                    FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
-                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
-                        final QuerySearchResult queryResult = queryResults.get(entry.index);
-                        final DiscoveryNode node = nodes.get(queryResult.shardTarget().nodeId());
-                        if (node.id().equals(nodes.localNodeId())) {
-                            final FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
-                            try {
-                                if (localAsync) {
-                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                        }
-                                    });
-                                } else {
-                                    executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
-                                }
-                            } catch (Throwable t) {
-                                onFetchFailure(t, fetchSearchRequest, entry.index, queryResult.shardTarget(), counter);
-                            }
-                        }
-                    }
-                }
+                FetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult, entry, lastEmittedDocPerShard);
+                executeFetch(entry.index, queryResult.shardTarget(), counter, fetchSearchRequest, node);
             }
         }
 

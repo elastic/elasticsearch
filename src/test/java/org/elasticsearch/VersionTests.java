@@ -71,4 +71,27 @@ public class VersionTests extends ElasticsearchTestCase {
         }
     }
 
+    @Test
+    public void testVersionFromString() {
+        final int iters = scaledRandomIntBetween(100, 1000);
+        for (int i = 0; i < iters; i++) {
+            Version version = randomVersion();
+            assertThat(Version.fromString(version.number()), sameInstance(version));
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testTooLongVersionFromString() {
+        Version.fromString("1.0.0.1.3");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testTooShortVersionFromString() {
+        Version.fromString("1.0");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testWrongVersionFromString() {
+        Version.fromString("WRONG.VERSION");
+    }
 }

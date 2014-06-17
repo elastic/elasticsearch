@@ -19,6 +19,8 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
@@ -26,7 +28,9 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -50,6 +54,10 @@ public class AggregatorFactories {
         if (aggregator.shouldCollect()) {
             context.registerReaderContextAware(aggregator);
         }
+        // Once the aggregator is fully constructed perform any initialisation -
+        // can't do everything in constructors if Aggregator base class needs 
+        // to delegate to subclasses as part of construction.
+        aggregator.preCollection();
         return aggregator;
     }
 
@@ -86,7 +94,7 @@ public class AggregatorFactories {
                 }
 
                 @Override
-                protected void doPostCollection() {
+                protected void doPostCollection() throws IOException {
                     for (long i = 0; i < aggregators.size(); ++i) {
                         final Aggregator aggregator = aggregators.get(i);
                         if (aggregator != null) {
@@ -112,13 +120,7 @@ public class AggregatorFactories {
 
                 @Override
                 public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-                    // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
-                    // the filter matches no document in the highest buckets of the first terms agg
-                    if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
-                        return first.buildEmptyAggregation();
-                    } else {
-                        return aggregators.get(owningBucketOrdinal).buildAggregation(0);
-                    }
+                    throw new ElasticsearchIllegalStateException("Invalid context - aggregation must use addResults() to collect child results");
                 }
 
                 @Override
@@ -130,7 +132,20 @@ public class AggregatorFactories {
                 public void doClose() {
                     Releasables.close(aggregators);
                 }
+
+                @Override
+                public void gatherAnalysis(BucketAnalysisCollector results, long owningBucketOrdinal) {
+                    // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
+                    // the filter matches no document in the highest buckets of the first terms agg
+                    if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
+                        results.add(first.buildEmptyAggregation());
+                    } else {
+                        aggregators.get(owningBucketOrdinal).gatherAnalysis(results,0);
+                    }                 
+                }
             };
+            
+            aggregators[i].preCollection();
         }
         return aggregators;
     }
@@ -183,9 +198,13 @@ public class AggregatorFactories {
 
     public static class Builder {
 
-        private List<AggregatorFactory> factories = new ArrayList<>();
+        private final Set<String> names = new HashSet<>();
+        private final List<AggregatorFactory> factories = new ArrayList<>();
 
         public Builder add(AggregatorFactory factory) {
+            if (!names.add(factory.name)) {
+                throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
+            }
             factories.add(factory);
             return this;
         }

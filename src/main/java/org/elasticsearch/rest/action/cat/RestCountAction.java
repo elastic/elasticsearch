@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -61,8 +60,6 @@ public class RestCountAction extends AbstractCatAction {
     public void doRequest(final RestRequest request, final RestChannel channel) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         CountRequest countRequest = new CountRequest(indices);
-        countRequest.operationThreading(BroadcastOperationThreading.SINGLE_THREAD);
-
         String source = request.param("source");
         if (source != null) {
             countRequest.source(source);

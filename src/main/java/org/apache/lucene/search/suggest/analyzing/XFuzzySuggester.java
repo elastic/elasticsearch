@@ -219,7 +219,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
     }
 
     Automaton toLevenshteinAutomata(Automaton automaton) {
-        final Set<IntsRef> ref = SpecialOperations.getFiniteStrings(automaton, -1);
+        final Set<IntsRef> ref = XSpecialOperations.getFiniteStrings(automaton, -1);
         Automaton subs[] = new Automaton[ref.size()];
         int upto = 0;
         for (IntsRef path : ref) {

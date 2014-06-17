@@ -184,7 +184,7 @@ public class ParentQueryTests extends ElasticsearchLuceneTestCase {
 
             // Simulate a child update
             if (random().nextBoolean()) {
-                int numberOfUpdates = scaledRandomIntBetween(1, 5);
+                int numberOfUpdates = childIdToParentId.isEmpty() ? 0 : scaledRandomIntBetween(1, 5);
                 int[] childIds = childIdToParentId.keys().toArray();
                 for (int j = 0; j < numberOfUpdates; j++) {
                     int childId = childIds[random().nextInt(childIds.length)];

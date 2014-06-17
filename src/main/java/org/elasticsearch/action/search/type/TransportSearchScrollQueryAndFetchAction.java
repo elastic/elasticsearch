@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,19 +47,14 @@ import static org.elasticsearch.action.search.type.TransportSearchHelper.interna
  */
 public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent {
 
-    private final ThreadPool threadPool;
-
     private final ClusterService clusterService;
-
     private final SearchServiceTransportAction searchService;
-
     private final SearchPhaseController searchPhaseController;
 
     @Inject
-    public TransportSearchScrollQueryAndFetchAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportSearchScrollQueryAndFetchAction(Settings settings, ClusterService clusterService,
                                                     SearchServiceTransportAction searchService, SearchPhaseController searchPhaseController) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.searchService = searchService;
         this.searchPhaseController = searchPhaseController;
@@ -128,7 +121,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                 return;
             }
 
-            int localOperations = 0;
             Tuple<String, Long>[] context = scrollId.getContext();
             for (int i = 0; i < context.length; i++) {
                 Tuple<String, Long> target = context[i];
@@ -137,11 +129,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
                         useSlowScroll = true;
                     }
-                    if (nodes.localNodeId().equals(node.id())) {
-                        localOperations++;
-                    } else {
-                        executePhase(i, node, target.v2());
-                    }
+                    executePhase(i, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
@@ -149,48 +137,6 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
-                    }
-                }
-            }
-
-            if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
-                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            Tuple<String, Long>[] context1 = scrollId.getContext();
-                            for (int i = 0; i < context1.length; i++) {
-                                Tuple<String, Long> target = context1[i];
-                                DiscoveryNode node = nodes.get(target.v1());
-                                if (node != null && nodes.localNodeId().equals(node.id())) {
-                                    executePhase(i, node, target.v2());
-                                }
-                            }
-                        }
-                    });
-                } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    Tuple<String, Long>[] context1 = scrollId.getContext();
-                    for (int i = 0; i < context1.length; i++) {
-                        final Tuple<String, Long> target = context1[i];
-                        final int shardIndex = i;
-                        final DiscoveryNode node = nodes.get(target.v1());
-                        if (node != null && nodes.localNodeId().equals(node.id())) {
-                            try {
-                                if (localAsync) {
-                                    threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            executePhase(shardIndex, node, target.v2());
-                                        }
-                                    });
-                                } else {
-                                    executePhase(shardIndex, node, target.v2());
-                                }
-                            } catch (Throwable t) {
-                                onPhaseFailure(t, target.v2(), shardIndex);
-                            }
-                        }
                     }
                 }
             }
@@ -235,7 +181,11 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             addShardFailure(shardIndex, new ShardSearchFailure(t));
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
-                finishHim();
+                if (successfulOps.get() == 0) {
+                    listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", buildShardFailures()));
+                } else {
+                    finishHim();
+                }
             }
         }
 
@@ -248,12 +198,7 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
         }
 
         private void innerFinishHim() throws Exception {
-            ScoreDoc[] sortedShardList;
-            if (useSlowScroll) {
-                sortedShardList = searchPhaseController.sortDocs(queryFetchResults);
-            } else {
-                sortedShardList = searchPhaseController.sortDocsForScroll(queryFetchResults);
-            }
+            ScoreDoc[] sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryFetchResults);
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
             if (request.scroll() != null) {

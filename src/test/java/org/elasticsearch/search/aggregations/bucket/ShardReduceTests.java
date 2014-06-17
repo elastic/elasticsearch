@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -170,6 +171,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(terms("terms").field("term-s")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).minDocCount(0)))
                 .execute().actionGet();
 
@@ -186,6 +188,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(terms("terms").field("term-l")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).minDocCount(0)))
                 .execute().actionGet();
 
@@ -202,6 +205,7 @@ public class ShardReduceTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client().prepareSearch("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addAggregation(terms("terms").field("term-d")
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .subAggregation(dateHistogram("histo").field("date").interval(DateHistogram.Interval.DAY).minDocCount(0)))
                 .execute().actionGet();
 

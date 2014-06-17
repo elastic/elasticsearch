@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.index.analysis;
 
-import java.util.Locale;
-
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.hunspell.HunspellDictionary;
+import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
@@ -31,12 +29,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.HunspellService;
 
+import java.util.Locale;
+
 @AnalysisSettingsRequired
 public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final HunspellDictionary dictionary;
+    private final Dictionary dictionary;
     private final boolean dedup;
-    private final int recursionLevel;
+    private final boolean longestOnly;
 
     @Inject
     public HunspellTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings, HunspellService hunspellService) {
@@ -53,24 +53,20 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         dedup = settings.getAsBoolean("dedup", true);
-
-        recursionLevel = settings.getAsInt("recursion_level", 2);
-        if (recursionLevel < 0) {
-            throw new ElasticsearchIllegalArgumentException(String.format(Locale.ROOT, "Negative recursion level not allowed for hunspell [%d]", recursionLevel));
-        }
+        longestOnly = settings.getAsBoolean("longest_only", false);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new HunspellStemFilter(tokenStream, dictionary, dedup, recursionLevel);
+        return new HunspellStemFilter(tokenStream, dictionary, dedup, longestOnly);
     }
 
     public boolean dedup() {
         return dedup;
     }
-
-    public int recursionLevel() {
-        return recursionLevel;
+    
+    public boolean longestOnly() {
+        return longestOnly;
     }
 
 }

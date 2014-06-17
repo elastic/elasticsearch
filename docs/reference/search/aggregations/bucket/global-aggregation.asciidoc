@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-global-aggregation]]
-=== Global
+=== Global Aggregation
 
 Defines a single bucket of all the documents within the search execution context. This context is defined by the indices and the document types you're searching on, but is *not* influenced by the search query itself.
 
@@ -40,7 +40,7 @@ The response for the above aggreation:
     "aggregations" : {
         "all_products" : {
             "doc_count" : 100, <1>
-            "avg_price" : { 
+            "avg_price" : {
                 "value" : 56.3
             }
         }

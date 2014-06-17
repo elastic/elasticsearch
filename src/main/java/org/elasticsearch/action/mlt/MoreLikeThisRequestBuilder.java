@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -34,14 +33,14 @@ import java.util.Map;
 
 /**
  */
-public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder> {
+public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThisRequest, SearchResponse, MoreLikeThisRequestBuilder, Client> {
 
     public MoreLikeThisRequestBuilder(Client client) {
-        super((InternalClient) client, new MoreLikeThisRequest());
+        super(client, new MoreLikeThisRequest());
     }
 
     public MoreLikeThisRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new MoreLikeThisRequest(index).type(type).id(id));
+        super(client, new MoreLikeThisRequest(index).type(type).id(id));
     }
 
     /**
@@ -137,6 +136,14 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      */
     public MoreLikeThisRequestBuilder setBoostTerms(float boostTerms) {
         request.boostTerms(boostTerms);
+        return this;
+    }
+
+    /**
+     * Whether to include the queried document. Defaults to <tt>false</tt>.
+     */
+    public MoreLikeThisRequestBuilder setInclude(boolean include) {
+        request.include(include);
         return this;
     }
 
@@ -247,6 +254,6 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
 
     @Override
     protected void doExecute(ActionListener<SearchResponse> listener) {
-        ((Client) client).moreLikeThis(request, listener);
+        client.moreLikeThis(request, listener);
     }
 }

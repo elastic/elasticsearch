@@ -25,6 +25,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -103,8 +104,8 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
-            final Scorer parentScorer = parentWeight.scorer(context, true, false, acceptDocs);
+        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+            final Scorer parentScorer = parentWeight.scorer(context, acceptDocs);
 
             // no matches
             if (parentScorer == null) {
@@ -117,7 +118,13 @@ public class IncludeNestedDocsQuery extends Query {
                 return null;
             }
             if (!(parents instanceof FixedBitSet)) {
-                throw new IllegalStateException("parentFilter must return FixedBitSet; got " + parents);
+                if (parents.isCacheable()) {
+                    // the filter is cached, yet not with the right type
+                    throw new IllegalStateException("parentFilter must return FixedBitSet; got " + parents);
+                } else {
+                    // may happen if the filter cache type is none
+                    parents = DocIdSets.toFixedBitSet(parents.iterator(), context.reader().maxDoc());
+                }
             }
 
             int firstParentDoc = parentScorer.nextDoc();

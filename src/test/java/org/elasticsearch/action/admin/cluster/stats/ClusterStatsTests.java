@@ -31,9 +31,12 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
+import java.io.IOException;
+
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numNodes = 1)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public class ClusterStatsTests extends ElasticsearchIntegrationTest {
 
     private void assertCounts(ClusterStatsNodes.Counts counts, int total, int masterOnly, int dataOnly, int masterData, int client) {
@@ -55,17 +58,17 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
 
-        cluster().startNode(ImmutableSettings.builder().put("node.data", false));
+        internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
         waitForNodes(2);
         response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 2, 1, 0, 1, 0);
 
-        cluster().startNode(ImmutableSettings.builder().put("node.master", false));
+        internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));
         response = client().admin().cluster().prepareClusterStats().get();
         waitForNodes(3);
         assertCounts(response.getNodesStats().getCounts(), 3, 1, 1, 1, 0);
 
-        cluster().startNode(ImmutableSettings.builder().put("node.client", true));
+        internalCluster().startNode(ImmutableSettings.builder().put("node.client", true));
         response = client().admin().cluster().prepareClusterStats().get();
         waitForNodes(4);
         assertCounts(response.getNodesStats().getCounts(), 4, 1, 1, 1, 1);
@@ -94,7 +97,7 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
         assertShardStats(response.getIndicesStats().getShards(), 1, 2, 2, 0.0);
 
         // add another node, replicas should get assigned
-        cluster().startNode();
+        internalCluster().startNode();
         ensureGreen();
         index("test1", "type", "1", "f", "f");
         refresh(); // make the doc visible
@@ -125,10 +128,10 @@ public class ClusterStatsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testValuesSmokeScreen() {
-        cluster().ensureAtMostNumNodes(5);
-        cluster().ensureAtLeastNumNodes(1);
-        SigarService sigarService = cluster().getInstance(SigarService.class);
+    public void testValuesSmokeScreen() throws IOException {
+        internalCluster().ensureAtMostNumDataNodes(5);
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        SigarService sigarService = internalCluster().getInstance(SigarService.class);
         index("test1", "type", "1", "f", "f");
         /*
          * Ensure at least one shard is allocated otherwise the FS stats might

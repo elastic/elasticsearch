@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@ClusterScope(scope= Scope.SUITE, numNodes=0)
+@ClusterScope(scope= Scope.SUITE, numDataNodes =0)
 public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -55,7 +55,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
                 .put("discovery.zen.fd.ping_timeout", "1s") // <-- for hitting simulated network failures quickly
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
                 .build();
-        List<String>nodes = cluster().startNodesAsync(3, settings).get();
+        List<String>nodes = internalCluster().startNodesAsync(3, settings).get();
 
         // Wait until a green status has been reaches and 3 nodes are part of the cluster
         List<String> nodesList = Arrays.asList(nodes.toArray(new String[3]));
@@ -68,7 +68,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         // Figure out what is the elected master node
         DiscoveryNode masterDiscoNode = null;
         for (String node : nodesList) {
-            ClusterState state = cluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(3));
             if (masterDiscoNode == null) {
                 masterDiscoNode = state.nodes().masterNode();
@@ -78,7 +78,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         }
         assert masterDiscoNode != null;
         logger.info("---> legit elected master node=" + masterDiscoNode);
-        final Client masterClient = cluster().masterClient();
+        final Client masterClient = internalCluster().masterClient();
 
         // Everything is stable now, it is now time to simulate evil...
 
@@ -105,7 +105,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
 
             // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
             // continuously ping until network failures have been resolved.
-            Client isolatedNodeClient = cluster().client(unluckyNode);
+            Client isolatedNodeClient = internalCluster().client(unluckyNode);
             ClusterState localClusterState = isolatedNodeClient.admin().cluster().prepareState().setLocal(true).get().getState();
             DiscoveryNodes localDiscoveryNodes = localClusterState.nodes();
             assertThat(localDiscoveryNodes.masterNode(), nullValue());
@@ -124,7 +124,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
 
         for (String node : nodesList) {
-            ClusterState state = cluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = internalCluster().client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
             assertThat(state.nodes().size(), equalTo(3));
             // The elected master shouldn't have changed, since the unlucky node never could have elected himself as
             // master since m_m_n of 2 could never be satisfied.
@@ -133,13 +133,13 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     private void addFailToSendNoConnectRule(String fromNode, String toNode) {
-        TransportService mockTransportService = cluster().getInstance(TransportService.class, fromNode);
-        ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(cluster().getInstance(Discovery.class, toNode).localNode());
+        TransportService mockTransportService = internalCluster().getInstance(TransportService.class, fromNode);
+        ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(internalCluster().getInstance(Discovery.class, toNode).localNode());
     }
 
     private void clearNoConnectRule(String fromNode, String toNode) {
-        TransportService mockTransportService = cluster().getInstance(TransportService.class, fromNode);
-        ((MockTransportService) mockTransportService).clearRule(cluster().getInstance(Discovery.class, toNode).localNode());
+        TransportService mockTransportService = internalCluster().getInstance(TransportService.class, fromNode);
+        ((MockTransportService) mockTransportService).clearRule(internalCluster().getInstance(Discovery.class, toNode).localNode());
     }
 
 }

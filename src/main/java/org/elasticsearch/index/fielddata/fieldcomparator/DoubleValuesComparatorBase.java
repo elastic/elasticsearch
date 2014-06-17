@@ -22,6 +22,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -31,9 +32,9 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
     protected final double missingValue;
     protected double bottom;
     protected DoubleValues readerValues;
-    protected final SortMode sortMode;
+    protected final MultiValueMode sortMode;
 
-    public DoubleValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, double missingValue, SortMode sortMode) {
+    public DoubleValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, double missingValue, MultiValueMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
         this.sortMode = sortMode;

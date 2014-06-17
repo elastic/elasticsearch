@@ -74,7 +74,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
-            super(Defaults.NAME, new FieldType(Defaults.TTL_FIELD_TYPE));
+            super(Defaults.NAME, new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.PRECISION_STEP_64_BIT);
         }
 
         public Builder enabled(EnabledAttributeMapper enabled) {
@@ -125,7 +125,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
                 Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                 @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP_64_BIT,
                 Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed, coerce,
                 postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
@@ -162,10 +162,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     // Other implementation for realtime get display
     public Object valueForSearch(long expirationTime) {
         return expirationTime - System.currentTimeMillis();
-    }
-
-    @Override
-    public void validate(ParseContext context) throws MapperParsingException {
     }
 
     @Override

@@ -52,7 +52,6 @@ public class SingleOrdinalsTests extends ElasticsearchTestCase {
         assertThat(ords, instanceOf(SinglePackedOrdinals.class));
         Ordinals.Docs docs = ords.ordinals();
 
-        assertThat(controlDocToOrdinal.size(), equalTo(docs.getNumDocs()));
         for (Map.Entry<Integer, Long> entry : controlDocToOrdinal.entrySet()) {
             assertThat(entry.getValue(), equalTo(docs.getOrd(entry.getKey())));
         }

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 
@@ -38,7 +39,7 @@ import java.util.Iterator;
  * It is a pure immutable test cluster that allows to send requests to a pre-existing cluster
  * and supports by nature all the needed test operations like wipeIndices etc.
  */
-public final class ExternalTestCluster extends ImmutableTestCluster {
+public final class ExternalTestCluster extends TestCluster {
 
     private final ESLogger logger = Loggers.getLogger(getClass());
 
@@ -46,7 +47,8 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
 
     private final InetSocketAddress[] httpAddresses;
 
-    private final int dataNodes;
+    private final int numDataNodes;
+    private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
         this.client = new TransportClient(ImmutableSettings.settingsBuilder().put("client.transport.ignore_cluster_name", true))
@@ -55,14 +57,19 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
         NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
         int dataNodes = 0;
+        int benchNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
             NodeInfo nodeInfo = nodeInfos.getNodes()[i];
             httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
             if (nodeInfo.getSettings().getAsBoolean("node.data", true)) {
                 dataNodes++;
             }
+            if (nodeInfo.getSettings().getAsBoolean("node.bench", false)) {
+                benchNodes++;
+            }
         }
-        this.dataNodes = dataNodes;
+        this.numDataNodes = dataNodes;
+        this.numBenchNodes = benchNodes;
         logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
 
@@ -82,8 +89,13 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public int dataNodes() {
-        return dataNodes;
+    public int numDataNodes() {
+        return numDataNodes;
+    }
+
+    @Override
+    public int numBenchNodes() {
+        return numBenchNodes;
     }
 
     @Override
@@ -92,12 +104,17 @@ public final class ExternalTestCluster extends ImmutableTestCluster {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         client.close();
     }
 
     @Override
     public Iterator<Client> iterator() {
         return Lists.newArrayList(client).iterator();
+    }
+
+    @Override
+    public boolean hasFilterCache() {
+        return true; // default
     }
 }

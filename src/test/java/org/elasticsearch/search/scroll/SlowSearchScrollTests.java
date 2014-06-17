@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.type.ParsedScrollId;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 /**
  */
@@ -39,7 +38,7 @@ public class SlowSearchScrollTests extends SearchScrollTests {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        // If we add a constructor to InternalNode that allows us to define a version, then in the TestCluster
+        // If we add a constructor to InternalNode that allows us to define a version, then in the InternalTestCluster
         // we can start nodes with different versions and then we don't need this setting and would also be helpful
         // for other tests
         Settings settings =  super.nodeSettings(nodeOrdinal);

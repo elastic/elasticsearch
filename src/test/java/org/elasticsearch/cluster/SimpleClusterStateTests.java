@@ -20,13 +20,16 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.CollectionAssertions;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -61,7 +64,7 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNodes() throws Exception {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(immutableCluster().size()));
+        assertThat(clusterStateResponse.getState().nodes().nodes().size(), is(cluster().size()));
 
         ClusterStateResponse clusterStateResponseFiltered = client().admin().cluster().prepareState().clear().get();
         assertThat(clusterStateResponseFiltered.getState().nodes().nodes().size(), is(0));
@@ -98,8 +101,8 @@ public class SimpleClusterStateTests extends ElasticsearchIntegrationTest {
         ClusterStateResponse clusterStateResponseUnfiltered = client().admin().cluster().prepareState().get();
         assertThat(clusterStateResponseUnfiltered.getState().metaData().templates().size(), is(greaterThanOrEqualTo(2)));
 
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetaData(true).setIndexTemplates("foo_template").get();
-        assertThat(clusterStateResponse.getState().metaData().templates().size(), is(1));
+        GetIndexTemplatesResponse getIndexTemplatesResponse = client().admin().indices().prepareGetTemplates("foo_template").get();
+        assertIndexTemplateExists(getIndexTemplatesResponse, "foo_template");
     }
 
     @Test

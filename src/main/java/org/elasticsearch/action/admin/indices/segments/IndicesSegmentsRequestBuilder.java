@@ -22,19 +22,18 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 
 /**
  *
  */
-public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
+public class IndicesSegmentsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder, IndicesAdminClient> {
 
     public IndicesSegmentsRequestBuilder(IndicesAdminClient indicesClient) {
-        super((InternalIndicesAdminClient) indicesClient, new IndicesSegmentsRequest());
+        super(indicesClient, new IndicesSegmentsRequest());
     }
 
     @Override
     protected void doExecute(ActionListener<IndicesSegmentResponse> listener) {
-        ((IndicesAdminClient) client).segments(request, listener);
+        client.segments(request, listener);
     }
 }

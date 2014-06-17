@@ -32,7 +32,7 @@ public class LuceneTest {
 
 
     /*
-     * simple test that ensures that we bumb the version on Upgrade
+     * simple test that ensures that we bump the version on Upgrade
      */
     @Test
     public void testVersion() {

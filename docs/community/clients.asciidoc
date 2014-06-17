@@ -36,8 +36,8 @@ See the {client}/python-api/current/index.html[official Elasticsearch Python cli
 
 See the {client}/ruby-api/current/index.html[official Elasticsearch Ruby client].
 
-* http://github.com/karmi/tire[Tire]:
-  Ruby API & DSL, with ActiveRecord/ActiveModel integration.
+* http://github.com/karmi/retire[Retire]:
+  Ruby API & DSL, with ActiveRecord/ActiveModel integration (retired since Sep 2013).
 
 * https://github.com/PoseBiz/stretcher[stretcher]:
   Ruby client.
@@ -70,7 +70,7 @@ See the {client}/php-api/current/index.html[official Elasticsearch PHP client].
 
 * https://github.com/searchbox-io/Jest[Jest]:
   Java Rest client.
-
+* There is of course the [native ES Java client](http://www.elasticsearch.org/guide/en/elasticsearch/client/java-api/current/index.html)
 
 [[community-javascript]]
 === JavaScript

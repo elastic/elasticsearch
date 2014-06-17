@@ -53,6 +53,11 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
+    public boolean sandboxed() {
+        return false;
+    }
+
+    @Override
     public Object compile(String script) {
         NativeScriptFactory scriptFactory = scripts.get(script);
         if (scriptFactory != null) {

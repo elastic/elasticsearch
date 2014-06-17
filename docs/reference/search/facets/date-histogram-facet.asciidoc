@@ -1,6 +1,8 @@
 [[search-facets-date-histogram-facet]]
 === Date Histogram Facet
 
+include::deprecated.asciidoc[]
+
 A specific histogram facet that can work with `date` field types
 enhancing it over the regular
 <<search-facets-histogram-facet,histogram

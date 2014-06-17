@@ -28,7 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.recycler.Recycler.V;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Array;
@@ -69,7 +69,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     @Inject
     public MockPageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
-        final long seed = settings.getAsLong(TestCluster.SETTING_CLUSTER_NODE_SEED, 0L);
+        final long seed = settings.getAsLong(InternalTestCluster.SETTING_CLUSTER_NODE_SEED, 0L);
         random = new Random(seed);
     }
 

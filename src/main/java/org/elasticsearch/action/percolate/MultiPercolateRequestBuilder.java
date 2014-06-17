@@ -22,14 +22,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.internal.InternalClient;
 
 /**
  */
-public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPercolateRequest, MultiPercolateResponse, MultiPercolateRequestBuilder> {
+public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPercolateRequest, MultiPercolateResponse, MultiPercolateRequestBuilder, Client> {
 
     public MultiPercolateRequestBuilder(Client client) {
-        super((InternalClient) client, new MultiPercolateRequest());
+        super(client, new MultiPercolateRequest());
     }
 
     /**
@@ -60,6 +59,6 @@ public class MultiPercolateRequestBuilder extends ActionRequestBuilder<MultiPerc
 
     @Override
     protected void doExecute(ActionListener<MultiPercolateResponse> listener) {
-        ((Client) client).multiPercolate(request, listener);
+        client.multiPercolate(request, listener);
     }
 }

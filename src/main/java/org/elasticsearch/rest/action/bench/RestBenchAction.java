@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.bench;
 
+import com.google.common.primitives.Doubles;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.search.SearchRequest;
@@ -34,20 +35,16 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
+import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-
-import com.google.common.primitives.Doubles;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.contentBuilder;
+import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestStatus.*;
 
 /**
  * REST handler for benchmark actions.
@@ -104,7 +101,7 @@ public class RestBenchAction extends BaseRestHandler {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(OK, builder);
             }
         });
     }
@@ -113,20 +110,10 @@ public class RestBenchAction extends BaseRestHandler {
      * Aborts an actively running benchmark
      */
     private void handleAbortRequest(final RestRequest request, final RestChannel channel) {
+        final String[] benchmarkNames = Strings.splitStringByCommaToArray(request.param("name"));
+        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkNames);
 
-        String benchmarkName = request.param("name");
-        AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkName);
-
-        client.abortBench(abortBenchmarkRequest, new RestBuilderListener<AbortBenchmarkResponse>(channel) {
-
-            @Override
-            public RestResponse buildResponse(AbortBenchmarkResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
-            }
-        });
+        client.abortBench(abortBenchmarkRequest, new AcknowledgedRestListener<AbortBenchmarkResponse>(channel));
     }
 
     /**
@@ -165,7 +152,7 @@ public class RestBenchAction extends BaseRestHandler {
                 builder.startObject();
                 response.toXContent(builder, request);
                 builder.endObject();
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(OK, builder);
             }
         });
     }
@@ -274,19 +261,23 @@ public class RestBenchAction extends BaseRestHandler {
                         }
                     } else if ("indices".equals(fieldName)) {
                         List<String> perCompetitorIndices = new ArrayList<>();
-                        List<String> perCompetitorTypes = new ArrayList<>();
                         while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
-                                String[] parts = parseIndexNameAndType(p.text());
-                                perCompetitorIndices.add(parts[0]);
-                                if (parts.length == 2) {
-                                    perCompetitorTypes.add(parts[1]);
-                                }
+                                perCompetitorIndices.add(p.text());
                             } else {
-                                throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] expected string values but got: "  + token);
+                                throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] expected string values but got: " + token);
                             }
                         }
                         builder.setIndices(perCompetitorIndices.toArray(new String[perCompetitorIndices.size()]));
+                    } else if ("types".equals(fieldName)) {
+                        List<String> perCompetitorTypes = new ArrayList<>();
+                        while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                perCompetitorTypes.add(p.text());
+                            } else {
+                                throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] expected string values but got: " + token);
+                            }
+                        }
                         builder.setTypes(perCompetitorTypes.toArray(new String[perCompetitorTypes.size()]));
                     } else {
                         throw new ElasticsearchParseException("Failed parsing array field [" + fieldName + "] field is not recognized");
@@ -386,12 +377,5 @@ public class RestBenchAction extends BaseRestHandler {
                     throw new ElasticsearchParseException("Failed parsing " + token.name() + " field [" + fieldName + "] field is not recognized");
             }
         }
-    }
-
-    // We allow users to specify competitor index lists as "index_name/index_type"
-    private static String[] parseIndexNameAndType(String indexName) {
-        String[] parts = indexName.split("/", 2);
-        assert parts.length >= 1;
-        return parts;
     }
 }

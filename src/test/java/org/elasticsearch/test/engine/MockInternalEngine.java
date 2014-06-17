@@ -46,7 +46,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.warmer.IndicesWarmer;
-import org.elasticsearch.test.ImmutableTestCluster;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.reflect.Constructor;
@@ -72,7 +72,7 @@ public final class MockInternalEngine extends InternalEngine implements Engine {
                               CodecService codecService) throws EngineException {
         super(shardId, indexSettings, threadPool, indexSettingsService, indexingService, warmer, store,
                 deletionPolicy, translog, mergePolicyProvider, mergeScheduler, analysisService, similarityService, codecService);
-        final long seed = indexSettings.getAsLong(ImmutableTestCluster.SETTING_INDEX_SEED, 0l);
+        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
         random = new Random(seed);
         final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
         wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);

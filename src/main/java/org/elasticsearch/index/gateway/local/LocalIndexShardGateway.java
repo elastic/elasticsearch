@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.fs.FsTranslog;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -274,7 +274,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 return;
             }
             if (indexShard.state() == IndexShardState.STARTED && indexShard.translog().syncNeeded()) {
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new Runnable() {
+                threadPool.executor(ThreadPool.Names.FLUSH).execute(new Runnable() {
                     @Override
                     public void run() {
                         try {

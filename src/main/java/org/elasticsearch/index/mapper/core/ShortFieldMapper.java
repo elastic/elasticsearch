@@ -64,6 +64,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
     public static final String CONTENT_TYPE = "short";
+    public static final int DEFAULT_PRECISION_STEP = 8;
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
@@ -80,7 +81,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         protected Short nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name, new FieldType(Defaults.FIELD_TYPE));
+            super(name, new FieldType(Defaults.FIELD_TYPE), DEFAULT_PRECISION_STEP);
             builder = this;
         }
 
@@ -92,7 +93,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         @Override
         public ShortFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), precisionStep, boost, fieldType, docValues, nullValue,
+            ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
                     ignoreMalformed(context), coerce(context),postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, 
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
@@ -346,7 +347,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || precisionStep != Defaults.PRECISION_STEP) {
+        if (includeDefaults || precisionStep != DEFAULT_PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }
         if (includeDefaults || nullValue != null) {

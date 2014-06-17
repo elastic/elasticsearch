@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.client.internal.InternalGenericClient;
 
 /**
  */
@@ -36,7 +35,7 @@ public class GetSettingsAction extends IndicesAction<GetSettingsRequest, GetSett
 
     @Override
     public GetSettingsRequestBuilder newRequestBuilder(IndicesAdminClient client) {
-        return new GetSettingsRequestBuilder((InternalGenericClient) client);
+        return new GetSettingsRequestBuilder(client);
     }
 
     @Override

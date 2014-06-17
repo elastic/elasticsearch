@@ -22,8 +22,10 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.collect.Lists;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -37,6 +39,9 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,10 +52,26 @@ import java.util.Set;
 //tests distribution disabled for now since it causes reporting problems,
 // due to the non unique suite name
 //@ReplicateOnEachVm
+@ClusterScope(randomDynamicTemplates = false)
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
+    /**
+     * Property that allows to control whether the REST tests need to be run (default) or not (false)
+     */
     public static final String REST_TESTS = "tests.rest";
+    /**
+     * Property that allows to control which REST tests get run. Supports comma separated list of tests
+     * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
+     */
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
+    /**
+     * Property that allows to blacklist some of the REST tests based on a comma separated list of globs
+     * e.g. -Dtests.rest.blacklist=get/10_basic/*
+     */
+    public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
+    /**
+     * Property that allows to control where the REST spec files need to be loaded from
+     */
     public static final String REST_TESTS_SPEC = "tests.rest.spec";
 
     private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
@@ -58,6 +79,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     private static final String PATHS_SEPARATOR = ",";
 
+    private final PathMatcher[] blacklistPathMatchers;
     private static RestTestExecutionContext restTestExecutionContext;
 
     //private static final int JVM_COUNT = systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_COUNT, 1);
@@ -67,6 +89,16 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     public ElasticsearchRestTests(@Name("yaml") RestTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
+        String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+        if (blacklist != null) {
+            blacklistPathMatchers = new PathMatcher[blacklist.length];
+            int i = 0;
+            for (String glob : blacklist) {
+                blacklistPathMatchers[i++] = FileSystems.getDefault().getPathMatcher("glob:" + glob);
+            }
+        } else {
+            blacklistPathMatchers = new PathMatcher[0];
+        }
     }
 
     @ParametersFactory
@@ -118,7 +150,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
         if (!Strings.hasLength(property)) {
-            return new String[]{defaultValue};
+            return defaultValue == null ? null : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
         }
@@ -143,12 +175,22 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void reset() throws IOException, RestException {
-        restTestExecutionContext.resetClient(immutableCluster().httpAddresses());
+        //skip test if it matches one of the blacklist globs
+        for (PathMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+            //we need to replace a few characters otherwise the test section name can't be parsed as a path on windows
+            String testSection = testCandidate.getTestSection().getName().replace("*", "").replace("\\", "/").replaceAll("\\s+/", "/").trim();
+            String testPath = testCandidate.getSuitePath() + "/" + testSection;
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
+        }
+
+        restTestExecutionContext.resetClient(cluster().httpAddresses());
         restTestExecutionContext.clear();
 
-        assumeFalse(buildSkipMessage(testCandidate.getSuiteDescription(), testCandidate.getSetupSection().getSkipSection()),
+        //skip test if the whole suite (yaml file) is disabled
+        assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getSetupSection().getSkipSection()),
                 testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        assumeFalse(buildSkipMessage(testCandidate.getDescription(), testCandidate.getTestSection().getSkipSection()),
+        //skip test if test section is disabled
+        assumeFalse(buildSkipMessage(testCandidate.getTestPath(), testCandidate.getTestSection().getSkipSection()),
                 testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
     }
 
@@ -162,20 +204,24 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         return messageBuilder.toString();
     }
 
+    @Override
+    protected boolean randomizeNumberOfShardsAndReplicas() {
+        return COMPATIBILITY_VERSION.onOrAfter(Version.V_1_2_0);
+    }
+
     @Test
     public void test() throws IOException {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
-            throw new IllegalArgumentException("No executable sections loaded for ["
-                    + testCandidate.getSuiteDescription() + "/" + testCandidate.getTestSection().getName() + "]");
+            throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         if (!testCandidate.getSetupSection().isEmpty()) {
-            logger.info("start setup test [{}: {}]", testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName());
+            logger.info("start setup test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
                 doSection.execute(restTestExecutionContext);
             }
-            logger.info("end setup test [{}: {}]", testCandidate.getSuiteDescription(), testCandidate.getTestSection().getName());
+            logger.info("end setup test [{}]", testCandidate.getTestPath());
         }
 
         restTestExecutionContext.clear();

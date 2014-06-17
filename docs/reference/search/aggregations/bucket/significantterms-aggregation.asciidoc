@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-significantterms-aggregation]]
-=== Significant Terms
+=== Significant Terms Aggregation
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
@@ -22,7 +22,7 @@ added[1.1.0]
 
 In all these cases the terms being selected are not simply the most popular terms in a set.
 They are the terms that have undergone a significant change in popularity measured between a _foreground_ and _background_ set.
-If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user's search results  
+If the term "H5N1" only exists in 5 documents in a 10 million document index and yet is found in 4 of the 100 documents that make up a user's search results
 that is significant and probably very relevant to their search. 5/10,000,000 vs 4/100 is a big swing in frequency.
 
 ==== Single-set analysis
@@ -70,15 +70,15 @@ Response:
 }
 --------------------------------------------------
 
-When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force 
-stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1% of crimes (66799/5064554) 
+When querying an index of all crimes from all police forces, what these results show is that the British Transport Police force
+stand out as a force dealing with a disproportionately large number of bicycle thefts. Ordinarily, bicycle thefts represent only 1% of crimes (66799/5064554)
 but for the British Transport Police, who handle crime on railways and stations, 7% of crimes (3640/47347) is
 a bike theft. This is a significant seven-fold increase in frequency and so this anomaly was highlighted as the top crime type.
 
 The problem with using a query to spot anomalies is it only gives us one subset to use for comparisons.
 To discover all the other police forces' anomalies we would have to repeat the query for each of the different forces.
 
-This can be a tedious way to look for unusual patterns in an index  
+This can be a tedious way to look for unusual patterns in an index
 
 
 
@@ -135,7 +135,7 @@ Response:
                 "doc_count": 47347,
                 "significantCrimeTypes": {
                     "doc_count": 47347,
-                    "buckets": [                        
+                    "buckets": [
                         {
                             "key": "Bicycle theft",
                             "doc_count": 3640,
@@ -163,7 +163,7 @@ area to identify unusual hot-spots of a particular crime type:
 {
     "aggs": {
         "hotspots": {
-            "geohash_grid" : { 
+            "geohash_grid" : {
                 "field":"location",
                 "precision":5,
             },
@@ -177,8 +177,8 @@ area to identify unusual hot-spots of a particular crime type:
 }
 --------------------------------------------------
 
-This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each 
-bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g. 
+This example uses the `geohash_grid` aggregation to create result buckets that represent geographic areas, and inside each
+bucket we can identify anomalous levels of a crime type in these tightly-focused areas e.g.
 
 * Airports exhibit unusual numbers of weapon confiscations
 * Universities show uplifts of bicycle thefts
@@ -188,16 +188,16 @@ tackling an unusual volume of a particular crime type.
 
 
 Obviously a time-based top-level segmentation would help identify current trends for each point in time
-where a simple `terms` aggregation would typically show the very popular "constants" that persist across all time slots. 
+where a simple `terms` aggregation would typically show the very popular "constants" that persist across all time slots.
 
 
 
 .How are the scores calculated?
 **********************************
-The numbers returned for scores are primarily intended for ranking different suggestions sensibly rather than something easily understood by end users. 
-The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favour 
+The numbers returned for scores are primarily intended for ranking different suggestions sensibly rather than something easily understood by end users.
+The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favour
 common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favour rare terms.
-Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall. 
+Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
 
 **********************************
 
@@ -207,15 +207,15 @@ Rare vs common is essentially a precision vs recall balance and so the absolute 
 The significant_terms aggregation can be used effectively on tokenized free-text fields to suggest:
 
 * keywords for refining end-user searches
-* keywords for use in percolator queries 
+* keywords for use in percolator queries
 
 WARNING: Picking a free-text field as the subject of a significant terms analysis can be expensive! It will attempt
-to load every unique word into RAM. It is recommended to only use this on smaller indices. 
+to load every unique word into RAM. It is recommended to only use this on smaller indices.
 
 .Use the _"like this but not this"_ pattern
 **********************************
 You can spot mis-categorized content by first searching a structured field e.g. `category:adultMovie` and use significant_terms on the
-free-text "movie_description" field. Take the suggested words (I'll leave them to your imagination) and then search for all movies NOT marked as category:adultMovie but containing these keywords. 
+free-text "movie_description" field. Take the suggested words (I'll leave them to your imagination) and then search for all movies NOT marked as category:adultMovie but containing these keywords.
 You now have a ranked list of badly-categorized movies that you should reclassify or at least remove from the "familyFriendly" category.
 
 The significance score from each term can also provide a useful `boost` setting to sort matches.
@@ -224,22 +224,28 @@ a high setting would have a small number of relevant results packed full of keyw
 
 **********************************
 
-[TIP] 
+[TIP]
 ============
 .Show significant_terms in context
 
-Free-text significant_terms are much more easily understood when viewed in context. Take the results of `significant_terms` suggestions from a 
+Free-text significant_terms are much more easily understood when viewed in context. Take the results of `significant_terms` suggestions from a
 free-text field and use them in a `terms` query on the same field with a `highlight` clause to present users with example snippets of documents. When the terms
 are presented unstemmed, highlighted, with the right case, in the right order and with some context, their significance/meaning is more readily apparent.
 ============
 
-==== Limitations
+==== Custom background sets
+added[1.2.0]
 
-===== Single _background_ comparison base
-The above examples show how to select the _foreground_ set for analysis using a query or parent aggregation to filter but currently there is no means of specifying
-a _background_ set other than the index from which all results are ultimately drawn. Sometimes it may prove useful to use a different
-background set as the basis for comparisons e.g. to first select the tweets for the TV show "XFactor" and then look
-for significant terms in a subset of that content which is from this week. 
+
+Ordinarily, the foreground set of documents is "diffed" against a background set of all the documents in your index.
+However, sometimes it may prove useful to use a narrower background set as the basis for comparisons. 
+For example, a query on documents relating to "Madrid" in an index with content from all over the world might reveal that "Spanish" 
+was a significant term. This may be true but if you want some more focused terms you could use a `background_filter` 
+on the term 'spain' to establish a narrower set of documents as context. With this as a background "Spanish" would now 
+be seen as commonplace and therefore not as significant as words like "capital" that relate more strongly with Madrid.  
+Note that using a background filter will slow things down - each term's background frequency must now be derived on-the-fly from filtering posting lists rather than reading the index's pre-computed count for a term.  
+
+==== Limitations
 
 ===== Significant terms must be indexed values
 Unlike the terms aggregation it is currently not possible to use script-generated terms for counting purposes.
@@ -250,20 +256,20 @@ Also DocValues are not supported as sources of term data for similar reasons.
 ===== No analysis of floating point fields
 Floating point fields are currently not supported as the subject of significant_terms analysis.
 While integer or long fields can be used to represent concepts like bank account numbers or category numbers which
-can be interesting to track, floating point fields are usually used to represent quantities of something. 
-As such, individual floating point terms are not useful for this form of frequency analysis. 
+can be interesting to track, floating point fields are usually used to represent quantities of something.
+As such, individual floating point terms are not useful for this form of frequency analysis.
 
 ===== Use as a parent aggregation
-If there is the equivalent of a `match_all` query or no query criteria providing a subset of the index the significant_terms aggregation should not be used as the 
+If there is the equivalent of a `match_all` query or no query criteria providing a subset of the index the significant_terms aggregation should not be used as the
 top-most aggregation - in this scenario the _foreground_ set is exactly the same as the _background_ set and
 so there is no difference in document frequencies to observe and from which to make sensible suggestions.
 
-Another consideration is that  the significant_terms aggregation produces many candidate results at shard level 
+Another consideration is that  the significant_terms aggregation produces many candidate results at shard level
 that are only later pruned on the reducing node once all statistics from all shards are merged. As a result,
-it can be inefficient and costly in terms of RAM to embed large child aggregations under a significant_terms 
+it can be inefficient and costly in terms of RAM to embed large child aggregations under a significant_terms
 aggregation that later discards many candidate terms. It is advisable in these cases to perform two searches - the first to provide a rationalized list of
-significant_terms and then add this shortlist of terms to a second query to go back and fetch the required child aggregations.  
- 
+significant_terms and then add this shortlist of terms to a second query to go back and fetch the required child aggregations.
+
 ===== Approximate counts
 The counts of how many documents contain a term provided in results are based on summing the samples returned from each shard and
 as such may be:
@@ -272,7 +278,7 @@ as such may be:
 * high when considering the background frequency as it may count occurrences found in deleted documents
 
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
-However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels. 
+However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels.
 
 ==== Parameters
 
@@ -284,17 +290,23 @@ default, the node coordinating the search process will request each shard to pro
 and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 If the number of unique terms is greater than `size`, the returned list can be slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
-size buckets was not returned).
+size buckets was not returned). 
+
+added[1.2.0] If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
-using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter 
+using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
 can be  used to control the volumes of candidate terms produced by each shard.
 
 Low-frequency terms can turn out to be the most interesting ones once all results are combined so the
 significant_terms aggregation can produce higher-quality results when the `shard_size` parameter is set to
 values significantly higher than the `size` setting. This ensures that a bigger volume of promising candidate terms are given
 a consolidated review by the reducing node before the final selection. Obviously large candidate term lists
-will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced. 
+will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter. 
+
+
+added[1.2.0] If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
+ 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
@@ -308,7 +320,7 @@ It is possible to only return terms that match more than a configured number of 
 {
     "aggs" : {
         "tags" : {
-            "significant_terms" : { 
+            "significant_terms" : {
                 "field" : "tag",
                 "min_doc_count": 10
             }
@@ -319,10 +331,56 @@ It is possible to only return terms that match more than a configured number of 
 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `3`.
 
+
+
+
+Terms that score highly will be collected on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global term frequencies available. The decision if a term is added to a candidate list depends only on the score computed on the shard using local shard frequencies, not the global frequencies of the word. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent but high scoring terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
+
+added[1.2.0] `shard_min_doc_count` parameter
+
+The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent words and you are not interested in these (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a resonable certainty not reach the required `min_doc_count` even after merging the local frequencies. `shard_min_doc_count` is set to `1` per default and has no effect unless you explicitly set it.
+
+
+
+
 WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to return terms that
          are typos or other bizarre curiosities. Finding more than one instance of a term helps
          reinforce that, while still rare, the term was not the result of a one-off accident. The
          default value of 3 is used to provide a minimum weight-of-evidence.
+         Setting `shard_min_doc_count` too high will cause significant candidate terms to be filtered out on a shard level. This value should be set much lower than `min_doc_count/#shards`.
+
+
+
+===== Custom background context
+
+The default source of statistical information for background term frequencies is the entire index and this
+scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
+context: 
+
+[source,js]
+--------------------------------------------------
+{
+    "query" : {
+        "match" : "madrid"
+    },
+    "aggs" : {
+        "tags" : {
+            "significant_terms" : { 
+                "field" : "tag",
+                "background_filter": {
+                	"term" : { "text" : "spain"}
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing 
+terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the 
+word "Spain".   
+
+WARNING: Use of background filters will slow the query as each term's postings must be filtered to determine a frequency
 
 
 ===== Filtering Values

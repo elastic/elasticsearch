@@ -1,6 +1,8 @@
 [[search-facets-range-facet]]
 === Range Facets
 
+include::deprecated.asciidoc[]
+
 `range` facet allows to specify a set of ranges and get both the number
 of docs (count) that fall within each range, and aggregated data either
 based on the field, or using another field. Here is a simple example:

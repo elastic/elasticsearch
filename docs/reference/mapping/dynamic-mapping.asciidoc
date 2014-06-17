@@ -1,7 +1,7 @@
 [[mapping-dynamic-mapping]]
 == Dynamic Mapping
 
-Default mappings allow to automatically apply generic mapping definitions
+Default mappings allow generic mapping definitions to be automatically applied
 to types that do not have mappings predefined. This is mainly done
 thanks to the fact that the
 <<mapping-object-type,object mapping>> and

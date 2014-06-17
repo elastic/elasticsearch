@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -382,6 +381,45 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     }
 
     @Test
+    public void testNotifyOnShutdown() throws Exception {
+        final CountDownLatch latch2 = new CountDownLatch(1);
+
+        serviceA.registerHandler("foobar", new BaseTransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public StringMessageRequest newInstance() {
+                return new StringMessageRequest();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) {
+
+                try {
+                    latch2.await();
+                    logger.info("Stop ServiceB now");
+                    serviceB.stop();
+                } catch (Exception e) {
+                    fail(e.getMessage());
+                }
+            }
+        });
+        TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "foobar",
+                new StringMessageRequest(""), options(), EmptyTransportResponseHandler.INSTANCE_SAME);
+        latch2.countDown();
+        try {
+            foobar.txGet();
+            fail("TransportException expected");
+        } catch (TransportException ex) {
+
+        }
+        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
+    }
+
+    @Test
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
         serviceA.registerHandler("sayHelloTimeoutNoResponse", new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -507,7 +545,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                    new StringMessageRequest(counter + "ms"), options().withTimeout(300), new BaseTransportResponseHandler<StringMessageResponse>() {
+                    new StringMessageRequest(counter + "ms"), options().withTimeout(3000), new BaseTransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse newInstance() {
                     return new StringMessageResponse();

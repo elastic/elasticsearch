@@ -88,7 +88,7 @@ public class DocIdSetCollector extends XCollector implements Releasable {
     }
 
     @Override
-    public void postCollection() {
+    public void postCollection() throws IOException {
         if (collector instanceof XCollector) {
             ((XCollector) collector).postCollection();
         }

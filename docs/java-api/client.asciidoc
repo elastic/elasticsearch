@@ -1,7 +1,7 @@
 [[client]]
 == Client
 
-You can use the *java client* in multiple ways:
+You can use the *Java client* in multiple ways:
 
 * Perform standard <<index_,index>>, <<get,get>>,
   <<delete,delete>> and <<search,search>> operations on an
@@ -13,9 +13,9 @@ You can use the *java client* in multiple ways:
 Obtaining an elasticsearch `Client` is simple. The most common way to
 get a client is by:
 
-1.  creating an embedded link:#nodeclient[`Node`] that acts as a node
-within a cluster
-2.  requesting a `Client` from your embedded `Node`.
+1.  Creating an embedded link:#nodeclient[`Node`] that acts as a node
+within a cluster.
+2.  Requesting a `Client` from your embedded `Node`.
 
 Another manner is by creating a link:#transport-client[`TransportClient`]
 that connects to a cluster.
@@ -24,7 +24,7 @@ that connects to a cluster.
 
 ______________________________________________________________________________________________________________________________________________________________
 Please note that you are encouraged to use the same version on client
-and cluster sides. You may hit some incompatibilities issues when mixing
+and cluster sides. You may hit some incompatibility issues when mixing
 major versions.
 ______________________________________________________________________________________________________________________________________________________________
 
@@ -50,12 +50,12 @@ node.close();
 --------------------------------------------------
 
 When you start a `Node`, it joins an elasticsearch cluster. You can have
-different clusters by simple setting the `cluster.name` setting, or
+different clusters by simply setting the `cluster.name` setting, or
 explicitly using the `clusterName` method on the builder.
 
-You can define `cluster.name` in `/src/main/resources/elasticsearch.yml`
+You can define `cluster.name` in the `/src/main/resources/elasticsearch.yml`
 dir in your project. As long as `elasticsearch.yml` is present in the
-classloader, it will be used when you start your node.
+classpath, it will be used when you start your node.
 
 [source,java]
 --------------------------------------------------
@@ -143,7 +143,7 @@ Client client = new TransportClient()
 client.close();
 --------------------------------------------------
 
-Note that you have to set the cluster name if you use one different to
+Note that you have to set the cluster name if you use one different than
 "elasticsearch":
 
 [source,java]
@@ -158,7 +158,7 @@ Or using `elasticsearch.yml` file as shown in the link:#nodeclient[Node
 Client section]
 
 The client allows to sniff the rest of the cluster, and add those into
-its list of machines to use. In this case, note that the ip addresses
+its list of machines to use. In this case, note that the IP addresses
 used will be the ones that the other nodes were started with (the
 "publish" address). In order to enable it, set the
 `client.transport.sniff` to `true`:

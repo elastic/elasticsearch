@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.fielddata.breaker;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,15 +37,17 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
 
     private long maximum;
     private long estimated;
+    private long trippedCount;
     private double overhead;
 
     FieldDataBreakerStats() {
 
     }
 
-    public FieldDataBreakerStats(long maximum, long estimated, double overhead) {
+    public FieldDataBreakerStats(long maximum, long estimated, double overhead, long trippedCount) {
         this.maximum = maximum;
         this.estimated = estimated;
+        this.trippedCount = trippedCount;
         this.overhead = overhead;
     }
 
@@ -54,6 +57,10 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
 
     public long getEstimated() {
         return this.estimated;
+    }
+
+    public long getTrippedCount() {
+        return this.trippedCount;
     }
 
     public double getOverhead() {
@@ -70,6 +77,11 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         maximum = in.readLong();
         estimated = in.readLong();
         overhead = in.readDouble();
+        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
+            this.trippedCount = in.readLong();
+        } else {
+            this.trippedCount = -1;
+        }
     }
 
     @Override
@@ -77,6 +89,9 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         out.writeLong(maximum);
         out.writeLong(estimated);
         out.writeDouble(overhead);
+        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
+            out.writeLong(trippedCount);
+        }
     }
 
     @Override
@@ -87,6 +102,7 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         builder.field(Fields.ESTIMATED, estimated);
         builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(estimated));
         builder.field(Fields.OVERHEAD, overhead);
+        builder.field(Fields.TRIPPED_COUNT, trippedCount);
         builder.endObject();
         return builder;
     }
@@ -98,5 +114,6 @@ public class FieldDataBreakerStats implements Streamable, ToXContent {
         static final XContentBuilderString ESTIMATED = new XContentBuilderString("estimated_size_in_bytes");
         static final XContentBuilderString ESTIMATED_HUMAN = new XContentBuilderString("estimated_size");
         static final XContentBuilderString OVERHEAD = new XContentBuilderString("overhead");
+        static final XContentBuilderString TRIPPED_COUNT = new XContentBuilderString("tripped");
     }
 }

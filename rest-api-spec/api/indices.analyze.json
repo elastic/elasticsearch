@@ -16,6 +16,10 @@
           "type" : "string",
           "description" : "The name of the analyzer to use"
         },
+        "char_filters": {
+          "type" : "list",
+          "description" : "A comma-separated list of character filters to use for the analysis"
+        },
         "field": {
           "type" : "string",
           "description" : "Use the analyzer configured for this field (instead of passing the analyzer name)"

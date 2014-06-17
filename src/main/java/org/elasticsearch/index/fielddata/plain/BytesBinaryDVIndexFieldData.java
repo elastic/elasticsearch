@@ -28,12 +28,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -49,14 +49,14 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
     }
 
     @Override
-    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         throw new ElasticsearchIllegalArgumentException("can't sort on binary field");
     }
 
     @Override
     public BytesBinaryDVAtomicFieldData load(AtomicReaderContext context) {
         try {
-            return new BytesBinaryDVAtomicFieldData(context.reader(), context.reader().getBinaryDocValues(fieldNames.indexName()));
+            return new BytesBinaryDVAtomicFieldData(context.reader().getBinaryDocValues(fieldNames.indexName()));
         } catch (IOException e) {
             throw new ElasticsearchIllegalStateException("Cannot load doc values", e);
         }

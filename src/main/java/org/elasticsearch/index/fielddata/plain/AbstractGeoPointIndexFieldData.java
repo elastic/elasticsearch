@@ -29,20 +29,14 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
 abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<AtomicGeoPointFieldData<ScriptDocValues>> implements IndexGeoPointFieldData<AtomicGeoPointFieldData<ScriptDocValues>> {
 
     protected static class Empty extends AtomicGeoPointFieldData<ScriptDocValues> {
-
-        private final int numDocs;
-
-        Empty(int numDocs) {
-            this.numDocs = numDocs;
-        }
 
         @Override
         public boolean isMultiValued() {
@@ -60,7 +54,7 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
         }
 
         @Override
-        public BytesValues getBytesValues(boolean needsHashes) {
+        public BytesValues getBytesValues() {
             return BytesValues.EMPTY;
         }
 
@@ -72,11 +66,6 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
         @Override
         public ScriptDocValues getScriptValues() {
             return ScriptDocValues.EMPTY_GEOPOINTS;
-        }
-
-        @Override
-        public int getNumDocs() {
-            return numDocs;
         }
 
         @Override
@@ -133,7 +122,7 @@ abstract class AbstractGeoPointIndexFieldData extends AbstractIndexFieldData<Ato
     }
 
     @Override
-    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode) {
         throw new ElasticsearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 

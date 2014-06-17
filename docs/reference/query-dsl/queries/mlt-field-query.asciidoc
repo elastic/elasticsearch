@@ -58,7 +58,8 @@ ignored. Defaults to `0`. (Old name "min_word_len" is deprecated)
 ignored. Defaults to unbounded (`0`). (Old name "max_word_len" is deprecated)
 
 |`boost_terms` |Sets the boost factor to use when boosting terms.
-Defaults to `1`.
+Defaults to deactivated (`0`). Any other value activates boosting with given
+boost factor.
 
 |`boost` |Sets the boost value of the query. Defaults to `1.0`.
 

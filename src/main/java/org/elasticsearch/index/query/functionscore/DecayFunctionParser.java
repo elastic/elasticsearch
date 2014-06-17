@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import com.sun.swing.internal.plaf.metal.resources.metal;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -31,6 +33,8 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.GeoPointValues;
@@ -45,9 +49,12 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * This class provides the basic functionality needed for adding a decay
@@ -92,6 +99,8 @@ import java.io.IOException;
 
 public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
+    public static final ParseField MULTI_VALUE_MODE = new ParseField("multi_value_mode");
+
     /**
      * Override this function if you want to produce your own scorer.
      * */
@@ -114,28 +123,34 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
      * */
     @Override
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
-        String currentFieldName = null;
+        String currentFieldName;
         XContentParser.Token token;
-        ScoreFunction scoreFunction = null;
-        token = parser.nextToken();
-        if (token == XContentParser.Token.FIELD_NAME) {
+        AbstractDistanceScoreFunction scoreFunction = null;
+        String multiValueMode = "MIN";
+        XContentBuilder variableContent = XContentFactory.jsonBuilder();
+        String fieldName = null;
+        while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME) {
             currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
-                // parse per field the origin and scale value
-                scoreFunction = parseVariable(currentFieldName, parser, parseContext);
+                variableContent.copyCurrentStructure(parser);
+                fieldName = currentFieldName;
+            } else if (MULTI_VALUE_MODE.match(currentFieldName)) {
+                multiValueMode = parser.text();
             } else {
                 throw new ElasticsearchParseException("Malformed score function score parameters.");
             }
-        } else {
+        }
+        if (fieldName == null) {
             throw new ElasticsearchParseException("Malformed score function score parameters.");
         }
-        parser.nextToken();
+        XContentParser variableParser = XContentFactory.xContent(variableContent.string()).createParser(variableContent.string());
+        scoreFunction = parseVariable(fieldName, variableParser, parseContext, MultiValueMode.fromString(multiValueMode.toUpperCase(Locale.ROOT)));
         return scoreFunction;
     }
 
     // parses origin and scale parameter for field "fieldName"
-    private ScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext) throws IOException {
+    private AbstractDistanceScoreFunction parseVariable(String fieldName, XContentParser parser, QueryParseContext parseContext, MultiValueMode mode) throws IOException {
 
         // now, the field must exist, else we cannot read the value for
         // the doc later
@@ -146,20 +161,21 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         FieldMapper<?> mapper = smartMappers.fieldMappers().mapper();
         // dates and time need special handling
+        parser.nextToken();
         if (mapper instanceof DateFieldMapper) {
-            return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper);
+            return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper) mapper, mode);
         } else if (mapper instanceof GeoPointFieldMapper) {
-            return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper) mapper);
+            return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper) mapper, mode);
         } else if (mapper instanceof NumberFieldMapper<?>) {
-            return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper);
+            return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper<?>) mapper, mode);
         } else {
             throw new QueryParsingException(parseContext.index(), "Field " + fieldName + " is of type " + mapper.fieldType()
                     + ", but only numeric types are supported.");
         }
     }
 
-    private ScoreFunction parseNumberVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            NumberFieldMapper<?> mapper) throws IOException {
+    private AbstractDistanceScoreFunction parseNumberVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
+            NumberFieldMapper<?> mapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         double scale = 0;
@@ -190,11 +206,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
                     + " must be set for numeric fields.");
         }
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
+        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
-    private ScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            GeoPointFieldMapper mapper) throws IOException {
+    private AbstractDistanceScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
+            GeoPointFieldMapper mapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();
@@ -222,12 +238,12 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
         IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
-        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData);
+        return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
 
     }
 
-    private ScoreFunction parseDateVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            DateFieldMapper dateFieldMapper) throws IOException {
+    private AbstractDistanceScoreFunction parseDateVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
+            DateFieldMapper dateFieldMapper, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         String scaleString = null;
@@ -262,7 +278,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24));
         double offset = val.getMillis();
         IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(dateFieldMapper);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData);
+        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
     static class GeoFieldDataScoreFunction extends AbstractDistanceScoreFunction {
@@ -274,8 +290,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private static final GeoDistance distFunction = GeoDistance.DEFAULT;
 
         public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
-                IndexGeoPointFieldData<?> fieldData) {
-            super(scale, decay, offset, func);
+                IndexGeoPointFieldData<?> fieldData, MultiValueMode mode) {
+            super(scale, decay, offset, func, mode);
             this.origin = origin;
             this.fieldData = fieldData;
         }
@@ -285,28 +301,41 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             geoPointValues = fieldData.load(context).getGeoPointValues();
         }
 
-        private final GeoPoint getValue(int doc, GeoPoint missing) {
-            final int num = geoPointValues.setDocument(doc);
-            for (int i = 0; i < num; i++) {
-                return geoPointValues.nextValue();
-            }
-            return missing;
-        }
-
         @Override
         protected double distance(int docId) {
-            GeoPoint other = getValue(docId, origin);
-            double distance = Math.abs(distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
-                    DistanceUnit.METERS)) - offset;
-            return Math.max(0.0d, distance);
+            final int num = geoPointValues.setDocument(docId);
+            if (num > 0) {
+                double value = mode.startDouble();
+                for (int i = 0; i < num; i++) {
+                    GeoPoint other = geoPointValues.nextValue();
+                    value = mode.apply(Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
+                            DistanceUnit.METERS) - offset), value);
+                }
+                return mode.reduce(value, num);
+            } else {
+                return 0.0;
+            }
         }
 
         @Override
         protected String getDistanceString(int docId) {
-            final GeoPoint other = getValue(docId, origin);
-            return "arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
-                    + "(=offset) < 0.0 ? 0.0: arcDistance(" + other + "(=doc value), " + origin + "(=origin)) - " + offset
-                    + "(=offset)";
+            StringBuilder values = new StringBuilder(mode.name());
+            values.append(" of: [");
+            final int num = geoPointValues.setDocument(docId);
+            if (num > 0) {
+                for (int i = 0; i < num; i++) {
+                    GeoPoint value = geoPointValues.nextValue();
+                    values.append("Math.max(arcDistance(");
+                    values.append(value).append("(=doc value),").append(origin).append("(=origin)) - ").append(offset).append("(=offset), 0)");
+                    if (i != num - 1) {
+                        values.append(", ");
+                    }
+                }
+            } else {
+                values.append("0.0");
+            }
+            values.append("]");
+            return values.toString();
         }
 
         @Override
@@ -322,8 +351,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private DoubleValues doubleValues;
 
         public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
-                IndexNumericFieldData<?> fieldData) {
-            super(scale, decay, offset, func);
+                IndexNumericFieldData<?> fieldData, MultiValueMode mode) {
+            super(scale, decay, offset, func, mode);
             this.fieldData = fieldData;
             this.origin = origin;
         }
@@ -332,25 +361,42 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
         }
 
-        private final double getValue(int doc, double missing) {
-            final int num = doubleValues.setDocument(doc);
-            for (int i = 0; i < num; i++) {
-                return doubleValues.nextValue();
-            }
-            return missing;
-        }
-
         @Override
         protected double distance(int docId) {
-            double distance = Math.abs(getValue(docId, origin) - origin) - offset;
-            return Math.max(0.0d, distance);
+            final int num = doubleValues.setDocument(docId);
+            if (num > 0) {
+                double value = mode.startDouble();
+                for (int i = 0; i < num; i++) {
+                    final double other = doubleValues.nextValue();
+                    value = mode.apply(Math.max(0.0d, Math.abs(other - origin) - offset), value);
+                }
+                return mode.reduce(value, num);
+            } else {
+                return 0.0;
+            }
         }
 
         @Override
         protected String getDistanceString(int docId) {
-            return "Math.abs(" + getValue(docId, origin) + "(=doc value) - " + origin + "(=origin)) - "
-                    + offset + "(=offset) < 0.0 ? 0.0: Math.abs(" + getValue(docId, origin) + "(=doc value) - "
-                    + origin + ") - " + offset + "(=offset)";
+
+            StringBuilder values = new StringBuilder(mode.name());
+            values.append(" of: [");
+            final int num = doubleValues.setDocument(docId);
+            if (num > 0) {
+                for (int i = 0; i < num; i++) {
+                    double value = doubleValues.nextValue();
+                    values.append("Math.max(Math.abs(");
+                    values.append(value).append("(=doc value) - ").append(origin).append("(=origin))) - ").append(offset).append("(=offset), 0)");
+                    if (i != num - 1) {
+                        values.append(", ");
+                    }
+                }
+            } else {
+                values.append("0.0");
+            }
+            values.append("]");
+            return values.toString();
+
         }
 
         @Override
@@ -368,9 +414,11 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         private final double scale;
         protected final double offset;
         private final DecayFunction func;
+        protected final MultiValueMode mode;
 
-        public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func) {
+        public AbstractDistanceScoreFunction(double userSuppiedScale, double decay, double offset, DecayFunction func, MultiValueMode mode) {
             super(CombineFunction.MULT);
+            this.mode = mode;
             if (userSuppiedScale <= 0.0) {
                 throw new ElasticsearchIllegalArgumentException(FunctionScoreQueryParser.NAME + " : scale must be > 0.0.");
             }
@@ -413,7 +461,6 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
             return ce;
         }
-
     }
 
 }

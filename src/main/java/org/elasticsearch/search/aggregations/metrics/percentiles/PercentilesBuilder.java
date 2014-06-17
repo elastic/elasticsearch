@@ -29,7 +29,7 @@ import java.io.IOException;
 public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<PercentilesBuilder> {
 
     private double[] percentiles;
-    private Percentiles.Estimator estimator;
+    private Double compression;
 
     public PercentilesBuilder(String name) {
         super(name, InternalPercentiles.TYPE.name());
@@ -46,8 +46,8 @@ public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<Pe
         return this;
     }
 
-    public PercentilesBuilder estimator(Percentiles.Estimator estimator) {
-        this.estimator = estimator;
+    public PercentilesBuilder compression(double compression) {
+        this.compression = compression;
         return this;
     }
 
@@ -59,9 +59,8 @@ public class PercentilesBuilder extends ValuesSourceMetricsAggregationBuilder<Pe
             builder.field("percents", percentiles);
         }
 
-        if (estimator != null) {
-            builder.field("estimator", estimator.type());
-            estimator.paramsToXContent(builder);
+        if (compression != null) {
+            builder.field("compression", compression);
         }
     }
 }

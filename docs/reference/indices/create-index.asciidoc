@@ -18,10 +18,12 @@ $ curl -XPUT 'http://localhost:9200/twitter/'
 
 $ curl -XPUT 'http://localhost:9200/twitter/' -d '
 index :
-    number_of_shards : 3
-    number_of_replicas : 2
+    number_of_shards : 3 <1>
+    number_of_replicas : 2 <2>
 '
 --------------------------------------------------
+<1> Default for `number_of_shards` is 5
+<2> Default for `number_of_replicas` is 1 (ie one replica for each primary shard)
 
 The above second curl example shows how an index called `twitter` can be
 created with specific settings for it using http://www.yaml.org[YAML].

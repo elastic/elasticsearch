@@ -35,11 +35,13 @@ import java.util.Map;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
  * Full integration test of the template query plugin.
- * */
+ */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
@@ -55,8 +57,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        String scriptPath = this.getClass().getResource("config").getPath();
-        return settingsBuilder().put("path.conf", scriptPath).build();
+        return settingsBuilder().put("path.conf", this.getResource("config").getPath()).build();
     }
 
     @Test
@@ -69,6 +70,42 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
+    }
+
+    @Test
+    public void testTemplateInBodyWithSize() throws IOException {
+        String request = "{\n" +
+                "    \"size\":0," +
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }\n" +
+                "}";
+        SearchResponse sr = client().prepareSearch().setSource(request)
+                .execute().actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
+        request = "{\n" +
+                "    \"query\": {\n" +
+                "        \"template\": {\n" +
+                "            \"query\": {\"match_{{template}}\": {}},\n" +
+                "            \"params\" : {\n" +
+                "                \"template\" : \"all\"\n" +
+                "            }\n" +
+                "        }\n" +
+                "    },\n" +
+                "    \"size\":0" +
+                "}";
+
+        sr = client().prepareSearch().setSource(request)
+                .execute().actionGet();
+        assertNoFailures(sr);
+        assertThat(sr.getHits().hits().length, equalTo(0));
+
     }
 
     @Test
@@ -129,6 +166,28 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertHitCount(searchResponse, 2);
+    }
+
+    @Test
+    // Releates to #6318
+    public void testSearchRequestFail() throws Exception {
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices("_all");
+        try {
+            String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  } }";
+            BytesReference bytesRef = new BytesArray(query);
+            searchRequest.templateSource(bytesRef, false);
+            client().search(searchRequest).get();
+            fail("expected exception");
+        } catch (Throwable ex) {
+            // expected - no params
+        }
+        String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }, \"params\" : { \"my_size\": 1 } }";
+        BytesReference bytesRef = new BytesArray(query);
+        searchRequest.templateSource(bytesRef, false);
+
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
 
     @Test

@@ -23,18 +23,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.DoubleObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -87,6 +83,15 @@ public class DoubleTerms extends InternalTerms {
             return Double.compare(term, other.getKeyAsNumber().doubleValue());
         }
 
+        @Override
+        Object getKeyAsObject() {
+            return getKeyAsNumber();
+        }
+
+        @Override
+        Bucket newBucket(long docCount, InternalAggregations aggs) {
+            return new Bucket(term, docCount, aggs);
+        }
     }
 
     private @Nullable ValueFormatter formatter;
@@ -104,59 +109,8 @@ public class DoubleTerms extends InternalTerms {
     }
 
     @Override
-    public InternalTerms reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            InternalTerms terms = (InternalTerms) aggregations.get(0);
-            terms.trimExcessEntries(reduceContext.bigArrays());
-            return terms;
-        }
-        InternalTerms reduced = null;
-
-        DoubleObjectPagedHashMap<List<Bucket>> buckets = null;
-        for (InternalAggregation aggregation : aggregations) {
-            InternalTerms terms = (InternalTerms) aggregation;
-            if (terms instanceof UnmappedTerms) {
-                continue;
-            }
-            if (reduced == null) {
-                reduced = terms;
-            }
-            if (buckets == null) {
-                buckets = new DoubleObjectPagedHashMap<>(terms.buckets.size(), reduceContext.bigArrays());
-            }
-            for (Terms.Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(((Bucket) bucket).term);
-                if (existingBuckets == null) {
-                    existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(((Bucket) bucket).term, existingBuckets);
-                }
-                existingBuckets.add((Bucket) bucket);
-            }
-        }
-
-        if (reduced == null) {
-            // there are only unmapped terms, so we just return the first one (no need to reduce)
-            return (UnmappedTerms) aggregations.get(0);
-        }
-
-        // TODO: would it be better to sort the backing array buffer of hppc map directly instead of using a PQ?
-        final int size = (int) Math.min(requiredSize, buckets.size());
-        BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        for (DoubleObjectPagedHashMap.Cursor<List<DoubleTerms.Bucket>> cursor : buckets) {
-            List<DoubleTerms.Bucket> sameTermBuckets = cursor.value;
-            final InternalTerms.Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext.bigArrays());
-            if (b.getDocCount() >= minDocCount) {
-                ordered.insertWithOverflow(b);
-            }
-        }
-        buckets.close();
-        InternalTerms.Bucket[] list = new InternalTerms.Bucket[ordered.size()];
-        for (int i = ordered.size() - 1; i >= 0; i--) {
-            list[i] = (Bucket) ordered.pop();
-        }
-        reduced.buckets = Arrays.asList(list);
-        return reduced;
+    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets) {
+        return new DoubleTerms(name, order, formatter, requiredSize, minDocCount, buckets);
     }
 
     @Override

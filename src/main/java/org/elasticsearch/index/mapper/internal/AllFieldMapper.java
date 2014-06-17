@@ -174,7 +174,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (!autoBoost) {
             return new TermQuery(term);
         }
-        if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) {
+        if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0) {
             return new AllTermQuery(term);
         }
         return new TermQuery(term);
@@ -197,10 +197,6 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public void parse(ParseContext context) throws IOException {
         // we parse in post parse
-    }
-
-    @Override
-    public void validate(ParseContext context) throws MapperParsingException {
     }
 
     @Override

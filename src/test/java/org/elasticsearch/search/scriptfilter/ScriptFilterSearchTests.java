@@ -124,7 +124,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(3));
+        assertThat(scriptCounter.get(), equalTo(internalCluster().hasFilterCache() ? 3 : 1));
 
         scriptCounter.set(0);
         logger.info("running script filter the second time");
@@ -133,7 +133,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(0));
+        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 0 : 1));
 
         scriptCounter.set(0);
         logger.info("running script filter with new parameters");
@@ -142,7 +142,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(3));
+        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 3 : 1));
 
         scriptCounter.set(0);
         logger.info("running script filter with same parameters");
@@ -151,6 +151,6 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(scriptCounter.get(), equalTo(0));
+        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 0 : 3));
     }
 }

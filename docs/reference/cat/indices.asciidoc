@@ -1,5 +1,5 @@
 [[cat-indices]]
-== Indices
+== cat indices
 
 The `indices` command provides a cross-section of each index.  This
 information *spans nodes*.

@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  */
@@ -161,5 +162,27 @@ public class FetchSourceContext implements Streamable {
         out.writeBoolean(fetchSource);
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        FetchSourceContext that = (FetchSourceContext) o;
+
+        if (fetchSource != that.fetchSource) return false;
+        if (!Arrays.equals(excludes, that.excludes)) return false;
+        if (!Arrays.equals(includes, that.includes)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (fetchSource ? 1 : 0);
+        result = 31 * result + (includes != null ? Arrays.hashCode(includes) : 0);
+        result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
+        return result;
     }
 }

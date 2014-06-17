@@ -25,12 +25,13 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import static org.hamcrest.Matchers.*;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-
 import org.junit.Test;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numNodes=1)
+import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.*;
+import static org.hamcrest.Matchers.equalTo;
+
+@ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class BulkIntegrationTests  extends ElasticsearchIntegrationTest{
 
     @Test

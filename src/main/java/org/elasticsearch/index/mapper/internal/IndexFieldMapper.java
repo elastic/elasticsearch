@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.XStringField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -135,7 +136,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     @Override
     public FieldDataType defaultFieldDataType() {
-        return new FieldDataType("string");
+        return new FieldDataType(IndexFieldMapper.NAME);
     }
 
     @Override
@@ -172,10 +173,6 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     @Override
-    public void validate(ParseContext context) throws MapperParsingException {
-    }
-
-    @Override
     public boolean includeInObject() {
         return false;
     }
@@ -185,7 +182,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         if (!enabledState.enabled) {
             return;
         }
-        fields.add(new Field(names.indexName(), context.index(), fieldType));
+        fields.add(new XStringField(names.indexName(), context.index(), fieldType));
     }
 
     @Override
@@ -228,4 +225,5 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             }
         }
     }
+
 }

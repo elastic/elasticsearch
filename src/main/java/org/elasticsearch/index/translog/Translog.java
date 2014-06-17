@@ -363,7 +363,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 this.versionType = VersionType.fromValue(in.readByte());
             }
 
-            assert versionType.validateVersion(version);
+            assert versionType.validateVersionForWrites(version);
         }
 
         @Override
@@ -506,7 +506,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 this.versionType = VersionType.fromValue(in.readByte());
             }
 
-            assert versionType.validateVersion(version);
+            assert versionType.validateVersionForWrites(version);
         }
 
         @Override
@@ -591,7 +591,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
             if (version >= 2) {
                 this.versionType = VersionType.fromValue(in.readByte());
             }
-            assert versionType.validateVersion(version);
+            assert versionType.validateVersionForWrites(version);
 
         }
 

@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-terms-aggregation]]
-=== Terms
+=== Terms Aggregation
 
 A multi-bucket value source based aggregation where buckets are dynamically built - one per unique value.
 
@@ -50,17 +50,19 @@ default, the node coordinating the search process will request each shard to pro
 and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 This means that if the number of unique terms is greater than `size`, the returned list is slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
-size buckets was not returned).
+size buckets was not returned). If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
+
 
 The higher the requested `size` is, the more accurate the results will be, but also, the more expensive it will be to
 compute the final results (both due to bigger priority queues that are managed on a shard level and due to bigger data
-transfers between the nodes and the client).
+transfers between the nodes and the client). 
 
 The `shard_size` parameter can be  used to minimize the extra work that comes with bigger requested `size`. When defined,
 it will determine how many terms the coordinating node will request from each shard. Once all the shards responded, the
 coordinating node will then reduce them to a final result which will be based on the `size` parameter - this way,
 one can increase the accuracy of the returned terms and avoid the overhead of streaming a big list of buckets back to
-the client.
+the client. If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
+
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
@@ -80,7 +82,7 @@ Ordering the buckets by their `doc_count` in an ascending manner:
 {
     "aggs" : {
         "genders" : {
-            "terms" : { 
+            "terms" : {
                 "field" : "gender",
                 "order" : { "_count" : "asc" }
             }
@@ -96,7 +98,7 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
 {
     "aggs" : {
         "genders" : {
-            "terms" : { 
+            "terms" : {
                 "field" : "gender",
                 "order" : { "_term" : "asc" }
             }
@@ -113,7 +115,7 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
 {
     "aggs" : {
         "genders" : {
-            "terms" : { 
+            "terms" : {
                 "field" : "gender",
                 "order" : { "avg_height" : "desc" }
             },
@@ -132,7 +134,7 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 {
     "aggs" : {
         "genders" : {
-            "terms" : { 
+            "terms" : {
                 "field" : "gender",
                 "order" : { "height_stats.avg" : "desc" }
             },
@@ -184,7 +186,7 @@ PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR
 
 The above will sort the countries buckets based on the average height among the female population.
 
-==== Minimum document count
+==== Minimum document count 
 
 It is possible to only return terms that match more than a configured number of hits using the `min_doc_count` option:
 
@@ -193,7 +195,7 @@ It is possible to only return terms that match more than a configured number of 
 {
     "aggs" : {
         "tags" : {
-            "terms" : { 
+            "terms" : {
                 "field" : "tag",
                 "min_doc_count": 10
             }
@@ -204,6 +206,15 @@ It is possible to only return terms that match more than a configured number of 
 
 The above aggregation would only return tags which have been found in 10 hits or more. Default value is `1`.
 
+
+Terms are collected and ordered on a shard level and merged with the terms collected from other shards in a second step. However, the shard does not have the information about the global document count available. The decision if a term is added to a candidate list depends only on the order computed on the shard using local shard frequencies. The `min_doc_count` criterion is only applied after merging local terms statistics of all shards. In a way the decision to add the term as a candidate is made without being very _certain_ about if the term will actually reach the required `min_doc_count`. This might cause many (globally) high frequent terms to be missing in the final result if low frequent terms populated the candidate lists. To avoid this, the `shard_size` parameter can be increased to allow more candidate terms on the shards. However, this increases memory consumption and network traffic.
+
+added[1.2.0] `shard_min_doc_count` parameter
+
+The parameter `shard_min_doc_count` regulates the _certainty_ a shard has if the term should actually be added to the candidate list or not with respect to the `min_doc_count`. Terms will only be considered if their local shard frequency within the set is higher than the `shard_min_doc_count`. If your dictionary contains many low frequent terms and you are not interested in those (for example misspellings), then you can set the `shard_min_doc_count` parameter to filter out candidate terms on a shard level that will with a resonable certainty not reach the required `min_doc_count` even after merging the local counts. `shard_min_doc_count` is set to `0` per default and has no effect unless you explicitly set it.
+
+
+
 NOTE:    Setting `min_doc_count`=`0` will also return buckets for terms that didn't match any hit. However, some of
          the returned terms which have a document count of zero might only belong to deleted documents, so there is
          no warranty that a `match_all` query would find a positive document count for those terms.
@@ -211,6 +222,7 @@ NOTE:    Setting `min_doc_count`=`0` will also return buckets for terms that did
 WARNING: When NOT sorting on `doc_count` descending, high values of `min_doc_count` may return a number of buckets
          which is less than `size` because not enough data was gathered from the shards. Missing buckets can be
          back by increasing `shard_size`.
+         Setting `shard_min_doc_count` too high will cause terms to be filtered out on a shard level. This value should be set much lower than `min_doc_count/#shards`.
 
 ==== Script
 
@@ -221,7 +233,7 @@ Generating the terms using a script:
 {
     "aggs" : {
         "genders" : {
-            "terms" : { 
+            "terms" : {
                 "script" : "doc['gender'].value"
             }
         }
@@ -236,7 +248,7 @@ Generating the terms using a script:
 {
     "aggs" : {
         "genders" : {
-            "terms" : { 
+            "terms" : {
                 "field" : "gender",
                 "script" : "'Gender: ' +_value"
             }
@@ -308,9 +320,82 @@ http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CA
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNICODE_CHARACTER_CLASS[`UNICODE_CHARACTER_CLASS`] and
 http://docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html#UNIX_LINES[`UNIX_LINES`]
 
+==== Collect mode
+
+coming[1.3.0] Deferring calculation of child aggregations
+
+For fields with many unique terms and a small number of required results it can be more efficient to delay the calculation
+of child aggregations until the top parent-level aggs have been pruned. Ordinarily, all branches of the aggregation tree
+are expanded in one depth-first pass and only then any pruning occurs. In some rare scenarios this can be very wasteful and can hit memory constraints.
+An example problem scenario is querying a movie database for the 10 most popular actors and their 5 most common co-stars: 
+
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "actors" : {
+             "terms" : {
+                 "field" : "actors",
+                 "size" : 10
+             },
+            "aggs" : {
+                "costars" : {
+                     "terms" : {
+                         "field" : "actors",
+                         "size" : 5
+                     }
+                 }
+            }
+         }
+    }
+}
+--------------------------------------------------
+
+Even though the number of movies may be comparatively small and we want only 50 result buckets there is a combinatorial explosion of buckets 
+during calculation - a single movie will produce n² buckets where n is the number of actors. The sane option would be to first determine 
+the 10 most popular actors and only then examine the top co-stars for these 10 actors. This alternative strategy is what we call the `breadth_first` collection
+mode as opposed to the default `depth_first` mode:
+ 
+[source,js]
+--------------------------------------------------
+{
+    "aggs" : {
+        "actors" : {
+             "terms" : {
+                 "field" : "actors",
+                 "size" : 10,
+                 "collect_mode" : "breadth_first"
+             },
+            "aggs" : {
+                "costars" : {
+                     "terms" : {
+                         "field" : "actors",
+                         "size" : 5
+                     }
+                 }
+            }
+         }
+    }
+}
+--------------------------------------------------
+
+
+When using `breadth_first` mode the set of documents that fall into the uppermost buckets are
+cached for subsequent replay so there is a memory overhead in doing this which is linear with the number of matching documents. 
+In most requests the volume of buckets generated is smaller than the number of documents that fall into them so the default `depth_first`
+collection mode is normally the best bet but occasionally the `breadth_first` strategy can be significantly more efficient. Currently 
+elasticsearch will always use the `depth_first` collect_mode unless explicitly instructed to use `breadth_first` as in the above example.
+Note that the `order` parameter can still be used to refer to data from a child aggregation when using the `breadth_first` setting - the parent
+aggregation understands that this child aggregation will need to be called first before any of the other child aggregations.
+
+WARNING: It is not possible to nest aggregations such as `top_hits` which require access to match score information under an aggregation that uses
+the `breadth_first` collection mode. This is because this would require a RAM buffer to hold the float score value for every document and
+this would typically be too costly in terms of RAM. 
+
+
 ==== Execution hint
 
-coming[1.2.0] The `global_ordinals` execution mode
+added[1.2.0] The `global_ordinals` execution mode
 
 There are three mechanisms by which terms aggregations can be executed: either by using field values directly in order to aggregate
 data per-bucket (`map`), by using ordinals of the field values instead of the values themselves (`ordinals`) or by using global

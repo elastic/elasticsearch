@@ -25,7 +25,10 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.index.FilterAtomicReader.FilterTerms;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.IOContext.Context;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.InputStreamDataInput;
+import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -54,6 +57,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
     public static final String CODEC_NAME = "completion090";
     public static final int SUGGEST_CODEC_VERSION = 1;
+    public static final int SUGGEST_VERSION_CURRENT = SUGGEST_CODEC_VERSION;
     public static final String EXTENSION = "cmp";
 
     private final static ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
@@ -110,7 +114,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
             boolean success = false;
             try {
                 output = state.directory.createOutput(suggestFSTFile, state.context);
-                CodecUtil.writeHeader(output, CODEC_NAME, SUGGEST_CODEC_VERSION);
+                CodecUtil.writeHeader(output, CODEC_NAME, SUGGEST_VERSION_CURRENT);
                 /*
                  * we write the delegate postings format name so we can load it
                  * without getting an instance in the ctor
@@ -206,11 +210,12 @@ public class Completion090PostingsFormat extends PostingsFormat {
 
         private final FieldsProducer delegateProducer;
         private final LookupFactory lookupFactory;
+        private final int version;
 
         public CompletionFieldsProducer(SegmentReadState state) throws IOException {
             String suggestFSTFile = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, EXTENSION);
             IndexInput input = state.directory.openInput(suggestFSTFile, state.context);
-            CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_CODEC_VERSION);
+            version = CodecUtil.checkHeader(input, CODEC_NAME, SUGGEST_CODEC_VERSION, SUGGEST_VERSION_CURRENT);
             FieldsProducer delegateProducer = null;
             boolean success = false;
             try {
@@ -272,6 +277,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
         @Override
         public long ramBytesUsed() {
             return (lookupFactory == null ? 0 : lookupFactory.ramBytesUsed()) + delegateProducer.ramBytesUsed();
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            delegateProducer.checkIntegrity();
         }
     }
 

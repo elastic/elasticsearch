@@ -35,7 +35,9 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisFieldQueryBuilder;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -91,7 +94,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
-        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
+        final String concreteIndex = clusterState.metaData().concreteSingleIndex(request.index());
 
         Iterable<MutableShardRouting> routingNode = clusterState.getRoutingNodes().routingNodeIter(clusterService.localNode().getId());
         if (routingNode == null) {
@@ -178,9 +181,11 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                     }
 
                     // exclude myself
-                    Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
-                    boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
-                    boolBuilder.adjustPureNegative(false);
+                    if (!request.include()) {
+                        Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
+                        boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
+                        boolBuilder.adjustPureNegative(false);
+                    }
                 } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
@@ -194,22 +199,25 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 if (searchTypes == null) {
                     searchTypes = new String[]{request.type()};
                 }
-                int size = request.searchSize() != 0 ? request.searchSize() : 10;
-                int from = request.searchFrom() != 0 ? request.searchFrom() : 0;
                 SearchRequest searchRequest = searchRequest(searchIndices)
                         .types(searchTypes)
                         .searchType(request.searchType())
                         .scroll(request.searchScroll())
-                        .extraSource(searchSource()
-                                .query(boolBuilder)
-                                .from(from)
-                                .size(size)
-                        )
                         .listenerThreaded(request.listenerThreaded());
+
+                SearchSourceBuilder extraSource = searchSource().query(boolBuilder);
+                if (request.searchFrom() != 0) {
+                    extraSource.from(request.searchFrom());
+                }
+                if (request.searchSize() != 0) {
+                    extraSource.size(request.searchSize());
+                }
+                searchRequest.extraSource(extraSource);
 
                 if (request.searchSource() != null) {
                     searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
                 }
+
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse response) {
@@ -234,7 +242,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     // Redirects the request to a data node, that has the index meta data locally available.
     private void redirect(MoreLikeThisRequest request, String concreteIndex, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
         ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, concreteIndex, request.type(), request.id(), request.routing(), null);
-        ShardRouting shardRouting = shardIterator.firstOrNull();
+        ShardRouting shardRouting = shardIterator.nextOrNull();
         if (shardRouting == null) {
             throw new ElasticsearchException("No shards for index " + request.index());
         }

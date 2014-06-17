@@ -21,7 +21,7 @@ package org.elasticsearch.nested;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -46,7 +46,6 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.TestCluster.DEFAULT_MAX_NUM_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -99,9 +98,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
 
         // check the numDocs
-        IndicesStatusResponse statusResponse = admin().indices().prepareStatus().get();
-        assertNoFailures(statusResponse);
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
+        assertDocumentCount("test", 3);
 
         // check that _all is working on nested docs
         searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
@@ -142,8 +139,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();
-        statusResponse = client().admin().indices().prepareStatus().get();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
+        assertDocumentCount("test", 6);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
@@ -168,8 +164,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();
-        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
+        assertDocumentCount("test", 3);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
@@ -221,14 +216,12 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
 
         flush();
-        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total * 3l));
+        assertDocumentCount("test", total * 3);
 
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
         flush();
         refresh();
-        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total * 3l) - 3));
+        assertDocumentCount("test", (total * 3l) - 3);
 
         for (int i = 0; i < total; i++) {
             assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
@@ -273,14 +266,12 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         flush();
         refresh();
 
-        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total));
+        assertDocumentCount("test", total);
 
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
         flush();
         refresh();
-        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total) - 1));
+        assertDocumentCount("test", total-1);
 
         for (int i = 0; i < total; i++) {
             assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
@@ -313,8 +304,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(getResponse.isExists(), equalTo(true));
         waitForRelocation(ClusterHealthStatus.GREEN);
         // check the numDocs
-        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(7l));
+        assertDocumentCount("test", 7);
 
         // do some multi nested queries
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
@@ -543,17 +533,15 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         flush();
         refresh();
-        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
+        assertDocumentCount("test", 6);
 
         client().prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         flush();
         refresh();
-        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
 
         // This must be 3, otherwise child docs aren't deleted.
         // If this is 5 then only the parent has been removed
-        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
+        assertDocumentCount("test", 3);
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
     }
 
@@ -779,6 +767,14 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("field1")
+                                    .field("type", "long")
+                                .endObject()
+                                .startObject("field2")
+                                    .field("type", "boolean")
+                                .endObject()
+                            .endObject()
                         .endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
@@ -1217,5 +1213,15 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
     }
+
+    /**
+     */
+    private void assertDocumentCount(String index, long numdocs) {
+        IndicesStatsResponse stats = admin().indices().prepareStats(index).clear().setDocs(true).get();
+        assertNoFailures(stats);
+        assertThat(stats.getIndex(index).getPrimaries().docs.getCount(), is(numdocs));
+
+    }
+
 
 }

@@ -23,16 +23,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
 *
 */
-public class InternalMin extends MetricsAggregation.SingleValue implements Min {
+public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
 
     public final static Type TYPE = new Type("min");
 
@@ -75,22 +74,11 @@ public class InternalMin extends MetricsAggregation.SingleValue implements Min {
 
     @Override
     public InternalMin reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
-        if (aggregations.size() == 1) {
-            return (InternalMin) aggregations.get(0);
+        double min = Double.POSITIVE_INFINITY;
+        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+            min = Math.min(min, ((InternalMin) aggregation).min);
         }
-        InternalMin reduced = null;
-        for (InternalAggregation aggregation : aggregations) {
-            if (reduced == null) {
-                reduced = (InternalMin) aggregation;
-            } else {
-                reduced.min = Math.min(reduced.min, ((InternalMin) aggregation).min);
-            }
-        }
-        if (reduced != null) {
-            return reduced;
-        }
-        return (InternalMin) aggregations.get(0);
+        return new InternalMin(getName(), min);
     }
 
     @Override

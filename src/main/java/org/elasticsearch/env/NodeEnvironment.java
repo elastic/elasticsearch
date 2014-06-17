@@ -22,7 +22,7 @@ package org.elasticsearch.env;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.store.NativeFSLockFactory;
+import org.apache.lucene.store.XNativeFSLockFactory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -38,6 +38,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -50,6 +51,7 @@ public class NodeEnvironment extends AbstractComponent {
     private final Lock[] locks;
 
     private final int localNodeId;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Inject
     public NodeEnvironment(Settings settings, Environment environment) {
@@ -76,7 +78,7 @@ public class NodeEnvironment extends AbstractComponent {
                 }
                 logger.trace("obtaining node lock on {} ...", dir.getAbsolutePath());
                 try {
-                    NativeFSLockFactory lockFactory = new NativeFSLockFactory(dir);
+                    XNativeFSLockFactory lockFactory = new XNativeFSLockFactory(dir);
                     Lock tmpLock = lockFactory.makeLock("node.lock");
                     boolean obtained = tmpLock.obtain();
                     if (obtained) {
@@ -143,6 +145,7 @@ public class NodeEnvironment extends AbstractComponent {
     }
 
     public File[] nodeDataLocations() {
+        assert assertEnvIsLocked();
         if (nodeFiles == null || locks == null) {
             throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
@@ -150,10 +153,12 @@ public class NodeEnvironment extends AbstractComponent {
     }
 
     public File[] indicesLocations() {
+        assert assertEnvIsLocked();
         return nodeIndicesLocations;
     }
 
     public File[] indexLocations(Index index) {
+        assert assertEnvIsLocked();
         File[] indexLocations = new File[nodeFiles.length];
         for (int i = 0; i < nodeFiles.length; i++) {
             indexLocations[i] = new File(new File(nodeFiles[i], "indices"), index.name());
@@ -162,6 +167,7 @@ public class NodeEnvironment extends AbstractComponent {
     }
 
     public File[] shardLocations(ShardId shardId) {
+        assert assertEnvIsLocked();
         File[] shardLocations = new File[nodeFiles.length];
         for (int i = 0; i < nodeFiles.length; i++) {
             shardLocations[i] = new File(new File(new File(nodeFiles[i], "indices"), shardId.index().name()), Integer.toString(shardId.id()));
@@ -173,6 +179,7 @@ public class NodeEnvironment extends AbstractComponent {
         if (nodeFiles == null || locks == null) {
             throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
+        assert assertEnvIsLocked();
         Set<String> indices = Sets.newHashSet();
         for (File indicesLocation : nodeIndicesLocations) {
             File[] indicesList = indicesLocation.listFiles();
@@ -192,6 +199,7 @@ public class NodeEnvironment extends AbstractComponent {
         if (nodeFiles == null || locks == null) {
             throw new ElasticsearchIllegalStateException("node is not configured to store local location");
         }
+        assert assertEnvIsLocked();
         Set<ShardId> shardIds = Sets.newHashSet();
         for (File indicesLocation : nodeIndicesLocations) {
             File[] indicesList = indicesLocation.listFiles();
@@ -222,7 +230,7 @@ public class NodeEnvironment extends AbstractComponent {
     }
 
     public void close() {
-        if (locks != null) {
+        if (closed.compareAndSet(false, true) && locks != null) {
             for (Lock lock : locks) {
                 try {
                     logger.trace("releasing lock [{}]", lock);
@@ -232,5 +240,20 @@ public class NodeEnvironment extends AbstractComponent {
                 }
             }
         }
+    }
+
+
+    private boolean assertEnvIsLocked() {
+        if (!closed.get() && locks != null) {
+            for (Lock lock : locks) {
+                try {
+                    assert lock.isLocked() : "Lock: " + lock + "is not locked";
+                } catch (IOException e) {
+                    logger.warn("lock assertion failed", e);
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

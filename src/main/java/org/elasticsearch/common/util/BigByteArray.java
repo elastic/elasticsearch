@@ -23,7 +23,6 @@ import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 
 import java.util.Arrays;
 
@@ -38,15 +37,15 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     private byte[][] pages;
 
     /** Constructor. */
-    public BigByteArray(long size, PageCacheRecycler recycler, boolean clearOnResize) {
-        super(BYTE_PAGE_SIZE, recycler, clearOnResize);
+    public BigByteArray(long size, BigArrays bigArrays, boolean clearOnResize) {
+        super(BYTE_PAGE_SIZE, bigArrays, clearOnResize);
         this.size = size;
         pages = new byte[numPages(size)][];
         for (int i = 0; i < pages.length; ++i) {
             pages[i] = newBytePage(i);
         }
     }
-
+    
     @Override
     public byte get(long index) {
         final int pageIndex = pageIndex(index);

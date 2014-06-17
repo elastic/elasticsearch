@@ -85,6 +85,10 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             return termBytes.utf8ToString();
         }
 
+        @Override
+        Bucket newBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
+            return new Bucket(termBytes, subsetDf, subsetSize, supersetDf, supersetSize, aggregations);
+        }
     }
 
     SignificantStringTerms() {} // for serialization
@@ -97,6 +101,12 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
+            List<InternalSignificantTerms.Bucket> buckets) {
+        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, supersetSize, buckets);
     }
 
     @Override
@@ -144,7 +154,7 @@ public class SignificantStringTerms extends InternalSignificantTerms {
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
                 builder.startObject();
-                builder.field(CommonFields.KEY, ((Bucket) bucket).termBytes);
+                builder.utf8Field(CommonFields.KEY, ((Bucket) bucket).termBytes);
                 builder.field(CommonFields.DOC_COUNT, bucket.getDocCount());
                 builder.field("score", bucket.score);
                 builder.field("bg_count", bucket.supersetDf);

@@ -39,8 +39,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class MembershipAction extends AbstractComponent {
 
+    public static interface JoinCallback {
+        void onSuccess(ClusterState state);
+
+        void onFailure(Throwable t);
+    }
+
     public static interface MembershipListener {
-        ClusterState onJoin(DiscoveryNode node);
+        void onJoin(DiscoveryNode node, JoinCallback callback);
 
         void onLeave(DiscoveryNode node);
     }
@@ -160,13 +166,30 @@ public class MembershipAction extends AbstractComponent {
         }
 
         @Override
-        public void messageReceived(JoinRequest request, TransportChannel channel) throws Exception {
-            ClusterState clusterState = listener.onJoin(request.node);
-            if (request.withClusterState) {
-                channel.sendResponse(new JoinResponse(clusterState));
-            } else {
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            }
+        public void messageReceived(final JoinRequest request, final TransportChannel channel) throws Exception {
+            listener.onJoin(request.node, new JoinCallback() {
+                @Override
+                public void onSuccess(ClusterState state) {
+                    try {
+                        if (request.withClusterState) {
+                            channel.sendResponse(new JoinResponse(state));
+                        } else {
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        }
+                    } catch (Throwable t) {
+                        onFailure(t);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    try {
+                        channel.sendResponse(t);
+                    } catch (Throwable e) {
+                        logger.warn("failed to send back failure on join request", e);
+                    }
+                }
+            });
         }
 
         @Override

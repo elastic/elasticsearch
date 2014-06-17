@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.cluster.health.ClusterShardHealth;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
@@ -188,7 +189,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
             routingTable.add(indexRoutingTable);
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(null), clusterState);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[])null), clusterState);
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
 
         assertClusterHealth(clusterHealth, counter);
@@ -209,7 +210,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(null), clusterState);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[])null), clusterState);
         // currently we have no cluster level validation failures as index validation issues are reported per index.
         assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));
     }

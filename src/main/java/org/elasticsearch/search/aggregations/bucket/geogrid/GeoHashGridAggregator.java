@@ -77,8 +77,10 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             long bucketOrdinal = bucketOrds.add(val);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = - 1 - bucketOrdinal;
+                collectExistingBucket(doc, bucketOrdinal);
+            } else {
+                collectBucket(doc, bucketOrdinal);
             }
-            collectBucket(doc, bucketOrdinal);
         }
     }
 

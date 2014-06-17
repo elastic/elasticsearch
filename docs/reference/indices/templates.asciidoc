@@ -88,11 +88,7 @@ curl -XGET localhost:9200/_template/temp*
 curl -XGET localhost:9200/_template/template_1,template_2
 --------------------------------------------------
 
-To get list of all index templates you can use
-<<cluster-state,Cluster State>> API
-and check for the metadata/templates section of the response.
-
-Or run:
+To get list of all index templates you can run:
 
 [source,js]
 --------------------------------------------------

@@ -32,14 +32,14 @@ case equal to the boost on the `has_parent` query (Defaults to 1). If
 the score type is set to `score`, then the score of the matching parent
 document is aggregated into the child documents belonging to the
 matching parent document. The score type can be specified with the
-`score_type` field inside the `has_parent` query:
+`score_mode` field inside the `has_parent` query:
 
 [source,js]
 --------------------------------------------------
 {
     "has_parent" : {
         "parent_type" : "blog",
-        "score_type" : "score",
+        "score_mode" : "score",
         "query" : {
             "term" : {
                 "tag" : "something"

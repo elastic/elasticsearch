@@ -52,6 +52,7 @@ import org.elasticsearch.snapshots.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -311,7 +312,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
             String blobName = snapshotBlobName(snapshotId);
             BlobStoreSnapshot.Builder updatedSnapshot = BlobStoreSnapshot.builder().snapshot(snapshot);
             if (failure == null) {
-                updatedSnapshot.success();
+                if (shardFailures.isEmpty()) {
+                    updatedSnapshot.success();
+                } else {
+                    updatedSnapshot.partial();
+                }
                 updatedSnapshot.failures(totalShards, shardFailures);
             } else {
                 updatedSnapshot.failed(failure);
@@ -366,7 +371,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         try {
             byte[] data = snapshotsBlobContainer.readBlobFully(metaDataBlobName(snapshotId));
             metaData = readMetaData(data);
-        } catch (FileNotFoundException ex) {
+        } catch (FileNotFoundException | NoSuchFileException ex) {
             throw new SnapshotMissingException(snapshotId, ex);
         } catch (IOException ex) {
             throw new SnapshotException(snapshotId, "failed to get snapshots", ex);
@@ -427,7 +432,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
                     }
                 }
             }
-        } catch (FileNotFoundException ex) {
+        } catch (FileNotFoundException | NoSuchFileException ex) {
             throw new SnapshotMissingException(snapshotId, ex);
         } catch (IOException ex) {
             throw new SnapshotException(snapshotId, "failed to get snapshots", ex);

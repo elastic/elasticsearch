@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.internal.InternalClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -30,7 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
     public NodesHotThreadsRequestBuilder(ClusterAdminClient clusterClient) {
-        super((InternalClusterAdminClient) clusterClient, new NodesHotThreadsRequest());
+        super(clusterClient, new NodesHotThreadsRequest());
     }
 
     public NodesHotThreadsRequestBuilder setThreads(int threads) {
@@ -50,6 +49,6 @@ public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
 
     @Override
     protected void doExecute(ActionListener<NodesHotThreadsResponse> listener) {
-        ((ClusterAdminClient) client).nodesHotThreads(request, listener);
+        client.nodesHotThreads(request, listener);
     }
 }

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # elasticsearch <summary>
 #
@@ -49,21 +49,19 @@ if [ -n $USER ] && [ -z $ES_USER ] ; then
    ES_USER=$USER
 fi
 
-checkJava() {
-    if [ -x "$JAVA_HOME/bin/java" ]; then
-        JAVA="$JAVA_HOME/bin/java"
-    else
-        JAVA=`which java`
-    fi
+if [ -x "$JAVA_HOME/bin/java" ]; then
+	JAVA="$JAVA_HOME/bin/java"
+else
+	JAVA=`which java`
+fi
 
-    if [ ! -x "$JAVA" ]; then
-        echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
-        exit 1
-    fi
-}
+if [ ! -x "$JAVA" ]; then
+	echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+	exit 1
+fi
+
 
 start() {
-    checkJava
     [ -x $exec ] || exit 5
     [ -f $CONF_FILE ] || exit 6
     if [ -n "$MAX_LOCKED_MEMORY" -a -z "$ES_HEAP_SIZE" ]; then
@@ -85,20 +83,27 @@ start() {
     fi
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -d -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
+	# SUSE uses startproc to daemonize processes
+    if [ -x /sbin/startproc ]; then
+        /sbin/startproc -u $ES_USER -s -l $LOG_DIR -p $pidfile $exec -Des.pidfile=$pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
+    else
+        daemon --user $ES_USER --pidfile $pidfile $exec -d -p $pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
+     fi
     retval=$?
     echo
-    [ $retval -eq 0 ] && touch $lockfile
     return $retval
 }
 
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d 20 $prog
+    if [ -f /etc/SuSE-release ]; then
+	killproc -p $pidfile -t20 $JAVA
+    else
+	killproc -p $pidfile -d 20 $JAVA
+    fi
     retval=$?
     echo
-    [ $retval -eq 0 ] && rm -f $lockfile
     return $retval
 }
 
@@ -117,7 +122,14 @@ force_reload() {
 
 rh_status() {
     # run checks to determine if the service is running or use generic status
-    status -p $pidfile $prog
+    if [ -r /etc/rc.status ]; then
+    		echo -n "Checking for service elasticsearch "
+		checkproc -p $pidfile $JAVA
+    		rc_status -v
+    else
+		status -p $pidfile $JAVA
+    fi
+	
 }
 
 rh_status_q() {

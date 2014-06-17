@@ -64,7 +64,7 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));

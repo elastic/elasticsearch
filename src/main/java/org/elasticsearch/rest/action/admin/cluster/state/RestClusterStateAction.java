@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
 import java.util.Set;
 
 
@@ -55,7 +54,7 @@ public class RestClusterStateAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

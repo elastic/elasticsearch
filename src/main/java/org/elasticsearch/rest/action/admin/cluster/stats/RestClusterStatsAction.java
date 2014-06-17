@@ -44,7 +44,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.listenerThreaded(false);
         client.admin().cluster().clusterStats(clusterStatsRequest, new RestToXContentListener<ClusterStatsResponse>(channel));

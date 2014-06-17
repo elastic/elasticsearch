@@ -44,7 +44,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.listenerThreaded(false);
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));

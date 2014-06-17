@@ -31,8 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
@@ -55,7 +53,7 @@ public class RestIndicesStatusAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatusRequest.listenerThreaded(false);
         indicesStatusRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatusRequest.indicesOptions()));

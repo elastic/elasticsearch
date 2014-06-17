@@ -57,7 +57,7 @@ public class RestCountAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         CountRequest countRequest = new CountRequest(indices);
         String source = request.param("source");

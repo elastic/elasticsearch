@@ -49,10 +49,14 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     static final class HeadersCopyClient extends FilterClient {
 
         private final RestRequest restRequest;
+        private final IndicesAdmin indicesAdmin;
+        private final ClusterAdmin clusterAdmin;
 
         HeadersCopyClient(Client in, RestRequest restRequest) {
             super(in);
             this.restRequest = restRequest;
+            this.indicesAdmin = new IndicesAdmin(in.admin().indices());
+            this.clusterAdmin = new ClusterAdmin(in.admin().cluster());
         }
 
         @Override
@@ -69,36 +73,48 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
         @Override
         public ClusterAdminClient cluster() {
-            return new ClusterAdmin(in().admin().cluster()) {
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
-                    request.putHeaders(restRequest.headers());
-                    return super.execute(action, request);
-                }
-
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
-                    request.putHeaders(restRequest.headers());
-                    super.execute(action, request, listener);
-                }
-            };
+            return clusterAdmin;
         }
 
         @Override
         public IndicesAdminClient indices() {
-            return new IndicesAdmin(in().admin().indices()) {
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
-                    request.putHeaders(restRequest.headers());
-                    return super.execute(action, request);
-                }
+            return indicesAdmin;
+        }
 
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
-                    request.putHeaders(restRequest.headers());
-                    super.execute(action, request, listener);
-                }
-            };
+        private final class ClusterAdmin extends FilterClient.ClusterAdmin {
+            private ClusterAdmin(ClusterAdminClient in) {
+                super(in);
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
+                request.putHeaders(restRequest.headers());
+                return super.execute(action, request);
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
+                request.putHeaders(restRequest.headers());
+                super.execute(action, request, listener);
+            }
+        }
+
+        private final class IndicesAdmin extends FilterClient.IndicesAdmin {
+            private IndicesAdmin(IndicesAdminClient in) {
+                super(in);
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
+                request.putHeaders(restRequest.headers());
+                return super.execute(action, request);
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
+                request.putHeaders(restRequest.headers());
+                super.execute(action, request, listener);
+            }
         }
     }
 }

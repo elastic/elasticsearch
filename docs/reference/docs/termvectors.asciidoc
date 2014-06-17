@@ -19,7 +19,7 @@ retrieved either with a parameter in the url
 curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?fields=text,...'
 --------------------------------------------------
 
-or adding by adding the requested fields in the request body (see
+or by adding the requested fields in the request body (see
 example below).
 
 [float]
@@ -38,8 +38,10 @@ statistics are returned for all fields but no term statistics.
  * term payloads (`payloads` : true), as base64 encoded bytes
 
 If the requested information wasn't stored in the index, it will be
-omitted without further warning. See <<mapping-types,type mapping>>
+computed on the fly if possible. See <<mapping-types,type mapping>>
 for how to configure your index to store term vectors.
+
+coming[1.4.0,The ability to computed term vectors on the fly is only available from 1.4.0 onwards (see below)]
 
 [WARNING]
 ======
@@ -84,7 +86,7 @@ are therefore only useful as relative measures whereas the absolute
 numbers have no meaning in this context.
 
 [float]
-=== Example
+=== Example 1
 
 First, we create an index that stores term vectors, payloads etc. :
 
@@ -221,4 +223,23 @@ Response:
         }
     }
 }
+--------------------------------------------------
+
+[float]
+=== Example 2 coming[1.4.0]
+
+Additionally, term vectors which are not explicitly stored in the index are automatically
+computed on the fly. The following request returns all information and statistics for the
+fields in document `1`, even though the terms haven't been explicitly stored in the index.
+Note that for the field `text`, the terms are not re-generated.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
+  "fields" : ["text", "some_field_without_term_vectors"],
+  "offsets" : true,
+  "positions" : true,
+  "term_statistics" : true,
+  "field_statistics" : true
+}'
 --------------------------------------------------

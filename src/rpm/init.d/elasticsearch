@@ -125,7 +125,7 @@ rh_status() {
     if [ -r /etc/rc.status ]; then
     		echo -n "Checking for service elasticsearch "
 		checkproc -p $pidfile $JAVA
-    		rc_status -v -r
+    		rc_status -v
     else
 		status -p $pidfile $JAVA
     fi

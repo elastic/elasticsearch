@@ -15,3 +15,6 @@
 
 * http://elastichammer.exploringelasticsearch.com/[Hammer]: 
   Web front-end for elasticsearch
+
+* https://github.com/romansanchez/Calaca[Calaca]: 
+  Simple search client for ElasticSearch

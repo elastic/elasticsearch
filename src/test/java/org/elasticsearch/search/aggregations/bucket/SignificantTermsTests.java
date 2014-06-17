@@ -23,12 +23,18 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -36,6 +42,7 @@ import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -300,4 +307,58 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertEquals(4, kellyTerm.getSupersetDf());
     }
 
+    @Test
+    public void testXContentResponse() throws Exception {
+        String type = randomBoolean() ? "string" : "long";
+        prepareGoodBad(type);
+        SearchResponse response = client().prepareSearch("goodbad").setTypes("doc")
+                .addAggregation(new TermsBuilder("class").field("class").subAggregation(new SignificantTermsBuilder("sig_terms").field("text")))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        StringTerms classes = (StringTerms) response.getAggregations().get("class");
+        assertThat(classes.getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : classes.getBuckets()) {
+            Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
+            assertTrue(aggs.containsKey("sig_terms"));
+            SignificantTerms agg = (SignificantTerms) aggs.get("sig_terms");
+            assertThat(agg.getBuckets().size(), equalTo(1));
+            String term = agg.iterator().next().getKey();
+            String classTerm = classBucket.getKey();
+            assertTrue(term.equals(classTerm));
+        }
+
+        XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
+        classes.toXContent(responseBuilder, null);
+        String result = null;
+        if (type.equals("long")) {
+            result = "\"class\"{\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+        } else {
+            result = "\"class\"{\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+        }
+        assertThat(responseBuilder.string(), equalTo(result));
+
+    }
+
+    private void prepareGoodBad(String type) {
+        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
+        logger.info(mappings);
+        assertAcked(prepareCreate("goodbad").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc", mappings));
+        String[] gb = {"0", "1"};
+        client().prepareIndex("goodbad", "doc", "1")
+                .setSource("text", "1", "class", "1").get();
+        client().prepareIndex("goodbad", "doc", "2")
+                .setSource("text", "1", "class", "1").get();
+        client().prepareIndex("goodbad", "doc", "3")
+                .setSource("text", "0", "class", "0").get();
+        client().prepareIndex("goodbad", "doc", "4")
+                .setSource("text", "0", "class", "0").get();
+        client().prepareIndex("goodbad", "doc", "5")
+                .setSource("text", gb, "class", "1").get();
+        client().prepareIndex("goodbad", "doc", "6")
+                .setSource("text", gb, "class", "0").get();
+        client().prepareIndex("goodbad", "doc", "7")
+                .setSource("text", "0", "class", "0").get();
+        refresh();
+    }
 }

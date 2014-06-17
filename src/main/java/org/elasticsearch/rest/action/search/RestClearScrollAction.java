@@ -49,7 +49,7 @@ public class RestClearScrollAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String scrollIds = request.param("scroll_id");
         if (scrollIds == null) {
             scrollIds = RestActions.getRestContent(request).toUtf8();

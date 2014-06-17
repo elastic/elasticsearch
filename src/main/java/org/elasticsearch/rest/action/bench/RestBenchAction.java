@@ -70,16 +70,16 @@ public class RestBenchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         switch (request.method()) {
             case POST:
-                handleAbortRequest(request, channel);
+                handleAbortRequest(request, channel, client);
                 break;
             case PUT:
-                handleSubmitRequest(request, channel);
+                handleSubmitRequest(request, channel, client);
                 break;
             case GET:
-                handleStatusRequest(request, channel);
+                handleStatusRequest(request, channel, client);
                 break;
             default:
                 // Politely ignore methods we don't support
@@ -90,7 +90,7 @@ public class RestBenchAction extends BaseRestHandler {
     /**
      * Reports on the status of all actively running benchmarks
      */
-    private void handleStatusRequest(final RestRequest request, final RestChannel channel) {
+    private void handleStatusRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
         BenchmarkStatusRequest benchmarkStatusRequest = new BenchmarkStatusRequest();
 
@@ -109,7 +109,7 @@ public class RestBenchAction extends BaseRestHandler {
     /**
      * Aborts an actively running benchmark
      */
-    private void handleAbortRequest(final RestRequest request, final RestChannel channel) {
+    private void handleAbortRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] benchmarkNames = Strings.splitStringByCommaToArray(request.param("name"));
         AbortBenchmarkRequest abortBenchmarkRequest = new AbortBenchmarkRequest(benchmarkNames);
 
@@ -119,7 +119,7 @@ public class RestBenchAction extends BaseRestHandler {
     /**
      * Submits a benchmark for execution
      */
-    private void handleSubmitRequest(final RestRequest request, final RestChannel channel) {
+    private void handleSubmitRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));

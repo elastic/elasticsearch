@@ -29,8 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-
 /**
  */
 public class RestClusterGetSettingsAction extends BaseRestHandler {
@@ -42,7 +40,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .listenerThreaded(false)
                 .routingTable(false)

@@ -52,7 +52,7 @@ public class RestAliasAction extends AbstractCatAction {
 
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel) {
+    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
                 new GetAliasesRequest(request.param("alias")) :
                 new GetAliasesRequest();

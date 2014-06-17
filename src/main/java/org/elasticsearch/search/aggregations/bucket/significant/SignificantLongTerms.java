@@ -109,7 +109,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
             List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, supersetSize, buckets);
+        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, buckets);
     }
 
     @Override

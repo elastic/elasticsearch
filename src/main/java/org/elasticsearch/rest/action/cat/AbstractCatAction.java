@@ -37,14 +37,14 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         super(settings, client);
     }
 
-    abstract void doRequest(final RestRequest request, final RestChannel channel);
+    abstract void doRequest(final RestRequest request, final RestChannel channel, final Client client);
 
     abstract void documentation(StringBuilder sb);
 
     abstract Table getTableWithHeader(final RestRequest request);
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         boolean helpWanted = request.paramAsBoolean("help", false);
         if (helpWanted) {
             Table table = getTableWithHeader(request);
@@ -63,7 +63,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
             out.close();
             channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes(), true));
         } else {
-            doRequest(request, channel);
+            doRequest(request, channel, client);
         }
     }
 }

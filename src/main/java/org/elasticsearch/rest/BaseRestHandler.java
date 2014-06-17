@@ -19,19 +19,86 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.*;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.FilterClient;
+import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- *
+ * Base handler for REST requests
  */
 public abstract class BaseRestHandler extends AbstractComponent implements RestHandler {
 
-    protected final Client client;
+    private final Client client;
 
     protected BaseRestHandler(Settings settings, Client client) {
         super(settings);
         this.client = client;
+    }
+
+    @Override
+    public final void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+        handleRequest(request, channel, new HeadersCopyClient(client, request));
+    }
+
+    protected abstract void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception;
+
+    static final class HeadersCopyClient extends FilterClient {
+
+        private final RestRequest restRequest;
+
+        HeadersCopyClient(Client in, RestRequest restRequest) {
+            super(in);
+            this.restRequest = restRequest;
+        }
+
+        @Override
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, Client> action, Request request) {
+            request.putHeaders(restRequest.headers());
+            return super.execute(action, request);
+        }
+
+        @Override
+        public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>> void execute(Action<Request, Response, RequestBuilder, Client> action, Request request, ActionListener<Response> listener) {
+            request.putHeaders(restRequest.headers());
+            super.execute(action, request, listener);
+        }
+
+        @Override
+        public ClusterAdminClient cluster() {
+            return new ClusterAdmin(in().admin().cluster()) {
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
+                    request.putHeaders(restRequest.headers());
+                    return super.execute(action, request);
+                }
+
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
+                    request.putHeaders(restRequest.headers());
+                    super.execute(action, request, listener);
+                }
+            };
+        }
+
+        @Override
+        public IndicesAdminClient indices() {
+            return new IndicesAdmin(in().admin().indices()) {
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request) {
+                    request.putHeaders(restRequest.headers());
+                    return super.execute(action, request);
+                }
+
+                @Override
+                public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>> void execute(Action<Request, Response, RequestBuilder, IndicesAdminClient> action, Request request, ActionListener<Response> listener) {
+                    request.putHeaders(restRequest.headers());
+                    super.execute(action, request, listener);
+                }
+            };
+        }
     }
 }

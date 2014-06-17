@@ -59,7 +59,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodeIds;
         Set<String> metrics;
 

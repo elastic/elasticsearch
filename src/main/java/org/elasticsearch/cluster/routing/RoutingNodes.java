@@ -247,7 +247,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * no primary is found or the primary is not active.
      */
     public MutableShardRouting activePrimary(ShardRouting shard) {
-        assert !shard.primary();
         for (MutableShardRouting shardRouting : assignedShards(shard.shardId())) {
             if (shardRouting.primary() && shardRouting.active()) {
                 return shardRouting;

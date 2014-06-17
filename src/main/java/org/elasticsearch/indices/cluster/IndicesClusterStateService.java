@@ -60,6 +60,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -560,12 +561,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private void cleanFailedShards(final ClusterChangedEvent event) {
         RoutingTable routingTable = event.state().routingTable();
         RoutingNodes.RoutingNodeIterator routingNode = event.state().readOnlyRoutingNodes().routingNodeIter(event.state().nodes().localNodeId());
-
         if (routingNode == null) {
             failedShards.clear();
             return;
         }
-
         DiscoveryNodes nodes = event.state().nodes();
         long now = System.currentTimeMillis();
         String localNodeId = nodes.localNodeId();
@@ -712,11 +711,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // For replicas: we are recovering a backup from a primary
 
                 RecoveryState.Type type = shardRouting.primary() ? RecoveryState.Type.RELOCATION : RecoveryState.Type.REPLICA;
-                final StartRecoveryRequest request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                        false, indexShard.store().list(), type, recoveryIdGenerator.incrementAndGet());
+                final Store store = indexShard.store();
+                final StartRecoveryRequest request;
+                store.incRef();
+                try {
+                    store.failIfCorrupted();
+                    request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
+                        false, store.getMetadata().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                } finally {
+                    store.decRef();
+                }
                 recoveryTarget.startRecovery(request, indexShard, new PeerRecoveryListener(request, shardRouting, indexService, indexMetaData));
 
             } catch (Throwable e) {
+                indexShard.engine().failEngine("corrupted preexisting index", e);
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
             }
         } else {

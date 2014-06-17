@@ -34,9 +34,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.service.InternalIndexService;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -150,10 +153,14 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
         shardStatus.state = indexShard.state();
+        final Store store = indexShard.store();
+        store.incRef();
         try {
-            shardStatus.storeSize = indexShard.store().estimateSize();
+            shardStatus.storeSize = new ByteSizeValue(Directories.estimateSize(store.directory()));
         } catch (IOException e) {
             // failure to get the store size...
+        } finally {
+            store.decRef();
         }
         if (indexShard.state() == IndexShardState.STARTED) {
 //            shardStatus.estimatedFlushableMemorySize = indexShard.estimateFlushableMemorySize();

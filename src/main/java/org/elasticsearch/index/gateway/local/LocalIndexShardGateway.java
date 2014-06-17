@@ -26,7 +26,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -114,187 +113,197 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         long version = -1;
         long translogId = -1;
+        indexShard.store().incRef();
         try {
-            SegmentInfos si = null;
             try {
-                si = Lucene.readSegmentInfos(indexShard.store().directory());
+                indexShard.store().failIfCorrupted();
+                SegmentInfos si = null;
+                try {
+                    si = Lucene.readSegmentInfos(indexShard.store().directory());
+                } catch (Throwable e) {
+                    String files = "_unknown_";
+                    try {
+                        files = Arrays.toString(indexShard.store().directory().listAll());
+                    } catch (Throwable e1) {
+                        files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
+                    }
+                    if (indexShouldExists && indexShard.store().indexStore().persistent()) {
+                        throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
+                    }
+                }
+                if (si != null) {
+                    if (indexShouldExists) {
+                        version = si.getVersion();
+                        if (si.getUserData().containsKey(Translog.TRANSLOG_ID_KEY)) {
+                            translogId = Long.parseLong(si.getUserData().get(Translog.TRANSLOG_ID_KEY));
+                        } else {
+                            translogId = version;
+                        }
+                        logger.trace("using existing shard data, translog id [{}]", translogId);
+                    } else {
+                        // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
+                        // its a "new index create" API, we have to do something, so better to clean it than use same data
+                        logger.trace("cleaning existing shard, shouldn't exists");
+                        IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
+                        writer.close();
+                    }
+                }
             } catch (Throwable e) {
-                String files = "_unknown_";
-                try {
-                    files = Arrays.toString(indexShard.store().directory().listAll());
-                } catch (Throwable e1) {
-                    files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
-                }
-                if (indexShouldExists && indexShard.store().indexStore().persistent()) {
-                    throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
-                }
+                throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
             }
-            if (si != null) {
-                if (indexShouldExists) {
-                    version = si.getVersion();
-                    if (si.getUserData().containsKey(Translog.TRANSLOG_ID_KEY)) {
-                        translogId = Long.parseLong(si.getUserData().get(Translog.TRANSLOG_ID_KEY));
-                    } else {
-                        translogId = version;
-                    }
-                    logger.trace("using existing shard data, translog id [{}]", translogId);
-                } else {
-                    // it exists on the directory, but shouldn't exist on the FS, its a leftover (possibly dangling)
-                    // its a "new index create" API, we have to do something, so better to clean it than use same data
-                    logger.trace("cleaning existing shard, shouldn't exists");
-                    IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
-                    writer.close();
-                }
-            }
-        } catch (Throwable e) {
-            throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
-        }
-        recoveryState.getIndex().updateVersion(version);
-        recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+            recoveryState.getIndex().updateVersion(version);
+            recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
 
-        // since we recover from local, just fill the files and size
-        try {
-            int numberOfFiles = 0;
-            long totalSizeInBytes = 0;
-            for (String name : indexShard.store().directory().listAll()) {
-                numberOfFiles++;
-                long length =  indexShard.store().directory().fileLength(name);
-                totalSizeInBytes += length;
-                recoveryState.getIndex().addFileDetail(name, length, length);
-            }
-            recoveryState.getIndex().files(numberOfFiles, totalSizeInBytes, numberOfFiles, totalSizeInBytes);
-            recoveryState.getIndex().recoveredFileCount(numberOfFiles);
-            recoveryState.getIndex().recoveredByteCount(totalSizeInBytes);
-        } catch (Exception e) {
-            // ignore
-        }
-
-        recoveryState.getStart().startTime(System.currentTimeMillis());
-        recoveryState.setStage(RecoveryState.Stage.START);
-        if (translogId == -1) {
-            // no translog files, bail
-            indexShard.postRecovery("post recovery from gateway, no translog");
-            // no index, just start the shard and bail
-            recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-            recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
-            return;
-        }
-
-        // move an existing translog, if exists, to "recovering" state, and start reading from it
-        FsTranslog translog = (FsTranslog) indexShard.translog();
-        String translogName = "translog-" + translogId;
-        String recoverTranslogName = translogName + ".recovering";
-
-
-        File recoveringTranslogFile = null;
-        for (File translogLocation : translog.locations()) {
-            File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
-            if (!tmpRecoveringFile.exists()) {
-                File tmpTranslogFile = new File(translogLocation, translogName);
-                if (tmpTranslogFile.exists()) {
-                    for (int i = 0; i < 3; i++) {
-                        if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
-                            recoveringTranslogFile = tmpRecoveringFile;
-                            break;
-                        }
-                    }
-                }
-            } else {
-                recoveringTranslogFile = tmpRecoveringFile;
-                break;
-            }
-        }
-
-        if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
-            // no translog to recovery from, start and bail
-            // no translog files, bail
-            indexShard.postRecovery("post recovery from gateway, no translog");
-            // no index, just start the shard and bail
-            recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-            recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
-            return;
-        }
-
-        // recover from the translog file
-        indexShard.performRecoveryPrepareForTranslog();
-        recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-        recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
-
-        recoveryState.getTranslog().startTime(System.currentTimeMillis());
-        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
-        FileInputStream fs = null;
-
-        final Set<String> typesToUpdate = Sets.newHashSet();
-        try {
-            fs = new FileInputStream(recoveringTranslogFile);
-            InputStreamStreamInput si = new InputStreamStreamInput(fs);
-            while (true) {
-                Translog.Operation operation;
-                try {
-                    int opSize = si.readInt();
-                    operation = TranslogStreams.readTranslogOperation(si);
-                } catch (EOFException e) {
-                    // ignore, not properly written the last op
-                    break;
-                } catch (IOException e) {
-                    // ignore, not properly written last op
-                    break;
-                }
-                try {
-                    Engine.IndexingOperation potentialIndexOperation = indexShard.performRecoveryOperation(operation);
-                    if (potentialIndexOperation != null && potentialIndexOperation.parsedDoc().mappingsModified()) {
-                        if (!typesToUpdate.contains(potentialIndexOperation.docMapper().type())) {
-                            typesToUpdate.add(potentialIndexOperation.docMapper().type());
-                        }
-                    }
-                    recoveryState.getTranslog().addTranslogOperations(1);
-                } catch (ElasticsearchException e) {
-                    if (e.status() == RestStatus.BAD_REQUEST) {
-                        // mainly for MapperParsingException and Failure to detect xcontent
-                        logger.info("ignoring recovery of a corrupt translog entry", e);
-                    } else {
-                        throw e;
-                    }
-                }
-            }
-        } catch (Throwable e) {
-            // we failed to recovery, make sure to delete the translog file (and keep the recovering one)
-            indexShard.translog().closeWithDelete();
-            throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
-        } finally {
+            // since we recover from local, just fill the files and size
             try {
-                fs.close();
-            } catch (IOException e) {
+                int numberOfFiles = 0;
+                long totalSizeInBytes = 0;
+                for (String name : indexShard.store().directory().listAll()) {
+                    numberOfFiles++;
+                    long length =  indexShard.store().directory().fileLength(name);
+                    totalSizeInBytes += length;
+                    recoveryState.getIndex().addFileDetail(name, length, length);
+                }
+                RecoveryState.Index index = recoveryState.getIndex();
+                index.totalFileCount(numberOfFiles);
+                index.totalByteCount(totalSizeInBytes);
+                index.reusedFileCount(numberOfFiles);
+                index.reusedByteCount(totalSizeInBytes);
+                index.recoveredFileCount(numberOfFiles);
+                index.recoveredByteCount(totalSizeInBytes);
+            } catch (Exception e) {
                 // ignore
             }
-        }
-        indexShard.performRecoveryFinalization(true);
 
-        recoveringTranslogFile.delete();
-
-        for (final String type : typesToUpdate) {
-            final CountDownLatch latch = new CountDownLatch(1);
-            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
-                @Override
-                public void onMappingUpdate() {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Throwable t) {
-                    latch.countDown();
-                    logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
-                }
-            });
-
-            try {
-                boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
-                if (!waited) {
-                    logger.debug("waited for mapping update on master for [{}], yet timed out");
-                }
-            } catch (InterruptedException e) {
-                logger.debug("interrupted while waiting for mapping update");
+            recoveryState.getStart().startTime(System.currentTimeMillis());
+            recoveryState.setStage(RecoveryState.Stage.START);
+            if (translogId == -1) {
+                // no translog files, bail
+                indexShard.postRecovery("post recovery from gateway, no translog");
+                // no index, just start the shard and bail
+                recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
+                recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+                return;
             }
+
+            // move an existing translog, if exists, to "recovering" state, and start reading from it
+            FsTranslog translog = (FsTranslog) indexShard.translog();
+            String translogName = "translog-" + translogId;
+            String recoverTranslogName = translogName + ".recovering";
+
+
+            File recoveringTranslogFile = null;
+            for (File translogLocation : translog.locations()) {
+                File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
+                if (!tmpRecoveringFile.exists()) {
+                    File tmpTranslogFile = new File(translogLocation, translogName);
+                    if (tmpTranslogFile.exists()) {
+                        for (int i = 0; i < 3; i++) {
+                            if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
+                                recoveringTranslogFile = tmpRecoveringFile;
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    recoveringTranslogFile = tmpRecoveringFile;
+                    break;
+                }
+            }
+
+            if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
+                // no translog to recovery from, start and bail
+                // no translog files, bail
+                indexShard.postRecovery("post recovery from gateway, no translog");
+                // no index, just start the shard and bail
+                recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
+                recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+                return;
+            }
+
+            // recover from the translog file
+            indexShard.performRecoveryPrepareForTranslog();
+            recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
+            recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+
+            recoveryState.getTranslog().startTime(System.currentTimeMillis());
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            FileInputStream fs = null;
+
+            final Set<String> typesToUpdate = Sets.newHashSet();
+            try {
+                fs = new FileInputStream(recoveringTranslogFile);
+                InputStreamStreamInput si = new InputStreamStreamInput(fs);
+                while (true) {
+                    Translog.Operation operation;
+                    try {
+                        int opSize = si.readInt();
+                        operation = TranslogStreams.readTranslogOperation(si);
+                    } catch (EOFException e) {
+                        // ignore, not properly written the last op
+                        break;
+                    } catch (IOException e) {
+                        // ignore, not properly written last op
+                        break;
+                    }
+                    try {
+                        Engine.IndexingOperation potentialIndexOperation = indexShard.performRecoveryOperation(operation);
+                        if (potentialIndexOperation != null && potentialIndexOperation.parsedDoc().mappingsModified()) {
+                            if (!typesToUpdate.contains(potentialIndexOperation.docMapper().type())) {
+                                typesToUpdate.add(potentialIndexOperation.docMapper().type());
+                            }
+                        }
+                        recoveryState.getTranslog().addTranslogOperations(1);
+                    } catch (ElasticsearchException e) {
+                        if (e.status() == RestStatus.BAD_REQUEST) {
+                            // mainly for MapperParsingException and Failure to detect xcontent
+                            logger.info("ignoring recovery of a corrupt translog entry", e);
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+            } catch (Throwable e) {
+                // we failed to recovery, make sure to delete the translog file (and keep the recovering one)
+                indexShard.translog().closeWithDelete();
+                throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
+            } finally {
+                try {
+                    fs.close();
+                } catch (IOException e) {
+                    // ignore
+                }
+            }
+            indexShard.performRecoveryFinalization(true);
+
+            recoveringTranslogFile.delete();
+
+            for (final String type : typesToUpdate) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
+                    @Override
+                    public void onMappingUpdate() {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        latch.countDown();
+                        logger.debug("failed to send mapping update post recovery to master for [{}]", t, type);
+                    }
+                });
+
+                try {
+                    boolean waited = latch.await(waitForMappingUpdatePostRecovery.millis(), TimeUnit.MILLISECONDS);
+                    if (!waited) {
+                        logger.debug("waited for mapping update on master for [{}], yet timed out");
+                    }
+                } catch (InterruptedException e) {
+                    logger.debug("interrupted while waiting for mapping update");
+                }
+            }
+        } finally {
+            indexShard.store().decRef();
         }
 
         recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());

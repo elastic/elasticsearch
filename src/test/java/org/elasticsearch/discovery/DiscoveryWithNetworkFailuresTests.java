@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery;
 
 import com.google.common.base.Predicate;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -361,6 +362,7 @@ public class DiscoveryWithNetworkFailuresTests extends ElasticsearchIntegrationT
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "MvG will fix")
     public void testAckedIndexing() throws Exception {
         final List<String> nodes = internalCluster().startNodesAsync(3, nodeSettings).get();
         ensureStableCluster(3);

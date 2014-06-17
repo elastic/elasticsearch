@@ -21,7 +21,6 @@ package org.elasticsearch.test.disruption;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.TestCluster;
 
 import java.util.Random;
 
@@ -30,7 +29,7 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     protected volatile String disruptedNode;
-    protected volatile TestCluster cluster;
+    protected volatile InternalTestCluster cluster;
     protected final Random random;
 
 

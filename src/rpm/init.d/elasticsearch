@@ -87,7 +87,7 @@ start() {
     if [ -x /sbin/startproc ]; then
         /sbin/startproc -u $ES_USER -s -l $LOG_DIR -p $pidfile $exec -Des.pidfile=$pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
     else
-        daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
+        daemon --user $ES_USER --pidfile $pidfile $exec -d -p $pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
      fi
     retval=$?
     echo

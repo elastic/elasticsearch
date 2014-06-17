@@ -185,7 +185,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
-    protected static final Version COMPATIBILITY_VERSION = Version.fromString(System.getProperty(TESTS_COMPATIBILITY));
+    protected static final Version COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
@@ -300,6 +300,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
+    private Loading randomLoadingValues() {
+        if (COMPATIBILITY_VERSION.onOrAfter(Version.V_1_2_0)) {
+            // Loading.EAGER_GLOBAL_ORDINALS was added in 1,2.0
+            return randomFrom(Loading.values());
+        } else {
+            return randomFrom(Loading.LAZY, Loading.EAGER);
+        }
+
+    }
+
     /**
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
@@ -331,7 +341,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                                 .startObject("mapping")
                                     .startObject("fielddata")
                                         .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
-                                        .field(Loading.KEY, randomFrom(Loading.values()))
+                                        .field(Loading.KEY, randomLoadingValues())
                                     .endObject()
                                 .endObject()
                             .endObject()
@@ -1489,6 +1499,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @Ignore
     public @interface SuiteScopeTest {
     }
+
+    private static String compatibilityVersionProperty() {
+        final String version = System.getProperty(TESTS_COMPATIBILITY);
+        if (Strings.hasLength(version)) {
+            return version;
+        }
+        return System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
+    }
+
 
 
 }

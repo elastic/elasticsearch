@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -40,10 +41,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -309,11 +308,15 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testXContentResponse() throws Exception {
-        cluster().wipeIndices("goodbad");
+        String indexName = "10index";
+        String docType = "doc";
+        String classField = "class";
+        String textField = "text";
+        cluster().wipeIndices(indexName);
         String type = randomBoolean() ? "string" : "long";
-        prepareGoodBad(type);
-        SearchResponse response = client().prepareSearch("goodbad").setTypes("doc")
-                .addAggregation(new TermsBuilder("class").field("class").subAggregation(new SignificantTermsBuilder("sig_terms").field("text")))
+        index01Docs(indexName, docType, classField, textField, type);
+        SearchResponse response = client().prepareSearch(indexName).setTypes(docType)
+                .addAggregation(new TermsBuilder("class").field(classField).subAggregation(new SignificantTermsBuilder("sig_terms").field(textField)))
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
@@ -341,24 +344,25 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
 
     }
 
-    private void prepareGoodBad(String type) {
+    private void index01Docs(String indexName, String docType, String classField, String textField, String type) throws ExecutionException, InterruptedException {
         String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
-        assertAcked(prepareCreate("goodbad").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc", mappings));
+        assertAcked(prepareCreate(indexName).setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc", mappings));
         String[] gb = {"0", "1"};
-        client().prepareIndex("goodbad", "doc", "1")
-                .setSource("text", "1", "class", "1").get();
-        client().prepareIndex("goodbad", "doc", "2")
-                .setSource("text", "1", "class", "1").get();
-        client().prepareIndex("goodbad", "doc", "3")
-                .setSource("text", "0", "class", "0").get();
-        client().prepareIndex("goodbad", "doc", "4")
-                .setSource("text", "0", "class", "0").get();
-        client().prepareIndex("goodbad", "doc", "5")
-                .setSource("text", gb, "class", "1").get();
-        client().prepareIndex("goodbad", "doc", "6")
-                .setSource("text", gb, "class", "0").get();
-        client().prepareIndex("goodbad", "doc", "7")
-                .setSource("text", "0", "class", "0").get();
-        refresh();
+        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "1")
+                .setSource(textField, "1", classField, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "2")
+                .setSource(textField, "1", classField, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "3")
+                .setSource(textField, "0", classField, "0"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "4")
+                .setSource(textField, "0", classField, "0"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "5")
+                .setSource(textField, gb, classField, "1"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "6")
+                .setSource(textField, gb, classField, "0"));
+        indexRequestBuilderList.add(client().prepareIndex(indexName, docType, "7")
+                .setSource(textField, "0", classField, "0"));
+        indexRandom(true, indexRequestBuilderList);
     }
 }

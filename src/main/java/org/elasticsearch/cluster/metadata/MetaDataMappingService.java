@@ -428,10 +428,11 @@ public class MetaDataMappingService extends AbstractComponent {
                 String latestIndexWithout = null;
                 for (String indexName : request.indices()) {
                     IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                    IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData);
-                    
+
                     if (indexMetaData != null) {
+                        IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData);
                         boolean isLatestIndexWithout = true;
+
                         for (String type : request.types()) {
                             if (indexMetaData.mappings().containsKey(type)) {
                                 indexBuilder.removeMapping(type);
@@ -443,12 +444,18 @@ public class MetaDataMappingService extends AbstractComponent {
                             latestIndexWithout = indexMetaData.index();
                         }
 
+                        builder.put(indexBuilder);
                     }
-                    builder.put(indexBuilder);
                 }
 
                 if (!changed) {
-                    throw new TypeMissingException(new Index(latestIndexWithout), request.types());
+                    if (latestIndexWithout == null){
+                        //We never got a latestIndexWith since when we tried to access the index/mapping it
+                        //had been deleted out from underneath us.
+                        throw new TypeMissingException(new Index(request.indices()[0]), request.types());
+                    } else {
+                        throw new TypeMissingException(new Index(latestIndexWithout), request.types());
+                    }
                 }
 
                 logger.info("[{}] remove_mapping [{}]", request.indices(), request.types());

@@ -56,7 +56,7 @@ public class RestFielddataAction extends AbstractCatAction {
     }
 
     @Override
-    void doRequest(final RestRequest request, final RestChannel channel) {
+    void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
         nodesStatsRequest.clear();

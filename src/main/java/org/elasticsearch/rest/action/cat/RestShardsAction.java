@@ -56,7 +56,7 @@ public class RestShardsAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));

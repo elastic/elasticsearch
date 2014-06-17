@@ -48,7 +48,7 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel) {
+    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
         pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));

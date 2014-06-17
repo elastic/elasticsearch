@@ -40,7 +40,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         putRequest.listenerThreaded(false);
         putRequest.template(request.param("template", putRequest.template()));

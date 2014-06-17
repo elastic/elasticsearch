@@ -55,7 +55,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));

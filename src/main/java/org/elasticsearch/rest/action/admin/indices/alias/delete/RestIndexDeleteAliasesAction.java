@@ -41,7 +41,7 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] aliases = Strings.splitStringByCommaToArray(request.param("name"));
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();

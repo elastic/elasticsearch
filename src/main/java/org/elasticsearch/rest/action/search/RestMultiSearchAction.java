@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,17 +26,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-import java.io.IOException;
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
@@ -60,7 +54,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.listenerThreaded(false);
 

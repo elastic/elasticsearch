@@ -45,7 +45,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
         nodesShutdownRequest.listenerThreaded(false);

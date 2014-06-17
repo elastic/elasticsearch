@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.main;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Build;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -52,7 +51,7 @@ public class RestMainAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.listenerThreaded(false);
         clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));

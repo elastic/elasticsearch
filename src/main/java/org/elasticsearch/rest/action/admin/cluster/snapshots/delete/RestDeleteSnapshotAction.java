@@ -42,7 +42,7 @@ public class RestDeleteSnapshotAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         DeleteSnapshotRequest deleteSnapshotRequest = deleteSnapshotRequest(request.param("repository"), request.param("snapshot"));
         deleteSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteSnapshotRequest.masterNodeTimeout()));
         client.admin().cluster().deleteSnapshot(deleteSnapshotRequest, new AcknowledgedRestListener<DeleteSnapshotResponse>(channel));

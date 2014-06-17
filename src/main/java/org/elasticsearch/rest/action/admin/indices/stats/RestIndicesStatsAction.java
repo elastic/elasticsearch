@@ -51,7 +51,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.listenerThreaded(false);
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesStatsRequest.indicesOptions()));

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.google.common.primitives.Longs;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -161,9 +160,10 @@ class InternalOrder extends Terms.Order {
                 return new Comparator<Terms.Bucket>() {
                     @Override
                     public int compare(Terms.Bucket o1, Terms.Bucket o2) {
-                        long v1 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o1).bucketOrd);
-                        long v2 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o2).bucketOrd);
-                        return asc ? Long.compare(v1, v2) : Long.compare(v2, v1);
+                        int mul = asc ? 1 : -1;
+                        int v1 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o1).bucketOrd);
+                        int v2 = ((SingleBucketAggregator) aggregator).bucketDocCount(((InternalTerms.Bucket) o2).bucketOrd);
+                        return mul * (v1 - v2);
                     }
                 };
             }

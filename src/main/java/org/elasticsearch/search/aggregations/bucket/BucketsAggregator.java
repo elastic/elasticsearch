@@ -19,7 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -32,12 +32,12 @@ import java.util.Arrays;
  */
 public abstract class BucketsAggregator extends Aggregator {
 
-    private LongArray docCounts;
+    private IntArray docCounts;
 
     public BucketsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories,
                              long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
         super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
-        docCounts = bigArrays.newLongArray(estimatedBucketsCount, true);
+        docCounts = bigArrays.newIntArray(estimatedBucketsCount, true);
     }
 
     /**
@@ -63,7 +63,7 @@ public abstract class BucketsAggregator extends Aggregator {
         collectBucketNoCounts(doc, bucketOrd);
     }
 
-    public LongArray getDocCounts() {
+    public IntArray getDocCounts() {
         return docCounts;
     }
 
@@ -77,7 +77,7 @@ public abstract class BucketsAggregator extends Aggregator {
     /**
      * Utility method to increment the doc counts of the given bucket (identified by the bucket ordinal)
      */
-    protected final void incrementBucketDocCount(long inc, long bucketOrd) throws IOException {
+    protected final void incrementBucketDocCount(int inc, long bucketOrd) throws IOException {
         docCounts = bigArrays.grow(docCounts, bucketOrd + 1);
         docCounts.increment(bucketOrd, inc);
     }
@@ -85,13 +85,13 @@ public abstract class BucketsAggregator extends Aggregator {
     /**
      * Utility method to return the number of documents that fell in the given bucket (identified by the bucket ordinal)
      */
-    public final long bucketDocCount(long bucketOrd) {
+    public final int bucketDocCount(long bucketOrd) {
         if (bucketOrd >= docCounts.size()) {
             // This may happen eg. if no document in the highest buckets is accepted by a sub aggregator.
             // For example, if there is a long terms agg on 3 terms 1,2,3 with a sub filter aggregator and if no document with 3 as a value
             // matches the filter, then the filter will never collect bucket ord 3. However, the long terms agg will call bucketAggregations(3)
             // on the filter aggregator anyway to build sub-aggregations.
-            return 0L;
+            return 0;
         } else {
             return docCounts.get(bucketOrd);
         }

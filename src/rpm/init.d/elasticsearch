@@ -123,8 +123,9 @@ force_reload() {
 rh_status() {
     # run checks to determine if the service is running or use generic status
     if [ -r /etc/rc.status ]; then
+    		echo -n "Checking for service elasticsearch "
 		checkproc -p $pidfile $JAVA
-    # rc_status -v -r
+    		rc_status -v -r
     else
 		status -p $pidfile $JAVA
     fi

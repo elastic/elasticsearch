@@ -27,7 +27,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.ordinals.InternalGlobalOrdinalsBuilder.GlobalOrdinalMapping;
@@ -131,7 +131,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 continue;
             }
             final long bucketOrd = getBucketOrd(globalTermOrd);
-            final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
+            final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }
@@ -260,15 +260,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
      */
     public static class LowCardinality extends GlobalOrdinalsStringTermsAggregator {
 
-        private final LongArray segmentDocCounts;
+        private final IntArray segmentDocCounts;
 
         private Ordinals.Docs segmentOrdinals;
-        private LongArray current;
+        private IntArray current;
 
         public LowCardinality(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, long estimatedBucketCount,
                               long maxOrd, InternalOrder order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode) {
             super(name, factories, valuesSource, estimatedBucketCount, maxOrd, order, bucketCountThresholds, null, aggregationContext, parent, collectionMode);
-            this.segmentDocCounts = bigArrays.newLongArray(maxOrd, true);
+            this.segmentDocCounts = bigArrays.newIntArray(maxOrd, true);
         }
 
         @Override
@@ -315,7 +315,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             // This is the cleanest way I can think of so far
             GlobalOrdinalMapping mapping = (GlobalOrdinalMapping) globalOrdinals;
             for (int i = 0; i < segmentDocCounts.size(); i++) {
-                final long inc = segmentDocCounts.set(i, 0);
+                final int inc = segmentDocCounts.set(i, 0);
                 if (inc == 0) {
                     continue;
                 }

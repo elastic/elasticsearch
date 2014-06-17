@@ -82,7 +82,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 continue;
             }
             final long bucketOrd = getBucketOrd(globalTermOrd);
-            final long bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
+            final int bucketDocCount = bucketOrd < 0 ? 0 : bucketDocCount(bucketOrd);
             if (bucketCountThresholds.getMinDocCount() > 0 && bucketDocCount == 0) {
                 continue;
             }

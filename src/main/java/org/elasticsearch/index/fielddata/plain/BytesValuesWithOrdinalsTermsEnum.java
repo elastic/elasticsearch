@@ -34,7 +34,7 @@ import java.util.Comparator;
  * A general {@link org.apache.lucene.index.TermsEnum} to iterate over terms from a {@link AtomicFieldData.WithOrdinals}
  * instance.
  */
-public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
+public class BytesValuesWithOrdinalsTermsEnum extends TermsEnum {
 
     private final BytesValues.WithOrdinals bytesValues;
     private final long maxOrd;
@@ -42,8 +42,8 @@ public class AtomicFieldDataWithOrdinalsTermsEnum extends TermsEnum {
     private long currentOrd = BytesValues.WithOrdinals.MISSING_ORDINAL;
     private BytesRef currentTerm;
 
-    public AtomicFieldDataWithOrdinalsTermsEnum(AtomicFieldData.WithOrdinals afd) {
-        this.bytesValues = afd.getBytesValues();
+    public BytesValuesWithOrdinalsTermsEnum(BytesValues.WithOrdinals bytesValues) {
+        this.bytesValues = bytesValues;
         this.maxOrd = bytesValues.getMaxOrd();
     }
 

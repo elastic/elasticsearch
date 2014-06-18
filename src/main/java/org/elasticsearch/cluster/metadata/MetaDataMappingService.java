@@ -22,22 +22,19 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -102,9 +99,9 @@ public class MetaDataMappingService extends AbstractComponent {
         final CompressedString mappingSource;
         final long order; // -1 for unknown
         final String nodeId; // null fr unknown
-        final ClusterStateUpdateListener listener;
+        final ActionListener<ClusterStateUpdateResponse> listener;
 
-        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, long order, String nodeId, ClusterStateUpdateListener listener) {
+        UpdateTask(String index, String indexUUID, String type, CompressedString mappingSource, long order, String nodeId, ActionListener<ClusterStateUpdateResponse> listener) {
             super(index, indexUUID);
             this.type = type;
             this.mappingSource = mappingSource;
@@ -365,7 +362,7 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final long order, final String nodeId, final ClusterStateUpdateListener listener) {
+    public void updateMapping(final String index, final String indexUUID, final String type, final CompressedString mappingSource, final long order, final String nodeId, final ActionListener<ClusterStateUpdateResponse> listener) {
         final long insertOrder;
         synchronized (refreshOrUpdateMutex) {
             insertOrder = ++refreshOrUpdateInsertOrder;
@@ -384,37 +381,11 @@ public class MetaDataMappingService extends AbstractComponent {
         });
     }
 
-    public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
-        clusterService.submitStateUpdateTask("remove-mapping [" + Arrays.toString(request.types()) + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
-
+    public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        clusterService.submitStateUpdateTask("remove-mapping [" + Arrays.toString(request.types()) + "]", Priority.HIGH, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
@@ -455,46 +426,16 @@ public class MetaDataMappingService extends AbstractComponent {
 
                 return ClusterState.builder(currentState).metaData(builder).build();
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
-            }
         });
     }
 
-    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ClusterStateUpdateListener listener) {
+    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
 
-        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask() {
-
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
+        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]", Priority.HIGH, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterStateUpdateResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new ClusterStateUpdateResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.ackTimeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
@@ -626,11 +567,6 @@ public class MetaDataMappingService extends AbstractComponent {
                         indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

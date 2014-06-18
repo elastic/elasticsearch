@@ -25,15 +25,12 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -73,19 +70,14 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
 
     @Override
     protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) throws ElasticsearchException {
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.IMMEDIATE, new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.IMMEDIATE, new AckedClusterStateUpdateTask<ClusterRerouteResponse>(request, listener) {
 
             private volatile ClusterState clusterStateToSend;
             private volatile RoutingExplanations explanations;
 
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new ClusterRerouteResponse(true, clusterStateToSend, explanations));
+            protected ClusterRerouteResponse newResponse(boolean acknowledged) {
+                return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
             }
 
             @Override
@@ -94,19 +86,9 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
             }
 
             @Override
-            public TimeValue ackTimeout() {
-                return request.timeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
-            }
-
-            @Override
             public void onFailure(String source, Throwable t) {
                 logger.debug("failed to perform [{}]", t, source);
-                listener.onFailure(t);
+                super.onFailure(source, t);
             }
 
             @Override
@@ -119,11 +101,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
                     return currentState;
                 }
                 return newState;
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

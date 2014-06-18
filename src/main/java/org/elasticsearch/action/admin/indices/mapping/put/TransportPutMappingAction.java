@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -87,7 +86,7 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
                 .indices(request.indices()).type(request.type())
                 .source(request.source()).ignoreConflicts(request.ignoreConflicts());
 
-        metaDataMappingService.putMapping(updateRequest, new ClusterStateUpdateListener() {
+        metaDataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

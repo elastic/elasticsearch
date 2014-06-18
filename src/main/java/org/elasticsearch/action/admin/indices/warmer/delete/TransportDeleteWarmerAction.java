@@ -29,12 +29,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
@@ -90,37 +87,17 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
 
     @Override
     protected void masterOperation(final DeleteWarmerRequest request, final ClusterState state, final ActionListener<DeleteWarmerResponse> listener) throws ElasticsearchException {
-        clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete_warmer [" + Arrays.toString(request.names()) + "]", new AckedClusterStateUpdateTask<DeleteWarmerResponse>(request, listener) {
 
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                listener.onResponse(new DeleteWarmerResponse(true));
-            }
-
-            @Override
-            public void onAckTimeout() {
-                listener.onResponse(new DeleteWarmerResponse(false));
-            }
-
-            @Override
-            public TimeValue ackTimeout() {
-                return request.timeout();
-            }
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterNodeTimeout();
+            protected DeleteWarmerResponse newResponse(boolean acknowledged) {
+                return new DeleteWarmerResponse(acknowledged);
             }
 
             @Override
             public void onFailure(String source, Throwable t) {
                 logger.debug("failed to delete warmer [{}] on indices [{}]", t, Arrays.toString(request.names()), request.indices());
-                listener.onFailure(t);
+                super.onFailure(source, t);
             }
 
             @Override
@@ -183,11 +160,6 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                 }
 
                 return ClusterState.builder(currentState).metaData(mdBuilder).build();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-
             }
         });
     }

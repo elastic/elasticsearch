@@ -191,18 +191,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override
     public ShardIterator shardsIt() {
-        return shardsIt(false);
-    }
-
-    @Override
-    public ShardIterator shardsIt(boolean includeRelocating) {
-        if (!(includeRelocating && state == ShardRoutingState.RELOCATING)) {
-            return new PlainShardIterator(shardId(), asList);
-        }
-        return new PlainShardIterator(shardId(),
-                ImmutableList.of((ShardRouting) this,
-                        new ImmutableShardRouting(index, shardId, relocatingNodeId, currentNodeId, primary, ShardRoutingState.INITIALIZING, version))
-        );
+        return new PlainShardIterator(shardId(), asList);
     }
 
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in) throws IOException {
@@ -303,21 +292,18 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         if (shardId != that.shardId) {
             return false;
         }
-        if (currentNodeId != null ? !currentNodeId.equals(that.currentNodeId) : that.currentNodeId != null) {
+        if (currentNodeId != null ? !currentNodeId.equals(that.currentNodeId) : that.currentNodeId != null)
             return false;
-        }
         if (index != null ? !index.equals(that.index) : that.index != null) {
             return false;
         }
-        if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null) {
+        if (relocatingNodeId != null ? !relocatingNodeId.equals(that.relocatingNodeId) : that.relocatingNodeId != null)
             return false;
-        }
         if (state != that.state) {
             return false;
         }
-        if (restoreSource != null ? !restoreSource.equals(that.restoreSource) : that.restoreSource != null) {
+        if (restoreSource != null ? !restoreSource.equals(that.restoreSource) : that.restoreSource != null)
             return false;
-        }
 
         return true;
     }

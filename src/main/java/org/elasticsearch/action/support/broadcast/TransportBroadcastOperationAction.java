@@ -89,6 +89,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
 
     protected abstract ShardResponse shardOperation(ShardRequest request) throws ElasticsearchException;
 
+    /**
+     * Determines the shards this operation will be executed on. The operation is executed once per shard iterator, typically
+     * on the first shard in it. If the operation fails, it will be retried on the next shard in the iterator.
+     */
     protected abstract GroupShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);

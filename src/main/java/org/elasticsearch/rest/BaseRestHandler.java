@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -79,9 +78,10 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         }
 
         private void copyHeaders(ActionRequest request) {
-            for (Map.Entry<String, String> header : restRequest.headers()) {
-                if (usefulHeaders.contains(header.getKey())) {
-                    request.putHeader(header.getKey(), header.getValue());
+            for (String usefulHeader : usefulHeaders) {
+                String headerValue = restRequest.header(usefulHeader);
+                if (headerValue != null) {
+                    request.putHeader(usefulHeader, headerValue);
                 }
             }
         }

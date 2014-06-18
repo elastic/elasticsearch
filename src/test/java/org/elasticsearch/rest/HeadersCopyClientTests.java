@@ -41,6 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,13 +55,15 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     public void testCopyHeadersRequest() {
         Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> usefulRestHeaders = randomHeadersFrom(restHeaders);
+        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
+        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(usefulRestHeaders);
+        expectedHeaders.putAll(leftRestHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders.keySet());
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
 
         SearchRequest searchRequest = Requests.searchRequest();
         putHeaders(searchRequest, existingTransportHeaders);
@@ -85,13 +88,15 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     public void testCopyHeadersClusterAdminRequest() {
         Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> usefulRestHeaders = randomHeadersFrom(restHeaders);
+        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
+        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(usefulRestHeaders);
+        expectedHeaders.putAll(leftRestHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders.keySet());
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
 
         ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest();
         putHeaders(clusterHealthRequest, existingTransportHeaders);
@@ -116,13 +121,15 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     public void testCopyHeadersIndicesAdminRequest() {
         Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> usefulRestHeaders = randomHeadersFrom(restHeaders);
+        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
+        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(usefulRestHeaders);
+        expectedHeaders.putAll(leftRestHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders.keySet());
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
 
         CreateIndexRequest createIndexRequest = Requests.createIndexRequest("test");
         putHeaders(createIndexRequest, existingTransportHeaders);
@@ -147,13 +154,15 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     public void testCopyHeadersRequestBuilder() {
         Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> usefulRestHeaders = randomHeadersFrom(restHeaders);
+        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
+        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(usefulRestHeaders);
+        expectedHeaders.putAll(leftRestHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders.keySet());
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
 
         ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
                 client.prepareIndex("index", "type"),
@@ -178,13 +187,15 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     public void testCopyHeadersClusterAdminRequestBuilder() {
         Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> usefulRestHeaders = randomHeadersFrom(restHeaders);
+        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
+        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(usefulRestHeaders);
+        expectedHeaders.putAll(leftRestHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders.keySet());
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
 
         ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
                 client.admin().cluster().prepareNodesInfo(),
@@ -207,13 +218,15 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     public void testCopyHeadersIndicesAdminRequestBuilder() {
         Map<String, String> existingTransportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
-        Map<String, String> usefulRestHeaders = randomHeadersFrom(restHeaders);
+        Map<String, String> leftRestHeaders = randomHeadersFrom(restHeaders);
+        Set<String> usefulRestHeaders = new HashSet<>(leftRestHeaders.keySet());
+        usefulRestHeaders.addAll(randomHeaders(randomIntBetween(0, 10), "useful-").keySet());
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(existingTransportHeaders);
-        expectedHeaders.putAll(usefulRestHeaders);
+        expectedHeaders.putAll(leftRestHeaders);
 
-        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders.keySet());
+        Client client = client(new NoOpClient(), new FakeRestRequest(restHeaders), usefulRestHeaders);
 
         ActionRequestBuilder requestBuilders [] = new ActionRequestBuilder[] {
                 client.admin().indices().prepareValidateQuery(),
@@ -234,9 +247,13 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
     }
 
     private static Map<String, String> randomHeaders(int count) {
+        return randomHeaders(count, "header-");
+    }
+
+    private static Map<String, String> randomHeaders(int count, String prefix) {
         Map<String, String> headers = new HashMap<>();
         for (int i = 0; i < count; i++) {
-            headers.put("header-" + randomInt(30), randomRealisticUnicodeOfLengthBetween(1, 20));
+            headers.put(prefix + randomInt(30), randomRealisticUnicodeOfLengthBetween(1, 20));
         }
         return headers;
     }

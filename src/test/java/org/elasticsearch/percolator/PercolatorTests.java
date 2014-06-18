@@ -1959,7 +1959,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
         assertMatchCount(response, 3l);
-        Set<String> expectedIds = new HashSet<>();
+        Set<String> expectedIds = new HashSet<String>();
         expectedIds.add("q1");
         expectedIds.add("q4");
         expectedIds.add("q5");

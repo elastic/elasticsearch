@@ -61,6 +61,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -1841,4 +1842,141 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .endArray().endObject();
         return doc;
     }
+
+    // issue
+    @Test
+    public void testNestedDocFilter() throws IOException {
+        String mapping = "{\n" +
+                "    \"doc\": {\n" +
+                "      \"properties\": {\n" +
+                "        \"persons\": {\n" +
+                "          \"type\": \"nested\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+        String doc = "{\n" +
+                "    \"name\": \"obama\",\n" +
+                "    \"persons\": [\n" +
+                "      {\n" +
+                "        \"foo\": \"bar\"\n" +
+                "      }\n" +
+                "    ]\n" +
+                "  }";
+        String q1 = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"must\": {\n" +
+                "        \"match\": {\n" +
+                "          \"name\": \"obama\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
+                "}";
+        String q2 = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"must_not\": {\n" +
+                "        \"match\": {\n" +
+                "          \"name\": \"obama\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
+                "}";
+        String q3 = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"must\": {\n" +
+                "        \"match\": {\n" +
+                "          \"persons.foo\": \"bar\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
+                "}";
+        String q4 = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"must_not\": {\n" +
+                "        \"match\": {\n" +
+                "          \"persons.foo\": \"bar\"\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
+                "}";
+        String q5 = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"must\": {\n" +
+                "        \"nested\": {\n" +
+                "          \"path\": \"persons\",\n" +
+                "          \"query\": {\n" +
+                "            \"match\": {\n" +
+                "              \"persons.foo\": \"bar\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
+                "}";
+        String q6 = "{\n" +
+                "  \"query\": {\n" +
+                "    \"bool\": {\n" +
+                "      \"must_not\": {\n" +
+                "        \"nested\": {\n" +
+                "          \"path\": \"persons\",\n" +
+                "          \"query\": {\n" +
+                "            \"match\": {\n" +
+                "              \"persons.foo\": \"bar\"\n" +
+                "            }\n" +
+                "          }\n" +
+                "        }\n" +
+                "      }\n" +
+                "    }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
+                "}";
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
+        ensureGreen("test");
+        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q1).setId("q1").get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q2).setId("q2").get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q3).setId("q3").get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q4).setId("q4").get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q5).setId("q5").get();
+        client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q6).setId("q6").get();
+        refresh();
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("test").setDocumentType("doc")
+                .setPercolateDoc(docBuilder().setDoc(doc))
+                .get();
+        assertMatchCount(response, 3l);
+        Set<String> expectedIds = new HashSet<>();
+        expectedIds.add("q1");
+        expectedIds.add("q4");
+        expectedIds.add("q5");
+        for (PercolateResponse.Match match : response.getMatches()) {
+            assertTrue(expectedIds.remove(match.getId().string()));
+        }
+        assertTrue(expectedIds.isEmpty());
+        response = client().preparePercolate().setOnlyCount(true)
+                .setIndices("test").setDocumentType("doc")
+                .setPercolateDoc(docBuilder().setDoc(doc))
+                .get();
+        assertMatchCount(response, 3l);
+        response = client().preparePercolate().setScore(randomBoolean()).setSortByScore(randomBoolean()).setOnlyCount(randomBoolean()).setSize(10).setPercolateQuery(QueryBuilders.termQuery("text", "foo"))
+                .setIndices("test").setDocumentType("doc")
+                .setPercolateDoc(docBuilder().setDoc(doc))
+                .get();
+        assertMatchCount(response, 3l);
+    }
 }
+

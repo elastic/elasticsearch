@@ -166,6 +166,14 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     @Override
+    public ShardRouting targetRoutingIfRelocating() {
+        if (!relocating()) {
+            return null;
+        }
+        return new ImmutableShardRouting(index, shardId, relocatingNodeId, currentNodeId, primary, ShardRoutingState.INITIALIZING, version);
+    }
+
+    @Override
     public RestoreSource restoreSource() {
         return restoreSource;
     }

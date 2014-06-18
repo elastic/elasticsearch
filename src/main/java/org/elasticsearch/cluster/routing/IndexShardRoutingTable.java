@@ -88,7 +88,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             }
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
-                allInitializingShards.add(new ImmutableShardRouting(shard.index(), shard.id(), shard.relocatingNodeId(), shard.currentNodeId(), shard.primary(), ShardRoutingState.INITIALIZING, shard.version()));
+                allInitializingShards.add(shard.targetRoutingIfRelocating());
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);

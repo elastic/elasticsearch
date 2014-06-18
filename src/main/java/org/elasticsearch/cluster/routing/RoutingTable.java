@@ -202,13 +202,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     if (shardRouting.active()) {
                         set.add(shardRouting.shardsIt());
                         if (includeRelocationTargets && shardRouting.relocating()) {
-                            set.add(new PlainShardIterator(shardRouting.shardId(),
-                                    ImmutableList.of(
-                                            (ShardRouting) new ImmutableShardRouting(shardRouting.index(), shardRouting.id(),
-                                                    shardRouting.relocatingNodeId(), shardRouting.currentNodeId(), shardRouting.primary(),
-                                                    ShardRoutingState.INITIALIZING, shardRouting.version())
-                                    )
-                            ));
+                            set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.of(shardRouting.targetRoutingIfRelocating())));
                         }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
                         set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));
@@ -248,13 +242,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     if (shardRouting.assignedToNode()) {
                         set.add(shardRouting.shardsIt());
                         if (includeRelocationTargets && shardRouting.relocating()) {
-                            set.add(new PlainShardIterator(shardRouting.shardId(),
-                                    ImmutableList.of(
-                                            (ShardRouting) new ImmutableShardRouting(shardRouting.index(), shardRouting.id(),
-                                                    shardRouting.relocatingNodeId(), shardRouting.currentNodeId(), shardRouting.primary(),
-                                                    ShardRoutingState.INITIALIZING, shardRouting.version())
-                                    )
-                            ));
+                            set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.of(shardRouting.targetRoutingIfRelocating())));
                         }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
                         set.add(new PlainShardIterator(shardRouting.shardId(), ImmutableList.<ShardRouting>of()));

@@ -487,8 +487,8 @@ public class PercolatorService extends AbstractComponent {
             long count = 0;
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                Count countCollector = count(logger, context);
-                queryBasedPercolating(percolatorSearcher, context, countCollector, isNested);
+                Count countCollector = count(logger, context, isNested);
+                queryBasedPercolating(percolatorSearcher, context, countCollector);
                 count = countCollector.counter();
             } catch (Throwable e) {
                 logger.warn("failed to execute", e);
@@ -596,8 +596,8 @@ public class PercolatorService extends AbstractComponent {
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                Match match = match(logger, context, highlightPhase);
-                queryBasedPercolating(percolatorSearcher, context, match, isNested);
+                Match match = match(logger, context, highlightPhase, isNested);
+                queryBasedPercolating(percolatorSearcher, context, match);
                 List<BytesRef> matches = match.matches();
                 List<Map<String, HighlightField>> hls = match.hls();
                 long count = match.counter();
@@ -629,8 +629,8 @@ public class PercolatorService extends AbstractComponent {
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                MatchAndScore matchAndScore = matchAndScore(logger, context, highlightPhase);
-                queryBasedPercolating(percolatorSearcher, context, matchAndScore, isNested);
+                MatchAndScore matchAndScore = matchAndScore(logger, context, highlightPhase, isNested);
+                queryBasedPercolating(percolatorSearcher, context, matchAndScore);
                 List<BytesRef> matches = matchAndScore.matches();
                 List<Map<String, HighlightField>> hls = matchAndScore.hls();
                 float[] scores = matchAndScore.scores().toArray();
@@ -743,8 +743,8 @@ public class PercolatorService extends AbstractComponent {
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             Engine.Searcher percolatorSearcher = context.indexShard().acquireSearcher("percolate");
             try {
-                MatchAndSort matchAndSort = QueryCollector.matchAndSort(logger, context);
-                queryBasedPercolating(percolatorSearcher, context, matchAndSort, isNested);
+                MatchAndSort matchAndSort = QueryCollector.matchAndSort(logger, context, isNested);
+                queryBasedPercolating(percolatorSearcher, context, matchAndSort);
                 TopDocs topDocs = matchAndSort.topDocs();
                 long count = topDocs.totalHits;
                 List<BytesRef> matches = new ArrayList<>(topDocs.scoreDocs.length);
@@ -790,15 +790,11 @@ public class PercolatorService extends AbstractComponent {
 
     };
 
-    private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector, boolean isNested) throws IOException {
+    private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
         percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter);
         XFilteredQuery query = new XFilteredQuery(context.percolateQuery(), percolatorTypeFilter);
-        if (isNested) {
-            percolatorSearcher.searcher().search(query, NonNestedDocsFilter.INSTANCE, percolateCollector);
-        } else {
-            percolatorSearcher.searcher().search(query, percolateCollector);
-        }
+        percolatorSearcher.searcher().search(query, percolateCollector);
         for (Collector queryCollector : percolateCollector.facetAndAggregatorCollector) {
             if (queryCollector instanceof XCollector) {
                 ((XCollector) queryCollector).postCollection();

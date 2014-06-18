@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -55,6 +56,7 @@ abstract class QueryCollector extends Collector {
     final IndexSearcher searcher;
     final ConcurrentMap<BytesRef, Query> queries;
     final ESLogger logger;
+    boolean isNestedDoc = false;
 
     final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
     BytesRef current;
@@ -63,12 +65,13 @@ abstract class QueryCollector extends Collector {
 
     final List<Collector> facetAndAggregatorCollector;
 
-    QueryCollector(ESLogger logger, PercolateContext context) {
+    QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
         final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
         this.idFieldData = context.fieldData().getForField(idMapper);
+        this.isNestedDoc = isNestedDoc;
 
         ImmutableList.Builder<Collector> facetAggCollectorBuilder = ImmutableList.builder();
         if (context.facets() != null) {
@@ -139,20 +142,20 @@ abstract class QueryCollector extends Collector {
     }
 
 
-    static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase) {
-        return new Match(logger, context, highlightPhase);
+    static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+        return new Match(logger, context, highlightPhase, isNestedDoc);
     }
 
-    static Count count(ESLogger logger, PercolateContext context) {
-        return new Count(logger, context);
+    static Count count(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+        return new Count(logger, context, isNestedDoc);
     }
 
-    static MatchAndScore matchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase) {
-        return new MatchAndScore(logger, context, highlightPhase);
+    static MatchAndScore matchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+        return new MatchAndScore(logger, context, highlightPhase, isNestedDoc);
     }
 
-    static MatchAndSort matchAndSort(ESLogger logger, PercolateContext context) {
-        return new MatchAndSort(logger, context);
+    static MatchAndSort matchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+        return new MatchAndSort(logger, context, isNestedDoc);
     }
 
 
@@ -179,8 +182,8 @@ abstract class QueryCollector extends Collector {
         final int size;
         long counter = 0;
 
-        Match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase) {
-            super(logger, context);
+        Match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+            super(logger, context, isNestedDoc);
             this.limit = context.limit;
             this.size = context.size();
             this.context = context;
@@ -202,7 +205,11 @@ abstract class QueryCollector extends Collector {
                     context.hitContext().cache().clear();
                 }
 
-                searcher.search(query, collector);
+                if (isNestedDoc) {
+                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                } else {
+                    searcher.search(query, collector);
+                }
                 if (collector.exists()) {
                     if (!limit || counter < size) {
                         matches.add(values.copyShared());
@@ -236,8 +243,8 @@ abstract class QueryCollector extends Collector {
 
         private final TopScoreDocCollector topDocsCollector;
 
-        MatchAndSort(ESLogger logger, PercolateContext context) {
-            super(logger, context);
+        MatchAndSort(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+            super(logger, context, isNestedDoc);
             // TODO: Use TopFieldCollector.create(...) for ascending and decending scoring?
             topDocsCollector = TopScoreDocCollector.create(context.size(), false);
         }
@@ -252,7 +259,11 @@ abstract class QueryCollector extends Collector {
             // run the query
             try {
                 collector.reset();
-                searcher.search(query, collector);
+                if (isNestedDoc) {
+                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                } else {
+                    searcher.search(query, collector);
+                }
                 if (collector.exists()) {
                     topDocsCollector.collect(doc);
                     postMatch(doc);
@@ -294,8 +305,8 @@ abstract class QueryCollector extends Collector {
 
         private Scorer scorer;
 
-        MatchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase) {
-            super(logger, context);
+        MatchAndScore(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) {
+            super(logger, context, isNestedDoc);
             this.limit = context.limit;
             this.size = context.size();
             this.context = context;
@@ -316,7 +327,11 @@ abstract class QueryCollector extends Collector {
                     context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));
                     context.hitContext().cache().clear();
                 }
-                searcher.search(query, collector);
+                if (isNestedDoc) {
+                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                } else {
+                    searcher.search(query, collector);
+                }
                 if (collector.exists()) {
                     if (!limit || counter < size) {
                         matches.add(values.copyShared());
@@ -360,8 +375,8 @@ abstract class QueryCollector extends Collector {
 
         private long counter = 0;
 
-        Count(ESLogger logger, PercolateContext context) {
-            super(logger, context);
+        Count(ESLogger logger, PercolateContext context, boolean isNestedDoc) {
+            super(logger, context, isNestedDoc);
         }
 
         @Override
@@ -374,7 +389,11 @@ abstract class QueryCollector extends Collector {
             // run the query
             try {
                 collector.reset();
-                searcher.search(query, collector);
+                if (isNestedDoc) {
+                    searcher.search(query, NonNestedDocsFilter.INSTANCE, collector);
+                } else {
+                    searcher.search(query, collector);
+                }
                 if (collector.exists()) {
                     counter++;
                     postMatch(doc);

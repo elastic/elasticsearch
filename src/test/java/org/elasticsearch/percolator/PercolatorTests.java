@@ -1974,7 +1974,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
         assertMatchCount(response, 3l);
-        response = client().preparePercolate().setScore(true).setSortByScore(true).setSize(10).setPercolateQuery(QueryBuilders.matchAllQuery())
+        response = client().preparePercolate().setScore(randomBoolean()).setSortByScore(randomBoolean()).setOnlyCount(randomBoolean()).setSize(10).setPercolateQuery(QueryBuilders.termQuery("text", "foo"))
                 .setIndices("test").setDocumentType("doc")
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();

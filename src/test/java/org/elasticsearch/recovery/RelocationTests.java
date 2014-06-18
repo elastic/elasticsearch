@@ -21,7 +21,6 @@ package org.elasticsearch.recovery;
 
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -223,7 +222,6 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @Repeat(iterations = 100)
     public void testRelocationWhileRefreshing() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;

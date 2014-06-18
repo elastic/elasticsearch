@@ -47,13 +47,9 @@ public abstract class Ordinals {
         return ordinals(NO_VALUES);
     }
 
-    public static abstract class ValuesHolder {
+    public static interface ValuesHolder {
 
         public abstract BytesRef getValueByOrd(long ord, BytesRef reuse);
-
-        public BytesRef copy(BytesRef value) {
-            return BytesRef.deepCopyOf(value);
-        }
 
     }
 

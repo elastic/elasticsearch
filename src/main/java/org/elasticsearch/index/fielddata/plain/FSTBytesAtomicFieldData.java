@@ -73,7 +73,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         return new ScriptDocValues.Strings(getBytesValues());
     }
 
-    private static class ValuesHolder extends Ordinals.ValuesHolder {
+    private static class ValuesHolder implements Ordinals.ValuesHolder {
 
         private final FST<Long> fst;
 

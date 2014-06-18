@@ -71,7 +71,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         return new ScriptDocValues.Strings(getBytesValues());
     }
 
-    private static class ValuesHolder extends Ordinals.ValuesHolder {
+    private static class ValuesHolder implements Ordinals.ValuesHolder {
 
         private final PagedBytes.Reader bytes;
         private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
@@ -86,13 +86,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
             bytes.fill(scratch, termOrdToBytesOffset.get(ord));
             return scratch;
-        }
-        
-        @Override
-        public BytesRef copy(BytesRef scratch) {
-            // when we fill from the pages bytes, we just reference an existing buffer slice, its enough
-            // to create a shallow copy of the bytes to be safe for "reads".
-            return new BytesRef(scratch.bytes, scratch.offset, scratch.length);
         }
         
     }

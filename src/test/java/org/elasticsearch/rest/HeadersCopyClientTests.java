@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -40,16 +41,53 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.BaseRestHandler.HeadersCopyClient;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class HeadersCopyClientTests extends ElasticsearchTestCase {
+
+    @Test
+    public void testAddUsefulHeaders() throws InterruptedException {
+        //take the existing headers into account to make sure this test runs with tests.iters>1 as the list is static
+        final List<String> headers = Lists.newArrayList(BaseRestHandler.usefulHeaders());
+        int iterations = randomIntBetween(1, 5);
+
+        ExecutorService executorService = Executors.newFixedThreadPool(iterations);
+        for (int i = 0; i < iterations; i++) {
+            int headersCount = randomInt(10);
+            final String[] newHeaders = new String[headersCount];
+            for (int j = 0; j < headersCount; j++) {
+                String usefulHeader = randomRealisticUnicodeOfLengthBetween(1, 30);
+                newHeaders[j] = usefulHeader;
+                headers.add(usefulHeader);
+            }
+
+            executorService.submit(new Runnable() {
+                @Override
+                public void run() {
+                    logger.info("adding new {} headers", newHeaders.length);
+                    BaseRestHandler.addUsefulHeaders(newHeaders);
+                }
+            });
+        }
+
+        logger.info("headers size {}", headers.size());
+
+        executorService.shutdown();
+        assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));
+        String[] usefulHeaders = BaseRestHandler.usefulHeaders();
+        assertThat(usefulHeaders.length, equalTo(headers.size()));
+
+        Arrays.sort(usefulHeaders);
+        Collections.sort(headers);
+        assertThat(usefulHeaders, equalTo(headers.toArray(new String[headers.size()])));
+    }
 
     @Test
     public void testCopyHeadersRequest() {
@@ -276,7 +314,7 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
         if (usefulRestHeaders.isEmpty() && randomBoolean()) {
             return noOpClient;
         }
-        return new HeadersCopyClient(noOpClient, restRequest, usefulRestHeaders);
+        return new HeadersCopyClient(noOpClient, restRequest, usefulRestHeaders.toArray(new String[usefulRestHeaders.size()]));
     }
 
     private static void putHeaders(ActionRequest<?> request, Map<String, String> headers) {

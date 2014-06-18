@@ -112,8 +112,7 @@ public abstract class BytesValues {
         }
 
         /**
-         * Returns total unique ord count; this includes +1 for
-         * the null ord (always 0).
+         * Returns total unique ord count;
          */
         public abstract long getMaxOrd();
 

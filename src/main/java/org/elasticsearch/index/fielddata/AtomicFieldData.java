@@ -19,10 +19,8 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
-import org.elasticsearch.index.fielddata.plain.AtomicFieldDataWithOrdinalsTermsEnum;
 
 /**
  * The thread safe {@link org.apache.lucene.index.AtomicReader} level cache of the data.
@@ -90,17 +88,7 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
                     public long getMaxOrd() {
                         return 0;
                     }
-
-                    @Override
-                    public long currentOrd() {
-                        return MISSING_ORDINAL;
-                    }
                 };
-            }
-
-            @Override
-            public TermsEnum getTermsEnum() {
-                return new AtomicFieldDataWithOrdinalsTermsEnum(this);
             }
 
         };
@@ -110,11 +98,6 @@ public interface AtomicFieldData<Script extends ScriptDocValues> extends RamUsag
          * @param needsHashes
          */
         BytesValues.WithOrdinals getBytesValues();
-
-        /**
-         * Returns a terms enum to iterate over all the underlying values.
-         */
-        TermsEnum getTermsEnum();
 
     }
 

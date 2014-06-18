@@ -44,11 +44,6 @@ public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
     int readerIndex;
 
     @Override
-    public BytesRef copyShared() {
-        return bytesValues[readerIndex].copyShared();
-    }
-
-    @Override
     public long getMaxOrd() {
         return ordinalMap.getValueCount();
     }
@@ -65,11 +60,6 @@ public class GlobalOrdinalMapping extends BytesValues.WithOrdinals {
     @Override
     public long nextOrd() {
         return getGlobalOrd(values.nextOrd());
-    }
-
-    @Override
-    public long currentOrd() {
-        return getGlobalOrd(values.currentOrd());
     }
 
     @Override

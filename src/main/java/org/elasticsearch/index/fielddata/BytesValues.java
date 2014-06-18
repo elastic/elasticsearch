@@ -20,8 +20,10 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.index.fielddata.plain.BytesValuesWithOrdinalsTermsEnum;
 
 /**
  * A state-full lightweight per document set of <code>byte[]</code> values.
@@ -58,15 +60,6 @@ public abstract class BytesValues {
      */
     public final boolean isMultiValued() {
         return multiValued;
-    }
-
-    /**
-     * Converts the current shared {@link BytesRef} to a stable instance. Note,
-     * this calls makes the bytes safe for *reads*, not writes (into the same BytesRef). For example,
-     * it makes it safe to be placed in a map.
-     */
-    public BytesRef copyShared() {
-        return BytesRef.deepCopyOf(scratch);
     }
 
     /**
@@ -140,12 +133,6 @@ public abstract class BytesValues {
         public abstract long nextOrd();
 
         /**
-         * Returns the current ordinal in the iteration
-         * @return the current ordinal in the iteration
-         */
-        public abstract long currentOrd();
-
-        /**
          * Returns the value for the given ordinal.
          * @param ord the ordinal to lookup.
          * @return a shared {@link BytesRef} instance holding the value associated
@@ -156,6 +143,13 @@ public abstract class BytesValues {
         @Override
         public BytesRef nextValue() {
             return getValueByOrd(nextOrd());
+        }
+
+        /**
+         * Returns a terms enum to iterate over all the underlying values.
+         */
+        public TermsEnum getTermsEnum() {
+            return new BytesValuesWithOrdinalsTermsEnum(this);
         }
     }
 

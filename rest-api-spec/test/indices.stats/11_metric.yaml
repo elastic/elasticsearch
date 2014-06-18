@@ -1,19 +1,19 @@
 ---
-  setup:
+setup:
 
-    - do:
-        index:
-            index: test1
-            type:  bar
-            id:    1
-            body:  { "foo": "bar" }
+  - do:
+      index:
+          index: test1
+          type:  bar
+          id:    1
+          body:  { "foo": "bar" }
 
-    - do:
-        index:
-            index: test2
-            type:  baz
-            id:    1
-            body:  { "foo": "baz" }
+  - do:
+      index:
+          index: test2
+          type:  baz
+          id:    1
+          body:  { "foo": "baz" }
 
 ---
 "Metric - blank":

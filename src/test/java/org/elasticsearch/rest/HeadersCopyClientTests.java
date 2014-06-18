@@ -71,13 +71,10 @@ public class HeadersCopyClientTests extends ElasticsearchTestCase {
             executorService.submit(new Runnable() {
                 @Override
                 public void run() {
-                    logger.info("adding new {} headers", newHeaders.length);
                     BaseRestHandler.addUsefulHeaders(newHeaders);
                 }
             });
         }
-
-        logger.info("headers size {}", headers.size());
 
         executorService.shutdown();
         assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));

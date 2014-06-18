@@ -1874,7 +1874,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
                 "}";
         String q2 = "{\n" +
                 "  \"query\": {\n" +
@@ -1885,7 +1886,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
                 "}";
         String q3 = "{\n" +
                 "  \"query\": {\n" +
@@ -1896,7 +1898,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
                 "}";
         String q4 = "{\n" +
                 "  \"query\": {\n" +
@@ -1907,7 +1910,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
                 "}";
         String q5 = "{\n" +
                 "  \"query\": {\n" +
@@ -1923,7 +1927,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
                 "}";
         String q6 = "{\n" +
                 "  \"query\": {\n" +
@@ -1939,7 +1944,8 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +
-                "  }\n" +
+                "  },\n" +
+                "\"text\":\"foo\""+
                 "}";
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
         ensureGreen("test");
@@ -1949,6 +1955,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q4).setId("q4").get();
         client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q5).setId("q5").get();
         client().prepareIndex("test", PercolatorService.TYPE_NAME).setSource(q6).setId("q6").get();
+        refresh();
         PercolateResponse response = client().preparePercolate()
                 .setIndices("test").setDocumentType("doc")
                 .setPercolateDoc(docBuilder().setDoc(doc))
@@ -1962,6 +1969,16 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             assertTrue(expectedIds.remove(match.getId().string()));
         }
         assertTrue(expectedIds.isEmpty());
+        response = client().preparePercolate().setOnlyCount(true)
+                .setIndices("test").setDocumentType("doc")
+                .setPercolateDoc(docBuilder().setDoc(doc))
+                .get();
+        assertMatchCount(response, 3l);
+        response = client().preparePercolate().setScore(true).setSortByScore(true).setSize(10).setPercolateQuery(QueryBuilders.matchAllQuery())
+                .setIndices("test").setDocumentType("doc")
+                .setPercolateDoc(docBuilder().setDoc(doc))
+                .get();
+        assertMatchCount(response, 3l);
     }
 }
 

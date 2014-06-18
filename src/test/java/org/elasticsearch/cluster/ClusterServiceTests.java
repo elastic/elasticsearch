@@ -122,7 +122,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return true;
@@ -193,10 +198,10 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
             @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                return true;
+            protected Void newResponse(boolean acknowledged) {
+                return null;
             }
 
             @Override
@@ -263,7 +268,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;
@@ -331,7 +341,12 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         final AtomicBoolean executed = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch processedLatch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new AckedClusterStateUpdateTask<Void>(null, null) {
+            @Override
+            protected Void newResponse(boolean acknowledged) {
+                return null;
+            }
+
             @Override
             public boolean mustAck(DiscoveryNode discoveryNode) {
                 return false;

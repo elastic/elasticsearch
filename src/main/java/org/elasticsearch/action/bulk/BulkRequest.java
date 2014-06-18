@@ -98,13 +98,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
      */
     public BulkRequest add(Iterable<ActionRequest> requests) {
         for (ActionRequest request : requests) {
-            if (request instanceof IndexRequest) {
-                add((IndexRequest) request);
-            } else if (request instanceof DeleteRequest) {
-                add((DeleteRequest) request);
-            } else {
-                throw new ElasticsearchIllegalArgumentException("No support for request [" + request + "]");
-            }
+            add(request);
         }
         return this;
     }

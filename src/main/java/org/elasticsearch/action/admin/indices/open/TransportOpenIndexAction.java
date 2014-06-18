@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -91,7 +90,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .indices(request.indices());
 
-        indexStateService.openIndex(updateRequest, new ClusterStateUpdateListener() {
+        indexStateService.openIndex(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
             public void onResponse(ClusterStateUpdateResponse response) {

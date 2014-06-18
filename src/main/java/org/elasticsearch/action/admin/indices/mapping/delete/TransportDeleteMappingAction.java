@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateListener;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -179,7 +178,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
                                         .ackTimeout(request.timeout())
                                         .masterNodeTimeout(request.masterNodeTimeout());
 
-                                metaDataMappingService.removeMapping(clusterStateUpdateRequest, new ClusterStateUpdateListener() {
+                                metaDataMappingService.removeMapping(clusterStateUpdateRequest, new ActionListener<ClusterStateUpdateResponse>() {
                                     @Override
                                     public void onResponse(ClusterStateUpdateResponse response) {
                                         listener.onResponse(new DeleteMappingResponse(response.isAcknowledged()));

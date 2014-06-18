@@ -33,6 +33,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -265,6 +266,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     public void testClearIdCacheBug() throws Exception {
         // enforce lazy loading to make sure that p/c stats are not counted as part of field data
         assertAcked(prepareCreate("test")
+                .setSettings(ImmutableSettings.builder().put(indexSettings())
+                        .put("index.refresh_interval", -1)) // Disable automatic refresh, so that the _parent doesn't get warmed
                 .addMapping("parent", XContentFactory.jsonBuilder().startObject().startObject("parent")
                         .startObject("properties")
                             .startObject("p_field")

@@ -137,6 +137,12 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     ShardIterator shardsIt();
 
     /**
+     * A shard iterator with this shard in it, potentially including
+     * a relocation target if the shard is relocating
+     */
+    ShardIterator shardsIt(boolean includeRelocating);
+
+    /**
      * Does not write index name and shard id
      */
     void writeToThin(StreamOutput out) throws IOException;

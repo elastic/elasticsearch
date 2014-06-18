@@ -120,7 +120,7 @@ public class TransportFlushAction extends TransportBroadcastOperationAction<Flus
      */
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, FlushRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true);
+        return clusterState.routingTable().allActiveShardsGrouped(concreteIndices, true, true);
     }
 
     @Override

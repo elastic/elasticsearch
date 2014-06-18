@@ -68,16 +68,6 @@ public abstract class TransportRequest implements Streamable {
         return this;
     }
 
-    public final TransportRequest putHeaders(Iterable<Map.Entry<String, String>> stringHeaders) {
-        if (headers == null) {
-            headers = Maps.newHashMap();
-        }
-        for (Map.Entry<String, String> stringHeader : stringHeaders) {
-            headers.put(stringHeader.getKey(), stringHeader.getValue());
-        }
-        return this;
-    }
-
     @SuppressWarnings("unchecked")
     public final <V> V getHeader(String key) {
         if (headers == null) {

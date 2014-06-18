@@ -96,18 +96,8 @@ public class SinglePackedOrdinals extends Ordinals {
         }
 
         @Override
-        public long currentOrd() {
-            return currentOrdinal;
-        }
-
-        @Override
         public BytesRef getValueByOrd(long ord) {
             return scratch = values.getValueByOrd(ord, scratch);
-        }
-
-        @Override
-        public BytesRef copyShared() {
-            return values.copy(scratch);
         }
     }
 }

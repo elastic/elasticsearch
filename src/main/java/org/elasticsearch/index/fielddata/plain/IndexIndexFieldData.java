@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -73,11 +72,6 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
         }
 
         @Override
-        public long currentOrd() {
-            return BytesValues.WithOrdinals.MIN_ORDINAL;
-        }
-
-        @Override
         public BytesRef getValueByOrd(long ord) {
             return scratch;
         }
@@ -109,11 +103,6 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
 
         @Override
         public void close() {
-        }
-
-        @Override
-        public TermsEnum getTermsEnum() {
-            return new AtomicFieldDataWithOrdinalsTermsEnum(this);
         }
 
     }

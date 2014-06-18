@@ -280,7 +280,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
 
         public BytesRef copyCurrent() {
-            return values.copyShared();
+            return BytesRef.deepCopyOf(current);
         }
 
         @Override

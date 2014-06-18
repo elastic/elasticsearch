@@ -755,7 +755,7 @@ public class PercolatorService extends AbstractComponent {
                     final int numValues = values.setDocument(localDocId);
                     assert numValues == 1;
                     BytesRef bytes = values.nextValue();
-                    matches.add(values.copyShared());
+                    matches.add(BytesRef.deepCopyOf(bytes));
                     if (hls != null) {
                         Query query = context.percolateQueries().get(bytes);
                         context.parsedQuery(new ParsedQuery(query, ImmutableMap.<String, Filter>of()));

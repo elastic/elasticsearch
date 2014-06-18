@@ -332,18 +332,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public long currentOrd() {
-            return currentOrd;
-        }
-
-        @Override
         public BytesRef getValueByOrd(long ord) {
             return scratch = inner.getValueByOrd(ord);
-        }
-
-        @Override
-        public BytesRef copyShared() {
-            return inner.copyShared();
         }
     }
 }

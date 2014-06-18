@@ -74,7 +74,7 @@ final class QueriesLoaderCollector extends Collector {
                 // id is only used for logging, if we fail we log the id in the catch statement
                 final Query parseQuery = percolator.parsePercolatorDocument(null, fieldsVisitor.source());
                 if (parseQuery != null) {
-                    queries.put(idValues.copyShared(), parseQuery);
+                    queries.put(BytesRef.deepCopyOf(id), parseQuery);
                 } else {
                     logger.warn("failed to add query [{}] - parser returned null", id);
                 }

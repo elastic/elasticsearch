@@ -93,7 +93,6 @@ public class MultiOrdinals extends Ordinals {
         private final AppendingPackedLongBuffer ords;
         private long offset;
         private long limit;
-        private long currentOrd;
         private final ValuesHolder values;
 
         MultiDocs(MultiOrdinals ordinals, ValuesHolder values) {
@@ -114,16 +113,16 @@ public class MultiOrdinals extends Ordinals {
             final long startOffset = docId > 0 ? endOffsets.get(docId - 1) : 0;
             final long endOffset = endOffsets.get(docId);
             if (startOffset == endOffset) {
-                return currentOrd = MISSING_ORDINAL; // ord for missing values
+                return MISSING_ORDINAL; // ord for missing values
             } else {
-                return currentOrd = ords.get(startOffset);
+                return ords.get(startOffset);
             }
         }
 
         @Override
         public long nextOrd() {
             assert offset < limit;
-            return currentOrd = ords.get(offset++);
+            return ords.get(offset++);
         }
 
         @Override
@@ -136,18 +135,8 @@ public class MultiOrdinals extends Ordinals {
         }
 
         @Override
-        public long currentOrd() {
-            return currentOrd;
-        }
-
-        @Override
         public BytesRef getValueByOrd(long ord) {
             return scratch = values.getValueByOrd(ord, scratch);
-        }
-
-        @Override
-        public BytesRef copyShared() {
-            return values.copy(scratch);
         }
     }
 }

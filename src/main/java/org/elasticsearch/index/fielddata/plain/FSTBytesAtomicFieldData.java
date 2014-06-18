@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.FST;
@@ -72,11 +71,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     public ScriptDocValues.Strings getScriptValues() {
         assert fst != null;
         return new ScriptDocValues.Strings(getBytesValues());
-    }
-
-    @Override
-    public TermsEnum getTermsEnum() {
-        return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 
     private static class ValuesHolder extends Ordinals.ValuesHolder {

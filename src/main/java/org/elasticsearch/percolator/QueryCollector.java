@@ -205,7 +205,7 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     if (!limit || counter < size) {
-                        matches.add(values.copyShared());
+                        matches.add(BytesRef.deepCopyOf(current));
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());
                             hls.add(context.hitContext().hit().getHighlightFields());
@@ -319,7 +319,7 @@ abstract class QueryCollector extends Collector {
                 searcher.search(query, collector);
                 if (collector.exists()) {
                     if (!limit || counter < size) {
-                        matches.add(values.copyShared());
+                        matches.add(BytesRef.deepCopyOf(current));
                         scores.add(scorer.score());
                         if (context.highlight() != null) {
                             highlightPhase.hitExecute(context, context.hitContext());

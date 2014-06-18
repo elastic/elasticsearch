@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
@@ -70,11 +69,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     @Override
     public ScriptDocValues.Strings getScriptValues() {
         return new ScriptDocValues.Strings(getBytesValues());
-    }
-
-    @Override
-    public TermsEnum getTermsEnum() {
-        return new AtomicFieldDataWithOrdinalsTermsEnum(this);
     }
 
     private static class ValuesHolder extends Ordinals.ValuesHolder {

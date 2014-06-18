@@ -36,8 +36,8 @@ only the title field is being included in the source.
 --------------------------------------------------
 {
     "aggs": {
-        "terms": {
-            "top-tags": {
+        "top-tags": {
+            "terms": {
                 "field": "tags",
                 "size": 3
             },

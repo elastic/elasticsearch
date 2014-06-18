@@ -64,7 +64,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             TTL_FIELD_TYPE.freeze();
         }
 
-        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.DISABLED;
+        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.UNSET_DISABLED;
         public static final long DEFAULT = -1;
     }
 
@@ -225,7 +225,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
+        if (includeDefaults || enabledState.enabled != Defaults.ENABLED_STATE.enabled) {
             builder.field("enabled", enabledState.enabled);
         }
         if (includeDefaults || defaultTTL != Defaults.DEFAULT && enabledState.enabled) {

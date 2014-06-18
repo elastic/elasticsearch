@@ -70,6 +70,7 @@ public class BinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocValues.
 
         return new BytesValues(false) {
 
+            final BytesRef scratch = new BytesRef();
             int docId;
 
             @Override

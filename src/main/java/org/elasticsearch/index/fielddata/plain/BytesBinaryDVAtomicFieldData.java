@@ -46,6 +46,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData<ScriptDocVal
         return new BytesValues(true) {
 
             final BytesRef bytes = new BytesRef();
+            final BytesRef scratch = new BytesRef();
             final ByteArrayDataInput in = new ByteArrayDataInput();
 
             @Override

@@ -333,7 +333,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public BytesRef getValueByOrd(long ord) {
-            return scratch = inner.getValueByOrd(ord);
+            return inner.getValueByOrd(ord);
         }
     }
 }

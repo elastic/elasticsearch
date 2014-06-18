@@ -356,6 +356,7 @@ public abstract class ValuesSource {
             }
 
             static class SortedUniqueBytesValues extends BytesValues {
+                final BytesRef scratch = new BytesRef();
                 final BytesValues delegate;
                 int[] indices = new int[1]; // at least one
                 final BytesRefArray bytes;
@@ -765,6 +766,7 @@ public abstract class ValuesSource {
 
         static class BytesValues extends org.elasticsearch.index.fielddata.BytesValues {
 
+            private final BytesRef scratch = new BytesRef();
             private final ValuesSource source;
             private final SearchScript script;
 

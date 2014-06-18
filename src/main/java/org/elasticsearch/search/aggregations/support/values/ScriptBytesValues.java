@@ -33,6 +33,7 @@ import java.util.Iterator;
  */
 public class ScriptBytesValues extends BytesValues implements ScriptValues {
 
+    private final BytesRef scratch = new BytesRef();
     final SearchScript script;
 
     private Iterator<?> iter;

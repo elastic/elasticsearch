@@ -97,7 +97,7 @@ public class SinglePackedOrdinals extends Ordinals {
 
         @Override
         public BytesRef getValueByOrd(long ord) {
-            return scratch = values.getValueByOrd(ord, scratch);
+            return values.getValueByOrd(ord);
         }
     }
 }

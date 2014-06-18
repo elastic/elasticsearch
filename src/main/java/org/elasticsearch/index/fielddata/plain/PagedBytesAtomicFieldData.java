@@ -73,6 +73,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     private static class ValuesHolder implements Ordinals.ValuesHolder {
 
+        private final BytesRef scratch = new BytesRef();
         private final PagedBytes.Reader bytes;
         private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
 
@@ -82,7 +83,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
 
         @Override
-        public BytesRef getValueByOrd(long ord, BytesRef scratch) {
+        public BytesRef getValueByOrd(long ord) {
             assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
             bytes.fill(scratch, termOrdToBytesOffset.get(ord));
             return scratch;

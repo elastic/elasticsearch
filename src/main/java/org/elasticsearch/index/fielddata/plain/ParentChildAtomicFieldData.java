@@ -56,6 +56,7 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
         }
         return new BytesValues(true) {
 
+            private final BytesRef scratch = new BytesRef();
             private final BytesRef[] terms = new BytesRef[2];
             private int index;
 

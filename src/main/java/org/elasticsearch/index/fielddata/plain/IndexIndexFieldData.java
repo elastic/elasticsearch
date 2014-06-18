@@ -46,8 +46,11 @@ public class IndexIndexFieldData implements IndexFieldData.WithOrdinals<AtomicFi
 
     private static class IndexBytesValues extends BytesValues.WithOrdinals {
 
+        private final BytesRef scratch;
+
         protected IndexBytesValues(String index) {
             super(false);
+            scratch = new BytesRef();
             scratch.copyChars(index);
         }
 

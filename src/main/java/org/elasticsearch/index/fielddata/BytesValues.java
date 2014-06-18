@@ -47,8 +47,6 @@ public abstract class BytesValues {
 
     private final boolean multiValued;
 
-    protected BytesRef scratch = new BytesRef();
-
     /**
      * Creates a new {@link BytesValues} instance
      * @param multiValued <code>true</code> iff this instance is multivalued. Otherwise <code>false</code>.

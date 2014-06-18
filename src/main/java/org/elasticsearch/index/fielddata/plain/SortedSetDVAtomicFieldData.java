@@ -92,6 +92,7 @@ abstract class SortedSetDVAtomicFieldData {
 
     static class SortedSetValues extends BytesValues.WithOrdinals {
 
+        private final BytesRef scratch = new BytesRef();
         private final SortedSetDocValues values;
         private long[] ords;
         private int ordIndex = Integer.MAX_VALUE;

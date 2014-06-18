@@ -32,6 +32,7 @@ public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> im
     public BytesValues getBytesValues() {
         final GeoPointValues values = getGeoPointValues();
         return new BytesValues(values.isMultiValued()) {
+            private final BytesRef scratch = new BytesRef();
 
             @Override
             public int setDocument(int docId) {

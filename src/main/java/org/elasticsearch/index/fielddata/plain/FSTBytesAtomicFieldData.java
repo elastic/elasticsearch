@@ -78,6 +78,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         private final FST<Long> fst;
 
         // per-thread resources
+        private final BytesRef scratch;
         protected final BytesReader in;
         protected final Arc<Long> firstArc = new Arc<>();
         protected final Arc<Long> scratchArc = new Arc<>();
@@ -85,11 +86,12 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
         ValuesHolder(FST<Long> fst) {
             this.fst = fst;
+            scratch = new BytesRef();
             in = fst.getBytesReader();
         }
 
         @Override
-        public BytesRef getValueByOrd(long ord, BytesRef scratch) {
+        public BytesRef getValueByOrd(long ord) {
             assert ord != BytesValues.WithOrdinals.MISSING_ORDINAL;
             in.setPosition(0);
             fst.getFirstArc(firstArc);

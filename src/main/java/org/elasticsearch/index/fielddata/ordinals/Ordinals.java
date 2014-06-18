@@ -31,7 +31,7 @@ public abstract class Ordinals {
 
     public static final ValuesHolder NO_VALUES = new ValuesHolder() {
         @Override
-        public BytesRef getValueByOrd(long ord, BytesRef reuse) {
+        public BytesRef getValueByOrd(long ord) {
             throw new UnsupportedOperationException();
         }
     };
@@ -49,7 +49,7 @@ public abstract class Ordinals {
 
     public static interface ValuesHolder {
 
-        public abstract BytesRef getValueByOrd(long ord, BytesRef reuse);
+        public abstract BytesRef getValueByOrd(long ord);
 
     }
 

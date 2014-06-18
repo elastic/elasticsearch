@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -176,8 +175,6 @@ public abstract class ValuesSource {
 
             public abstract long globalMaxOrd(IndexSearcher indexSearcher);
 
-            public abstract TermsEnum getGlobalTermsEnum();
-
             public static class FieldData extends WithOrdinals implements ReaderContextAware {
 
                 protected final IndexFieldData.WithOrdinals<?> indexFieldData;
@@ -261,11 +258,6 @@ public abstract class ValuesSource {
                         BytesValues.WithOrdinals values = afd.getBytesValues();
                         return maxOrd = values.getMaxOrd();
                     }
-                }
-
-                @Override
-                public TermsEnum getGlobalTermsEnum() {
-                    return globalAtomicFieldData.getTermsEnum();
                 }
             }
 

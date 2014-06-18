@@ -68,8 +68,7 @@ public class ParentChildAtomicFieldData implements AtomicFieldData {
                     int numValues = values.setDocument(docId);
                     assert numValues <= 1 : "Per doc/type combination only a single value is allowed";
                     if (numValues == 1) {
-                        values.nextValue();
-                        terms[counter++] = values.copyShared();
+                        terms[counter++] = BytesRef.deepCopyOf(values.nextValue());
                     }
                 }
                 assert counter <= 2 : "A single doc can potentially be both parent and child, so the maximum allowed values is 2";

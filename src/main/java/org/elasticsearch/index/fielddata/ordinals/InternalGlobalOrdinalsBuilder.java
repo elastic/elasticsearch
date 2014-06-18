@@ -49,7 +49,7 @@ public class InternalGlobalOrdinalsBuilder extends AbstractIndexComponent implem
         final TermsEnum[] subs = new TermsEnum[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
             atomicFD[i] = indexFieldData.load(indexReader.leaves().get(i));
-            subs[i] = atomicFD[i].getTermsEnum();
+            subs[i] = atomicFD[i].getBytesValues().getTermsEnum();
         }
         final OrdinalMap ordinalMap = new OrdinalMap(null, subs);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();

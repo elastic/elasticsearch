@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.FST;

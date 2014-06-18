@@ -506,7 +506,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         IndexFieldData.WithOrdinals ifd = getForField("value");
         AtomicFieldData.WithOrdinals afd = ifd.load(atomicReaderContext);
 
-        TermsEnum termsEnum = afd.getTermsEnum();
+        TermsEnum termsEnum = afd.getBytesValues().getTermsEnum();
         int size = 0;
         while (termsEnum.next() != null) {
             size++;

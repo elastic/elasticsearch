@@ -79,7 +79,7 @@ public class IncludeExclude {
      * Computes which global ordinals are accepted by this IncludeExclude instance.
      */
     public LongBitSet acceptedGlobalOrdinals(BytesValues.WithOrdinals globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
-        TermsEnum globalTermsEnum = valueSource.getGlobalTermsEnum();
+        TermsEnum globalTermsEnum = valueSource.globalBytesValues().getTermsEnum();
         LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getMaxOrd());
         try {
             for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {

@@ -96,7 +96,6 @@ abstract class SortedSetDVAtomicFieldData {
         private final SortedSetDocValues values;
         private long[] ords;
         private int ordIndex = Integer.MAX_VALUE;
-        private long currentOrdinal = -1;
 
         SortedSetValues(SortedSetDocValues values) {
             super(DocValues.unwrapSingleton(values) == null);
@@ -112,13 +111,13 @@ abstract class SortedSetDVAtomicFieldData {
         @Override
         public long getOrd(int docId) {
             values.setDocument(docId);
-            return currentOrdinal = values.nextOrd();
+            return values.nextOrd();
         }
 
         @Override
         public long nextOrd() {
             assert ordIndex < ords.length;
-            return currentOrdinal = ords[ordIndex++];
+            return ords[ordIndex++];
         }
 
         @Override
@@ -133,11 +132,6 @@ abstract class SortedSetDVAtomicFieldData {
             }
             ordIndex = 0;
             return i;
-        }
-
-        @Override
-        public long currentOrd() {
-            return currentOrdinal;
         }
 
         @Override

@@ -89,6 +89,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         }
     }
 
+    // TODO: use terms enum
     /** Returns an iterator over the field data terms. */
     private static Iterator<BytesRef> terms(final BytesValues.WithOrdinals bytesValues, boolean reverse) {
         if (reverse) {
@@ -103,8 +104,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
                 @Override
                 public BytesRef next() {
-                    bytesValues.getValueByOrd(i--);
-                    return bytesValues.copyShared();
+                    return BytesRef.deepCopyOf(bytesValues.getValueByOrd(i--));
                 }
 
             };
@@ -120,8 +120,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
                 @Override
                 public BytesRef next() {
-                    bytesValues.getValueByOrd(i++);
-                    return bytesValues.copyShared();
+                    return BytesRef.deepCopyOf(bytesValues.getValueByOrd(i++));
                 }
 
             };

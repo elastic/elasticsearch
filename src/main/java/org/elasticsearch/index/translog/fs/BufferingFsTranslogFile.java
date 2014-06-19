@@ -123,7 +123,10 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             rwl.readLock().unlock();
         }
         ByteBuffer buffer = ByteBuffer.allocate(location.size);
-        raf.channel().read(buffer, location.translogLocation);
+        int read = raf.channel().read(buffer, location.translogLocation);
+        if (read != location.size) {
+            throw new TranslogReadException(shardId, "not enough data read from translog, position=" + location.translogLocation + ", expected=" + location.size + ", read=" + read);
+        }
         return buffer.array();
     }
 

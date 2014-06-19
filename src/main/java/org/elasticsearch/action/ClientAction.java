@@ -20,10 +20,9 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 
 /**
- * Indices action (used with {@link IndicesAdminClient} API.
+ * Action (used with {@link Client} API).
  */
 public abstract class ClientAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, Client>>
         extends Action<Request, Response, RequestBuilder, Client> {

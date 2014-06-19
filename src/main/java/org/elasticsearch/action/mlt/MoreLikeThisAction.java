@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;

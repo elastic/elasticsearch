@@ -72,6 +72,9 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
 
     @Override
     public void stopDisrupting() {
+        if (worker == null) {
+            return;
+        }
         disrupting = false;
         try {
             worker.join(2 * (intervalBetweenDelaysMax + delayDurationMax));

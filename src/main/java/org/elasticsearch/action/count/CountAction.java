@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.count;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 

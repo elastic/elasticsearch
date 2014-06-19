@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster;
 
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Cluster action (used with {@link ClusterAdminClient} API.
+ * Cluster action (used with {@link ClusterAdminClient} API).
  */
 public abstract class ClusterAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>>
         extends Action<Request, Response, RequestBuilder, ClusterAdminClient> {

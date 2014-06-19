@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.percolate;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 

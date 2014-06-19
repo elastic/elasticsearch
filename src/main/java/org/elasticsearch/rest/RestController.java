@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.util.Comparator;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
 
 /**
  *
@@ -137,6 +139,20 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     public void dispatchRequest(final RestRequest request, final RestChannel channel) {
+        // If JSONP is disabled and someone sends a callback parameter we should bail out before querying
+        if (!settings.getAsBoolean("http.jsonp.enable", true) && request.hasParam("callback")){
+            try {
+                XContentBuilder builder = channel.newBuilder();
+                builder.startObject().field("error","JSONP is disabled.").endObject().string();
+                RestResponse response = new BytesRestResponse(FORBIDDEN, builder);
+                response.addHeader("Content-Type", "application/javascript");
+                channel.sendResponse(response);
+            } catch (IOException e) {
+                logger.warn("Failed to send response", e);
+                return;
+            }
+            return;
+        }
         if (filters.length == 0) {
             try {
                 executeHandler(request, channel);

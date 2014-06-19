@@ -491,7 +491,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
     /** Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer). */
     private void checkVersionMapRefresh() {
         // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsed()/1024/1024. > 0.25*this.indexWriter.getConfig().getRAMBufferSizeMB() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh()/1024/1024. > 0.25*this.indexWriter.getConfig().getRAMBufferSizeMB() && versionMapRefreshPending.getAndSet(true) == false) {
             // Now refresh to clear versionMap:
             threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
                     public void run() {
@@ -569,6 +569,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new DeleteFailedEngineException(shardId, delete, t);
         }
 
+        maybePruneDeletedTombstones();
+    }
+    
+    private void maybePruneDeletedTombstones() {
         // It's expensive to prune because we walk the deletes map acquiring dirtyLock for each uid so we only do it
         // every 1/4 of gcDeletesInMillis:
         if (enableGcDeletes && threadPool.estimatedTimeInMillis() - lastDeleteVersionPruneTimeMSec > gcDeletesInMillis*0.25) {
@@ -745,8 +749,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             throw new RefreshFailedEngineException(shardId, t);
         }
 
-        // We don't need to prune here, but it's an "opportune" time to, in case for example the wall clock time has shifted and we are
-        // never pruning in delete:
+        // TODO: maybe we should just put a scheduled job in threadPool?
+        // We check for pruning in each delete request, but we also prune here e.g. in case a delete burst comes in and then no more deletes
+        // for a long time:
         if (enableGcDeletes) {
             pruneDeletedTombstones();
         }
@@ -806,6 +811,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             logger.warn("Failed to close current SearcherManager", t);
                         }
 
+                        maybePruneDeletedTombstones();
+
                     } catch (Throwable t) {
                         throw new FlushFailedEngineException(shardId, t);
                     }
@@ -825,7 +832,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                             indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             indexWriter.commit();
                             // we need to refresh in order to clear older version values
-                            refresh(new Refresh("version_table").force(true));
+                            refresh(new Refresh("version_table_flush").force(true));
                             // we need to move transient to current only after we refresh
                             // so items added to current will still be around for realtime get
                             // when tans overrides it
@@ -907,8 +914,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
 
                 // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:                
                 VersionValue versionValue = versionMap.getTombstoneUnderLock(uid);
-                if (timeMSec - versionValue.time() > gcDeletesInMillis) {
-                    versionMap.removeTombstoneUnderLock(uid);
+                if (versionValue != null) {
+                    if (timeMSec - versionValue.time() > gcDeletesInMillis) {
+                        versionMap.removeTombstoneUnderLock(uid);
+                    }
                 }
             }
         }

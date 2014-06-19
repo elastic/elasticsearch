@@ -675,7 +675,7 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
 
         HashMap<String,Object> newSettings = new HashMap<>();
         newSettings.put("index.gc_deletes", "10ms");
-        newSettings.put("index.refresh_interval", "10000s");
+        newSettings.put("index.refresh_interval", "-1");
         client()
             .admin()
             .indices()
@@ -694,8 +694,10 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
             .execute()
             .actionGet();
 
-        // Force refresh so the add is visible in the searcher:
-        refresh();
+        if (randomBoolean()) {
+            // Force refresh so the add is sometimes visible in the searcher:
+            refresh();
+        }
 
         // Delete it
         client()
@@ -763,8 +765,10 @@ public class SimpleVersioningTests extends ElasticsearchIntegrationTest {
             .execute()
             .actionGet();
 
-        // Force refresh so the add is visible in the searcher:
-        refresh();
+        if (randomBoolean()) {
+            // Force refresh so the add is sometimes visible in the searcher:
+            refresh();
+        }
 
         // Delete it
         client()

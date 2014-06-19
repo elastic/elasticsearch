@@ -128,6 +128,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
 
             nodes = clusterState.nodes();
+            logger.trace("resolving shards based on cluster state version [{}]", clusterState.version());
             shardsIts = shards(clusterState, request, concreteIndices);
             expectedOps = shardsIts.size();
 

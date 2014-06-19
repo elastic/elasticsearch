@@ -23,7 +23,7 @@ import org.elasticsearch.action.*;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
- * Indices action (used with {@link IndicesAdminClient} API.
+ * Indices action (used with {@link IndicesAdminClient} API).
  */
 public abstract class IndicesAction<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, IndicesAdminClient>>
         extends Action<Request, Response, RequestBuilder, IndicesAdminClient> {

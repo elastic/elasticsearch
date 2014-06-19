@@ -55,10 +55,10 @@ public class CloudAwsPlugin extends AbstractPlugin {
     }
 
     @Override
-    public Collection<Class<? extends Module>> modules() {
-        Collection<Class<? extends Module>> modules = Lists.newArrayList();
+    public Collection<Module> modules(Settings settings) {
+        Collection<Module> modules = Lists.newArrayList();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            modules.add(AwsModule.class);
+            modules.add(new AwsModule(settings));
         }
         return modules;
     }
@@ -67,7 +67,7 @@ public class CloudAwsPlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            services.add(AwsS3Service.class);
+            services.add(AwsModule.getS3ServiceClass(settings));
             services.add(AwsEc2Service.class);
         }
         return services;

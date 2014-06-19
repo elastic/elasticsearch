@@ -19,12 +19,15 @@
 
 package org.elasticsearch.cloud.aws.blobstore;
 
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -56,8 +59,10 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
         try {
             blobStore.client().getObjectMetadata(blobStore.bucket(), buildKey(blobName));
             return true;
-        } catch (Exception e) {
+        } catch (AmazonS3Exception e) {
             return false;
+        } catch (Throwable e) {
+            throw new BlobStoreException("failed to check if blob exists", e);
         }
     }
 
@@ -76,7 +81,7 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
                 try {
                     S3Object object = blobStore.client().getObject(blobStore.bucket(), buildKey(blobName));
                     is = object.getObjectContent();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
                 }
@@ -87,12 +92,8 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
                         listener.onPartial(buffer, 0, bytesRead);
                     }
                     listener.onCompleted();
-                } catch (Exception e) {
-                    try {
-                        is.close();
-                    } catch (IOException e1) {
-                        // ignore
-                    }
+                } catch (Throwable e) {
+                    IOUtils.closeWhileHandlingException(is);
                     listener.onFailure(e);
                 }
             }
@@ -135,4 +136,9 @@ public class AbstractS3BlobContainer extends AbstractBlobContainer {
     protected String buildKey(String blobName) {
         return keyPath + blobName;
     }
+
+    protected boolean shouldRetry(AmazonS3Exception e) {
+        return e.getStatusCode() == 400 && "RequestTimeout".equals(e.getErrorCode());
+    }
+
 }

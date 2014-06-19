@@ -20,15 +20,29 @@
 package org.elasticsearch.cloud.aws;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  *
  */
 public class AwsModule extends AbstractModule {
 
+    private final Settings settings;
+
+    public static final String S3_SERVICE_TYPE_KEY = "cloud.aws.s3service.type";
+
+    public AwsModule(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
     protected void configure() {
-        bind(AwsS3Service.class).asEagerSingleton();
+        bind(AwsS3Service.class).to(getS3ServiceClass(settings)).asEagerSingleton();
         bind(AwsEc2Service.class).asEagerSingleton();
     }
+
+    public static Class<? extends AwsS3Service> getS3ServiceClass(Settings settings) {
+        return settings.getAsClass(S3_SERVICE_TYPE_KEY, InternalAwsS3Service.class);
+    }
+
 }

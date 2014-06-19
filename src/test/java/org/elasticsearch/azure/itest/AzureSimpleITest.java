@@ -36,6 +36,7 @@ import org.junit.Test;
 @ElasticsearchIntegrationTest.ClusterScope(
         scope = ElasticsearchIntegrationTest.Scope.TEST,
         numDataNodes = 1,
+        numClientNodes = 0,
         transportClientRatio = 0.0)
 public class AzureSimpleITest extends AbstractAzureTest {
 

@@ -26,6 +26,7 @@ import org.elasticsearch.cloud.azure.AzureStorageService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.After;
@@ -65,6 +66,7 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put("cloud.azure." + AzureStorageService.Fields.ACCOUNT, "mock_azure_account")
                 .put("cloud.azure." + AzureStorageService.Fields.KEY, "mock_azure_key")
                 .put("repositories.azure.api.impl", mock)
@@ -94,9 +96,9 @@ public abstract class AbstractAzureRepositoryServiceTest extends AbstractAzureTe
      * Purge the test container
      */
     public void cleanRepositoryFiles(String path) throws StorageException, ServiceException, URISyntaxException {
-        String container = cluster().getInstance(Settings.class).get("repositories.azure.container");
+        String container = internalCluster().getInstance(Settings.class).get("repositories.azure.container");
         logger.info("--> remove blobs in container [{}]", container);
-        AzureStorageService client = cluster().getInstance(AzureStorageService.class);
+        AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);
         client.deleteFiles(container, path);
     }
 }

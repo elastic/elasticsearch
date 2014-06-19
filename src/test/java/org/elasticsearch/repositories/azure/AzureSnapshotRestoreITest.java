@@ -245,10 +245,10 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * Purge the test container
      */
     public void cleanRepositoryFiles(String path) throws StorageException, ServiceException, URISyntaxException {
-        String container = cluster().getInstance(Settings.class).get("repositories.azure.container",
+        String container = internalCluster().getInstance(Settings.class).get("repositories.azure.container",
                 AzureRepository.CONTAINER_DEFAULT);
         logger.info("--> remove blobs in container [{}], path [{}]", container, path);
-        AzureStorageService client = cluster().getInstance(AzureStorageService.class);
+        AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);
 
         // Remove starting / if any
         path = Strings.trimLeadingCharacter(path, '/');

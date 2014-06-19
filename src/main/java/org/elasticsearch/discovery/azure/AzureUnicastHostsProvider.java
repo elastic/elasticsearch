@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -139,10 +138,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                 } else {
                     TransportAddress[] addresses = transportService.addressesFromString(networkAddress);
                     // we only limit to 1 addresses, makes no sense to ping 100 ports
-                    for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
-                        logger.trace("adding {}, transport_address {}", networkAddress, addresses[i]);
-                        cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getName() + "-" + i, addresses[i], Version.CURRENT));
-                    }
+                    logger.trace("adding {}, transport_address {}", networkAddress, addresses[0]);
+                    cachedDiscoNodes.add(new DiscoveryNode("#cloud-" + instance.getName(), addresses[0], Version.CURRENT));
                 }
 
             }

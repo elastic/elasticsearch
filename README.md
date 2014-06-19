@@ -3,9 +3,10 @@ Azure Cloud Plugin for Elasticsearch
 
 The Azure Cloud plugin allows to use Azure API for the unicast discovery mechanism.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.1.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-azure/2.3.0`.
 
 * For master elasticsearch versions, look at [master branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/master).
+* For 1.3.x elasticsearch versions, look at [es-1.3 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.3).
 * For 1.2.x elasticsearch versions, look at [es-1.2 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.2).
 * For 1.1.x elasticsearch versions, look at [es-1.1 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.1).
 * For 1.0.x elasticsearch versions, look at [es-1.0 branch](https://github.com/elasticsearch/elasticsearch-cloud-azure/tree/es-1.0).
@@ -27,17 +28,17 @@ Azure VM discovery allows to use the azure APIs to perform automatic discovery (
 multicast environments). Here is a simple sample configuration:
 
 ```
-    cloud:
-        azure:
-            keystore: /path/to/keystore
-            password: your_password_for_keystore
-            subscription_id: your_azure_subscription_id
-            service_name: your_azure_cloud_service_name
-    discovery:
-            type: azure
+cloud:
+    azure:
+        keystore: /path/to/keystore
+        password: your_password_for_keystore
+        subscription_id: your_azure_subscription_id
+        service_name: your_azure_cloud_service_name
+discovery:
+        type: azure
 
-    # recommended
-    # path.data: /mnt/resource/elasticsearch/data
+# recommended
+# path.data: /mnt/resource/elasticsearch/data
 ```
 
 How to start (short story)
@@ -261,17 +262,17 @@ And add the following lines:
 
 ```yaml
 # If you don't remember your account id, you may get it with `azure account list`
-    cloud:
-        azure:
-            keystore: /home/elasticsearch/azurekeystore.pkcs12
-            password: your_password_for_keystore
-            subscription_id: your_azure_subscription_id
-            service_name: your_azure_cloud_service_name
-    discovery:
-            type: azure
+cloud:
+    azure:
+        keystore: /home/elasticsearch/azurekeystore.pkcs12
+        password: your_password_for_keystore
+        subscription_id: your_azure_subscription_id
+        service_name: your_azure_cloud_service_name
+discovery:
+        type: azure
 
 # Recommended
-    path.data: /mnt/resource/elasticsearch/data
+path.data: /mnt/resource/elasticsearch/data
 ```
 
 Restart elasticsearch:
@@ -347,10 +348,10 @@ Azure Repository
 To enable Azure repositories, you have first to set your azure storage settings:
 
 ```
-    cloud:
-        azure:
-            storage_account: your_azure_storage_account
-            storage_key: your_azure_storage_key
+cloud:
+    azure:
+        storage_account: your_azure_storage_account
+        storage_key: your_azure_storage_key
 ```
 
 The Azure repository supports following settings:
@@ -402,10 +403,10 @@ Integrations tests in this plugin require working Azure configuration and theref
 To enable tests prepare a config file elasticsearch.yml with the following content:
 
 ```
-  cloud:
-      azure:
-          account: "YOUR-AZURE-STORAGE-NAME"
-          key: "YOUR-AZURE-STORAGE-KEY"
+cloud:
+  azure:
+      account: "YOUR-AZURE-STORAGE-NAME"
+      key: "YOUR-AZURE-STORAGE-KEY"
 ```
 
 Replaces `account`, `key` with your settings. Please, note that the test will delete all snapshot/restore related files in the specified bucket.

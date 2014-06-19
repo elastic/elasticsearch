@@ -22,10 +22,12 @@ package org.elasticsearch.discovery.azure;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-@ElasticsearchIntegrationTest.ClusterScope(
-        scope = ElasticsearchIntegrationTest.Scope.TEST,
-        numDataNodes = 2,
-        transportClientRatio = 0.0)
+import static org.hamcrest.Matchers.notNullValue;
+
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST,
+        numDataNodes = 0,
+        transportClientRatio = 0.0,
+        numClientNodes = 0)
 public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
 
     public AzureTwoStartedNodesTest() {
@@ -34,6 +36,14 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
 
     @Test
     public void two_nodes_should_run() {
+        logger.info("--> start first node");
+        internalCluster().startNode(settingsBuilder());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+
+        logger.info("--> start another node");
+        internalCluster().startNode(settingsBuilder());
+        assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("1s").execute().actionGet().getState().nodes().masterNodeId(), notNullValue());
+
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
     }

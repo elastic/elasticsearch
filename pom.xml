@@ -44,9 +44,8 @@ governing permissions and limitations under the License. -->
 
     <properties>
         <elasticsearch.version>2.0.0-SNAPSHOT</elasticsearch.version>
-        <lucene.version>4.8.0</lucene.version>
+        <lucene.version>4.8.1</lucene.version>
         <tests.output>onerror</tests.output>
-        <tests.jvms>1</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
         <tests.client.ratio></tests.client.ratio>
@@ -56,6 +55,18 @@ governing permissions and limitations under the License. -->
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+            <version>1.3.RC2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-library</artifactId>
+            <version>1.3.RC2</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-test-framework</artifactId>
@@ -84,18 +95,6 @@ governing permissions and limitations under the License. -->
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
             <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-core</artifactId>
-            <version>1.3.RC2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.hamcrest</groupId>
-            <artifactId>hamcrest-library</artifactId>
-            <version>1.3.RC2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -157,7 +156,7 @@ governing permissions and limitations under the License. -->
                             <assertions>
                                 <enable/>
                             </assertions>
-                            <parallelism>${tests.jvms}</parallelism>
+                            <parallelism>1</parallelism>
                             <balancers>
                                 <execution-times>
                                     <fileset dir="${basedir}" includes=".local-execution-hints.log"/>
@@ -204,8 +203,6 @@ governing permissions and limitations under the License. -->
                                 <tests.integration>${tests.integration}</tests.integration>
                                 <tests.cluster_seed>${tests.cluster_seed}</tests.cluster_seed>
                                 <tests.client.ratio>${tests.client.ratio}</tests.client.ratio>
-                                <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
-                                <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.config>${es.config}</es.config>
                                 <es.logger.level>${es.logger.level}</es.logger.level>
                                 <java.awt.headless>true</java.awt.headless>

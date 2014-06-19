@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -53,7 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 @AwsTest
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 2)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, transportClientRatio = 0.0)
 public class S3SnapshotRestoreTest extends AbstractAwsTest {
 
     @Override
@@ -64,6 +65,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
                 .put(MockDirectoryHelper.RANDOM_PREVENT_DOUBLE_WRITE, false)
                 .put(MockDirectoryHelper.RANDOM_NO_DELETE_OPEN_FILE, false)
                 .put("cloud.enabled", true)
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();
     }
 
@@ -85,7 +87,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
     @Test
     public void testSimpleWorkflow() {
         Client client = client();
-        logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", cluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
+        logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
                         .put("base_path", basePath)
@@ -157,7 +159,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
     @Test
     public void testEncryption() {
 	Client client = client();
-	logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", cluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
+	logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", internalCluster().getInstance(Settings.class).get("repositories.s3.bucket"), basePath);
 	PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
 		.setType("s3").setSettings(ImmutableSettings.settingsBuilder()
 			.put("base_path", basePath)
@@ -187,9 +189,9 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
 
 	assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
-	Settings settings = cluster().getInstance(Settings.class);
+	Settings settings = internalCluster().getInstance(Settings.class);
 	Settings bucket = settings.getByPrefix("repositories.s3.");
-	AmazonS3 s3Client = cluster().getInstance(AwsS3Service.class).client(
+	AmazonS3 s3Client = internalCluster().getInstance(AwsS3Service.class).client(
 		bucket.get("region", settings.get("repositories.s3.region")),
 		bucket.get("access_key", settings.get("cloud.aws.access_key")),
 		bucket.get("secret_key", settings.get("cloud.aws.secret_key")));
@@ -248,7 +250,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
     @Test(expected = UncategorizedExecutionException.class)
     public void assertRepositoryWithCustomCredentialsIsNotAccessibleByDefaultCredentials() {
         Client client = client();
-        Settings bucketSettings = cluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
+        Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
@@ -263,7 +265,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
     @Test
     public void testRepositoryWithCustomCredentials() {
         Client client = client();
-        Settings bucketSettings = cluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
+        Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.private-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
@@ -285,7 +287,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
     @Test(expected = UncategorizedExecutionException.class)
     public void assertRepositoryInRemoteRegionIsRemote() {
         Client client = client();
-        Settings bucketSettings = cluster().getInstance(Settings.class).getByPrefix("repositories.s3.remote-bucket.");
+        Settings bucketSettings = internalCluster().getInstance(Settings.class).getByPrefix("repositories.s3.remote-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("s3").setSettings(ImmutableSettings.settingsBuilder()
@@ -302,7 +304,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
     @Test
     public void testRepositoryInRemoteRegion() {
         Client client = client();
-        Settings settings = cluster().getInstance(Settings.class);
+        Settings settings = internalCluster().getInstance(Settings.class);
         Settings bucketSettings = settings.getByPrefix("repositories.s3.remote-bucket.");
         logger.info("-->  creating s3 repository with bucket[{}] and path [{}]", bucketSettings.get("bucket"), basePath);
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
@@ -374,7 +376,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
      * Deletes content of the repository files in the bucket
      */
     public void cleanRepositoryFiles(String basePath) {
-        Settings settings = cluster().getInstance(Settings.class);
+        Settings settings = internalCluster().getInstance(Settings.class);
         Settings[] buckets = {
                 settings.getByPrefix("repositories.s3."),
                 settings.getByPrefix("repositories.s3.private-bucket."),
@@ -385,7 +387,7 @@ public class S3SnapshotRestoreTest extends AbstractAwsTest {
             String accessKey = bucket.get("access_key", settings.get("cloud.aws.access_key"));
             String secretKey = bucket.get("secret_key", settings.get("cloud.aws.secret_key"));
             String bucketName = bucket.get("bucket");
-            AmazonS3 client = cluster().getInstance(AwsS3Service.class).client(region, accessKey, secretKey);
+            AmazonS3 client = internalCluster().getInstance(AwsS3Service.class).client(region, accessKey, secretKey);
             try {
                 ObjectListing prevListing = null;
                 //From http://docs.amazonwebservices.com/AmazonS3/latest/dev/DeletingMultipleObjectsUsingJava.html

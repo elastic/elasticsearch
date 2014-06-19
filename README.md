@@ -47,7 +47,7 @@ multicast environments). Here is a simple sample configuration:
 How to start (short story)
 --------------------------
 
-* Create Google Compute Engine instance
+* Create Google Compute Engine instance (with compute rw permissions)
 * Install Elasticsearch
 * Install Google Compute Engine Cloud plugin
 * Modify `elasticsearch.yml` file
@@ -112,6 +112,17 @@ gcloud compute ssh myesnode1 --zone europe-west1-a
 # Or using SSH with external IP address
 ssh -i ~/.ssh/google_compute_engine 192.158.29.199
 ```
+
+*Note Regarding Service Account Permissions*
+
+It's important when creating an instance that the correct permissions are set. At a minimum, you must ensure you have:
+
+```
+service_account_scope=compute-rw
+```
+
+Failing to set this will result in unauthorized messages when starting Elasticsearch. 
+See [Machine Permissions](#machine-permissions).
 
 Once connected, install Elasticsearch:
 
@@ -313,6 +324,8 @@ gcutil setinstancemetadata myesnode1 \
 Tips
 ----
 
+### Store project id locally
+
 If you don't want to repeat the project id each time, you can save it in `~/.gcutil.flags` file using:
 
 ```sh
@@ -324,6 +337,45 @@ gcutil getproject --project=es-cloud --cache_flag_values
 ```
 --project=es-cloud
 ```
+
+### Machine Permissions
+
+**Creating machines with gcutil**
+
+Ensure the following flags are set:
+
+````
+--service_account_scope=compute-rw
+```
+
+**Creating with console (web)**
+
+When creating an instance using the web portal, click **Show advanced options**. 
+
+At the bottom of the page, under `PROJECT ACCESS`, choose `>> Compute >> Read Write`.
+
+**Creating with knife google**
+
+Set the service account scopes when creating the machine:
+
+```
+$ knife google server create www1 \
+    -m n1-standard-1 \
+    -I debian-7-wheezy-v20131120 \
+    -Z us-central1-a \
+    -i ~/.ssh/id_rsa \
+    -x jdoe \
+    --gce-service-account-scopes https://www.googleapis.com/auth/compute.full_control
+```
+
+Or, you may use the alias:
+
+```
+    --gce-service-account-scopes compute-rw
+```
+
+If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. The only 
+way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 
 License
 -------

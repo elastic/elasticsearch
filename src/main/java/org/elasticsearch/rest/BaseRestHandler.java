@@ -48,11 +48,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         usefulHeaders = copy;
     }
 
-    /**
-     * Returns the REST headers that get copied over from a {@link org.elasticsearch.rest.RestRequest} to
-     * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
-     */
-    public static String[] usefulHeaders() {
+    static String[] usefulHeaders() {
         String[] copy = new String[usefulHeaders.length];
         System.arraycopy(usefulHeaders, 0, copy, 0 , usefulHeaders.length);
         return copy;

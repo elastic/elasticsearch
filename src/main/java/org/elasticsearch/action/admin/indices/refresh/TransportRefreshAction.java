@@ -122,7 +122,6 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
      */
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, RefreshRequest request, String[] concreteIndices) {
-        logger.trace("resolving shards to refresh based on cluster state version [{}]", clusterState.version());
         return clusterState.routingTable().allAssignedShardsGrouped(concreteIndices, true, true);
     }
 

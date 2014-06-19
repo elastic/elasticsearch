@@ -115,6 +115,7 @@ The following settings are supported:
 * `chunk_size`: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by using size value notation, i.e. `1g`, `10m`, `5k`. Defaults to `100m`.
 * `compress`: When set to `true` metadata files are stored in compressed format. This setting doesn't affect index files that are already compressed by default. Defaults to `false`.
 * `server_side_encryption`: When set to `true` files are encrypted on server side using AES256 algorithm. Defaults to `false`.
+* `max_retries`: Number of retries in case of S3 errors. Defaults to `3`.
 
 The S3 repositories are using the same credentials as the rest of the AWS services provided by this plugin (`discovery`).
 See [Generic Configuration](#generic-configuration) for details.

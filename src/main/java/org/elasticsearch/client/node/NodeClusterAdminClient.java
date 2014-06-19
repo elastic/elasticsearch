@@ -27,7 +27,6 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.support.AbstractClusterAdminClient;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -42,7 +41,7 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
     private final ImmutableMap<ClusterAction, TransportAction> actions;
 
     @Inject
-    public NodeClusterAdminClient(Settings settings, ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
+    public NodeClusterAdminClient(ThreadPool threadPool, Map<GenericAction, TransportAction> actions) {
         this.threadPool = threadPool;
         MapBuilder<ClusterAction, TransportAction> actionsBuilder = new MapBuilder<>();
         for (Map.Entry<GenericAction, TransportAction> entry : actions.entrySet()) {
@@ -61,14 +60,14 @@ public class NodeClusterAdminClient extends AbstractClusterAdminClient implement
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> ActionFuture<Response> execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request) {
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        TransportAction<Request, Response> transportAction = actions.get((ClusterAction)action);
         return transportAction.execute(request);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder, ClusterAdminClient>> void execute(Action<Request, Response, RequestBuilder, ClusterAdminClient> action, Request request, ActionListener<Response> listener) {
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        TransportAction<Request, Response> transportAction = actions.get((ClusterAction)action);
         transportAction.execute(request, listener);
     }
 }

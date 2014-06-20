@@ -63,17 +63,8 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
                 if (!response.isExists()) {
                     return new BytesRestResponse(NOT_FOUND, builder);
                 } else {
-                    String templateString;
                     try{
-                        XContentBuilder internalBuilder = XContentFactory.contentBuilder(XContentType.JSON);
-                        if(response.getSource().containsKey("template")) {
-                            Object template = response.getSource().get("template");
-                            internalBuilder.map((Map<String,Object>)template);
-                            templateString = internalBuilder.string();
-                        } else {
-                            internalBuilder.map(response.getSource());
-                            templateString = internalBuilder.string();
-                        }
+                        String templateString = ScriptService.getScriptFromResponse(response);
                         builder.startObject();
                         builder.field("template",templateString);
                         builder.endObject();

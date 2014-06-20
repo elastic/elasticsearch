@@ -22,3 +22,10 @@
   - match: { _index: ".scripts" }
   - match: { _id: "1" }
 
+  - do:
+      catch: request
+      indexed_script.create:
+        id: "1"
+        lang: "mvel"
+        body: { "script" :  "_score * foo bar + doc[\"myParent.weight\"].value" }
+  - match: { "error" : /Failed\sto\sparse.*/ }

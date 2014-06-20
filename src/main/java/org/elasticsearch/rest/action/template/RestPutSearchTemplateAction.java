@@ -22,11 +22,15 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.script.CompiledScript;
@@ -45,6 +49,12 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
  *
  */
 public class RestPutSearchTemplateAction extends BaseRestHandler {
+    private ScriptService scriptService = null;
+
+    @Inject
+    public void setScriptService(ScriptService scriptService){
+        this.scriptService = scriptService;
+    }
 
     @Inject
     public RestPutSearchTemplateAction(Settings settings, Client client, RestController controller) {
@@ -66,6 +76,19 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
         }
     }
 
+    private static void validate(BytesReference scriptBytes, ScriptService scriptService) throws IOException{
+        XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
+        TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "template", "params");
+        if(Strings.hasLength(context.template())){
+            //Just try and compile it
+            //This will have the benefit of also adding the script to the cache if it compiles
+            CompiledScript compiledScript =
+                    scriptService.compile("mustache", context.template(), ScriptService.ScriptType.INLINE);
+            if (compiledScript == null) {
+                throw new ElasticsearchIllegalArgumentException("Unable to parse template ["+context.template()+"] (ScriptService.compile returned null)");
+            }
+        }
+    }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
@@ -84,10 +107,26 @@ public class RestPutSearchTemplateAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = channel.newBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
+                    return;
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
                 }
+            }
+        }
+
+        //verify that the script compiles
+        BytesReference scriptBytes = request.content();
+        try {
+            validate(scriptBytes,scriptService);
+        } catch (Throwable t) {
+            try {
+                XContentBuilder builder = channel.newBuilder();
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error","Failed to parse template : " + t.getMessage()).endObject()));
+                return;
+            } catch (IOException e1) {
+                logger.warn("Failed to send response", e1);
+                return;
             }
         }
 

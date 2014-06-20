@@ -22,15 +22,23 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -55,6 +63,11 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_search/script/{lang}/{id}/_create", new CreateHandler());
     }
 
+    @Inject
+    public void setScriptService(ScriptService scriptService){
+        this.scriptService = scriptService;
+    }
+
     final class CreateHandler implements RestHandler {
         @Override
         public void handleRequest(RestRequest request, RestChannel channel) {
@@ -63,15 +76,33 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         }
     }
 
+    private static void validate(BytesReference scriptBytes, String lang, ScriptService scriptService) throws IOException{
+        XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
+        Map<String,ScriptService.ScriptType> scriptParameterMap = new HashMap();
+        scriptParameterMap.put("script", ScriptService.ScriptType.INLINE);
+        TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "params", scriptParameterMap);
+        if(Strings.hasLength(context.template())){
+            //Just try and compile it
+            //This will have the benefit of also adding the script to the cache if it compiles
+            CompiledScript compiledScript =
+                    scriptService.compile(lang, context.template(), ScriptService.ScriptType.INLINE);
+            if (compiledScript == null) {
+                throw new ElasticsearchIllegalArgumentException("Unable to parse script ["+context.template()+"] (ScriptService.compile returned null)");
+            }
+        }
+    }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, request.param("lang"), request.param("id"));
+        String lang = request.param("lang");
+        BytesReference scriptBytes = request.content();
+
+        IndexRequest indexRequest = new IndexRequest(ScriptService.SCRIPT_INDEX, lang, request.param("id"));
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(true);
         indexRequest.refresh(true); //Always refresh after indexing a script
 
-        indexRequest.source(request.content(), request.contentUnsafe());
+        indexRequest.source(scriptBytes, request.contentUnsafe());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
@@ -81,10 +112,24 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = channel.newBuilder();
                     channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
+                    return;
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
                 }
+            }
+        }
+        //verify that the script compiles
+        try {
+            validate(scriptBytes, lang, scriptService);
+        } catch (Throwable t) {
+            try {
+                XContentBuilder builder = channel.newBuilder();
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "Failed to parse script : " + t.getMessage()).endObject()));
+                return;
+            } catch (IOException e1) {
+                logger.warn("Failed to send response", e1);
+                return;
             }
         }
 

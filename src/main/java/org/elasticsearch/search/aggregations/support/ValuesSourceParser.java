@@ -101,10 +101,10 @@ public class ValuesSourceParser<VS extends ValuesSource> {
                 if ("script".equals(currentFieldName)) {
                     input.script = parser.text();
                     input.scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("id".equals(currentFieldName)) {
+                } else if ("script_id".equals(currentFieldName)) {
                     input.script = parser.text();
                     input.scriptType = ScriptService.ScriptType.INDEXED;
-                } else if ("file".equals(currentFieldName)) {
+                } else if ("script_file".equals(currentFieldName)) {
                     input.script = parser.text();
                     input.scriptType = ScriptService.ScriptType.FILE;
                 } else if ("lang".equals(currentFieldName)) {

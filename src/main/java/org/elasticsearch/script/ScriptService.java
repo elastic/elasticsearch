@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -131,30 +132,41 @@ public class ScriptService extends AbstractComponent {
     public static final ParseField SCRIPT_INLINE = new ParseField("script","scriptField");
 
 
+    private static final int INLINE_VAL = 0;
+    private static final int INDEXED_VAL = 1;
+    private static final int FILE_VAL = 2;
+
     public static enum ScriptType {
-        INLINE,
-        INDEXED,
-        FILE;
+
+        INLINE(INLINE_VAL),
+        INDEXED(INDEXED_VAL),
+        FILE(FILE_VAL);
+
+        private int value;
+
+        private ScriptType(int i) {
+            this.value = i;
+        }
 
         public static ScriptType readFrom(StreamInput in) throws IOException {
-            int scriptTypeOrd = in.read();
-            if (scriptTypeOrd != -1) {
-                if (scriptTypeOrd == INDEXED.ordinal()) {
+            int scriptTypeVal = in.readVInt();
+            switch (scriptTypeVal) {
+                case INDEXED_VAL:
                     return INDEXED;
-                } else if (scriptTypeOrd == INLINE.ordinal()) {
+                case INLINE_VAL:
                     return INLINE;
-                } else if (scriptTypeOrd == FILE.ordinal()) {
+                case FILE_VAL:
                     return FILE;
-                }
             }
-            return null;
+            throw new ElasticsearchIllegalArgumentException("Unexpected value read for ScriptType got [" + scriptTypeVal +
+                    "] expected one of ["+INLINE_VAL +"," + INDEXED_VAL + "," + FILE_VAL+"]");
         }
 
         public static void writeTo(ScriptType scriptType, StreamOutput out) throws IOException{
             if (scriptType != null) {
-                out.write(scriptType.ordinal());
+                out.writeVInt(scriptType.ordinal());
             } else {
-                out.write(INLINE.ordinal()); //Default to inline
+                out.writeVInt(INLINE.ordinal()); //Default to inline
             }
         }
     }
@@ -320,9 +332,9 @@ public class ScriptService extends AbstractComponent {
         }
         // not the end of the world if we compile it twice...
         compiled = getCompiledScript(lang, script);
-        if (scriptType != ScriptType.INDEXED) {
-            cache.put(cacheKey, compiled); //Only cache non indexed scripts
-        }
+        //Since the cache key is the script content itself we don't need to
+        //invalidate/check the cache if an indexed script changes.
+        cache.put(cacheKey, compiled);
 
         return compiled;
     }
@@ -346,30 +358,39 @@ public class ScriptService extends AbstractComponent {
     public static String getScriptFromIndex(Client client, String index, String scriptLang, String id) {
         GetResponse responseFields = client.prepareGet(index, scriptLang, id).get();
         if (responseFields.isExists()) {
-            Map<String, Object> source = responseFields.getSourceAsMap();
-            if (source.containsKey("template")) {
-                try {
-                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                    Object template = source.get("template");
-                    builder.map((Map<String, Object>)template);
-                    return builder.string();
-                } catch (IOException|ClassCastException e) {
-                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
-                }
-            } else  if (source.containsKey("script")) {
-                return source.get("script").toString();
-            } else {
-                try {
-                    XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                    builder.map(responseFields.getSource());
-                    return builder.string();
-                } catch (IOException|ClassCastException e) {
-                    throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
-                }
-            }
+            return getScriptFromResponse(responseFields);
         }
         throw new ElasticsearchIllegalArgumentException("Unable to find script [" + index + "/" + scriptLang + "/" + id + "]");
 
+    }
+
+    public static String getScriptFromResponse(GetResponse responseFields) {
+        Map<String, Object> source = responseFields.getSourceAsMap();
+
+        if (source.containsKey("template")) {
+            try {
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                Object template = source.get("template");
+                if (template instanceof Map ){
+                    builder.map((Map<String, Object>)template);
+                    return builder.string();
+                } else {
+                    return template.toString();
+                }
+            } catch (IOException |ClassCastException e) {
+                throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
+            }
+        } else  if (source.containsKey("script")) {
+            return source.get("script").toString();
+        } else {
+            try {
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                builder.map(responseFields.getSource());
+                return builder.string();
+            } catch (IOException|ClassCastException e) {
+                throw new ElasticsearchIllegalStateException("Unable to parse "  + responseFields.getSourceAsString() + " as json", e);
+            }
+        }
     }
 
 

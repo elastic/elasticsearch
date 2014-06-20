@@ -20,3 +20,9 @@
   - match: { _index: ".scripts" }
   - match: { _id: "1" }
 
+  - do:
+      catch: request
+      indexed_template.create:
+        id: "1"
+        body: { "template": { "query": { "match{{}}_all": {}}, "size": "{{my_size}}" } }
+  - match: { "error" : /Failed\sto\sparse.*/ }

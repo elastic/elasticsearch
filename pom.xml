@@ -209,6 +209,13 @@
         </dependency>
 
         <dependency>
+            <groupId>org.mvel</groupId>
+            <artifactId>mvel2</artifactId>
+            <version>2.2.0.Final</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
             <version>2.3.3</version>
@@ -257,14 +264,6 @@
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
-
-        <dependency>
-            <groupId>org.mvel</groupId>
-            <artifactId>mvel2</artifactId>
-            <version>2.2.0.Final</version>
-            <scope>compile</scope>
-            <optional>true</optional>
-        </dependency>
 
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
@@ -657,6 +656,7 @@
                         <includes>
                             <include>com.google.guava:guava</include>
                             <include>com.carrotsearch:hppc</include>
+                            <include>org.mvel:mvel2</include>
                             <include>com.fasterxml.jackson.core:jackson-core</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
                             <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
@@ -681,6 +681,10 @@
                         <relocation>
                             <pattern>jsr166e</pattern>
                             <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.mvel2</pattern>
+                            <shadedPattern>org.elasticsearch.common.mvel2</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>com.fasterxml.jackson</pattern>
@@ -874,7 +878,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*, mvel*</includes>
+                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*, groovy*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -1075,7 +1079,6 @@
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
                                         <include>groovy*</include>
-                                        <include>mvel*</include>
                                     </includes>
                                 </source>
                                 <source>

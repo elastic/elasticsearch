@@ -39,12 +39,12 @@ public class FsBufferedTranslogTests extends AbstractSimpleTranslogTests {
                         .put("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name())
                         .put("index.translog.fs.buffer_size", 10 + randomInt(128 * 1024))
                         .build(),
-                new File("data/fs-translog")
+                new File("data/fs-buf-translog")
         );
     }
 
     @AfterClass
     public static void cleanup() {
-        FileSystemUtils.deleteRecursively(new File("data/fs-translog"), true);
+        FileSystemUtils.deleteRecursively(new File("data/fs-buf-translog"), true);
     }
 }

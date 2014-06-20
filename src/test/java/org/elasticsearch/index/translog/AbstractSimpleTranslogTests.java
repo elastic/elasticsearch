@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.MatcherAssert;
@@ -300,13 +301,30 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
                         downLatch.await();
                         for (int opCount = 0; opCount < opsPerThread; opCount++) {
                             Translog.Operation op;
-                            if (randomBoolean()) {
-                                op = new Translog.Index("test", threadId + "_" + opCount,
-                                        randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
-                            } else {
-                                op = new Translog.Create("test", threadId + "_" + opCount,
-                                        randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                            switch (randomFrom(Translog.Operation.Type.values())) {
+                                case CREATE:
+                                    op = new Translog.Create("test", threadId + "_" + opCount,
+                                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                                    break;
+                                case SAVE:
+                                    op = new Translog.Index("test", threadId + "_" + opCount,
+                                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8"));
+                                    break;
+                                case DELETE:
+                                    op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
+                                            1 + randomInt(100000),
+                                            randomFrom(VersionType.values()));
+                                    break;
+                                case DELETE_BY_QUERY:
+                                    op = new Translog.DeleteByQuery(
+                                            new BytesArray(randomRealisticUnicodeOfLengthBetween(10, 400).getBytes("UTF-8")),
+                                            new String[]{randomRealisticUnicodeOfLengthBetween(10, 400)},
+                                            "test");
+                                    break;
+                                default:
+                                    throw new ElasticsearchException("not supported op type");
                             }
+
                             Translog.Location loc = translog.add(op);
                             writtenOperations.add(new LocationOperation(op, loc));
                         }
@@ -356,6 +374,21 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
                     assertEquals(expCreateOp.version(), createOp.version());
                     assertEquals(expCreateOp.versionType(), createOp.versionType());
                     break;
+                case DELETE:
+                    Translog.Delete delOp = (Translog.Delete) op;
+                    Translog.Delete expDelOp = (Translog.Delete) expectedOp;
+                    assertEquals(expDelOp.uid(), delOp.uid());
+                    assertEquals(expDelOp.version(), delOp.version());
+                    assertEquals(expDelOp.versionType(), delOp.versionType());
+                    break;
+                case DELETE_BY_QUERY:
+                    Translog.DeleteByQuery delQueryOp = (Translog.DeleteByQuery) op;
+                    Translog.DeleteByQuery expDelQueryOp = (Translog.DeleteByQuery) expectedOp;
+                    assertThat(expDelQueryOp.source(), equalTo(delQueryOp.source()));
+                    assertThat(expDelQueryOp.filteringAliases(), equalTo(delQueryOp.filteringAliases()));
+                    assertThat(expDelQueryOp.types(), equalTo(delQueryOp.types()));
+                    break;
+
                 default:
                     throw new ElasticsearchException("unsupported opType");
             }

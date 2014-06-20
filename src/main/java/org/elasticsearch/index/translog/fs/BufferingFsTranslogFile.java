@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog.fs;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.index.shard.ShardId;
@@ -28,7 +27,6 @@ import org.elasticsearch.index.translog.TranslogException;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -106,10 +104,7 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
         if (bufferCount > 0) {
             // we use the channel to write, since on windows, writing to the RAF might not be reflected
             // when reading through the channel
-            int written = raf.channel().write(ByteBuffer.wrap(buffer, 0, bufferCount));
-            if (written < bufferCount) {
-                throw new ElasticsearchException("failed to write all bytes. Expected [" + bufferCount + "] written [" + written + "]");
-            }
+            Channels.writeToChannel(buffer, 0, bufferCount, raf.channel());
 
             lastWrittenPosition += bufferCount;
             bufferCount = 0;

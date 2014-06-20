@@ -507,8 +507,8 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
                 if (version >= 6) {
                     this.versionType = VersionType.fromValue(in.readByte());
                 }
-            } catch (ElasticsearchException e) {
-                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", e);
+            } catch (Throwable t) {
+                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", t);
             }
 
             assert versionType.validateVersionForWrites(version);
@@ -557,6 +557,12 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
         public Delete(Term uid) {
             this.uid = uid;
+        }
+
+        public Delete(Term uid, long version, VersionType versionType) {
+            this.uid = uid;
+            this.version = version;
+            this.versionType = versionType;
         }
 
         @Override

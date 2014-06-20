@@ -74,6 +74,15 @@ public abstract class Channels {
         assert length == 0;
     }
 
+    /**
+     * Copies bytes from source {@link org.jboss.netty.buffer.ChannelBuffer} to a {@link java.nio.channels.GatheringByteChannel}
+     *
+     * @param source      ChannelBuffer to copy from
+     * @param sourceIndex index in <i>source</i> to start copying from
+     * @param length      how many bytes to copy
+     * @param channel     target GatheringByteChannel
+     * @throws IOException
+     */
     public static void writeToChannel(ChannelBuffer source, int sourceIndex, int length, GatheringByteChannel channel) throws IOException {
         while (length > 0) {
             int written = source.getBytes(sourceIndex, channel, length);
@@ -83,6 +92,15 @@ public abstract class Channels {
         assert length == 0;
     }
 
+    /**
+     * Writes part of a byte array to a {@link java.nio.channels.WritableByteChannel}
+     *
+     * @param source  byte array to copy from
+     * @param offset  start copying from this offset
+     * @param length  how many bytes to copy
+     * @param channel target WritableByteChannel
+     * @throws IOException
+     */
     public static void writeToChannel(byte[] source, int offset, int length, WritableByteChannel channel) throws IOException {
         int toWrite = Math.min(length, WRITE_CHUNK_SIZE);
         ByteBuffer buffer = ByteBuffer.wrap(source, offset, toWrite);
@@ -97,6 +115,13 @@ public abstract class Channels {
         assert length == 0;
     }
 
+    /**
+     * Writes a {@link java.nio.ByteBuffer} to a {@link java.nio.channels.WritableByteChannel}
+     *
+     * @param byteBuffer source buffer
+     * @param channel    channel to write to
+     * @throws IOException
+     */
     public static void writeToChannel(ByteBuffer byteBuffer, WritableByteChannel channel) throws IOException {
         do {
             channel.write(byteBuffer);

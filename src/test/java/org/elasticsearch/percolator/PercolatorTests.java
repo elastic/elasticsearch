@@ -1772,7 +1772,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
             @Override
             public boolean apply(Object input) {
                 for (Client client : clients()) {
-                    PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().get();
+                    PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
                     if (!pendingTasks.pendingTasks().isEmpty()) {
                         return false;
                     }

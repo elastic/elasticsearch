@@ -35,6 +35,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -102,8 +103,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  * {@link ElasticsearchIntegrationTest} is an abstract base class to run integration
@@ -700,6 +700,56 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         String exclude = Joiner.on(',').join(internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
+    }
+
+    /**
+     * Waits until all nodes have no pending tasks.
+     */
+    public void waitNoPendingTasksOnAll() throws InterruptedException {
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        final PendingClusterTasksResponse[] reference = new PendingClusterTasksResponse[1];
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                reference[0] = null;
+                for (Client client : clients()) {
+                    PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().setLocal(true).get();
+                    if (!pendingTasks.pendingTasks().isEmpty()) {
+                        reference[0] = pendingTasks;
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
+        if (!applied) {
+            fail(reference[0].prettyPrint());
+        }
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+    }
+
+    /**
+     * Waits until the elected master node has no pending tasks.
+     */
+    public void waitNoPendingTasksOnMaster() throws InterruptedException {
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        final PendingClusterTasksResponse[] reference = new PendingClusterTasksResponse[1];
+        boolean applied = awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                reference[0] = null;
+                PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
+                if (!pendingTasks.pendingTasks().isEmpty()) {
+                    reference[0] = pendingTasks;
+                    return false;
+                }
+                return true;
+            }
+        });
+        if (!applied) {
+            fail(reference[0].prettyPrint());
+        }
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
     }
 
     /**

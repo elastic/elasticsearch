@@ -1767,21 +1767,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         assertThat(response.getMatches(), arrayWithSize(0));
 
         // wait until the mapping change has propagated
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
-        boolean applied = awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    PendingClusterTasksResponse pendingTasks = client.admin().cluster().preparePendingClusterTasks().get();
-                    if (!pendingTasks.pendingTasks().isEmpty()) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        });
-        assertThat(applied, is(true));
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        waitNoPendingTasksOnAll();
 
         GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").get();
         assertThat(mappingsResponse.getMappings().get("test"), notNullValue());

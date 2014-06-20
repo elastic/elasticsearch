@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -483,27 +484,31 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
             id = in.readString();
             type = in.readString();
             source = in.readBytesReference();
-            if (version >= 1) {
-                if (in.readBoolean()) {
-                    routing = in.readString();
+            try {
+                if (version >= 1) {
+                    if (in.readBoolean()) {
+                        routing = in.readString();
+                    }
                 }
-            }
-            if (version >= 2) {
-                if (in.readBoolean()) {
-                    parent = in.readString();
+                if (version >= 2) {
+                    if (in.readBoolean()) {
+                        parent = in.readString();
+                    }
                 }
-            }
-            if (version >= 3) {
-                this.version = in.readLong();
-            }
-            if (version >= 4) {
-                this.timestamp = in.readLong();
-            }
-            if (version >= 5) {
-                this.ttl = in.readLong();
-            }
-            if (version >= 6) {
-                this.versionType = VersionType.fromValue(in.readByte());
+                if (version >= 3) {
+                    this.version = in.readLong();
+                }
+                if (version >= 4) {
+                    this.timestamp = in.readLong();
+                }
+                if (version >= 5) {
+                    this.ttl = in.readLong();
+                }
+                if (version >= 6) {
+                    this.versionType = VersionType.fromValue(in.readByte());
+                }
+            } catch (ElasticsearchException e) {
+                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", e);
             }
 
             assert versionType.validateVersionForWrites(version);

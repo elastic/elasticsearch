@@ -223,10 +223,14 @@ class LiveVersionMap implements ReferenceManager.RefreshListener {
     // @Override
     public long ramBytesUsed() {
         // Deletes are in both current and tombstones
-        // nocommit we are undercounting here because we don't count BASE_BYTES_PER_ENTRY for the deletes in current
-        // nocommit also, if index.gc_deletes is lower than refresh interval, this can undercount because tombstones can be cleared before
-        // current map is ... but w/ defaults it's OK
-        return ramBytesUsedAdds.get() + ramBytesUsedTombstones.get();
+
+        // TODO: this isn't 100% accurate, because we fail to count BASE_BYTES_PER_ENTRY for deletes in current when pointing to a
+        // VersionValue also held in the tombstones, but since we do max(deletes) below, in the worst case (deletes in current using more
+        // RAM than tombstones) it will be correct
+
+        // We take max(deletes) in case the index.gc_deletes is lower than the refresh interval (which is not the default settings).  In
+        // that case, tombstones can be cleaned out but we still have many deletes buffered in RAM:
+        return ramBytesUsedAdds.get() + Math.max(ramBytesUsedDeletes.get(), ramBytesUsedTombstones.get());
     }
 
     /** Same as {@link ramBytesUsed} except does not include tombstones because they don't clear on refresh. */

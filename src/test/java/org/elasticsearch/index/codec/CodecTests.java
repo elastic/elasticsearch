@@ -54,7 +54,7 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Before;
 import org.junit.Test;
@@ -421,7 +421,7 @@ public class CodecTests extends ElasticsearchLuceneTestCase {
                 .add(new AbstractModule() {
                     @Override
                     protected void configure() {
-                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
+                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                     }
                 })
                 .createInjector();

@@ -39,8 +39,10 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesModule;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -92,7 +94,7 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
                     @Override
                     protected void configure() {
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
-                        bind(CircuitBreakerService.class).to(DummyCircuitBreakerService.class);
+                        bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                     }
                 }
         ).createInjector();

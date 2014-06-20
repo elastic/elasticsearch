@@ -143,9 +143,9 @@ public class RangeFilterParser implements FilterParser {
                         throw new QueryParsingException(parseContext.index(), "[range] filter field [" + fieldName + "] is not a numeric type");
                     }
                     if (mapper instanceof DateFieldMapper) {
-                        filter = ((DateFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext, explicitlyCached);
+                        filter = ((DateFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, parseContext, explicitlyCached);
                     } else {
-                        filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext.fieldData(), from, to, includeLower, includeUpper, parseContext);
+                        filter = ((NumberFieldMapper) mapper).rangeFilter(parseContext, from, to, includeLower, includeUpper, parseContext);
                     }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[range] filter doesn't support [" + execution + "] execution");

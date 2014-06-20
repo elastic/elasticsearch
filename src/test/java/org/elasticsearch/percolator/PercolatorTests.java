@@ -1646,7 +1646,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
                         .startObject("doc").field("message", "A new bonsai tree ").endObject()
                         .endObject())
                 .execute().actionGet();
-        assertThat(percolate.getFailedShards(), equalTo(0));
+        assertNoFailures(percolate);
         assertMatchCount(percolate, 0l);
     }
 

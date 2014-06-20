@@ -50,7 +50,6 @@ import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -491,7 +490,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
      * A terms filter based on the field data cache
      */
     @Override
-    public Filter termsFilter(IndexFieldDataService fieldDataService, List values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(QueryParseContext fieldDataService, List values, @Nullable QueryParseContext context) {
         // create with initial size large enough to avoid rehashing
         ObjectOpenHashSet<BytesRef> terms =
                 new ObjectOpenHashSet<>((int) (values.size() * (1 + ObjectOpenHashSet.DEFAULT_LOAD_FACTOR)));

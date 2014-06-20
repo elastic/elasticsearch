@@ -243,9 +243,8 @@ public class Bootstrap {
                 logger.error(errorMessage);
             }
             Loggers.disableConsoleLogging();
-            if (logger.isDebugEnabled()) {
-                logger.debug("Exception", e);
-            }
+            logger.error("Exception", e);
+            
             System.exit(3);
         }
     }

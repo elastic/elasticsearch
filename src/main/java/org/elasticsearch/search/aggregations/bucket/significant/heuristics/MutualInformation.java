@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,11 +32,9 @@ import java.io.IOException;
 
 public class MutualInformation implements SignificanceHeuristic {
 
-    protected static final String[] NAMES = {"mutual_information", Strings.toCamelCase("mutual_information")};
+    protected static final ParseField NAMES_FIELD = new ParseField("mutual_information");
 
-    protected static final ParseField NAMES_FIELD = new ParseField(NAMES[0], NAMES[1]);
-
-    protected static final ParseField EXCLUDE_NEGATIVES_FIELD = new ParseField("exclude_negatives", Strings.toCamelCase("exclude_negatives"));
+    protected static final ParseField EXCLUDE_NEGATIVES_FIELD = new ParseField("exclude_negatives");
 
     /**
      * Mutual information does not differentiate between terms that are descriptive for subset or for
@@ -55,11 +52,6 @@ public class MutualInformation implements SignificanceHeuristic {
         @Override
         public String getName() {
             return NAMES_FIELD.getPreferredName();
-        }
-
-        @Override
-        public String[] getNames() {
-            return NAMES;
         }
     };
 
@@ -150,10 +142,15 @@ public class MutualInformation implements SignificanceHeuristic {
 
         @Override
         public SignificanceHeuristic parse(XContentParser parser) throws IOException, QueryParsingException {
+            // this is to check if a deprecated name was used.
+            // TODO: must figure out where to get the flags from
+            NAMES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS);
             boolean excludeNegatives = false;
             XContentParser.Token token = parser.nextToken();
             if (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (EXCLUDE_NEGATIVES_FIELD.match(parser.currentName())) {
+                // this is to check if a deprecated name was used.
+                // TODO: must figure out where to get the flags from
+                if (EXCLUDE_NEGATIVES_FIELD.match(parser.currentName(), ParseField.EMPTY_FLAGS)) {
                     parser.nextToken();
                     excludeNegatives = parser.booleanValue();
                 }
@@ -164,7 +161,7 @@ public class MutualInformation implements SignificanceHeuristic {
 
         @Override
         public String[] getNames() {
-            return NAMES;
+            return NAMES_FIELD.getAllNamesIncludedDeprecated();
         }
     }
 

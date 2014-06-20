@@ -50,7 +50,7 @@ public class SignificantTermsHeuristicModule extends AbstractModule {
         }
         bind(SignificanceHeuristicParserMapper.class);
         for (SignificanceHeuristicStreams.Stream stream : streams) {
-            SignificanceHeuristicStreams.registerStream(stream, stream.getNames());
+            SignificanceHeuristicStreams.registerStream(stream, stream.getName());
         }
     }
 }

@@ -44,8 +44,6 @@ public class SignificanceHeuristicStreams {
         SignificanceHeuristic readResult(StreamInput in) throws IOException;
 
         String getName();
-
-        String[] getNames();
     }
 
     /**

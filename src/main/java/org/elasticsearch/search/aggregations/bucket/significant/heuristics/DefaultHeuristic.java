@@ -43,11 +43,6 @@ public class DefaultHeuristic implements SignificanceHeuristic {
         public String getName() {
             return NAMES[0];
         }
-
-        @Override
-        public String[] getNames() {
-            return NAMES;
-        }
     };
 
     public static SignificanceHeuristic readFrom(StreamInput in) throws IOException {

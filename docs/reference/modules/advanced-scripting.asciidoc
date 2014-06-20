@@ -37,12 +37,12 @@ depending on the shard the current document resides in.
 
 `_index.numDocs()`::
 
-    Number of documents in shard. 
-    
+    Number of documents in shard.
+
 `_index.maxDoc()`::
 
     Maximal document number in shard.
-    
+
 `_index.numDeletedDocs()`::
 
     Number of deleted documents in shard.
@@ -62,7 +62,7 @@ Field statistics can be accessed with a subscript operator like this:
 `_index['FIELD'].sumttf()`::
 
     Sum of `ttf` over all terms that appear in field `FIELD` in all documents.
-    
+
 `_index['FIELD'].sumdf()`::
 
     The sum of `df` s over all terms that appear in field `FIELD` in all
@@ -77,7 +77,7 @@ The number of terms in a field cannot be accessed using the `_index` variable. S
 === Term statistics:
 
 Term statistics for a field can be accessed with a subscript operator like
-this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist. 
+this: `_index['FIELD']['TERM']`. This will never return null, even if term or field does not exist.
 If you do not need the term frequency, call `_index['FIELD'].get('TERM', 0)`
 to avoid uneccesary initialization of the frequencies. The flag will have only
 affect is your set the `index_options` to `docs` (see <<mapping-core-types, mapping documentation>>).
@@ -162,11 +162,11 @@ Positions can be accessed with an iterator that returns an object
 
 Example: sums up all payloads for the term `foo`.
 
-[source,mvel]
+[source,groovy]
 ---------------------------------------------------------
 termInfo = _index['my_field'].get('foo',_PAYLOADS);
 score = 0;
-for (pos : termInfo) {
+for (pos in termInfo) {
     score = score + pos.payloadAsInt(0);
 }
 return score;
@@ -181,4 +181,3 @@ The `_index` variable can only be used to gather statistics for single terms. If
 https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[Fields]
 instance. This object can then be used as described in https://lucene.apache.org/core/4_0_0/core/org/apache/lucene/index/Fields.html[lucene doc] to iterate over fields and then for each field iterate over each term in the field.
 The method will return null if the term vectors were not stored.
-

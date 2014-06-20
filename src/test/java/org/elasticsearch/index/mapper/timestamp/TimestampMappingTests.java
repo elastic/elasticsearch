@@ -70,7 +70,7 @@ public class TimestampMappingTests extends ElasticsearchTestCase {
 
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().stored(), equalTo(true));
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().indexed(), equalTo(true));
-        assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test

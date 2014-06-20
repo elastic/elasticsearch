@@ -101,7 +101,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         PackedArrayEstimator estimator = new PackedArrayEstimator(breakerService.getBreaker(), getNumericType(), getFieldNames().fullName());
         if (terms == null) {
             data = PackedArrayAtomicFieldData.empty();
-            estimator.adjustForNoTerms(data.getMemorySizeInBytes());
+            estimator.adjustForNoTerms(data.ramBytesUsed());
             return data;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
@@ -231,7 +231,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                 estimator.afterLoad(termsEnum, 0);
             } else {
                 // Adjust as usual, based on the actual size of the field data
-                estimator.afterLoad(termsEnum, data.getMemorySizeInBytes());
+                estimator.afterLoad(termsEnum, data.ramBytesUsed());
             }
 
         }
@@ -251,7 +251,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final long singleValuesSize = formatAndBits.format.longCount(PackedInts.VERSION_CURRENT, reader.maxDoc(), formatAndBits.bitsPerValue) * 8L;
 
         // ordinal memory usage
-        final long ordinalsSize = build.getMemorySizeInBytes() + values.ramBytesUsed();
+        final long ordinalsSize = build.ramBytesUsed() + values.ramBytesUsed();
 
         // estimate the memory signature of paged packing
         long pagedSingleValuesSize = (reader.maxDoc() / pageSize + 1) * RamUsageEstimator.NUM_BYTES_OBJECT_REF; // array of pages

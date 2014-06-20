@@ -143,10 +143,10 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
     }
     
     private void assertNumericTokensEqual(ParsedDocument doc, DocumentMapper defaultMapper, String fieldA, String fieldB) throws IOException {
-        assertThat(doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
-        assertThat(doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer(), null), notNullValue());
+        assertThat(doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.indexAnalyzer(), null), notNullValue());
         
-        TokenStream tokenStream = doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer());
+        TokenStream tokenStream = doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer(), null);
         tokenStream.reset();
         NumericTermAttribute nta = tokenStream.addAttribute(NumericTermAttribute.class);
         List<Long> values = new ArrayList<>();
@@ -154,7 +154,7 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
             values.add(nta.getRawValue());
         }
         
-        tokenStream = doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.indexAnalyzer());
+        tokenStream = doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.indexAnalyzer(), null);
         tokenStream.reset();
         nta = tokenStream.addAttribute(NumericTermAttribute.class);
         int pos = 0;
@@ -179,7 +179,7 @@ public class SimpleDateMappingTests extends ElasticsearchTestCase {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getField("date_field").tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("date_field").tokenStream(defaultMapper.indexAnalyzer(), null), notNullValue());
     }
 
     @Test

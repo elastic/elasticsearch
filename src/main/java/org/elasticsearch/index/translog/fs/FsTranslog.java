@@ -180,7 +180,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public long memorySizeInBytes() {
+    public long ramBytesUsed() {
         return 0;
     }
 

@@ -60,7 +60,7 @@ public enum PreBuiltTokenFilters {
     WORD_DELIMITER(CachingStrategy.ONE) {
         @Override
         public TokenStream create(TokenStream tokenStream, Version version) {
-            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_48)) {
+            if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_8)) {
                 return new WordDelimiterFilter(version.luceneVersion, tokenStream,
                            WordDelimiterFilter.GENERATE_WORD_PARTS |
                            WordDelimiterFilter.GENERATE_NUMBER_PARTS |

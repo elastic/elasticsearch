@@ -152,7 +152,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                 return data;
             } finally {
                 if (success) {
-                    estimator.afterLoad(estimatedTermsEnum, data.getMemorySizeInBytes());
+                    estimator.afterLoad(estimatedTermsEnum, data.ramBytesUsed());
                 } else {
                     estimator.afterLoad(estimatedTermsEnum, 0);
                 }
@@ -309,7 +309,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<ParentChil
                 PerType perType = new PerType(parentType.utf8ToString());
                 GlobalOrdinalsIndexFieldData globalIfd = (GlobalOrdinalsIndexFieldData) globalOrdinalsBuilder.build(indexReader, perType, indexSettings, breakerService);
                 globalIfdPerType.put(perType.type, globalIfd);
-                memorySizeInBytes += globalIfd.getMemorySizeInBytes();
+                memorySizeInBytes += globalIfd.ramBytesUsed();
             }
             return new ParentChildGlobalOrdinalsIndexFieldData(globalIfdPerType.build(), memorySizeInBytes);
         }

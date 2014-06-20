@@ -75,8 +75,8 @@ final class InternalGlobalOrdinalsIndexFieldData extends GlobalOrdinalsIndexFiel
         }
 
         @Override
-        public long getMemorySizeInBytes() {
-            return afd.getMemorySizeInBytes();
+        public long ramBytesUsed() {
+            return afd.ramBytesUsed();
         }
 
         @Override

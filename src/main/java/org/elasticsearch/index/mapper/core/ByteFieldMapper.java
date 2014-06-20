@@ -372,7 +372,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         }
 
         @Override
-        public TokenStream tokenStream(Analyzer analyzer) {
+        public TokenStream tokenStream(Analyzer analyzer, TokenStream previous) {
             if (fieldType().indexed()) {
                 return mapper.popCachedStream().setIntValue(number);
             }

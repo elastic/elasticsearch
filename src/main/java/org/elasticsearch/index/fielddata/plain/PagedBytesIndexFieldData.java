@@ -18,7 +18,8 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.codecs.BlockTreeTermsReader;
+import org.apache.lucene.codecs.blocktree.FieldReader;
+import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
@@ -65,7 +66,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<Atomic
         PagedBytesEstimator estimator = new PagedBytesEstimator(context, breakerService.getBreaker(), getFieldNames().fullName());
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            estimator.afterLoad(null, AtomicFieldData.WithOrdinals.EMPTY.getMemorySizeInBytes());
+            estimator.afterLoad(null, AtomicFieldData.WithOrdinals.EMPTY.ramBytesUsed());
             return AtomicFieldData.WithOrdinals.EMPTY;
         }
 
@@ -115,7 +116,7 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<Atomic
                 estimator.afterLoad(termsEnum, 0);
             } else {
                 // Call .afterLoad() to adjust the breaker now that we have an exact size
-                estimator.afterLoad(termsEnum, data.getMemorySizeInBytes());
+                estimator.afterLoad(termsEnum, data.ramBytesUsed());
             }
 
         }
@@ -165,8 +166,8 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<Atomic
                 Fields fields = reader.fields();
                 final Terms fieldTerms = fields.terms(getFieldNames().indexName());
 
-                if (fieldTerms instanceof BlockTreeTermsReader.FieldReader) {
-                    final BlockTreeTermsReader.Stats stats = ((BlockTreeTermsReader.FieldReader) fieldTerms).computeStats();
+                if (fieldTerms instanceof FieldReader) {
+                    final Stats stats = ((FieldReader) fieldTerms).computeStats();
                     long totalTermBytes = stats.totalTermBytes;
                     if (logger.isTraceEnabled()) {
                         logger.trace("totalTermBytes: {}, terms.size(): {}, terms.getSumDocFreq(): {}",

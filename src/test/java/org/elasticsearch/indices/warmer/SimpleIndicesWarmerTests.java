@@ -314,12 +314,15 @@ public class SimpleIndicesWarmerTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    // NOTE: we have to ensure we defeat compression strategies of the default codec...
     public void testEagerLoading() throws Exception {
         for (LoadingMethod method : LoadingMethod.values()) {
             logger.debug("METHOD " + method);
             String indexName = method.name().toLowerCase(Locale.ROOT);
             assertAcked(method.createIndex(indexName, "t", "foo"));
-            client().prepareIndex(indexName, "t", "1").setSource("foo", "bar").setRefresh(true).execute().actionGet();
+            // index a doc with 1 token, and one with 3 tokens so we dont get CONST compressed (otherwise norms take zero memory usage)
+            client().prepareIndex(indexName, "t", "1").setSource("foo", "bar").execute().actionGet();
+            client().prepareIndex(indexName, "t", "2").setSource("foo", "bar baz foo").setRefresh(true).execute().actionGet();
             ensureGreen(indexName);
             long memoryUsage0 = getSegmentsMemoryUsage(indexName);
             // queries load norms if they were not loaded before

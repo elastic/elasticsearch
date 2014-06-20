@@ -284,7 +284,7 @@ However, the `size` and `shard size` settings covered in the next section provid
 The scores are derived from the doc frequencies in _foreground_ and _background_ sets. The _absolute_ change in popularity (foregroundPercent - backgroundPercent) would favor common terms whereas the _relative_ change in popularity (foregroundPercent/ backgroundPercent) would favor rare terms. Rare vs common is essentially a precision vs recall balance and so the absolute and relative changes are multiplied to provide a sweet spot between precision and recall.
 
 ===== mutual information
-added[1.2.3]
+added[1.3.0]
 
 Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
 	
@@ -296,7 +296,7 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 	 }
 --------------------------------------------------
 
-Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that are appear less often in the subset than in documents outside the subset, `exclude_negatives` can be set to `true`. 
+Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `exclude_negatives` can be set to `true`. 
 
  
 	

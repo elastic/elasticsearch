@@ -34,7 +34,7 @@
         },
         "lang": {
           "type": "string",
-          "description": "The script language (default: mvel)"
+          "description": "The script language (default: groovy)"
         },
         "parent": {
           "type": "string",

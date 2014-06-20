@@ -206,7 +206,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         initTestData();
 
         String script = "term = _index['float_payload_field'].get('b'," + includeAllFlag
-                + "); payloadSum=0; for (pos : term) {payloadSum = pos.payloadAsInt(0)}; payloadSum";
+                + "); payloadSum=0; for (pos in term) {payloadSum = pos.payloadAsInt(0)}; payloadSum";
 
         // non existing field: sum should be 0
         HashMap<String, Object> zeroArray = new HashMap<>();
@@ -216,7 +216,7 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
         checkValueInEachDoc(script, zeroArray, 3);
 
         script = "term = _index['int_payload_field'].get('b'," + includeAllFlag
-                + "); payloadSum=0; for (pos : term) {payloadSum = payloadSum + pos.payloadAsInt(0)}; payloadSum";
+                + "); payloadSum=0; for (pos in term) {payloadSum = payloadSum + pos.payloadAsInt(0)}; payloadSum";
 
         // existing field: sums should be as here:
         zeroArray.put("1", 5);
@@ -264,26 +264,26 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     private String createPositionsArrayScriptGetInfoObjectTwice(String term, String flags, String what) {
         String script = "term = _index['int_payload_field'].get('" + term + "'," + flags
-                + "); array=[]; for (pos : term) {array.add(pos." + what + ")}; _index['int_payload_field'].get('" + term + "',"
-                + flags + "); array=[]; for (pos : term) {array.add(pos." + what + ")}";
+                + "); array=[]; for (pos in term) {array.add(pos." + what + ")}; _index['int_payload_field'].get('" + term + "',"
+                + flags + "); array=[]; for (pos in term) {array.add(pos." + what + ")}";
         return script;
     }
 
     private String createPositionsArrayScriptIterateTwice(String term, String flags, String what) {
         String script = "term = _index['int_payload_field'].get('" + term + "'," + flags
-                + "); array=[]; for (pos : term) {array.add(pos." + what + ")}; array=[]; for (pos : term) {array.add(pos." + what
+                + "); array=[]; for (pos in term) {array.add(pos." + what + ")}; array=[]; for (pos in term) {array.add(pos." + what
                 + ")}; array";
         return script;
     }
 
     private String createPositionsArrayScript(String field, String term, String flags, String what) {
         String script = "term = _index['" + field + "'].get('" + term + "'," + flags
-                + "); array=[]; for (pos : term) {array.add(pos." + what + ")}; array";
+                + "); array=[]; for (pos in term) {array.add(pos." + what + ")}; array";
         return script;
     }
 
     private String createPositionsArrayScriptDefaultGet(String field, String term, String what) {
-        String script = "term = _index['" + field + "']['" + term + "']; array=[]; for (pos : term) {array.add(pos." + what
+        String script = "term = _index['" + field + "']['" + term + "']; array=[]; for (pos in term) {array.add(pos." + what
                 + ")}; array";
         return script;
     }

@@ -93,7 +93,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * The language of the script to execute.
      * Valid options are: mvel, js, groovy, python, and native (Java)<br>
-     * Default: mvel
+     * Default: groovy
      * <p>
      * Ref: http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-scripting.html
      */

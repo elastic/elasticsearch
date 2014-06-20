@@ -6,28 +6,29 @@ expressions. For example, scripts can be used to return "script fields"
 as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
-The scripting module uses by default http://mvel.codehaus.org/[mvel] as
-the scripting language with some extensions. mvel is used since it is
-extremely fast and very simple to use, and in most cases, simple
-expressions are needed (for example, mathematical equations).
+deprecated[1.3.0,Groovy has replaced Mvel as the default scripting language]
+
+The scripting module uses by default http://groovy.codehaus.org/[groovy]
+(previously http://mvel.codehaus.org/[mvel]) as the scripting language with some
+extensions. Groovy is used since it is extremely fast and very simple to use.
 
 Additional `lang` plugins are provided to allow to execute scripts in
 different languages. Currently supported plugins are `lang-javascript`
-for JavaScript, `lang-groovy` for Groovy, and `lang-python` for Python.
+for JavaScript, `lang-mvel` for Mvel, and `lang-python` for Python.
 All places where a `script` parameter can be used, a `lang` parameter
 (on the same level) can be provided to define the language of the
-script. The `lang` options are `mvel`, `js`, `groovy`, `python`,
-`expression`, and `native`.
+script. The `lang` options are `groovy`, `js`, `mvel`, `expression`, `python`,
+and `native`.
 
-added[1.2.0, Dynamic scripting is disabled by default since version 1.2.0]
+added[1.2.0, Dynamic scripting is disabled for non-sandboxed languages by default since version 1.2.0]
 
-To increase security, Elasticsearch does not allow you to specify scripts with a
-request. Instead, scripts must be placed in the `scripts` directory inside the
-configuration directory (the directory where elasticsearch.yml is). Scripts
-placed into this directory will automatically be picked up and be available to
-be used. Once a script has been placed in this directory, it can be referenced
-by name. For example, a script called `calculate-score.mvel` can be referenced
-in a request like this:
+To increase security, Elasticsearch does not allow you to specify scripts for
+non-sandboxed languages with a request. Instead, scripts must be placed in the
+`scripts` directory inside the configuration directory (the directory where
+elasticsearch.yml is). Scripts placed into this directory will automatically be
+picked up and be available to be used. Once a script has been placed in this
+directory, it can be referenced by name. For example, a script called
+`calculate-score.groovy` can be referenced in a request like this:
 
 [source,sh]
 --------------------------------------------------
@@ -36,13 +37,13 @@ config
 ├── elasticsearch.yml
 ├── logging.yml
 └── scripts
-    └── calculate-score.mvel
+    └── calculate-score.groovy
 --------------------------------------------------
 
 [source,sh]
 --------------------------------------------------
-$ cat config/scripts/calculate-score.mvel
-Math.log(_score * 2) + my_modifier
+$ cat config/scripts/calculate-score.groovy
+log(_score * 2) + my_modifier
 --------------------------------------------------
 
 [source,js]
@@ -76,6 +77,7 @@ a script placed under `config/scripts/group1/group2/test.py` will be
 named `group1_group2_test`.
 
 [float]
+<<<<<<< HEAD
 === Default Scripting Language
 
 The default scripting language (assuming no `lang` parameter is
@@ -159,13 +161,15 @@ curl -XDELETE localhost:9200/_scripts/mvel/calculate-score
 -----------------------------------
 
 [float]
+=======
+>>>>>>> 5c6d282... Switch to Groovy as the default scripting language
 === Enabling dynamic scripting
 
-We recommend running Elasticsearch behind an application or proxy,
-which protects Elasticsearch from the outside world. If users are
-allowed to run dynamic scripts (even in a search request), then they
-have the same access to your box as the user that Elasticsearch is
-running as. For this reason dynamic scripting is disabled by default.
+We recommend running Elasticsearch behind an application or proxy, which
+protects Elasticsearch from the outside world. If users are allowed to run
+dynamic scripts (even in a search request), then they have the same access to
+your box as the user that Elasticsearch is running as. For this reason dynamic
+scripting is allowed only for sandboxed languages by default.
 
 First, you should not run Elasticsearch as the `root` user, as this would allow
 a script to access or do *anything* on your server, without limitations. Second,
@@ -185,6 +189,54 @@ _native_ Java scripts registered through plugins, it also allows users to run
 arbitrary scripts via the API. Instead of sending the name of the file as the
 script, the body of the script can be sent instead.
 
+There are three possible configuration values for the `script.disable_dynamic`
+setting, the default value is `sandbox`:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `true` |all dynamic scripting is disabled, scripts must be placed in the `config/scripts` directory.
+| `false` |all dynamic scripting is enabled, scripts may be sent as strings in requests.
+| `sandbox` |scripts may be sent as strings for languages that are sandboxed.
+|=======================================================================
+
+[float]
+=== Default Scripting Language
+
+The default scripting language (assuming no `lang` parameter is provided) is
+`groovy`. In order to change it, set the `script.default_lang` to the
+appropriate language.
+
+[float]
+=== Groovy Sandboxing
+
+Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
+to ensure they don't perform unwanted actions. There are a number of options
+that can be used for configuring this sandbox:
+
+`script.groovy.sandbox.receiver_whitelist`::
+
+    Comma-separated list of string classes for objects that may have methods
+    invoked.
+
+`script.groovy.sandbox.package_whitelist`::
+
+    Comma-separated list of packages under which new objects may be constructed.
+
+`script.groovy.sandbox.class_whitelist`::
+
+    Comma-separated list of classes that are allowed to be constructed.
+
+`script.groovy.sandbox.method_blacklist`::
+
+    Comma-separated list of methods that are never allowed to be invoked,
+    regardless of target object.
+
+`script.groovy.sandbox.enabled`::
+
+    Flag to disable the sandbox (defaults to `true` meaning the sandbox is
+    enabled).
+
 [float]
 === Automatic Script Reloading
 
@@ -198,7 +250,7 @@ to `false`.
 [float]
 === Native (Java) Scripts
 
-Even though `mvel` is pretty fast, this allows to register native Java based
+Even though `groovy` is pretty fast, this allows to register native Java based
 scripts for faster execution.
 
 In order to allow for scripts, the `NativeScriptFactory` needs to be
@@ -372,7 +424,7 @@ loaded for other purposes.
 
 
 [float]
-=== mvel Built In Functions
+=== Groovy Built In Functions
 
 There are several built in functions that can be used within scripts.
 They include:
@@ -380,8 +432,6 @@ They include:
 [cols="<,<",options="header",]
 |=======================================================================
 |Function |Description
-|`time()` |The current time in milliseconds.
-
 |`sin(a)` |Returns the trigonometric sine of an angle.
 
 |`cos(a)` |Returns the trigonometric cosine of an angle.
@@ -454,6 +504,16 @@ power of the second argument.
 |`hypot(x, y)` |Returns sqrt(_x2_ + _y2_) without intermediate overflow
 or underflow.
 |=======================================================================
+
+[float]
+=== Floating point numbers in Groovy
+
+When using floating-point literals in Groovy scripts, Groovy will automatically
+use BigDecimal instead of a floating point equivalent to support the
+'least-surprising' approach to literal math operations. To use a floating-point
+number instead, use the specific suffix on the number (ie, instead of 1.2, use
+1.2f). See the http://groovy.codehaus.org/Groovy+Math[Groovy Math] page for more
+information.
 
 [float]
 === Arithmetic precision in MVEL

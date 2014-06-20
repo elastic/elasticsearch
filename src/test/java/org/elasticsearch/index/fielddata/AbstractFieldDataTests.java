@@ -28,7 +28,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.indices.fielddata.breaker.CircuitBreakerService;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -86,12 +86,12 @@ public abstract class AbstractFieldDataTests extends ElasticsearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        CircuitBreakerService circuitBreakerService = new DummyCircuitBreakerService();
+        CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         indicesFieldDataCache = new IndicesFieldDataCache(
                 ImmutableSettings.Builder.EMPTY_SETTINGS,
                 new IndicesFieldDataCacheListener(circuitBreakerService)
         );
-        ifdService = new IndexFieldDataService(new Index("test"), circuitBreakerService, indicesFieldDataCache);
+        ifdService = new IndexFieldDataService(new Index("test"), ImmutableSettings.builder().put("index.fielddata.cache", "none").build(), indicesFieldDataCache, circuitBreakerService, new IndicesFieldDataCacheListener(circuitBreakerService));
         MapperService mapperService = MapperTestUtils.newMapperService(ifdService.index(), ImmutableSettings.Builder.EMPTY_SETTINGS);
         ifdService.setIndexService(new StubIndexService(mapperService));
         // LogByteSizeMP to preserve doc ID order

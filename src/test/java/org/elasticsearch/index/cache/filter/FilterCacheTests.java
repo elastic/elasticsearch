@@ -30,12 +30,17 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
+import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -52,6 +57,7 @@ public class FilterCacheTests extends ElasticsearchTestCase {
     @Test
     public void testNoCache() throws Exception {
         verifyCache(new NoneFilterCache(new Index("test"), EMPTY_SETTINGS));
+        verifyCache(new WeightedFilterCache(new Index("test"), EMPTY_SETTINGS, new IndicesFilterCache(EMPTY_SETTINGS, new ThreadPool(), new CacheRecycler(EMPTY_SETTINGS), new NodeSettingsService(EMPTY_SETTINGS))));
     }
 
     private void verifyCache(FilterCache filterCache) throws Exception {

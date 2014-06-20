@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -81,6 +82,13 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+
+    private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
+        @Override
+        protected QueryParseContext initialValue() {
+            return new QueryParseContext(shardId.index(), queryParserService, true);
+        }
+    };
 
     @Inject
     public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
@@ -188,23 +196,20 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     }
 
     private Query parseQuery(String type, BytesReference querySource, XContentParser parser) {
-        if (type == null) {
-            if (parser != null) {
-                return queryParserService.parse(parser).query();
-            } else {
-                return queryParserService.parse(querySource).query();
-            }
+        String[] previousTypes = null;
+        if (type != null) {
+            QueryParseContext.setTypesWithPrevious(new String[]{type});
         }
-
-        String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{type});
         try {
             if (parser != null) {
-                return queryParserService.parse(parser).query();
+                return queryParserService.parse(cache.get(), parser).query();
             } else {
-                return queryParserService.parse(querySource).query();
+                return queryParserService.parse(cache.get(), querySource).query();
             }
         } finally {
-            QueryParseContext.setTypes(previousTypes);
+            if (type != null) {
+                QueryParseContext.setTypes(previousTypes);
+            }
         }
     }
 

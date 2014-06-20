@@ -214,7 +214,7 @@ public class TermsFilterParser implements FilterParser {
                     return Queries.MATCH_NO_FILTER;
                 }
 
-                filter = fieldMapper.termsFilter(parseContext.fieldData(), terms, parseContext);
+                filter = fieldMapper.termsFilter(parseContext, terms, parseContext);
                 if (cache != null && cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
                 }

@@ -54,7 +54,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
-import org.elasticsearch.indices.fielddata.breaker.DummyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
@@ -354,7 +354,7 @@ public class ChildrenConstantScoreQueryTests extends ElasticsearchLuceneTestCase
         final BigArrays bigArrays = new BigArrays(ImmutableSettings.EMPTY, pageCacheRecycler);
         Settings settings = ImmutableSettings.EMPTY;
         MapperService mapperService = MapperTestUtils.newMapperService(index, settings);
-        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new DummyCircuitBreakerService());
+        IndexFieldDataService indexFieldDataService = new IndexFieldDataService(index, new NoneCircuitBreakerService());
         final IndexService indexService = new StubIndexService(mapperService);
         indexFieldDataService.setIndexService(indexService);
         // Id_cache is now registered as document type listener, so we can add mappings.

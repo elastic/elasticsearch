@@ -45,7 +45,7 @@ public class SegmentReaderUtils {
     }
 
     public static boolean registerCoreListener(AtomicReader reader, SegmentReader.CoreClosedListener listener) {
-        SegmentReader segReader = SegmentReaderUtils.segmentReaderOrNull(reader);
+        SegmentReader segReader = SegmentReaderUtils.segmentReader(reader);
         if (segReader != null) {
             segReader.addCoreClosedListener(listener);
             return true;

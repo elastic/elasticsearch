@@ -542,7 +542,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {
         fillExtendedMvSet();
         refreshReader();
-        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed"));
+        FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("global_ordinals", "fixed").put("cache", "node"));
         IndexFieldData.WithOrdinals ifd = getForField(fieldDataType, "value");
         IndexFieldData.WithOrdinals globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertThat(ifd.loadGlobal(topLevelReader), sameInstance(globalOrdinals));

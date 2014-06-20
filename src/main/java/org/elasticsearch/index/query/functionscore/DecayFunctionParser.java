@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import com.sun.swing.internal.plaf.metal.resources.metal;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionParser;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.metrics.MetricsAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -205,7 +203,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             throw new ElasticsearchParseException("Both " + DecayFunctionBuilder.SCALE + "and " + DecayFunctionBuilder.ORIGIN
                     + " must be set for numeric fields.");
         }
-        IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(mapper);
+        IndexNumericFieldData<?> numericFieldData = parseContext.getForField(mapper);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
@@ -237,7 +235,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
-        IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
+        IndexGeoPointFieldData<?> indexFieldData = parseContext.getForField(mapper);
         return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
 
     }
@@ -277,7 +275,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         double scale = val.getMillis();
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24));
         double offset = val.getMillis();
-        IndexNumericFieldData<?> numericFieldData = parseContext.fieldData().getForField(dateFieldMapper);
+        IndexNumericFieldData<?> numericFieldData = parseContext.getForField(dateFieldMapper);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 

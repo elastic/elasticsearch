@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog;
 
 import org.apache.lucene.index.Term;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -37,7 +38,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 /**
  *
@@ -176,11 +176,6 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
         Operation next();
 
         void seekForward(long length);
-
-        /**
-         * Returns a stream of this snapshot.
-         */
-        InputStream stream() throws IOException;
 
         /**
          * The length in bytes of this stream.
@@ -483,27 +478,31 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
             id = in.readString();
             type = in.readString();
             source = in.readBytesReference();
-            if (version >= 1) {
-                if (in.readBoolean()) {
-                    routing = in.readString();
+            try {
+                if (version >= 1) {
+                    if (in.readBoolean()) {
+                        routing = in.readString();
+                    }
                 }
-            }
-            if (version >= 2) {
-                if (in.readBoolean()) {
-                    parent = in.readString();
+                if (version >= 2) {
+                    if (in.readBoolean()) {
+                        parent = in.readString();
+                    }
                 }
-            }
-            if (version >= 3) {
-                this.version = in.readLong();
-            }
-            if (version >= 4) {
-                this.timestamp = in.readLong();
-            }
-            if (version >= 5) {
-                this.ttl = in.readLong();
-            }
-            if (version >= 6) {
-                this.versionType = VersionType.fromValue(in.readByte());
+                if (version >= 3) {
+                    this.version = in.readLong();
+                }
+                if (version >= 4) {
+                    this.timestamp = in.readLong();
+                }
+                if (version >= 5) {
+                    this.ttl = in.readLong();
+                }
+                if (version >= 6) {
+                    this.versionType = VersionType.fromValue(in.readByte());
+                }
+            } catch (Exception e) {
+                throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", e);
             }
 
             assert versionType.validateVersionForWrites(version);
@@ -552,6 +551,12 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
         public Delete(Term uid) {
             this.uid = uid;
+        }
+
+        public Delete(Term uid, long version, VersionType versionType) {
+            this.uid = uid;
+            this.version = version;
+            this.versionType = versionType;
         }
 
         @Override

@@ -10,7 +10,6 @@
                 <include>com.spatial4j:spatial4j</include>
                 <include>com.vividsolutions:jts</include>
                 <include>org.codehaus.groovy:groovy-all</include>
-                <include>org.mvel:mvel2</include>
             </includes>
         </dependencySet>
         <dependencySet>

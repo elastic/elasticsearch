@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -249,7 +248,7 @@ public interface FieldMapper<T> extends Mapper {
 
     Filter termsFilter(List values, @Nullable QueryParseContext context);
 
-    Filter termsFilter(IndexFieldDataService fieldData, List values, @Nullable QueryParseContext context);
+    Filter termsFilter(QueryParseContext parseContext, List values, @Nullable QueryParseContext context);
 
     Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 

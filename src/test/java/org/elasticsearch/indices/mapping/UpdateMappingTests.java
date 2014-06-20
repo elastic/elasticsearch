@@ -20,10 +20,8 @@
 package org.elasticsearch.indices.mapping;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -99,15 +97,7 @@ public class UpdateMappingTests extends ElasticsearchIntegrationTest {
                 String fieldName = "field_" + type + "_" + rec;
                 fieldName = "\"" + fieldName + "\""; // quote it, so we make sure we catch the exact one
                 if (!typeToSource.containsKey(type) || !typeToSource.get(type).contains(fieldName)) {
-                    client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
-                    awaitBusy(new Predicate<Object>() {
-                        @Override
-                        public boolean apply(Object input) {
-                            PendingClusterTasksResponse pendingTasks = client().admin().cluster().preparePendingClusterTasks().get();
-                            return pendingTasks.pendingTasks().isEmpty();
-                        }
-                    });
-                    client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).execute().actionGet();
+                    waitNoPendingTasksOnMaster();
                     // its going to break, before we do, make sure that the cluster state hasn't changed on us...
                     ClusterState state2 = client().admin().cluster().prepareState().get().getState();
                     if (state.version() != state2.version()) {
